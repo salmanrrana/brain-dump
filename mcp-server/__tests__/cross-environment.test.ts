@@ -595,7 +595,9 @@ describe("Copilot CLI Environment Detection (functional)", () => {
     process.env.CLAUDE_CODE = "true";
     process.env.CURSOR_AGENT = "1";
     expect(detectEnvironment()).toBe("cursor-agent");
-    expect(detectAuthor()).toBe("cursor-agent");
+    const author = detectAuthor();
+    // Ralph session file may prefix authors with `ralph:` (same as Copilot case below)
+    expect(author === "cursor-agent" || author === "ralph:cursor-agent").toBe(true);
   });
 
   it("returns 'copilot' as author when Copilot CLI detected (no Ralph session)", () => {

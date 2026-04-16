@@ -27,6 +27,15 @@ export default tseslint.config(
       ],
     },
   },
+  // Node CLI scripts (repo root `scripts/`)
+  {
+    files: ["scripts/**/*.mjs"],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
+    },
+  },
   // MCP server files use Node.js globals
   {
     files: ["mcp-server/**/*.{js,mjs}"],
