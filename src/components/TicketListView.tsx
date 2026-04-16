@@ -11,6 +11,7 @@ import {
   getPrStatusIconColor,
 } from "../lib/constants";
 import { safeJsonParse } from "../lib/utils";
+import { CopyableTag } from "./board/CopyableTag";
 
 const VIRTUALIZATION_THRESHOLD = 20;
 const ROW_HEIGHT_ESTIMATE = 45;
@@ -169,14 +170,19 @@ export default function TicketListView({ tickets, epics, onTicketClick }: Ticket
           )}
         </td>
         <td className="px-4 py-3">
-          <div className="flex gap-1 flex-wrap max-w-xs">
+          <div className="flex gap-1 flex-wrap max-w-xs items-center">
             {tags.slice(0, 3).map((tag) => (
-              <span
+              <CopyableTag
                 key={tag}
-                className="text-xs px-2 py-0.5 bg-[var(--bg-hover)] text-[var(--text-primary)] rounded"
-              >
-                {tag}
-              </span>
+                tag={tag}
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.stopPropagation();
+                  }
+                }}
+              />
             ))}
             {tags.length > 3 && (
               <span className="text-xs text-[var(--text-muted)]">+{tags.length - 3}</span>
