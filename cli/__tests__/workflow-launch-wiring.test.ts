@@ -6,13 +6,16 @@
  * without actually spawning a terminal or editor. The core modules are mocked
  * so we observe exactly what the CLI handler would hand them in production.
  *
- * Complements `cli/__tests__/cli-integration.test.ts`, which spawns the CLI as
- * a subprocess; here we test in-process to inspect arguments.
+ * Complements:
+ * - `cli/lib/provider-translation.test.ts` — exhaustive unit tests of the
+ *   provider → (aiBackend, workingMethodOverride) mapping table.
+ * - `cli/__tests__/cli-integration.test.ts` — subprocess-based tests that cover
+ *   ValidationError paths (missing flags, unknown --provider) and JSON exit
+ *   shapes. Here we only test in-process argument wiring.
  */
 
 import Database from "better-sqlite3";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SUPPORTED_PROVIDERS } from "../lib/provider-translation.ts";
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 
 const { launchTicketSpy, launchEpicSpy } = vi.hoisted(() => ({
   launchTicketSpy: vi.fn(),
@@ -34,23 +37,14 @@ vi.mock("../lib/db.ts", () => {
   };
 });
 
-interface LauncherCall {
-  db: unknown;
-  input: Record<string, unknown>;
+function inputOf(spy: typeof launchTicketSpy): Record<string, unknown> {
+  const call = spy.mock.calls.at(-1);
+  if (!call) throw new Error("launcher spy was never called");
+  return call[1] as Record<string, unknown>;
 }
 
-function lastCall(spy: typeof launchTicketSpy): LauncherCall {
-  const calls = spy.mock.calls;
-  if (calls.length === 0) {
-    throw new Error("launcher spy was never called");
-  }
-  const [db, input] = calls[calls.length - 1]!;
-  return { db, input: input as Record<string, unknown> };
-}
-
-let logSpy: ReturnType<typeof vi.fn>;
-let errSpy: ReturnType<typeof vi.fn>;
-let exitSpy: ReturnType<typeof vi.fn>;
+let logSpy: MockInstance;
+let exitSpy: MockInstance;
 
 beforeEach(() => {
   launchTicketSpy.mockReset();
@@ -67,66 +61,44 @@ beforeEach(() => {
     launchMethod: "terminal",
     terminalUsed: "ghostty",
   });
-  logSpy = vi.spyOn(console, "log").mockImplementation(() => {}) as unknown as ReturnType<
-    typeof vi.fn
-  >;
-  errSpy = vi.spyOn(console, "error").mockImplementation(() => {}) as unknown as ReturnType<
-    typeof vi.fn
-  >;
+  logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
   exitSpy = vi.spyOn(process, "exit").mockImplementation(((code?: number) => {
     throw new Error(`process.exit(${code ?? 0}) called in test`);
-  }) as never) as unknown as ReturnType<typeof vi.fn>;
+  }) as never);
 });
 
 afterEach(() => {
   logSpy.mockRestore();
-  errSpy.mockRestore();
   exitSpy.mockRestore();
 });
 
 describe("workflow launch-ticket CLI → launcher core wiring", () => {
-  for (const provider of SUPPORTED_PROVIDERS) {
-    it(`forwards --provider ${provider} to launchRalphForTicketCore with the correct backend mapping`, async () => {
+  // Two representative cases: one CLI-native backend (only aiBackend), and one
+  // editor override (aiBackend + workingMethodOverride). Full mapping coverage
+  // lives in cli/lib/provider-translation.test.ts.
+  it.each([
+    {
+      provider: "claude-code",
+      expected: { aiBackend: "claude", workingMethodOverride: undefined },
+    },
+    {
+      provider: "vscode",
+      expected: { aiBackend: "claude", workingMethodOverride: "vscode" },
+    },
+  ] as const)(
+    "forwards --provider $provider through translateProvider into launchRalphForTicketCore",
+    async ({ provider, expected }) => {
       const { handle } = await import("../commands/workflow.ts");
       await handle("launch-ticket", ["--ticket", "ticket-123", "--provider", provider]);
 
       expect(launchTicketSpy).toHaveBeenCalledTimes(1);
       expect(launchEpicSpy).not.toHaveBeenCalled();
-      const { input } = lastCall(launchTicketSpy);
+      const input = inputOf(launchTicketSpy);
       expect(input.ticketId).toBe("ticket-123");
-
-      switch (provider) {
-        case "claude-code":
-          expect(input.aiBackend).toBe("claude");
-          expect(input.workingMethodOverride).toBeUndefined();
-          break;
-        case "opencode":
-          expect(input.aiBackend).toBe("opencode");
-          expect(input.workingMethodOverride).toBeUndefined();
-          break;
-        case "codex":
-          expect(input.aiBackend).toBe("codex");
-          expect(input.workingMethodOverride).toBeUndefined();
-          break;
-        case "cursor-agent":
-          expect(input.aiBackend).toBe("cursor-agent");
-          expect(input.workingMethodOverride).toBeUndefined();
-          break;
-        case "vscode":
-          expect(input.aiBackend).toBe("claude");
-          expect(input.workingMethodOverride).toBe("vscode");
-          break;
-        case "cursor":
-          expect(input.aiBackend).toBe("claude");
-          expect(input.workingMethodOverride).toBe("cursor");
-          break;
-        case "copilot-cli":
-          expect(input.aiBackend).toBe("claude");
-          expect(input.workingMethodOverride).toBe("copilot-cli");
-          break;
-      }
-    });
-  }
+      expect(input.aiBackend).toBe(expected.aiBackend);
+      expect(input.workingMethodOverride).toBe(expected.workingMethodOverride);
+    }
+  );
 
   it("forwards --max-iterations, --terminal, --sandbox to launchRalphForTicketCore", async () => {
     const { handle } = await import("../commands/workflow.ts");
@@ -141,8 +113,7 @@ describe("workflow launch-ticket CLI → launcher core wiring", () => {
     ]);
 
     expect(launchTicketSpy).toHaveBeenCalledTimes(1);
-    const { input } = lastCall(launchTicketSpy);
-    expect(input).toMatchObject({
+    expect(inputOf(launchTicketSpy)).toMatchObject({
       ticketId: "ticket-flags",
       maxIterations: 7,
       preferredTerminal: "kitty",
@@ -198,8 +169,7 @@ describe("workflow launch-epic CLI → launcher core wiring", () => {
 
     expect(launchEpicSpy).toHaveBeenCalledTimes(1);
     expect(launchTicketSpy).not.toHaveBeenCalled();
-    const { input } = lastCall(launchEpicSpy);
-    expect(input).toMatchObject({
+    expect(inputOf(launchEpicSpy)).toMatchObject({
       epicId: "epic-1",
       aiBackend: "claude",
       workingMethodOverride: "vscode",
@@ -212,7 +182,7 @@ describe("workflow launch-epic CLI → launcher core wiring", () => {
     await handle("launch-epic", ["--epic", "epic-default"]);
 
     expect(launchEpicSpy).toHaveBeenCalledTimes(1);
-    const { input } = lastCall(launchEpicSpy);
+    const input = inputOf(launchEpicSpy);
     expect(input.epicId).toBe("epic-default");
     expect(input.aiBackend).toBeUndefined();
     expect(input.workingMethodOverride).toBeUndefined();
