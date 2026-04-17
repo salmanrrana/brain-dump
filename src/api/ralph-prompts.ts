@@ -71,6 +71,28 @@ const VERIFICATION_CHECKLIST = `
 `;
 
 /**
+ * Scope constraints. The Ralph loop writes a project-scoped and epic-scoped
+ * PRD to \`plans/prd.json\` before each iteration. Agents MUST use it as the
+ * authoritative ticket list, otherwise they wander into unrelated backlog
+ * tickets (regression observed with OpenCode: it called
+ * \`brain-dump_ticket list --status backlog\` across the whole project and
+ * picked a cross-epic ticket, which then broke the branch workflow).
+ */
+const SCOPE_CONSTRAINTS = `
+## Scope: plans/prd.json is the ONLY ticket source
+
+Before anything else, read \`plans/prd.json\` from the project root. That file contains the tickets this Ralph run is scoped to (one epic, or a single ticket). It is the authoritative task list.
+
+1. FIRST action every iteration: read \`plans/prd.json\` and find entries where \`passes: false\`.
+2. For each \`passes: false\` candidate, call \`ticket({ action: "get", ticketId: "<id>" })\` to check \`status\`. Skip any ticket whose status is \`ai_review\`, \`human_review\`, or \`done\` — those are already past implementation and \`start-work\` will refuse them. The PRD's \`passes\` flag can lag behind real ticket status between iterations.
+3. Pick ONE candidate whose status is \`backlog\`, \`ready\`, or \`in_progress\` and work only on that ticket.
+4. Do NOT call \`ticket\` with \`action: "list"\` across the whole project to discover work. The PRD is scoped; the project backlog is not.
+5. Do NOT pick tickets whose IDs do not appear in \`plans/prd.json\`, even if they look related or higher-priority.
+6. If every PRD entry is either \`passes: true\` or has a ticket status of \`ai_review\` / \`human_review\` / \`done\`, output the exact token \`PRD_COMPLETE\` and stop. Do not look for more work outside the PRD.
+7. If \`plans/prd.json\` is missing or empty, output \`PRD_COMPLETE\` and stop. Do not fall back to project-wide ticket discovery.
+`;
+
+/**
  * Rules for Ralph workflow.
  */
 const WORKFLOW_RULES = `
@@ -79,6 +101,7 @@ const WORKFLOW_RULES = `
 - ONE ticket per iteration, minimal focused changes
 - Never call review submit-feedback or move tickets to done — humans only
 - If stuck, note progress in \`plans/progress.txt\` and move to next ticket
+- Scope is fixed by \`plans/prd.json\`. Never work on tickets outside it.
 `;
 
 // ============================================================================
@@ -89,7 +112,7 @@ function buildImplementationPrompt(): string {
   return `# Ralph: Autonomous Coding Agent
 
 You are Ralph, an autonomous coding agent. Follow the mandatory 4-phase workflow and use MCP tools literally.
-
+${SCOPE_CONSTRAINTS}
 ## Your Task
 ${WORKFLOW_PHASES}
 ${WORKFLOW_RULES}
@@ -216,6 +239,7 @@ ${epicHeader}
 ## Your Task
 
 You are Ralph, an autonomous coding agent. Follow the Universal Quality Workflow:
+${SCOPE_CONSTRAINTS}
 ${WORKFLOW_PHASES}
 ---
 

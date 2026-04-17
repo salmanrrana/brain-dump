@@ -130,6 +130,15 @@ const DEFAULT_COST_MODELS: DefaultCostModelDefinition[] = [
   },
   {
     provider: "anthropic",
+    modelName: "claude-opus-4-7",
+    inputCostPerMtok: 5,
+    outputCostPerMtok: 25,
+    cacheReadCostPerMtok: 0.5,
+    cacheCreateCostPerMtok: 6.25,
+    isDefault: true,
+  },
+  {
+    provider: "anthropic",
     modelName: "claude-sonnet-4-6",
     inputCostPerMtok: 3,
     outputCostPerMtok: 15,
@@ -234,6 +243,13 @@ const DEFAULT_COST_MODELS: DefaultCostModelDefinition[] = [
     outputCostPerMtok: 1.2,
     cacheReadCostPerMtok: 0.06,
     cacheCreateCostPerMtok: 0.375,
+    isDefault: true,
+  },
+  {
+    provider: "opensource",
+    modelName: "MiniMax M2.7",
+    inputCostPerMtok: 0.3,
+    outputCostPerMtok: 1.2,
     isDefault: true,
   },
   {

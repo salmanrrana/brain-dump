@@ -56,15 +56,36 @@ fi
   },
   opencode: {
     displayName: "OpenCode",
+    // The Ralph loop requires a headless, non-interactive OpenCode entrypoint
+    // that exits after one iteration. OpenCode's \`run\` subcommand is the
+    // documented one-shot/headless mode (parity with \`claude -p\` and
+    // \`codex exec\`); the bare \`opencode "<path>" --prompt "..."\` form
+    // launches the interactive TUI with the prompt pre-filled, which never
+    // returns control to the parent shell and breaks the loop.
+    // Refs: https://opencode.ai/docs/cli/
     preflightCheck: `
 if ! command -v opencode >/dev/null 2>&1; then
   echo -e "\\033[0;31m❌ OpenCode CLI not found in PATH\\033[0m"
   echo "Install OpenCode: https://opencode.ai"
   exit 1
 fi
+
+# Probe for the 'run' subcommand — it is the non-interactive entrypoint
+# Ralph relies on. Older OpenCode builds without 'run' leave us in TUI mode
+# and silently break the outer bash loop.
+if ! opencode run --help >/dev/null 2>&1; then
+  echo -e "\\033[0;31m❌ Installed OpenCode CLI is missing the 'run' subcommand\\033[0m"
+  echo -e "\\033[0;33m  Ralph requires 'opencode run' for non-interactive headless runs.\\033[0m"
+  echo -e "\\033[0;33m  Upgrade OpenCode: https://opencode.ai\\033[0m"
+  exit 1
+fi
 `,
-    invocation: `  # Run OpenCode directly with prompt
-  opencode "$PROJECT_PATH" --prompt "$(cat "$PROMPT_FILE")"`,
+    invocation: `  export OPENCODE=1
+  # Run OpenCode non-interactively via 'run' so it exits after one iteration,
+  # letting the outer bash loop advance to the next ticket in the same
+  # terminal window. This mirrors the 'claude -p' / 'cursor-agent -p' /
+  # 'codex exec' pattern used for the other backends.
+  opencode run "$(cat "$PROMPT_FILE")"`,
   },
   codex: {
     displayName: "Codex",
@@ -101,7 +122,8 @@ if ! printf '%s\\n' "$CODEX_EXEC_HELP_OUTPUT" | grep -q -- "--dangerously-bypass
   exit 1
 fi
 `,
-    invocation: `  # Run Codex non-interactively via 'exec' so it exits after one iteration,
+    invocation: `  export CODEX=1
+  # Run Codex non-interactively via 'exec' so it exits after one iteration,
   # letting the outer bash loop advance to the next ticket in the same
   # terminal window. --dangerously-bypass-approvals-and-sandbox disables both
   # approval prompts AND Codex's filesystem sandbox (parity with Claude's

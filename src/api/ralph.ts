@@ -26,7 +26,11 @@ export {
   getActiveRalphSession,
   getActiveRalphSessions,
 } from "./ralph-sessions";
-export { prepareEpicLaunch } from "../lib/ralph-launch/launch-epic";
+// NOTE: prepareEpicLaunch is intentionally NOT re-exported here.
+// ralph.ts is imported by client hooks (src/lib/hooks/ralph.ts), and any
+// top-level re-export from ../lib/ralph-launch/* drags core/db.ts and
+// better-sqlite3 into the browser bundle (causes `promisify is not a function`).
+// Import prepareEpicLaunch directly from "../lib/ralph-launch/launch-epic" on the server.
 
 export const launchRalphForTicket = createServerFn({ method: "POST" })
   .inputValidator((data: LaunchTicketInput) => data)

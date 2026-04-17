@@ -129,7 +129,8 @@ describe("Ralph Docker Sandbox", () => {
       );
 
       expect(script).toContain("command -v opencode");
-      expect(script).toContain('opencode "$PROJECT_PATH" --prompt "$(cat "$PROMPT_FILE")"');
+      expect(script).toContain("opencode run --help");
+      expect(script).toContain('opencode run "$(cat "$PROMPT_FILE")"');
     });
 
     it("includes SSH agent forwarding setup", () => {

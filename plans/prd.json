@@ -11,7 +11,7 @@
     {
       "id": "644d2f04-a6fa-499e-83dc-1f8b2a38f203",
       "title": "Ralph loop: Codex invocation must use `exec` mode with auto-approval (no permission prompts, exits between tickets)",
-      "passes": false,
+      "passes": true,
       "overview": "When Ralph is launched against a ticket/epic with `aiBackend: \"codex\"`, Codex opens in **interactive TUI mode** and:\n1. **Asks for permission** every time it wants to edit/run a command (user reported this regression).\n2. **Never exits after completing a ticket**, so the outer bash loop in `generateRalphScript` cannot advance to the next ticket. In Claude / Cursor Agent the CLI exits after `-p` print mode, the loop's next `for` iteration rewrites the prompt file, and the same terminal window continues with the next `passes: false` ticket — that is the \"session reset within the same terminal window\" behavior described in `docs/universal-quality-workflow-per-provider-diagrams.md`.",
       "types": [],
       "designDecisions": [],
