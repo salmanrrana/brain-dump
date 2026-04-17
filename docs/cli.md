@@ -15,12 +15,12 @@ All commands output JSON by default. Add `--pretty` for human-readable output.
 | `project`    | List, find, create, delete projects — _list, find, create, delete_                                                                                                       |
 | `ticket`     | Create, list, get, update, delete tickets — _create, list, get, update, update-status, update-criterion, update-attachment, list-by-epic, link-files, get-files, delete_ |
 | `epic`       | Create, list, update, delete epics — _create, list, update, delete, reconcile-learnings, get-learnings_                                                                  |
-| `workflow`   | Start work, complete work, start epic — _start-work, complete-work, start-epic_                                                                                          |
+| `workflow`   | Start work, complete work, start epic, launch Ralph — _start-work, complete-work, start-epic, launch-ticket, launch-epic_                                                |
 | `comment`    | Add and list ticket comments — _add, list_                                                                                                                               |
 | `review`     | Submit findings, generate demos, manage reviews — _submit-finding, mark-fixed, check-complete, generate-demo, get-demo, submit-feedback, update-demo-step, get-findings_ |
 | `session`    | Create, update, complete Ralph sessions — _create, update, complete, get, list, update-state, emit-event, get-events, clear-events_                                      |
 | `git`        | Link commits, PRs, sync ticket links — _link-commit, link-pr, sync_                                                                                                      |
-| `telemetry`  | Start, end, get, list telemetry sessions — _start, end, get, list, log-tool, log-prompt, log-context_                                                                    |
+| `telemetry`  | Start, end, get, list telemetry sessions, record token usage — _start, end, get, list, log-tool, log-prompt, log-context, record-usage, recalculate-costs_               |
 | `files`      | Link files to tickets, find tickets by file — _link, get-tickets_                                                                                                        |
 | `tasks`      | Save, get, clear Claude task lists — _save, get, clear, snapshots_                                                                                                       |
 | `compliance` | Conversation logging for compliance auditing — _start, log, end, list, export, archive_                                                                                  |
@@ -631,7 +631,7 @@ brain-dump epic get-learnings --epic abc --pretty
 
 ## workflow
 
-Start work, complete work, start epic
+Start work, complete work, start epic, launch Ralph
 
 ### brain-dump workflow start-work
 
@@ -690,6 +690,55 @@ brain-dump workflow start-epic --epic <value> [--create-pr] [--pretty]
 
 ```bash
 brain-dump workflow start-epic --epic abc --create-pr
+```
+
+### brain-dump workflow launch-ticket
+
+Launch Ralph for a single ticket in the chosen provider (parity with UI)
+
+```bash
+brain-dump workflow launch-ticket --ticket <value> [--provider <claude-code|vscode|cursor|cursor-agent|copilot-cli|codex|opencode>] [--terminal <value>] [--max-iterations <n>] [--sandbox] [--pretty]
+```
+
+| Flag               | Type    | Required | Description                                                                                                               |
+| ------------------ | ------- | -------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `--ticket`         | string  | Yes      | Ticket ID                                                                                                                 |
+| `--provider`       | enum    | No       | AI backend to launch (default: project setting) (claude-code, vscode, cursor, cursor-agent, copilot-cli, codex, opencode) |
+| `--terminal`       | string  | No       | Preferred terminal emulator (e.g. ghostty, kitty, iterm2)                                                                 |
+| `--max-iterations` | number  | No       | Override Ralph loop iteration cap                                                                                         |
+| `--sandbox`        | boolean | No       | Run inside the Docker sandbox (claude-code only)                                                                          |
+| `--pretty`         | boolean | No       | Human-readable output (default: JSON)                                                                                     |
+
+**Examples:**
+
+```bash
+brain-dump workflow launch-ticket --ticket abc --provider claude-code
+brain-dump workflow launch-ticket --ticket abc --provider copilot-cli --terminal ghostty
+brain-dump workflow launch-ticket --ticket abc --provider claude-code --sandbox
+```
+
+### brain-dump workflow launch-epic
+
+Launch Ralph for an entire epic in the chosen provider (parity with UI)
+
+```bash
+brain-dump workflow launch-epic --epic <value> [--provider <claude-code|vscode|cursor|cursor-agent|copilot-cli|codex|opencode>] [--terminal <value>] [--max-iterations <n>] [--sandbox] [--pretty]
+```
+
+| Flag               | Type    | Required | Description                                                                                                               |
+| ------------------ | ------- | -------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `--epic`           | string  | Yes      | Epic ID                                                                                                                   |
+| `--provider`       | enum    | No       | AI backend to launch (default: project setting) (claude-code, vscode, cursor, cursor-agent, copilot-cli, codex, opencode) |
+| `--terminal`       | string  | No       | Preferred terminal emulator (e.g. ghostty, kitty, iterm2)                                                                 |
+| `--max-iterations` | number  | No       | Override Ralph loop iteration cap                                                                                         |
+| `--sandbox`        | boolean | No       | Run inside the Docker sandbox (claude-code only)                                                                          |
+| `--pretty`         | boolean | No       | Human-readable output (default: JSON)                                                                                     |
+
+**Examples:**
+
+```bash
+brain-dump workflow launch-epic --epic abc --provider claude-code
+brain-dump workflow launch-epic --epic abc --provider opencode --max-iterations 20
 ```
 
 ---
@@ -1076,7 +1125,7 @@ brain-dump git sync [--project-path <value>] [--pretty]
 
 ## telemetry
 
-Start, end, get, list telemetry sessions
+Start, end, get, list telemetry sessions, record token usage
 
 ### brain-dump telemetry start
 
@@ -1189,6 +1238,51 @@ brain-dump telemetry log-context --session <value> [--has-description] [--has-cr
 
 ```bash
 brain-dump telemetry log-context --session abc --has-description --has-criteria --criteria-count 3
+```
+
+### brain-dump telemetry record-usage
+
+Record token usage with cost computation (auto-detects session)
+
+```bash
+brain-dump telemetry record-usage [--session <value>] [--ticket <value>] --model <value> --input <n> --output <n> [--cache-read <n>] [--cache-create <n>] [--source <jsonl-hook|otel|mcp-manual>] [--pretty]
+```
+
+| Flag             | Type    | Required | Description                                                            |
+| ---------------- | ------- | -------- | ---------------------------------------------------------------------- |
+| `--session`      | string  | No       | Session ID                                                             |
+| `--ticket`       | string  | No       | Ticket ID                                                              |
+| `--model`        | string  | Yes      | Model name (e.g. claude-opus-4-6)                                      |
+| `--input`        | number  | Yes      | Input token count                                                      |
+| `--output`       | number  | Yes      | Output token count                                                     |
+| `--cache-read`   | number  | No       | Cache read token count                                                 |
+| `--cache-create` | number  | No       | Cache creation token count                                             |
+| `--source`       | enum    | No       | Token data source (default: jsonl-hook) (jsonl-hook, otel, mcp-manual) |
+| `--pretty`       | boolean | No       | Human-readable output (default: JSON)                                  |
+
+**Examples:**
+
+```bash
+brain-dump telemetry record-usage --model claude-opus-4-6 --input 1000 --output 500
+brain-dump telemetry record-usage --session abc --model claude-opus-4-6 --input 1000 --output 500
+```
+
+### brain-dump telemetry recalculate-costs
+
+Recalculate cost_usd for all token usage rows using current pricing models
+
+```bash
+brain-dump telemetry recalculate-costs [--pretty]
+```
+
+| Flag       | Type    | Required | Description                           |
+| ---------- | ------- | -------- | ------------------------------------- |
+| `--pretty` | boolean | No       | Human-readable output (default: JSON) |
+
+**Examples:**
+
+```bash
+brain-dump telemetry recalculate-costs --pretty
 ```
 
 ---
@@ -1409,14 +1503,14 @@ brain-dump settings get --project <value> [--pretty]
 Update project settings
 
 ```bash
-brain-dump settings update --project <value> --working-method <auto|claude-code|vscode|opencode|cursor|copilot-cli|codex> [--pretty]
+brain-dump settings update --project <value> --working-method <auto|claude-code|vscode|opencode|cursor|cursor-agent|copilot-cli|codex> [--pretty]
 ```
 
-| Flag               | Type    | Required | Description                                                                      |
-| ------------------ | ------- | -------- | -------------------------------------------------------------------------------- |
-| `--project`        | string  | Yes      | Project ID                                                                       |
-| `--working-method` | enum    | Yes      | Working method (auto, claude-code, vscode, opencode, cursor, copilot-cli, codex) |
-| `--pretty`         | boolean | No       | Human-readable output (default: JSON)                                            |
+| Flag               | Type    | Required | Description                                                                                    |
+| ------------------ | ------- | -------- | ---------------------------------------------------------------------------------------------- |
+| `--project`        | string  | Yes      | Project ID                                                                                     |
+| `--working-method` | enum    | Yes      | Working method (auto, claude-code, vscode, opencode, cursor, cursor-agent, copilot-cli, codex) |
+| `--pretty`         | boolean | No       | Human-readable output (default: JSON)                                                          |
 
 ---
 

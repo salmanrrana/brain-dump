@@ -124,6 +124,22 @@ export function startWork(
     };
   }
 
+  // 2a. Refuse to regress a ticket already past implementation. Without this
+  //     guard, calling start-work on a ticket in ai_review / human_review /
+  //     done silently drops it back to in_progress AND wipes the review
+  //     findings + demo flags in ticket_workflow_state (see step 7 below),
+  //     which is a silent data loss bug. Observed in the wild with Ralph
+  //     when an agent re-read plans/prd.json (which still had
+  //     \`passes: false\` for a ticket that had since been demoed into
+  //     human_review) and naively called start-work.
+  if (
+    ticket.status === "ai_review" ||
+    ticket.status === "human_review" ||
+    ticket.status === "done"
+  ) {
+    throw new InvalidStateError("ticket", ticket.status, "backlog|ready", "start work");
+  }
+
   // 3. Verify git repo
   const gitCheck = git.run("git rev-parse --git-dir", projectPath);
   if (!gitCheck.success) {
@@ -489,8 +505,8 @@ export function startEpicWork(
         checkoutBase.error?.includes("local changes") ||
         checkoutBase.error?.includes("would be overwritten");
       const hint = hasUncommitted
-        ? `Cannot switch to '${baseBranch}' — uncommitted changes would be lost. Please ensure your project is on the '${baseBranch}' branch with a clean working tree before launching, or commit/stash your changes first.`
-        : `Failed to checkout '${baseBranch}': ${checkoutBase.error}. Please ensure your project is on the '${baseBranch}' branch before launching.`;
+        ? `Cannot switch to '${baseBranch}' — uncommitted changes would be lost. Commit or stash before retrying. Common Ralph-managed files that may be dirty: plans/prd.json, plans/progress.txt. Do NOT work around this by creating a '${baseBranch}' branch manually; the repo already has a default branch and the MCP tool auto-detects 'main' or 'master'.`
+        : `Failed to checkout '${baseBranch}': ${checkoutBase.error}. Ensure the repo has a '${baseBranch}' branch (or 'main' / 'master') before launching.`;
       throw new GitError(hint, `git checkout ${baseBranch}`);
     }
     const createResult = git.createBranch(branchName, projectPath);

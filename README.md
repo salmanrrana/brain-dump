@@ -150,6 +150,10 @@ brain-dump ticket create --project <id> --title "Fix login timeout"
 brain-dump ticket list --status ready --pretty
 brain-dump workflow start-work --ticket <id>
 
+# Launch Ralph from the terminal with any provider (parity with UI Launch menu)
+brain-dump workflow launch-ticket --ticket <id> --provider claude-code
+brain-dump workflow launch-epic --epic <id> --provider copilot-cli --max-iterations 20
+
 # Link git work to tickets
 brain-dump git link-commit --ticket <id> --hash $(git rev-parse HEAD)
 brain-dump git link-pr --ticket <id> --pr 42

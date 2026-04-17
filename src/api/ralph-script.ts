@@ -56,26 +56,80 @@ fi
   },
   opencode: {
     displayName: "OpenCode",
+    // The Ralph loop requires a headless, non-interactive OpenCode entrypoint
+    // that exits after one iteration. OpenCode's \`run\` subcommand is the
+    // documented one-shot/headless mode (parity with \`claude -p\` and
+    // \`codex exec\`); the bare \`opencode "<path>" --prompt "..."\` form
+    // launches the interactive TUI with the prompt pre-filled, which never
+    // returns control to the parent shell and breaks the loop.
+    // Refs: https://opencode.ai/docs/cli/
     preflightCheck: `
 if ! command -v opencode >/dev/null 2>&1; then
   echo -e "\\033[0;31m❌ OpenCode CLI not found in PATH\\033[0m"
   echo "Install OpenCode: https://opencode.ai"
   exit 1
 fi
+
+# Probe for the 'run' subcommand — it is the non-interactive entrypoint
+# Ralph relies on. Older OpenCode builds without 'run' leave us in TUI mode
+# and silently break the outer bash loop.
+if ! opencode run --help >/dev/null 2>&1; then
+  echo -e "\\033[0;31m❌ Installed OpenCode CLI is missing the 'run' subcommand\\033[0m"
+  echo -e "\\033[0;33m  Ralph requires 'opencode run' for non-interactive headless runs.\\033[0m"
+  echo -e "\\033[0;33m  Upgrade OpenCode: https://opencode.ai\\033[0m"
+  exit 1
+fi
 `,
-    invocation: `  # Run OpenCode directly with prompt
-  opencode "$PROJECT_PATH" --prompt "$(cat "$PROMPT_FILE")"`,
+    invocation: `  export OPENCODE=1
+  # Run OpenCode non-interactively via 'run' so it exits after one iteration,
+  # letting the outer bash loop advance to the next ticket in the same
+  # terminal window. This mirrors the 'claude -p' / 'cursor-agent -p' /
+  # 'codex exec' pattern used for the other backends.
+  opencode run "$(cat "$PROMPT_FILE")"`,
   },
   codex: {
     displayName: "Codex",
+    // The Ralph loop requires a headless, non-interactive Codex entrypoint that
+    // exits after one iteration AND does not prompt for approvals. Codex's
+    // \`exec\` subcommand is the non-interactive entrypoint; the combined
+    // \`--dangerously-bypass-approvals-and-sandbox\` flag disables BOTH the
+    // approval prompts AND the filesystem sandbox, matching Claude's
+    // \`--dangerously-skip-permissions\` posture. Running Codex under its
+    // sandbox during Ralph recreates the permission-prompt nightmare we are
+    // eliminating (git/pnpm/MCP access outside the workspace would fail).
+    // Refs: https://developers.openai.com/codex/config-advanced
     preflightCheck: `
 if ! command -v codex >/dev/null 2>&1; then
   echo -e "\\033[0;31m❌ Codex CLI not found in PATH\\033[0m"
   exit 1
 fi
+
+# Use 'codex exec --help' exit status as the real capability probe for the
+# subcommand (grepping 'codex --help' output for the word 'exec' would match
+# arbitrary prose). Capture output so we can scan it for the bypass flag.
+if ! CODEX_EXEC_HELP_OUTPUT="$(codex exec --help 2>&1)"; then
+  echo -e "\\033[0;31m❌ Installed Codex CLI is missing the 'exec' subcommand\\033[0m"
+  echo -e "\\033[0;33m  Ralph requires 'codex exec' for non-interactive headless runs.\\033[0m"
+  echo -e "\\033[0;33m  Upgrade Codex: https://developers.openai.com/codex/config-advanced\\033[0m"
+  exit 1
+fi
+
+if ! printf '%s\\n' "$CODEX_EXEC_HELP_OUTPUT" | grep -q -- "--dangerously-bypass-approvals-and-sandbox"; then
+  echo -e "\\033[0;31m❌ Installed Codex CLI is missing --dangerously-bypass-approvals-and-sandbox\\033[0m"
+  echo -e "\\033[0;33m  Ralph requires this flag so Codex runs without approval prompts\\033[0m"
+  echo -e "\\033[0;33m  and without the filesystem sandbox (parity with Claude's posture).\\033[0m"
+  echo -e "\\033[0;33m  Upgrade Codex: https://developers.openai.com/codex/config-advanced\\033[0m"
+  exit 1
+fi
 `,
-    invocation: `  # Run Codex directly with prompt
-  codex "$(cat "$PROMPT_FILE")"`,
+    invocation: `  export CODEX=1
+  # Run Codex non-interactively via 'exec' so it exits after one iteration,
+  # letting the outer bash loop advance to the next ticket in the same
+  # terminal window. --dangerously-bypass-approvals-and-sandbox disables both
+  # approval prompts AND Codex's filesystem sandbox (parity with Claude's
+  # --dangerously-skip-permissions posture). We intentionally do NOT run
+  # Codex under its sandbox during Ralph; see docs/environments/codex.md.
+  codex exec --dangerously-bypass-approvals-and-sandbox "$(cat "$PROMPT_FILE")"`,
   },
   "cursor-agent": {
     displayName: "Cursor Agent",

@@ -751,6 +751,96 @@ describe("telemetry", () => {
   });
 });
 
+// ── Workflow Launch Commands ────────────────────────────────────
+
+describe("workflow launch", () => {
+  async function setupTicket(): Promise<{ ticketId: string; epicId: string }> {
+    const projPath = makeProjDir("launch-test");
+    const p = (await runOk(
+      "project",
+      "create",
+      "--name",
+      "LaunchProject",
+      "--path",
+      projPath
+    )) as Record<string, unknown>;
+
+    const epic = (await runOk(
+      "epic",
+      "create",
+      "--project",
+      p.id as string,
+      "--title",
+      "LaunchEpic"
+    )) as Record<string, unknown>;
+
+    const t = (await runOk(
+      "ticket",
+      "create",
+      "--project",
+      p.id as string,
+      "--title",
+      "Launch Ticket",
+      "--epic",
+      epic.id as string
+    )) as Record<string, unknown>;
+
+    return { ticketId: t.id as string, epicId: epic.id as string };
+  }
+
+  it("launch-ticket requires --ticket", async () => {
+    const err = await runErr("workflow", "launch-ticket");
+    expect(err.error).toBe("VALIDATION_ERROR");
+    expect(err.message).toMatch(/--ticket/);
+  });
+
+  it("launch-ticket rejects an unknown provider", async () => {
+    const { ticketId } = await setupTicket();
+    const err = await runErr(
+      "workflow",
+      "launch-ticket",
+      "--ticket",
+      ticketId,
+      "--provider",
+      "bogus-provider"
+    );
+    expect(err.error).toBe("VALIDATION_ERROR");
+    expect(err.message).toMatch(/--provider/);
+    expect(err.message).toMatch(/bogus-provider/);
+  });
+
+  it("launch-ticket returns a structured failure when the ticket does not exist", async () => {
+    const result = await run(
+      "workflow",
+      "launch-ticket",
+      "--ticket",
+      "__definitely-missing__",
+      "--provider",
+      "claude-code"
+    );
+    expect(result.exitCode).toBe(1);
+    const payload = parseJson({ ...result, exitCode: 0 }) as Record<string, unknown>;
+    expect(payload.success).toBe(false);
+    expect(String(payload.message)).toMatch(/Ticket not found/);
+    expect(payload.provider).toBe("claude-code");
+  });
+
+  it("launch-epic requires --epic", async () => {
+    const err = await runErr("workflow", "launch-epic");
+    expect(err.error).toBe("VALIDATION_ERROR");
+    expect(err.message).toMatch(/--epic/);
+  });
+
+  it("launch-epic returns a structured failure when the epic does not exist", async () => {
+    const result = await run("workflow", "launch-epic", "--epic", "__definitely-missing__");
+    expect(result.exitCode).toBe(1);
+    const payload = parseJson({ ...result, exitCode: 0 }) as Record<string, unknown>;
+    expect(payload.success).toBe(false);
+    expect(String(payload.message)).toMatch(/Epic not found/);
+    expect(payload.provider).toBeNull();
+  });
+});
+
 // ── Unknown Command / Help ──────────────────────────────────────
 
 describe("help and unknown commands", () => {

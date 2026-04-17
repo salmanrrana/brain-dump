@@ -5,9 +5,12 @@
  * socket path based on settings or auto-detection.
  */
 
-import { db } from "../lib/db";
 import { settings } from "../lib/schema";
 import { eq } from "drizzle-orm";
+
+async function getDb(): Promise<typeof import("../lib/db").db> {
+  return (await import("../lib/db")).db;
+}
 import {
   detectDockerRuntime,
   getDockerSocketPath,
@@ -33,6 +36,7 @@ let dockerUnavailableLogged = false;
  */
 export async function getEffectiveDockerSocketPath(): Promise<string | null> {
   // Check settings first
+  const db = await getDb();
   const appSettings = db.select().from(settings).where(eq(settings.id, "default")).get();
 
   // 1. User-configured socket path takes highest priority
@@ -63,6 +67,7 @@ export async function getEffectiveDockerSocketPath(): Promise<string | null> {
  * @returns Runtime info from settings preference or auto-detection
  */
 export async function getEffectiveDockerRuntime(): Promise<DockerRuntimeInfo> {
+  const db = await getDb();
   const appSettings = db.select().from(settings).where(eq(settings.id, "default")).get();
 
   // If user has a custom socket path, return it as "unknown" type

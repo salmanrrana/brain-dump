@@ -25,7 +25,8 @@ import {
 } from "../../core/review.ts";
 import type { MarkFixedStatus, DemoStepStatus } from "../../core/review.ts";
 import type { FindingAgent, FindingSeverity, FindingStatus } from "../../core/types.ts";
-import { addComment } from "../../core/comment.ts";
+import { addComment, type CommentAuthor } from "../../core/comment.ts";
+import { detectAuthor } from "../lib/environment.js";
 import { execFileNoThrow, syncPrVerificationChecklist } from "../../core/index.ts";
 
 const SEVERITY_ICONS: Record<string, string> = {
@@ -176,7 +177,12 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
             if (finding.epicReviewRunId) {
               commentContent += `\n\nEpic review run: ${finding.epicReviewRunId}`;
             }
-            addComment(db, { ticketId, content: commentContent, type: "progress" });
+            addComment(db, {
+              ticketId,
+              content: commentContent,
+              author: detectAuthor() as CommentAuthor,
+              type: "progress",
+            });
 
             log.info(`Submitted ${severity} finding for ticket ${ticketId} by ${agent}`);
             return formatResult(finding, `Finding submitted (${severity})`);
@@ -202,7 +208,12 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
             if (finding.epicReviewRunId) {
               fixComment += `\n\nEpic review run: ${finding.epicReviewRunId}`;
             }
-            addComment(db, { ticketId: finding.ticketId, content: fixComment, type: "progress" });
+            addComment(db, {
+              ticketId: finding.ticketId,
+              content: fixComment,
+              author: detectAuthor() as CommentAuthor,
+              type: "progress",
+            });
 
             log.info(`Marked finding ${findingId} as ${fixStatus}`);
             return formatResult(finding, `Finding marked as ${fixStatus}`);
@@ -266,6 +277,7 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
             addComment(db, {
               ticketId,
               content: `Demo script generated with ${steps.length} steps. Ticket is now ready for human review.${demo.epicReviewRunId ? `\n\nEpic review run: ${demo.epicReviewRunId}` : ""}`,
+              author: detectAuthor() as CommentAuthor,
               type: "progress",
             });
 

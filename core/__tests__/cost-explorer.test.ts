@@ -103,6 +103,7 @@ describe("cost model defaults", () => {
       "Kimi K2.5",
       "MiniMax M2.5",
       "MiniMax M2.5 Free",
+      "MiniMax M2.7",
       "Nemotron 3 Super Free",
       "Qwen3 Coder 480B",
       "Qwen3.6 Plus Free",
