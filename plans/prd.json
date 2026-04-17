@@ -9,99 +9,88 @@
   ],
   "userStories": [
     {
-      "id": "55ffc9a5-b059-46ba-b5f4-6f1e61175e9e",
-      "title": "Research: audit launch paths and pick CLI integration strategy",
+      "id": "644d2f04-a6fa-499e-83dc-1f8b2a38f203",
+      "title": "Ralph loop: Codex invocation must use `exec` mode with auto-approval (no permission prompts, exits between tickets)",
       "passes": false,
-      "overview": "",
+      "overview": "When Ralph is launched against a ticket/epic with `aiBackend: \"codex\"`, Codex opens in **interactive TUI mode** and:\n1. **Asks for permission** every time it wants to edit/run a command (user reported this regression).\n2. **Never exits after completing a ticket**, so the outer bash loop in `generateRalphScript` cannot advance to the next ticket. In Claude / Cursor Agent the CLI exits after `-p` print mode, the loop's next `for` iteration rewrites the prompt file, and the same terminal window continues with the next `passes: false` ticket — that is the \"session reset within the same terminal window\" behavior described in `docs/universal-quality-workflow-per-provider-diagrams.md`.",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
+        "Ralph launched with `aiBackend: \"codex\"` does NOT show any Codex permission prompts during the run.",
+        "Codex does NOT run inside its sandbox during Ralph (verified by Codex being able to read/write normally anywhere it would as a human-driven session).",
+        "After a single ticket iteration, Codex exits and the Ralph bash loop advances to the next iteration in the same terminal window (verified by observing the \"Ralph Iteration 2 of N\" banner without user input).",
+        "`codex --help` is probed; if `exec` or the bypass flag is missing, we print a clear upgrade hint and exit cleanly instead of hanging.",
+        "Unit test in `src/api/ralph-script.test.ts` asserts generated script for `aiBackend: \"codex\"` contains `codex exec` and `--dangerously-bypass-approvals-and-sandbox`.",
+        "`docs/environments/codex.md` documents the flag and explicitly notes we intentionally bypass the sandbox for parity with Claude."
       ],
       "references": [
-        "src/lib/ralph-launch/",
-        "plans/specs/{ticket-id}-cli-launch-parity.md",
-        "plans/specs/"
+        "src/api/ralph-script.ts",
+        "plans/prd.json",
+        "src/api/ralph-script.test.ts",
+        "src/api/ralph.test.ts"
       ],
-      "description": "## Goal\n\nBefore writing any code, decide **how** the CLI will invoke the same launcher logic the UI uses. Two plausible strategies:\n\n**A. Extract the launcher core into a shared module**\n- Move the meaty parts of `launchRalphForTicket` / `launchRalphForEpic` (src/api/ralph.ts) out of `createServerFn({...}).handler(...)` into pure functions in `core/` or a new `src/lib/ralph-launch/` module.\n- Keep the server function as a thin wrapper.\n- CLI imports the same pure function directly.\n- Pros: no network dependency, works offline, faster, no CORS/auth concerns.\n- Cons: requires decoupling filesystem/db access from TanStack Start runtime.\n\n**B. Have the CLI call the running local server over HTTP**\n- CLI POSTs to `localhost:4242/api/...` if the server is running; errors otherwise.\n- Pros: guaranteed behavioral parity, no refactor.\n- Cons: requires the dev server to be running; introduces HTTP failure modes; harder to script.\n\n## Deliverables\n\n1. A short design note committed to `plans/specs/{ticket-id}-cli-launch-parity.md` using the 6-layer spec template.\n2. A recommendation (A or B or hybrid) with rationale covering: behavioral parity, testability, offline use, error surfaces, complexity.\n3. A list of the exact functions/types that would move (or endpoints that would be called), file-by-file.\n4. An inventory of every provider's launch code path (claude-code, vscode, cursor, cursor-agent, copilot-cli, codex, opencode) and the docker/sandbox branch — confirm none have UI-only dependencies (React hooks, toast calls, `useSettings`, etc.).\n\n## Acceptance\n\n- Spec file exists in `plans/specs/`\n- Recommendation is explicit with numbered rationale\n- Every provider path is traced and annotated\n- Next tickets can be worked without ambiguity\n\n## Notes\n\nPer project memory: bake research into tickets for anything touching multiple external CLIs. Use subagents to read provider behavior if needed.",
+      "description": "## Problem\n\nWhen Ralph is launched against a ticket/epic with `aiBackend: \"codex\"`, Codex opens in **interactive TUI mode** and:\n\n1. **Asks for permission** every time it wants to edit/run a command (user reported this regression).\n2. **Never exits after completing a ticket**, so the outer bash loop in `generateRalphScript` cannot advance to the next ticket. In Claude / Cursor Agent the CLI exits after `-p` print mode, the loop's next `for` iteration rewrites the prompt file, and the same terminal window continues with the next `passes: false` ticket — that is the \"session reset within the same terminal window\" behavior described in `docs/universal-quality-workflow-per-provider-diagrams.md`.\n\n## Root Cause\n\n`src/api/ralph-script.ts` (the `AI_BACKEND_CONFIGS.codex.invocation`) currently generates:\n\n```bash\ncodex \"$(cat \"$PROMPT_FILE\")\"\n```\n\nThis launches Codex's interactive TUI. There is:\n\n- no `exec` subcommand (needed for non-interactive)\n- no bypass of approval prompts\n- no bypass of the sandbox (which would itself cause a permission nightmare on the user's real workspace)\n\nCompare to the working Claude config on the same file:\n\n```bash\nclaude --dangerously-skip-permissions --output-format text -p \"$(cat \"$PROMPT_FILE\")\"\n```\n\nClaude `-p` exits after completion → bash loop iterates → next ticket. No sandboxing — Claude runs directly in the user's workspace with skip-permissions.\n\n## Expected Behavior\n\n- Codex runs headless per iteration, NO sandbox (writes directly in the user's workspace, same as Claude), auto-approves all tool use, and exits when the iteration is done so the bash loop can pick up the next `passes: false` ticket from `plans/prd.json`.\n- Must NOT run under Codex's sandboxed filesystem (`read-only` or `workspace-write` sandbox modes). Sandboxing + Ralph's loop of `git` / `pnpm` / MCP tool calls creates exactly the permission-prompt loop we want to eliminate.\n\n## Proposed Fix\n\nUpdate `AI_BACKEND_CONFIGS.codex.invocation` in `src/api/ralph-script.ts` to use `codex exec` with the combined bypass flag:\n\n```bash\ncodex exec --dangerously-bypass-approvals-and-sandbox \"$(cat \"$PROMPT_FILE\")\"\n```\n\nWhy the combined bypass flag specifically:\n\n- `--dangerously-bypass-approvals-and-sandbox` is documented as disabling BOTH mechanisms (https://developers.openai.com/codex/config-advanced). This matches Claude's `--dangerously-skip-permissions` posture: no prompts, no sandbox.\n- The alternative `--ask-for-approval never --sandbox workspace-write` still runs Codex inside its sandbox layer, which will still prompt/fail on operations outside the workspace (e.g. reading `$HOME` configs, spawning subprocess commands not in the allowlist) — exactly the \"permission nightmare\" we're fixing.\n\nRefs:\n\n- https://developers.openai.com/codex/config-advanced — `--ask-for-approval {on-request|on-failure|never}`, `--sandbox {read-only|workspace-write|danger-full-access}`, `--dangerously-bypass-approvals-and-sandbox`.\n- https://developers.openai.com/codex/config-basic.\n\n## Acceptance Criteria\n\n- [ ] Ralph launched with `aiBackend: \"codex\"` does NOT show any Codex permission prompts during the run.\n- [ ] Codex does NOT run inside its sandbox during Ralph (verified by Codex being able to read/write normally anywhere it would as a human-driven session).\n- [ ] After a single ticket iteration, Codex exits and the Ralph bash loop advances to the next iteration in the same terminal window (verified by observing the \"Ralph Iteration 2 of N\" banner without user input).\n- [ ] `codex --help` is probed; if `exec` or the bypass flag is missing, we print a clear upgrade hint and exit cleanly instead of hanging.\n- [ ] Unit test in `src/api/ralph-script.test.ts` asserts generated script for `aiBackend: \"codex\"` contains `codex exec` and `--dangerously-bypass-approvals-and-sandbox`.\n- [ ] `docs/environments/codex.md` documents the flag and explicitly notes we intentionally bypass the sandbox for parity with Claude.\n\n## Files Likely Touched\n\n- `src/api/ralph-script.ts` — `AI_BACKEND_CONFIGS.codex.invocation` + preflightCheck.\n- `src/api/ralph-script.test.ts` or `src/api/ralph.test.ts`.\n- `docs/environments/codex.md`.\n\n## Out of Scope\n\n- Changing Codex MCP config in `~/.codex/config.toml` (that is for interactive usage, not the Ralph loop).\n- Docker sandbox mode for Codex (still Claude-only per `ralph.ts`).\n- Running Codex in sandbox mode — explicitly rejected because it recreates the permission-prompt problem.\n\n## Branch Policy\n\nAll work for this ticket must be done on the current feature branch. Do not create a new branch.",
       "priority": "high",
       "tags": [
-        "research",
-        "design"
-      ]
-    },
-    {
-      "id": "651602d3-9bdc-4e96-a9d0-f0cbbea7775d",
-      "title": "Extract Ralph launcher core into CLI-importable module",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
-      ],
-      "references": [
-        "src/lib/ralph-launch/launch-ticket.ts",
-        "src/api/ralph.ts",
-        "src/api/ralph-launchers.test.ts",
-        "src/api/ralph-script-cursor-agent.test.ts"
-      ],
-      "description": "## Goal\n\nBased on the research ticket's recommendation (assume strategy A), refactor the launcher logic so both the TanStack Start server functions **and** the CLI can use it.\n\n## Current shape (src/api/ralph.ts)\n\n- `launchRalphForTicket = createServerFn({method:\"POST\"}).inputValidator(...).handler(async ({data}) => { ... })`\n- `launchRalphForEpic` — same pattern\n- Handlers do: settings lookup, ticket/project lookup, prompt profile generation, PRD write, context write, script generation, terminal/editor/docker launch dispatch, session creation, telemetry.\n\n## Target shape\n\n- `src/lib/ralph-launch/launch-ticket.ts` exports `launchRalphForTicket(db, input): Promise<Result>` — plain async function, no createServerFn.\n- Same for `launch-epic.ts`.\n- `src/api/ralph.ts` keeps the `createServerFn` wrappers but delegates to the new modules:\n  ```ts\n  export const launchRalphForTicket = createServerFn({method:\"POST\"})\n    .inputValidator((data: LaunchTicketInput) => data)\n    .handler(async ({data}) => launchRalphForTicketCore(db, data));\n  ```\n- All existing tests continue to pass (`src/api/ralph-launchers.test.ts`, `src/api/ralph-script-cursor-agent.test.ts`, etc.).\n\n## Constraints\n\n- No behavior change — same artifacts, same terminal command, same session creation, same telemetry.\n- Pure logic must not import `@tanstack/react-start` or anything browser-only.\n- DB access stays via the passed `db` handle (same as `core/`).\n- Settings, Docker, terminal launchers should be callable without a running HTTP server.\n\n## Acceptance\n\n- New module exists, has the core functions, no TanStack imports\n- Server functions are thin wrappers\n- `pnpm check` passes\n- All existing launch tests pass unchanged\n- A smoke test confirms the core function can be called from a plain Node script (no Vite/Nitro runtime)",
-      "priority": "high",
-      "tags": [
-        "refactor",
         "ralph",
-        "cli"
+        "codex",
+        "cross-environment",
+        "bug"
       ]
     },
     {
-      "id": "20737b18-30cd-4ba2-b9d7-e057b968fdde",
-      "title": "Add `brain-dump workflow launch-epic` and `launch-ticket` CLI commands",
-      "passes": true,
-      "overview": "",
+      "id": "17a9336d-56c6-4f45-909d-96ef7e435308",
+      "title": "Ralph loop: OpenCode invocation must use `run` subcommand with permission=allow (exits between tickets)",
+      "passes": false,
+      "overview": "When Ralph is launched against a ticket/epic with `aiBackend: \"opencode\"`, OpenCode opens in **interactive TUI mode** and never exits after completing a ticket. The outer bash loop in `generateRalphScript` therefore cannot advance to the next ticket, and the \"same terminal window rolls into the next ticket\" behavior (working for Claude and Cursor Agent) never happens.",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
+        "Ralph launched with `aiBackend: \"opencode\"` uses `opencode run` (not the TUI entrypoint).",
+        "After a single ticket iteration, OpenCode exits and the Ralph bash loop advances to the next iteration in the same terminal window.",
+        "Tool approvals do not block the loop (either via `OPENCODE_PERMISSION` env or via configured `permission: allow`).",
+        "If `opencode run --help` does not list expected flags, the preflight check in `ralph-script.ts` prints an upgrade hint.",
+        "Unit test asserts the generated script for `aiBackend: \"opencode\"` contains `opencode run` and the permission env.",
+        "`docs/environments/opencode.md` documents the Ralph-loop headless invocation and the permission setting."
       ],
-      "references": [],
-      "description": "## Goal\n\nShip the CLI commands that mimic the UI's Launch menu.\n\n## New actions\n\nIn `cli/commands/workflow.ts`, add:\n\n```\nbrain-dump workflow launch-epic \\\n  --epic <id> \\\n  [--provider claude-code|vscode|cursor|cursor-agent|copilot-cli|codex|opencode] \\\n  [--terminal <name>] \\\n  [--max-iterations <n>] \\\n  [--sandbox] \\\n  [--pretty]\n\nbrain-dump workflow launch-ticket \\\n  --ticket <id> \\\n  [--provider ...] \\\n  [--terminal ...] \\\n  [--max-iterations <n>] \\\n  [--sandbox] \\\n  [--pretty]\n```\n\n## Implementation\n\n- Import the core functions from the module created in the refactor ticket.\n- Translate `--provider` → `aiBackend` / `workingMethodOverride` exactly as the UI does (confirm in research ticket).\n- Translate `--terminal` → `preferredTerminal`.\n- Translate `--sandbox` → `useSandbox: true`.\n- Use the project's existing `requireFlag` / `requireEnumFlag` / `numericFlag` / `boolFlag` helpers.\n- Register both actions in `cli/lib/command-registry.ts` with descriptions and flag metadata so help output and completions work.\n- Output the success/failure result via `outputResult(result, pretty)` so the existing JSON and `--pretty` modes both work.\n\n## Error handling\n\nFollow project rule \"No Silent Failures\":\n- Provider not found on system → exit non-zero with an actionable message (`\"cursor-agent not installed. Install via ... or use --provider claude-code\"`).\n- Ticket/epic not found → clear error.\n- Missing required flag → `requireFlag` already throws a useful error.\n\n## Acceptance\n\n- `brain-dump workflow launch-epic --help` shows all flags with descriptions\n- `brain-dump workflow launch-ticket --ticket <id> --provider copilot-cli` actually spawns Copilot CLI in a terminal with the right prompt\n- Same for every supported provider (at least one smoke-test per provider on the dev machine)\n- `brain-dump workflow launch-epic --epic <id>` works without `--provider` (falls back to project default, same as UI)\n- JSON output on success contains the session id, provider used, and terminal command issued\n- `pnpm check` passes",
+      "references": [
+        "src/api/ralph-script.ts",
+        "plans/prd.json"
+      ],
+      "description": "## Problem\n\nWhen Ralph is launched against a ticket/epic with `aiBackend: \"opencode\"`, OpenCode opens in **interactive TUI mode** and never exits after completing a ticket. The outer bash loop in `generateRalphScript` therefore cannot advance to the next ticket, and the \"same terminal window rolls into the next ticket\" behavior (working for Claude and Cursor Agent) never happens.\n\n## Root Cause\n\n`src/api/ralph-script.ts` (the `AI_BACKEND_CONFIGS.opencode.invocation`) currently generates:\n\n```bash\nopencode \"$PROJECT_PATH\" --prompt \"$(cat \"$PROMPT_FILE\")\"\n```\n\nThis is the interactive TUI entrypoint with a seeded prompt — it does not return control to the parent shell after the prompt resolves. Per the official docs (https://opencode.ai/docs/cli/), the **non-interactive entrypoint is `opencode run [message..]`**. Permissions are controlled via the `permission` config (`\"permission\": \"allow\"`) or the `OPENCODE_PERMISSION` env var (https://opencode.ai/docs/permissions/), not by CLI flags.\n\nCompare to the working Claude config:\n\n```bash\nclaude --dangerously-skip-permissions --output-format text -p \"$(cat \"$PROMPT_FILE\")\"\n```\n\nClaude `-p` exits after completion → bash loop iterates → next ticket.\n\n## Expected Behavior\n\n- OpenCode runs headless per iteration, auto-approves tool use, and exits when the iteration is done so the bash loop can pick up the next `passes: false` ticket from `plans/prd.json`.\n- Works inside the same terminal window — matches Claude and Cursor Agent behavior.\n\n## Proposed Fix\n\nUpdate `AI_BACKEND_CONFIGS.opencode.invocation` in `src/api/ralph-script.ts`:\n\n```bash\n# Auto-allow all tool permissions for the duration of this iteration.\n# See https://opencode.ai/docs/permissions/\nOPENCODE_PERMISSION='{\"*\":\"allow\"}' opencode run --format default \"$(cat \"$PROMPT_FILE\")\"\n```\n\nKeep `cd \"$PROJECT_PATH\"` at the top of the script (already present) so we don't rely on the positional-arg path.\n\nAlso consider writing an installed `.opencode/opencode.json` fragment (or documenting one) with `\"permission\": \"allow\"` so interactive users can opt-in globally without the env var.\n\n## Acceptance Criteria\n\n- [ ] Ralph launched with `aiBackend: \"opencode\"` uses `opencode run` (not the TUI entrypoint).\n- [ ] After a single ticket iteration, OpenCode exits and the Ralph bash loop advances to the next iteration in the same terminal window.\n- [ ] Tool approvals do not block the loop (either via `OPENCODE_PERMISSION` env or via configured `permission: allow`).\n- [ ] If `opencode run --help` does not list expected flags, the preflight check in `ralph-script.ts` prints an upgrade hint.\n- [ ] Unit test asserts the generated script for `aiBackend: \"opencode\"` contains `opencode run` and the permission env.\n- [ ] `docs/environments/opencode.md` documents the Ralph-loop headless invocation and the permission setting.\n\n## Files Likely Touched\n\n- `src/api/ralph-script.ts` — `AI_BACKEND_CONFIGS.opencode.invocation` + preflight.\n- Test file asserting the generated script.\n- `docs/environments/opencode.md`.\n- Optional: `.opencode/opencode.json.example` — surface the `permission: allow` pattern.\n\n## Out of Scope\n\n- Changes to the OpenCode plugin in `~/.config/opencode/plugins/` — this is only about the Ralph-loop invocation in the generated bash script.\n\n## Branch Policy\n\nAll work for this ticket must be done on the current feature branch. Do not create a new branch.",
       "priority": "high",
       "tags": [
-        "cli",
-        "ralph"
+        "ralph",
+        "opencode",
+        "cross-environment",
+        "bug"
       ]
     },
     {
-      "id": "fd95aa02-2eed-4d1f-acf1-6c88de396481",
-      "title": "End-to-end verify CLI launch against all providers + update docs",
+      "id": "7d7ffa36-8ad8-47b5-aef6-e69e670c5e63",
+      "title": "Ralph loop: add per-provider \"loop advances between tickets\" contract tests + docs",
       "passes": false,
-      "overview": "",
+      "overview": "The Codex/OpenCode regressions (see sibling tickets) slipped in because there is **no shared contract test** that asserts every `RalphAiBackend` in `src/api/ralph-script.ts`:\n1. uses a **non-interactive / headless entrypoint** (so the CLI exits after one iteration),\n2. runs with **auto-approval** for tool use AND **no sandbox** (so the loop isn't blocked by permission prompts or sandbox-denied operations),\n3. allows the outer bash loop in `generateRalphScript` to roll forward to the next ticket without user input — the \"reset within the same terminal window\" behavior described in `docs/universal-quality-workflow-per-provider-diagrams.md`.\nToday only `claude` and `cursor-agent` actually behave that way; `codex` and `opencode` regressed silently because we only test string contents.",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "claude-code — terminal opens with Claude in the project dir, PRD + context files exist, session row created",
-        "vscode — VS Code window opens with context file, session row created",
-        "cursor — Cursor window opens with context file",
-        "cursor-agent — terminal opens running the cursor-agent CLI",
-        "copilot-cli — terminal opens running `copilot` with the right prompt",
-        "codex — terminal opens with Codex CLI",
-        "opencode — terminal opens with opencode",
-        "`--sandbox` with claude-code spawns inside Docker (per existing UI behavior)",
-        "Epic launch (`launch-epic`) produces the same starts-implementation-workflow behavior as the UI (workflowState flipped, PRD built from epic tickets)"
+        "New tests fail if a future change to `AI_BACKEND_CONFIGS` drops the headless entrypoint, drops the auto-approval, or (for codex) reintroduces `--sandbox read-only`/`--sandbox workspace-write`.",
+        "Docs updated with the table above and the \"no sandbox in Ralph\" note; linked from `docs/universal-quality-workflow-per-provider-diagrams.md`.",
+        "Tests catch both the Codex regression (sibling ticket) and the OpenCode regression (sibling ticket) when run against the pre-fix code."
       ],
-      "references": [],
-      "description": "## Goal\n\nClose the loop: prove the new CLI commands produce the same effect as the UI's Launch menu across every provider, then document them.\n\n## Verification checklist\n\nFor each backend, run `brain-dump workflow launch-ticket --ticket <test-ticket> --provider <name>` on a real machine, and confirm:\n\n- [ ] claude-code — terminal opens with Claude in the project dir, PRD + context files exist, session row created\n- [ ] vscode — VS Code window opens with context file, session row created\n- [ ] cursor — Cursor window opens with context file\n- [ ] cursor-agent — terminal opens running the cursor-agent CLI\n- [ ] copilot-cli — terminal opens running `copilot` with the right prompt\n- [ ] codex — terminal opens with Codex CLI\n- [ ] opencode — terminal opens with opencode\n- [ ] `--sandbox` with claude-code spawns inside Docker (per existing UI behavior)\n- [ ] Epic launch (`launch-epic`) produces the same starts-implementation-workflow behavior as the UI (workflowState flipped, PRD built from epic tickets)\n\nPer project memory (\"Always Build End-to-End\"): verify the FULL chain — CLI invocation → shared core → spawned terminal → session row in DB → visible in the UI's active sessions panel.\n\n## Docs to update\n\n- `CLAUDE.md` — add the two new actions to the CLI section\n- `docs/cli.md` — full reference entries with flags, examples, error cases\n- `README.md` (if it lists CLI examples) — add one example\n- `docs/mcp-tools.md` is unaffected (MCP workflow tool is separate)\n\n## Acceptance\n\n- All provider rows in the checklist verified\n- Docs updated and reviewed\n- One integration test in `cli/__tests__/` that exercises `launch-ticket` against a fake backend (spy on the launcher core to confirm correct wiring — not a real spawn)\n- `pnpm check` passes",
+      "references": [
+        "src/api/ralph-script.ts",
+        "src/api/ralph-script.test.ts"
+      ],
+      "description": "## Problem\n\nThe Codex/OpenCode regressions (see sibling tickets) slipped in because there is **no shared contract test** that asserts every `RalphAiBackend` in `src/api/ralph-script.ts`:\n\n1. uses a **non-interactive / headless entrypoint** (so the CLI exits after one iteration),\n2. runs with **auto-approval** for tool use AND **no sandbox** (so the loop isn't blocked by permission prompts or sandbox-denied operations),\n3. allows the outer bash loop in `generateRalphScript` to roll forward to the next ticket without user input — the \"reset within the same terminal window\" behavior described in `docs/universal-quality-workflow-per-provider-diagrams.md`.\n\nToday only `claude` and `cursor-agent` actually behave that way; `codex` and `opencode` regressed silently because we only test string contents.\n\n## Proposed Fix\n\nAdd a table-driven test in `src/api/ralph-script.test.ts` (create if missing) that, for every entry in `RalphAiBackend`, asserts the generated script:\n\n- contains the expected headless subcommand / flag (`-p` for claude, `-p` for cursor-agent, `exec` for codex, `run` for opencode, etc.);\n- contains an auto-approval-AND-no-sandbox mechanism (the specific flag or env var documented for that CLI);\n- does NOT include the plain interactive TUI entrypoint (e.g. `opencode \"$PROJECT_PATH\"` without `run`, or `codex \"$(cat ...)\"` without `exec`);\n- for codex specifically: does NOT include `--sandbox read-only` or `--sandbox workspace-write` (we want Claude-like parity, no sandbox).\n\nAdd a single source-of-truth table in `docs/universal-quality-workflow-per-provider.md` (or companion diagrams doc) listing, per provider:\n\n| Provider | Headless invocation | Auto-approval + no sandbox | Loop re-entry behavior |\n| --- | --- | --- | --- |\n| Claude | `claude --dangerously-skip-permissions -p …` | `--dangerously-skip-permissions` (no sandbox by design) | exits after `-p`, bash loop advances |\n| Cursor Agent | `cursor-agent --force --approve-mcps --trust -p …` | `--approve-mcps --trust` (no sandbox by design) | exits after `-p`, bash loop advances |\n| Codex | `codex exec --dangerously-bypass-approvals-and-sandbox …` | `--dangerously-bypass-approvals-and-sandbox` (explicitly disables BOTH approvals AND sandbox — matches Claude posture) | exits after `exec`, bash loop advances |\n| OpenCode | `OPENCODE_PERMISSION='{\"*\":\"allow\"}' opencode run …` | env var or config `permission: allow` (no sandbox concept) | exits after `run`, bash loop advances |\n\nNote explicitly in the docs: **we do NOT run Codex under its sandbox** (`--sandbox read-only` or `--sandbox workspace-write`) during Ralph, because sandbox + Ralph's file/git/MCP churn recreates the permission-prompt nightmare we are eliminating. Users who want sandboxing should run Codex manually, not through Ralph.\n\n## Acceptance Criteria\n\n- [ ] New tests fail if a future change to `AI_BACKEND_CONFIGS` drops the headless entrypoint, drops the auto-approval, or (for codex) reintroduces `--sandbox read-only`/`--sandbox workspace-write`.\n- [ ] Docs updated with the table above and the \"no sandbox in Ralph\" note; linked from `docs/universal-quality-workflow-per-provider-diagrams.md`.\n- [ ] Tests catch both the Codex regression (sibling ticket) and the OpenCode regression (sibling ticket) when run against the pre-fix code.\n\n## Depends On\n\n- Sibling ticket: Codex `exec` + `--dangerously-bypass-approvals-and-sandbox` fix.\n- Sibling ticket: OpenCode `run` + permissions fix.\n\n## Files Likely Touched\n\n- `src/api/ralph-script.test.ts` (new or extended).\n- `docs/universal-quality-workflow-per-provider.md`.\n- `docs/universal-quality-workflow-per-provider-diagrams.md`.\n\n## Out of Scope\n\n- E2E test that actually drives a Codex/OpenCode binary — unit test on generated bash is enough to prevent regression.\n\n## Branch Policy\n\nAll work for this ticket must be done on the current feature branch. Do not create a new branch.",
       "priority": "medium",
       "tags": [
-        "verification",
+        "ralph",
+        "cross-environment",
+        "testing",
         "docs"
       ]
     }
@@ -249,7 +238,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-04-16T23:51:29.195Z",
-  "epicTitle": "CLI Parity for Launch Epic/Ticket with Provider Choice",
-  "epicDescription": "## Why\n\nBrain Dump's UI has a \"Launch\" menu that kicks off a Ralph loop for an epic or ticket with a chosen AI backend (claude-code, vscode, cursor, cursor-agent, copilot-cli, codex, opencode). This is implemented by `launchRalphForEpic` / `launchRalphForTicket` in `src/api/ralph.ts`, which dispatch through `src/api/ralph-launchers.ts` and `src/api/ralph-script.ts` to spawn the chosen provider in a terminal.\n\nThe CLI has **no equivalent**. `workflow start-epic` only flips DB state; `session create` only inserts a session row. There is no `--provider` flag anywhere, and no terminal spawning from any CLI command.\n\n## Goal\n\nAdd `brain-dump workflow launch --epic <id>` (and `--ticket <id>`) with `--provider <name>`, `--terminal <name>`, `--max-iterations <n>`, `--sandbox` so any agent (Claude, me, Ralph itself, a remote trigger, a hotkey) can start an epic/ticket loop from a terminal with the provider of its choice — reaching full parity with the UI's Launch menu.\n\n## Scope\n\n- Extract the launcher logic from TanStack Start server functions into a shared module consumable by both the server and the CLI (CLI can't import `createServerFn` handlers directly).\n- New CLI action(s): `workflow launch-epic` and `workflow launch-ticket` (or a single `launch` action with mutually-exclusive flags).\n- Provider validation + discovery errors surface as clean CLI exit codes with actionable messages.\n- Tests covering each provider path and flag validation.\n- Update `docs/cli.md`, `CLAUDE.md`, and examples.\n\n## Non-goals\n\n- No new UI changes — the UI already has Launch.\n- No new providers — we're exposing existing backends through the CLI, not adding any.\n- Docker sandbox support should work if it works in the UI, but no new sandbox capabilities.\n\n## Why this matters\n\nUnlocks scripting, remote triggers, hotkeys, and AI-driven autonomy — e.g. \"start the auth epic with copilot-cli\" from anywhere without opening the UI."
+  "generatedAt": "2026-04-17T02:15:47.071Z",
+  "epicTitle": "Ralph Loop Parity: Codex & OpenCode Headless Invocation",
+  "epicDescription": "Bring the Codex and OpenCode Ralph-loop invocations up to parity with Claude and Cursor Agent, so that the outer bash loop in `generateRalphScript` (`src/api/ralph-script.ts`) can roll the same terminal window forward from one ticket to the next without user input or permission prompts.\n\n## Context\n\nClaude and Cursor Agent use headless/print mode entrypoints (`-p`), which exit after one iteration and let the `for` loop in the generated Ralph script pick up the next `passes: false` ticket from `plans/prd.json` — the \"session reset within the same terminal window\" behavior in `docs/universal-quality-workflow-per-provider-diagrams.md`.\n\nCodex and OpenCode currently launch their interactive TUI entrypoints:\n\n- `codex \"$(cat \"$PROMPT_FILE\")\"` — no `exec`, no approval bypass. Prompts for permissions, never exits.\n- `opencode \"$PROJECT_PATH\" --prompt \"...\"` — no `run` subcommand, no permission config. Stays in TUI, never exits.\n\n## Scope\n\n1. Codex: switch to `codex exec --dangerously-bypass-approvals-and-sandbox` (NO sandbox — sandbox + Ralph recreates the permission-prompt problem).\n2. OpenCode: switch to `opencode run` with `OPENCODE_PERMISSION='{\"*\":\"allow\"}'`.\n3. Contract tests + docs covering every `RalphAiBackend` so this regression can't recur silently."
 }
