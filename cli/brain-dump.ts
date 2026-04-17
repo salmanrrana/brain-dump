@@ -251,7 +251,7 @@ switch (resource) {
     runSync(epic.handle, action, rest);
     break;
   case "workflow":
-    runSync(workflow.handle, action, rest);
+    runAsync(workflow.handle, action, rest);
     break;
   case "comment":
     runSync(comment.handle, action, rest);

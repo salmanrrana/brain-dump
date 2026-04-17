@@ -14,14 +14,52 @@ import * as schema from "../../src/lib/schema.ts";
 import { launchRalphForTicketCore } from "../../src/lib/ralph-launch/launch-ticket.ts";
 import { launchRalphForEpicCore } from "../../src/lib/ralph-launch/launch-epic.ts";
 import type { LaunchEpicInput, LaunchTicketInput } from "../../src/lib/ralph-launch/types.ts";
-import { parseFlags, requireFlag, optionalFlag, boolFlag, numericFlag } from "../lib/args.ts";
+import {
+  parseFlags,
+  requireFlag,
+  optionalFlag,
+  boolFlag,
+  numericFlag,
+  type ParsedFlags,
+} from "../lib/args.ts";
 import { outputResult, outputError, showResourceHelp } from "../lib/output.ts";
 import { getDb } from "../lib/db.ts";
-import { parseProviderFlag, translateProvider } from "../lib/provider-translation.ts";
+import {
+  type LaunchProvider,
+  parseProviderFlag,
+  translateProvider,
+} from "../lib/provider-translation.ts";
 
 const ACTIONS = ["start-work", "complete-work", "start-epic", "launch-ticket", "launch-epic"];
 
-export function handle(action: string, args: string[]): void {
+interface SharedLaunchFlags {
+  provider: LaunchProvider | undefined;
+  preferredTerminal: string | undefined;
+  maxIterations: number | undefined;
+  useSandbox: boolean;
+}
+
+function parseSharedLaunchFlags(flags: ParsedFlags): SharedLaunchFlags {
+  return {
+    provider: parseProviderFlag(optionalFlag(flags, "provider")),
+    preferredTerminal: optionalFlag(flags, "terminal"),
+    maxIterations: numericFlag(flags, "max-iterations"),
+    useSandbox: boolFlag(flags, "sandbox"),
+  };
+}
+
+function applySharedLaunchFlags<T extends LaunchTicketInput | LaunchEpicInput>(
+  input: T,
+  shared: SharedLaunchFlags
+): T {
+  if (shared.provider) Object.assign(input, translateProvider(shared.provider));
+  if (shared.preferredTerminal !== undefined) input.preferredTerminal = shared.preferredTerminal;
+  if (shared.maxIterations !== undefined) input.maxIterations = shared.maxIterations;
+  if (shared.useSandbox) input.useSandbox = true;
+  return input;
+}
+
+export async function handle(action: string, args: string[]): Promise<void> {
   if (!action || action === "--help" || action === "help") {
     showResourceHelp("workflow");
   }
@@ -57,47 +95,23 @@ export function handle(action: string, args: string[]): void {
 
       case "launch-ticket": {
         const ticketId = requireFlag(flags, "ticket");
-        const provider = parseProviderFlag(optionalFlag(flags, "provider"));
-        const input: LaunchTicketInput = {
-          ticketId,
-          ...(provider ? translateProvider(provider) : {}),
-        };
-        const preferredTerminal = optionalFlag(flags, "terminal");
-        if (preferredTerminal !== undefined) input.preferredTerminal = preferredTerminal;
-        const maxIterations = numericFlag(flags, "max-iterations");
-        if (maxIterations !== undefined) input.maxIterations = maxIterations;
-        if (boolFlag(flags, "sandbox")) input.useSandbox = true;
-
+        const shared = parseSharedLaunchFlags(flags);
+        const input = applySharedLaunchFlags<LaunchTicketInput>({ ticketId }, shared);
         const drizzleDb = drizzle(sqlite, { schema });
-        void launchRalphForTicketCore(drizzleDb, input, { sqlite })
-          .then((result) => {
-            outputResult({ ...result, provider: provider ?? null }, pretty);
-            if (!result.success) process.exit(1);
-          })
-          .catch(outputError);
+        const result = await launchRalphForTicketCore(drizzleDb, input, { sqlite });
+        outputResult({ ...result, provider: shared.provider ?? null }, pretty);
+        if (!result.success) process.exit(1);
         break;
       }
 
       case "launch-epic": {
         const epicId = requireFlag(flags, "epic");
-        const provider = parseProviderFlag(optionalFlag(flags, "provider"));
-        const input: LaunchEpicInput = {
-          epicId,
-          ...(provider ? translateProvider(provider) : {}),
-        };
-        const preferredTerminal = optionalFlag(flags, "terminal");
-        if (preferredTerminal !== undefined) input.preferredTerminal = preferredTerminal;
-        const maxIterations = numericFlag(flags, "max-iterations");
-        if (maxIterations !== undefined) input.maxIterations = maxIterations;
-        if (boolFlag(flags, "sandbox")) input.useSandbox = true;
-
+        const shared = parseSharedLaunchFlags(flags);
+        const input = applySharedLaunchFlags<LaunchEpicInput>({ epicId }, shared);
         const drizzleDb = drizzle(sqlite, { schema });
-        void launchRalphForEpicCore(drizzleDb, input, { sqlite })
-          .then((result) => {
-            outputResult({ ...result, provider: provider ?? null }, pretty);
-            if (!result.success) process.exit(1);
-          })
-          .catch(outputError);
+        const result = await launchRalphForEpicCore(drizzleDb, input, { sqlite });
+        outputResult({ ...result, provider: shared.provider ?? null }, pretty);
+        if (!result.success) process.exit(1);
         break;
       }
 
