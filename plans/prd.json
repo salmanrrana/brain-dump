@@ -9,63 +9,100 @@
   ],
   "userStories": [
     {
-      "id": "fe7969b9-9e75-4c39-86f2-c613c36b3a22",
-      "title": "Epic detail page: replace placeholder Ralph launches with real actions",
-      "passes": true,
-      "overview": "`src/components/epics/EpicDetailHeader.tsx` renders a Ralph section in its launch menu, but every Ralph button currently only shows `Ralph launch coming soon` instead of performing a launch.\nThis is the most obvious user-facing bug because the epic description page appears to support the same Ralph options as the Edit Epic modal, but it does not actually execute them.",
+      "id": "55ffc9a5-b059-46ba-b5f4-6f1e61175e9e",
+      "title": "Research: audit launch paths and pick CLI integration strategy",
+      "passes": false,
+      "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Clicking Ralph launch options from the epic detail page performs a real launch.",
-        "The epic detail header supports the same Ralph options as the Edit Epic modal.",
-        "Launches honor project `workingMethod` unless the selected option intentionally overrides it.",
-        "Success and failure toasts are user-meaningful and consistent with the modal path.",
-        "Add regression coverage for the epic detail Ralph launch actions."
+        "Implement as described",
+        "Verify functionality works as expected"
       ],
       "references": [
-        "src/components/epics/EpicDetailHeader.tsx",
-        "src/components/EpicModal.tsx",
-        "src/routes/-epic.$id.test.tsx"
+        "src/lib/ralph-launch/",
+        "plans/specs/{ticket-id}-cli-launch-parity.md",
+        "plans/specs/"
       ],
-      "description": "Fix the broken Ralph launch actions on the epic detail page.\n\n## Problem\n`src/components/epics/EpicDetailHeader.tsx` renders a Ralph section in its launch menu, but every Ralph button currently only shows `Ralph launch coming soon` instead of performing a launch.\n\nThis is the most obvious user-facing bug because the epic description page appears to support the same Ralph options as the Edit Epic modal, but it does not actually execute them.\n\n## Scope\n- Replace the placeholder Ralph buttons in `src/components/epics/EpicDetailHeader.tsx` with real launch handlers.\n- Match the supported Ralph options already available in `src/components/EpicModal.tsx`.\n- Preserve the existing focused-review flow in the epic detail header.\n\n## Acceptance Criteria\n- Clicking Ralph launch options from the epic detail page performs a real launch.\n- The epic detail header supports the same Ralph options as the Edit Epic modal.\n- Launches honor project `workingMethod` unless the selected option intentionally overrides it.\n- Success and failure toasts are user-meaningful and consistent with the modal path.\n- Add regression coverage for the epic detail Ralph launch actions.\n\n## Likely Files\n- `src/components/epics/EpicDetailHeader.tsx`\n- `src/components/EpicModal.tsx`\n- `src/routes/-epic.$id.test.tsx`",
+      "description": "## Goal\n\nBefore writing any code, decide **how** the CLI will invoke the same launcher logic the UI uses. Two plausible strategies:\n\n**A. Extract the launcher core into a shared module**\n- Move the meaty parts of `launchRalphForTicket` / `launchRalphForEpic` (src/api/ralph.ts) out of `createServerFn({...}).handler(...)` into pure functions in `core/` or a new `src/lib/ralph-launch/` module.\n- Keep the server function as a thin wrapper.\n- CLI imports the same pure function directly.\n- Pros: no network dependency, works offline, faster, no CORS/auth concerns.\n- Cons: requires decoupling filesystem/db access from TanStack Start runtime.\n\n**B. Have the CLI call the running local server over HTTP**\n- CLI POSTs to `localhost:4242/api/...` if the server is running; errors otherwise.\n- Pros: guaranteed behavioral parity, no refactor.\n- Cons: requires the dev server to be running; introduces HTTP failure modes; harder to script.\n\n## Deliverables\n\n1. A short design note committed to `plans/specs/{ticket-id}-cli-launch-parity.md` using the 6-layer spec template.\n2. A recommendation (A or B or hybrid) with rationale covering: behavioral parity, testability, offline use, error surfaces, complexity.\n3. A list of the exact functions/types that would move (or endpoints that would be called), file-by-file.\n4. An inventory of every provider's launch code path (claude-code, vscode, cursor, cursor-agent, copilot-cli, codex, opencode) and the docker/sandbox branch — confirm none have UI-only dependencies (React hooks, toast calls, `useSettings`, etc.).\n\n## Acceptance\n\n- Spec file exists in `plans/specs/`\n- Recommendation is explicit with numbered rationale\n- Every provider path is traced and annotated\n- Next tickets can be worked without ambiguity\n\n## Notes\n\nPer project memory: bake research into tickets for anything touching multiple external CLIs. Use subagents to read provider behavior if needed.",
       "priority": "high",
       "tags": [
-        "ui",
-        "launch",
-        "ralph",
-        "epic-detail"
+        "research",
+        "design"
       ]
     },
     {
-      "id": "b2847de7-3ffa-4f36-bdc7-c6e678f9aba8",
-      "title": "Ticket detail + Edit Ticket modal: align launch behavior with supported UI paths",
-      "passes": true,
-      "overview": "The ticket detail page (`src/routes/ticket.$id.tsx`) and edit-ticket modal (`src/components/tickets/EditTicketModal.tsx`) both expose launch actions, but they maintain their own long handler chains and can drift from the launch behavior users expect elsewhere.\nThis ticket keeps scope intentionally small:\n- no broad launcher redesign\n- no large launch-system rewrite\n- focus on the ticket surfaces the user called out",
+      "id": "651602d3-9bdc-4e96-a9d0-f0cbbea7775d",
+      "title": "Extract Ralph launcher core into CLI-importable module",
+      "passes": false,
+      "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Launch actions from the ticket detail page perform the supported launches reliably.",
-        "Launch actions from the edit-ticket modal perform the supported launches reliably.",
-        "The ticket detail page and edit-ticket modal support the same intended option set.",
-        "Ralph launches from these ticket surfaces continue to honor project `workingMethod` unless intentionally overridden.",
-        "Add regression coverage for ticket-detail and edit-ticket launch wiring."
+        "Implement as described",
+        "Verify functionality works as expected"
       ],
       "references": [
-        "src/routes/ticket.$id.tsx",
-        "src/components/tickets/EditTicketModal.tsx",
-        "src/components/tickets/LaunchActions.tsx",
-        "src/routes/-ticket.$id.test.tsx",
-        "src/components/tickets/EditTicketModal.launch.test.tsx"
+        "src/lib/ralph-launch/launch-ticket.ts",
+        "src/api/ralph.ts",
+        "src/api/ralph-launchers.test.ts",
+        "src/api/ralph-script-cursor-agent.test.ts"
       ],
-      "description": "Tighten the ticket-detail launch paths so the ticket description page and edit-ticket modal behave consistently with the supported launch experience in the app.\n\n## Context\nThe ticket detail page (`src/routes/ticket.$id.tsx`) and edit-ticket modal (`src/components/tickets/EditTicketModal.tsx`) both expose launch actions, but they maintain their own long handler chains and can drift from the launch behavior users expect elsewhere.\n\nThis ticket keeps scope intentionally small:\n- no broad launcher redesign\n- no large launch-system rewrite\n- focus on the ticket surfaces the user called out\n\n## Scope\n- Compare the ticket detail page and edit-ticket modal launch behavior against the intended supported options.\n- Fix any launch wiring gaps that prevent these ticket surfaces from behaving reliably.\n- Reduce obvious duplication only if needed to keep the two ticket surfaces aligned.\n- Add regression tests for the ticket route and edit-ticket modal launch actions.\n\n## Acceptance Criteria\n- Launch actions from the ticket detail page perform the supported launches reliably.\n- Launch actions from the edit-ticket modal perform the supported launches reliably.\n- The ticket detail page and edit-ticket modal support the same intended option set.\n- Ralph launches from these ticket surfaces continue to honor project `workingMethod` unless intentionally overridden.\n- Add regression coverage for ticket-detail and edit-ticket launch wiring.\n\n## Likely Files\n- `src/routes/ticket.$id.tsx`\n- `src/components/tickets/EditTicketModal.tsx`\n- `src/components/tickets/LaunchActions.tsx`\n- `src/routes/-ticket.$id.test.tsx`\n- `src/components/tickets/EditTicketModal.launch.test.tsx`",
+      "description": "## Goal\n\nBased on the research ticket's recommendation (assume strategy A), refactor the launcher logic so both the TanStack Start server functions **and** the CLI can use it.\n\n## Current shape (src/api/ralph.ts)\n\n- `launchRalphForTicket = createServerFn({method:\"POST\"}).inputValidator(...).handler(async ({data}) => { ... })`\n- `launchRalphForEpic` — same pattern\n- Handlers do: settings lookup, ticket/project lookup, prompt profile generation, PRD write, context write, script generation, terminal/editor/docker launch dispatch, session creation, telemetry.\n\n## Target shape\n\n- `src/lib/ralph-launch/launch-ticket.ts` exports `launchRalphForTicket(db, input): Promise<Result>` — plain async function, no createServerFn.\n- Same for `launch-epic.ts`.\n- `src/api/ralph.ts` keeps the `createServerFn` wrappers but delegates to the new modules:\n  ```ts\n  export const launchRalphForTicket = createServerFn({method:\"POST\"})\n    .inputValidator((data: LaunchTicketInput) => data)\n    .handler(async ({data}) => launchRalphForTicketCore(db, data));\n  ```\n- All existing tests continue to pass (`src/api/ralph-launchers.test.ts`, `src/api/ralph-script-cursor-agent.test.ts`, etc.).\n\n## Constraints\n\n- No behavior change — same artifacts, same terminal command, same session creation, same telemetry.\n- Pure logic must not import `@tanstack/react-start` or anything browser-only.\n- DB access stays via the passed `db` handle (same as `core/`).\n- Settings, Docker, terminal launchers should be callable without a running HTTP server.\n\n## Acceptance\n\n- New module exists, has the core functions, no TanStack imports\n- Server functions are thin wrappers\n- `pnpm check` passes\n- All existing launch tests pass unchanged\n- A smoke test confirms the core function can be called from a plain Node script (no Vite/Nitro runtime)",
       "priority": "high",
       "tags": [
-        "ui",
-        "launch",
+        "refactor",
         "ralph",
-        "ticket-detail"
+        "cli"
+      ]
+    },
+    {
+      "id": "20737b18-30cd-4ba2-b9d7-e057b968fdde",
+      "title": "Add `brain-dump workflow launch-epic` and `launch-ticket` CLI commands",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "references": [],
+      "description": "## Goal\n\nShip the CLI commands that mimic the UI's Launch menu.\n\n## New actions\n\nIn `cli/commands/workflow.ts`, add:\n\n```\nbrain-dump workflow launch-epic \\\n  --epic <id> \\\n  [--provider claude-code|vscode|cursor|cursor-agent|copilot-cli|codex|opencode] \\\n  [--terminal <name>] \\\n  [--max-iterations <n>] \\\n  [--sandbox] \\\n  [--pretty]\n\nbrain-dump workflow launch-ticket \\\n  --ticket <id> \\\n  [--provider ...] \\\n  [--terminal ...] \\\n  [--max-iterations <n>] \\\n  [--sandbox] \\\n  [--pretty]\n```\n\n## Implementation\n\n- Import the core functions from the module created in the refactor ticket.\n- Translate `--provider` → `aiBackend` / `workingMethodOverride` exactly as the UI does (confirm in research ticket).\n- Translate `--terminal` → `preferredTerminal`.\n- Translate `--sandbox` → `useSandbox: true`.\n- Use the project's existing `requireFlag` / `requireEnumFlag` / `numericFlag` / `boolFlag` helpers.\n- Register both actions in `cli/lib/command-registry.ts` with descriptions and flag metadata so help output and completions work.\n- Output the success/failure result via `outputResult(result, pretty)` so the existing JSON and `--pretty` modes both work.\n\n## Error handling\n\nFollow project rule \"No Silent Failures\":\n- Provider not found on system → exit non-zero with an actionable message (`\"cursor-agent not installed. Install via ... or use --provider claude-code\"`).\n- Ticket/epic not found → clear error.\n- Missing required flag → `requireFlag` already throws a useful error.\n\n## Acceptance\n\n- `brain-dump workflow launch-epic --help` shows all flags with descriptions\n- `brain-dump workflow launch-ticket --ticket <id> --provider copilot-cli` actually spawns Copilot CLI in a terminal with the right prompt\n- Same for every supported provider (at least one smoke-test per provider on the dev machine)\n- `brain-dump workflow launch-epic --epic <id>` works without `--provider` (falls back to project default, same as UI)\n- JSON output on success contains the session id, provider used, and terminal command issued\n- `pnpm check` passes",
+      "priority": "high",
+      "tags": [
+        "cli",
+        "ralph"
+      ]
+    },
+    {
+      "id": "fd95aa02-2eed-4d1f-acf1-6c88de396481",
+      "title": "End-to-end verify CLI launch against all providers + update docs",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "claude-code — terminal opens with Claude in the project dir, PRD + context files exist, session row created",
+        "vscode — VS Code window opens with context file, session row created",
+        "cursor — Cursor window opens with context file",
+        "cursor-agent — terminal opens running the cursor-agent CLI",
+        "copilot-cli — terminal opens running `copilot` with the right prompt",
+        "codex — terminal opens with Codex CLI",
+        "opencode — terminal opens with opencode",
+        "`--sandbox` with claude-code spawns inside Docker (per existing UI behavior)",
+        "Epic launch (`launch-epic`) produces the same starts-implementation-workflow behavior as the UI (workflowState flipped, PRD built from epic tickets)"
+      ],
+      "references": [],
+      "description": "## Goal\n\nClose the loop: prove the new CLI commands produce the same effect as the UI's Launch menu across every provider, then document them.\n\n## Verification checklist\n\nFor each backend, run `brain-dump workflow launch-ticket --ticket <test-ticket> --provider <name>` on a real machine, and confirm:\n\n- [ ] claude-code — terminal opens with Claude in the project dir, PRD + context files exist, session row created\n- [ ] vscode — VS Code window opens with context file, session row created\n- [ ] cursor — Cursor window opens with context file\n- [ ] cursor-agent — terminal opens running the cursor-agent CLI\n- [ ] copilot-cli — terminal opens running `copilot` with the right prompt\n- [ ] codex — terminal opens with Codex CLI\n- [ ] opencode — terminal opens with opencode\n- [ ] `--sandbox` with claude-code spawns inside Docker (per existing UI behavior)\n- [ ] Epic launch (`launch-epic`) produces the same starts-implementation-workflow behavior as the UI (workflowState flipped, PRD built from epic tickets)\n\nPer project memory (\"Always Build End-to-End\"): verify the FULL chain — CLI invocation → shared core → spawned terminal → session row in DB → visible in the UI's active sessions panel.\n\n## Docs to update\n\n- `CLAUDE.md` — add the two new actions to the CLI section\n- `docs/cli.md` — full reference entries with flags, examples, error cases\n- `README.md` (if it lists CLI examples) — add one example\n- `docs/mcp-tools.md` is unaffected (MCP workflow tool is separate)\n\n## Acceptance\n\n- All provider rows in the checklist verified\n- Docs updated and reviewed\n- One integration test in `cli/__tests__/` that exercises `launch-ticket` against a fake backend (spy on the launcher core to confirm correct wiring — not a real spawn)\n- `pnpm check` passes",
+      "priority": "medium",
+      "tags": [
+        "verification",
+        "docs"
       ]
     }
   ],
@@ -212,7 +249,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-04-05T23:40:19.291Z",
-  "epicTitle": "LLM Launch Parity for Epic and Ticket Detail Surfaces",
-  "epicDescription": "Bring the epic detail page, ticket detail page, and edit-ticket modal into parity with the known-good launch experience from the Edit Epic modal.\n\n## Problem\nThe app currently has multiple independent UI paths for starting interactive AI sessions and Ralph runs:\n- `src/components/EpicModal.tsx` is the most complete and reliable implementation.\n- `src/components/epics/EpicDetailHeader.tsx` renders a similar menu, but its Ralph buttons are placeholders that only show \"Ralph launch coming soon\".\n- `src/routes/ticket.$id.tsx` and `src/components/tickets/EditTicketModal.tsx` each implement their own ticket launch handlers separately from the epic modal path.\n- `src/components/tickets/LaunchActions.tsx` defines the ticket launch matrix, but the surrounding route/modal logic is duplicated enough that launch behavior and affordances can drift.\n\n## Investigation Summary\nObserved code paths:\n- Working epic modal launch surface: `src/components/EpicModal.tsx`\n- Epic description page launch surface: `src/components/epics/EpicDetailHeader.tsx` via `src/routes/epic.$id.tsx`\n- Ticket description page launch surface: `src/routes/ticket.$id.tsx` via `src/components/tickets/TicketDetailHeader.tsx`\n- Edit ticket modal launch surface: `src/components/tickets/EditTicketModal.tsx`\n- Workflow bootstrap helpers: `src/api/workflow-server-fns.ts`\n- Ralph working-method resolution: `src/api/ralph.ts`\n\nConcrete gaps found:\n1. Epic detail header duplicates the edit-epic launch menu but does not implement Ralph launch actions.\n2. Ticket detail and edit-ticket modal maintain separate launch logic from the known-good epic modal path.\n3. Launch semantics are spread across multiple surfaces instead of a shared abstraction, which makes parity and regression prevention difficult.\n\n## Goal\nA user should get the same launch choices, same working-method-aware Ralph behavior, and equivalent success/error handling whether they launch from:\n- Edit Epic modal\n- Epic detail page\n- Ticket detail page\n- Edit Ticket modal\n\n## Success Criteria\n- Epic detail page exposes the same real launch options as the Edit Epic modal, including Ralph actions.\n- Ticket detail page and Edit Ticket modal expose a launch matrix that matches the intended parity target, not a drifted local variant.\n- Ralph launch behavior consistently honors project `workingMethod` unless an explicit override is selected.\n- Workflow bootstrap behavior is consistent across these launch entry points.\n- Regression coverage exists for the affected detail/header/modal launch surfaces."
+  "generatedAt": "2026-04-16T23:51:29.195Z",
+  "epicTitle": "CLI Parity for Launch Epic/Ticket with Provider Choice",
+  "epicDescription": "## Why\n\nBrain Dump's UI has a \"Launch\" menu that kicks off a Ralph loop for an epic or ticket with a chosen AI backend (claude-code, vscode, cursor, cursor-agent, copilot-cli, codex, opencode). This is implemented by `launchRalphForEpic` / `launchRalphForTicket` in `src/api/ralph.ts`, which dispatch through `src/api/ralph-launchers.ts` and `src/api/ralph-script.ts` to spawn the chosen provider in a terminal.\n\nThe CLI has **no equivalent**. `workflow start-epic` only flips DB state; `session create` only inserts a session row. There is no `--provider` flag anywhere, and no terminal spawning from any CLI command.\n\n## Goal\n\nAdd `brain-dump workflow launch --epic <id>` (and `--ticket <id>`) with `--provider <name>`, `--terminal <name>`, `--max-iterations <n>`, `--sandbox` so any agent (Claude, me, Ralph itself, a remote trigger, a hotkey) can start an epic/ticket loop from a terminal with the provider of its choice — reaching full parity with the UI's Launch menu.\n\n## Scope\n\n- Extract the launcher logic from TanStack Start server functions into a shared module consumable by both the server and the CLI (CLI can't import `createServerFn` handlers directly).\n- New CLI action(s): `workflow launch-epic` and `workflow launch-ticket` (or a single `launch` action with mutually-exclusive flags).\n- Provider validation + discovery errors surface as clean CLI exit codes with actionable messages.\n- Tests covering each provider path and flag validation.\n- Update `docs/cli.md`, `CLAUDE.md`, and examples.\n\n## Non-goals\n\n- No new UI changes — the UI already has Launch.\n- No new providers — we're exposing existing backends through the CLI, not adding any.\n- Docker sandbox support should work if it works in the UI, but no new sandbox capabilities.\n\n## Why this matters\n\nUnlocks scripting, remote triggers, hotkeys, and AI-driven autonomy — e.g. \"start the auth epic with copilot-cli\" from anywhere without opening the UI."
 }

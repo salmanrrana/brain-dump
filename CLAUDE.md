@@ -40,6 +40,8 @@ pnpm brain-dump doctor            # Validate installation
 # Resource commands: brain-dump <resource> <action> [flags]
 pnpm brain-dump ticket list --status ready --pretty
 pnpm brain-dump workflow start-work --ticket <id>
+pnpm brain-dump workflow launch-ticket --ticket <id> --provider claude-code  # Parity with UI Launch menu
+pnpm brain-dump workflow launch-epic --epic <id> --provider copilot-cli      # Any provider: claude-code|vscode|cursor|cursor-agent|copilot-cli|codex|opencode
 pnpm brain-dump git link-commit --ticket <id> --hash <sha>
 pnpm brain-dump admin backup      # Create database backup
 pnpm brain-dump admin check --full  # Full health check
