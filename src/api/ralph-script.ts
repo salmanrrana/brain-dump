@@ -83,16 +83,17 @@ if ! command -v codex >/dev/null 2>&1; then
   exit 1
 fi
 
-CODEX_HELP_OUTPUT="$(codex --help 2>&1 || true)"
-if ! echo "$CODEX_HELP_OUTPUT" | grep -qw "exec"; then
+# Use 'codex exec --help' exit status as the real capability probe for the
+# subcommand (grepping 'codex --help' output for the word 'exec' would match
+# arbitrary prose). Capture output so we can scan it for the bypass flag.
+if ! CODEX_EXEC_HELP_OUTPUT="$(codex exec --help 2>&1)"; then
   echo -e "\\033[0;31m❌ Installed Codex CLI is missing the 'exec' subcommand\\033[0m"
   echo -e "\\033[0;33m  Ralph requires 'codex exec' for non-interactive headless runs.\\033[0m"
-  echo -e "\\033[0;33m  Upgrade Codex: https://developers.openai.com/codex/\\033[0m"
+  echo -e "\\033[0;33m  Upgrade Codex: https://developers.openai.com/codex/config-advanced\\033[0m"
   exit 1
 fi
 
-CODEX_EXEC_HELP_OUTPUT="$(codex exec --help 2>&1 || true)"
-if ! echo "$CODEX_EXEC_HELP_OUTPUT" | grep -q -- "--dangerously-bypass-approvals-and-sandbox"; then
+if ! printf '%s\\n' "$CODEX_EXEC_HELP_OUTPUT" | grep -q -- "--dangerously-bypass-approvals-and-sandbox"; then
   echo -e "\\033[0;31m❌ Installed Codex CLI is missing --dangerously-bypass-approvals-and-sandbox\\033[0m"
   echo -e "\\033[0;33m  Ralph requires this flag so Codex runs without approval prompts\\033[0m"
   echo -e "\\033[0;33m  and without the filesystem sandbox (parity with Claude's posture).\\033[0m"
