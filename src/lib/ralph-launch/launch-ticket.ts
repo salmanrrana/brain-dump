@@ -4,7 +4,6 @@ import { homedir } from "os";
 import { join } from "path";
 import { eq } from "drizzle-orm";
 import { createRealGitOperations, GitError, startWork } from "../../../core/index.ts";
-import { getDockerHostEnvValue } from "../../api/docker-utils";
 import {
   generateEnhancedPRD,
   generateVSCodeContext,
@@ -22,7 +21,6 @@ import {
   launchInVSCode,
   validateDockerSetup,
 } from "../../api/ralph-launchers";
-import { sqlite as defaultSqlite } from "../db";
 import { projects, settings, tickets } from "../schema";
 import type { LaunchTicketInput, RalphLaunchDb, RalphLaunchDependencies } from "./types";
 
@@ -53,7 +51,7 @@ export async function launchRalphForTicketCore(
       terminalUsed?: string | undefined;
     }
 > {
-  const sqlite = dependencies.sqlite ?? defaultSqlite;
+  const sqlite = dependencies.sqlite ?? (await import("../db")).sqlite;
   const {
     ticketId,
     maxIterations,
@@ -97,6 +95,7 @@ export async function launchRalphForTicketCore(
     }
 
     sshWarnings = dockerResult.warnings;
+    const { getDockerHostEnvValue } = await import("../../api/docker-utils");
     dockerHostEnv = await getDockerHostEnvValue();
   }
 

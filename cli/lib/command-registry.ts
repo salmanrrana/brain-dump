@@ -404,6 +404,99 @@ export const COMMAND_REGISTRY: CommandDef[] = [
     ],
     examples: ["brain-dump workflow start-epic --epic abc --create-pr"],
   },
+  {
+    resource: "workflow",
+    action: "launch-ticket",
+    description: "Launch Ralph for a single ticket in the chosen provider (parity with UI)",
+    flags: [
+      ticketFlag,
+      {
+        name: "provider",
+        type: "enum",
+        required: false,
+        description: "AI backend to launch (default: project setting)",
+        enum: [
+          "claude-code",
+          "vscode",
+          "cursor",
+          "cursor-agent",
+          "copilot-cli",
+          "codex",
+          "opencode",
+        ],
+      },
+      {
+        name: "terminal",
+        type: "string",
+        required: false,
+        description: "Preferred terminal emulator (e.g. ghostty, kitty, iterm2)",
+      },
+      {
+        name: "max-iterations",
+        type: "number",
+        required: false,
+        description: "Override Ralph loop iteration cap",
+      },
+      {
+        name: "sandbox",
+        type: "boolean",
+        required: false,
+        description: "Run inside the Docker sandbox (claude-code only)",
+      },
+      prettyFlag,
+    ],
+    examples: [
+      "brain-dump workflow launch-ticket --ticket abc --provider claude-code",
+      "brain-dump workflow launch-ticket --ticket abc --provider copilot-cli --terminal ghostty",
+      "brain-dump workflow launch-ticket --ticket abc --provider claude-code --sandbox",
+    ],
+  },
+  {
+    resource: "workflow",
+    action: "launch-epic",
+    description: "Launch Ralph for an entire epic in the chosen provider (parity with UI)",
+    flags: [
+      { name: "epic", type: "string", required: true, description: "Epic ID" },
+      {
+        name: "provider",
+        type: "enum",
+        required: false,
+        description: "AI backend to launch (default: project setting)",
+        enum: [
+          "claude-code",
+          "vscode",
+          "cursor",
+          "cursor-agent",
+          "copilot-cli",
+          "codex",
+          "opencode",
+        ],
+      },
+      {
+        name: "terminal",
+        type: "string",
+        required: false,
+        description: "Preferred terminal emulator (e.g. ghostty, kitty, iterm2)",
+      },
+      {
+        name: "max-iterations",
+        type: "number",
+        required: false,
+        description: "Override Ralph loop iteration cap",
+      },
+      {
+        name: "sandbox",
+        type: "boolean",
+        required: false,
+        description: "Run inside the Docker sandbox (claude-code only)",
+      },
+      prettyFlag,
+    ],
+    examples: [
+      "brain-dump workflow launch-epic --epic abc --provider claude-code",
+      "brain-dump workflow launch-epic --epic abc --provider opencode --max-iterations 20",
+    ],
+  },
 
   // ── comment ────────────────────────────────────────────────
   {
@@ -1337,7 +1430,7 @@ export function getResourceDescription(resource: string): string {
     project: "List, find, create, delete projects",
     ticket: "Create, list, get, update, delete tickets",
     epic: "Create, list, update, delete epics",
-    workflow: "Start work, complete work, start epic",
+    workflow: "Start work, complete work, start epic, launch Ralph",
     comment: "Add and list ticket comments",
     review: "Submit findings, generate demos, manage reviews",
     session: "Create, update, complete Ralph sessions",

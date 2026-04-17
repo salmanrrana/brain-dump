@@ -12,7 +12,6 @@ import {
   updateEpicReviewRun,
   updateEpicReviewRunTicketLink,
 } from "../../../core/index.ts";
-import { getDockerHostEnvValue } from "../../api/docker-utils";
 import {
   generateEnhancedPRD,
   generateVSCodeContext,
@@ -30,7 +29,6 @@ import {
   launchInVSCode,
   validateDockerSetup,
 } from "../../api/ralph-launchers";
-import { sqlite as defaultSqlite } from "../db";
 import { epics, projects, settings, tickets } from "../schema";
 import type {
   EpicLaunchPreparation,
@@ -176,7 +174,7 @@ export async function launchRalphForEpicCore(
       ticketCount?: number | undefined;
     }
 > {
-  const sqlite = dependencies.sqlite ?? defaultSqlite;
+  const sqlite = dependencies.sqlite ?? (await import("../db")).sqlite;
   const {
     epicId,
     maxIterations,
@@ -221,6 +219,7 @@ export async function launchRalphForEpicCore(
     }
 
     sshWarnings = dockerResult.warnings;
+    const { getDockerHostEnvValue } = await import("../../api/docker-utils");
     dockerHostEnv = await getDockerHostEnvValue();
   }
 
