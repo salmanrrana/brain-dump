@@ -48,6 +48,74 @@ cp scripts/skills/*.md ~/.claude/commands/
 
 ---
 
+### `/launch-ticket`
+
+**Purpose**: Launch Ralph for a single ticket in any supported AI provider
+
+**When to use**:
+
+- Launching Ralph autonomously on a specific ticket
+- Starting work from the terminal instead of the UI
+- Choosing a specific AI provider for the task
+
+**What it does**:
+
+1. Resolves the ticket (from argument or by listing ready tickets)
+2. Selects the AI provider (claude-code, vscode, cursor, cursor-agent, copilot-cli, codex, opencode)
+3. Runs `brain-dump workflow launch-ticket` with the chosen options
+4. Opens a new terminal window with Ralph ready to work
+
+**Flags**:
+
+| Flag               | Description                                          |
+| ------------------ | ---------------------------------------------------- |
+| `--provider`       | AI backend (default: project setting or claude-code) |
+| `--terminal`       | Terminal emulator (ghostty, kitty, iterm2)           |
+| `--max-iterations` | Override Ralph loop iteration cap                    |
+| `--sandbox`        | Run inside Docker sandbox (claude-code only)         |
+
+**Example**:
+
+```
+/launch-ticket abc123
+→ Launches Ralph for ticket abc123 with claude-code
+→ New terminal window opens with full ticket context
+→ Ralph begins autonomous implementation
+```
+
+---
+
+### `/launch-epic`
+
+**Purpose**: Launch Ralph for an entire epic (all tickets) in any supported AI provider
+
+**When to use**:
+
+- Processing an entire epic autonomously
+- Letting Ralph work through a backlog while you're away
+- Launching bulk work from the terminal
+
+**What it does**:
+
+1. Resolves the epic (from argument or by listing epics)
+2. Shows ticket summary for the epic
+3. Selects the AI provider
+4. Runs `brain-dump workflow launch-epic` with the chosen options
+5. Ralph works through each ready ticket in priority order
+
+**Flags**: Same as `/launch-ticket` (provider, terminal, max-iterations, sandbox)
+
+**Example**:
+
+```
+/launch-epic abc123
+→ Shows "Auth System" epic: 8 tickets (5 ready, 2 done, 1 in_progress)
+→ Launches Ralph with claude-code
+→ Ralph processes tickets sequentially
+```
+
+---
+
 ### `/review-ticket`
 
 **Purpose**: Run AI review agents on completed ticket work to catch issues
@@ -180,7 +248,7 @@ The workflow is designed to be a pipeline:
 ```
 [Ready Ticket]
     ↓
-/next-task
+/next-task                    ← pick a ticket manually
     ↓
 [Start ticket, implement feature]
     ↓
@@ -195,6 +263,13 @@ The workflow is designed to be a pipeline:
 /reconcile-learnings (optional)
     ↓
 [Done - learnings recorded]
+```
+
+Or let Ralph handle it autonomously:
+
+```
+/launch-ticket <id>           ← launch Ralph for one ticket
+/launch-epic <id>             ← launch Ralph for all tickets in an epic
 ```
 
 ## Configuration

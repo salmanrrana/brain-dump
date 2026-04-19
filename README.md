@@ -215,16 +215,18 @@ review { action: "generate-demo", ticketId: "<ticket-id>", steps: [...] }
 
 Common commands available from installed command packs:
 
-| Command                | Description                           |
-| ---------------------- | ------------------------------------- |
-| `/inception`           | Interview-driven project creation     |
-| `/breakdown`           | Generate epics/tickets from `spec.md` |
-| `/next-task`           | Pick best next ticket                 |
-| `/review-ticket`       | Run ticket review pipeline            |
-| `/demo`                | Generate human review demo script     |
-| `/review-epic`         | Run cross-ticket epic review          |
-| `/reconcile-learnings` | Extract and store learnings           |
-| `/extended-review`     | Extended multi-agent review           |
+| Command                | Description                                     |
+| ---------------------- | ----------------------------------------------- |
+| `/inception`           | Interview-driven project creation               |
+| `/breakdown`           | Generate epics/tickets from `spec.md`           |
+| `/next-task`           | Pick best next ticket                           |
+| `/launch-ticket`       | Launch Ralph for a single ticket (any provider) |
+| `/launch-epic`         | Launch Ralph for an entire epic (any provider)  |
+| `/review-ticket`       | Run ticket review pipeline                      |
+| `/demo`                | Generate human review demo script               |
+| `/review-epic`         | Run cross-ticket epic review                    |
+| `/reconcile-learnings` | Extract and store learnings                     |
+| `/extended-review`     | Extended multi-agent review                     |
 
 [Workflow skills and commands →](docs/workflow-skills.md)
 
@@ -340,6 +342,29 @@ Reads your spec.md and creates epics + tickets in Brain Dump, sized for 1-4 hour
 2. Click **"Start with Claude"** (or Ralph for autonomous)
 3. AI opens with full ticket context
 4. Work gets tracked automatically
+
+### Launch Ralph from CLI
+
+Launch Ralph from the terminal with full parity to the UI's Launch menu. Works with any supported provider:
+
+```bash
+# Launch Ralph for a single ticket
+brain-dump workflow launch-ticket --ticket <id> --provider claude-code --pretty
+
+# Launch Ralph for an entire epic (all tickets)
+brain-dump workflow launch-epic --epic <id> --provider claude-code --pretty
+
+# Use any provider: claude-code, vscode, cursor, cursor-agent, copilot-cli, codex, opencode
+brain-dump workflow launch-ticket --ticket <id> --provider copilot-cli --terminal ghostty --pretty
+
+# Run in Docker sandbox (claude-code only)
+brain-dump workflow launch-ticket --ticket <id> --provider claude-code --sandbox --pretty
+
+# Override Ralph's iteration cap
+brain-dump workflow launch-epic --epic <id> --provider opencode --max-iterations 20 --pretty
+```
+
+Or use the slash commands in Claude Code: `/launch-ticket` or `/launch-epic`.
 
 ### Done? Complete the Ticket
 

@@ -140,6 +140,8 @@ backlog → ready → in_progress → ai_review → human_review → done
 ### Skills (Workflow Shortcuts)
 
 - **`/next-task`** - Select the next ticket considering priority and dependencies
+- **`/launch-ticket`** - Launch Ralph for a single ticket in any provider (CLI parity with UI)
+- **`/launch-epic`** - Launch Ralph for an entire epic in any provider (CLI parity with UI)
 - **`/review-ticket`** - Run all AI review agents on current work
 - **`/review-epic`** - Run Tracer Review on an entire epic
 - **`/demo`** - Generate demo script after AI review passes
