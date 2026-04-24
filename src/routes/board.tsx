@@ -26,6 +26,9 @@ import { queryKeys } from "../lib/query-keys";
 import { createBrowserLogger } from "../lib/browser-logger";
 import { markLoaderStart, markLoaderEnd, timedFetch } from "../lib/navigation-timing";
 import { BoardSkeleton } from "../components/route-skeletons";
+
+const logger = createBrowserLogger("routes:board");
+
 export const Route = createFileRoute("/board")({
   pendingComponent: BoardSkeleton,
   loader: async ({ context }) => {
@@ -53,7 +56,6 @@ export const Route = createFileRoute("/board")({
 });
 
 function Board() {
-  const logger = createBrowserLogger("routes:board");
   const { filters: appFilters, clearAllFilters } = useAppFilters();
   const { ticketRefreshKey } = useAppRefresh();
   const { selectedTicketIdFromSearch, clearSelectedTicketFromSearch } = useAppSearchNavigation();
@@ -95,7 +97,7 @@ function Board() {
   });
 
   // Fetch active Ralph sessions for status display on cards
-  const { getSession: getRalphSession } = useActiveRalphSessions();
+  const { sessions: activeRalphSessions } = useActiveRalphSessions();
 
   // Refetch when ticketRefreshKey changes (e.g., after creating a new ticket)
   useEffect(() => {
@@ -144,33 +146,36 @@ function Board() {
     void fetchAndSelectTicket();
   }, [selectedTicketIdFromSearch, clearSelectedTicketFromSearch, queryClient, showToast]);
 
-  const allEpics = projects.flatMap((p) => p.epics);
+  const allEpics = useMemo(() => projects.flatMap((p) => p.epics), [projects]);
 
-  const handleTicketClick = async (ticket: TicketSummary) => {
-    try {
-      const fullTicket = await queryClient.ensureQueryData({
-        queryKey: queryKeys.ticket(ticket.id),
-        queryFn: () => getTicket({ data: ticket.id }),
-        staleTime: 30_000,
-      });
-      setSelectedTicket(fullTicket as Ticket);
-    } catch (err) {
-      logger.error(
-        `Failed to fetch ticket detail: ticketId=${ticket.id}`,
-        err instanceof Error ? err : new Error(String(err))
-      );
-      showToast("error", "Failed to open ticket details");
-    }
-  };
+  const handleTicketClick = useCallback(
+    async (ticket: TicketSummary) => {
+      try {
+        const fullTicket = await queryClient.ensureQueryData({
+          queryKey: queryKeys.ticket(ticket.id),
+          queryFn: () => getTicket({ data: ticket.id }),
+          staleTime: 30_000,
+        });
+        setSelectedTicket(fullTicket as Ticket);
+      } catch (err) {
+        logger.error(
+          `Failed to fetch ticket detail: ticketId=${ticket.id}`,
+          err instanceof Error ? err : new Error(String(err))
+        );
+        showToast("error", "Failed to open ticket details");
+      }
+    },
+    [logger, queryClient, showToast]
+  );
 
-  const handleModalClose = () => {
+  const handleModalClose = useCallback(() => {
     setSelectedTicket(null);
-  };
+  }, []);
 
-  const handleTicketUpdate = () => {
+  const handleTicketUpdate = useCallback(() => {
     refetch();
     setSelectedTicket(null);
-  };
+  }, [refetch]);
 
   if (loading) {
     return <div className="h-full" />;
@@ -204,7 +209,7 @@ function Board() {
               tickets={tickets}
               onTicketClick={handleTicketClick}
               onRefresh={refetch}
-              getRalphSession={getRalphSession}
+              activeRalphSessions={activeRalphSessions}
             />
           </Profiler>
         </div>

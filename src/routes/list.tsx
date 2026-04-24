@@ -26,6 +26,8 @@ import { createBrowserLogger } from "../lib/browser-logger";
 import { markLoaderStart, markLoaderEnd, timedFetch } from "../lib/navigation-timing";
 import { ListSkeleton } from "../components/route-skeletons";
 
+const logger = createBrowserLogger("routes:list");
+
 interface ListSearch {
   view?: "tags";
 }
@@ -62,7 +64,6 @@ export const Route = createFileRoute("/list")({
 type ListSubMode = "tickets" | "tags";
 
 function ListView() {
-  const logger = createBrowserLogger("routes:list");
   const { filters: appFilters } = useAppFilters();
   const { ticketRefreshKey } = useAppRefresh();
   const { selectedTicketIdFromSearch, clearSelectedTicketFromSearch } = useAppSearchNavigation();
@@ -172,33 +173,36 @@ function ListView() {
     void fetchAndSelectTicket();
   }, [selectedTicketIdFromSearch, clearSelectedTicketFromSearch, queryClient, showToast]);
 
-  const allEpics = projects.flatMap((p) => p.epics);
+  const allEpics = useMemo(() => projects.flatMap((p) => p.epics), [projects]);
 
-  const handleTicketClick = async (ticket: TicketSummary) => {
-    try {
-      const fullTicket = await queryClient.ensureQueryData({
-        queryKey: queryKeys.ticket(ticket.id),
-        queryFn: () => getTicket({ data: ticket.id }),
-        staleTime: 30_000,
-      });
-      setSelectedTicket(fullTicket as Ticket);
-    } catch (err) {
-      logger.error(
-        `Failed to fetch ticket detail: ticketId=${ticket.id}`,
-        err instanceof Error ? err : new Error(String(err))
-      );
-      showToast("error", "Failed to open ticket details");
-    }
-  };
+  const handleTicketClick = useCallback(
+    async (ticket: TicketSummary) => {
+      try {
+        const fullTicket = await queryClient.ensureQueryData({
+          queryKey: queryKeys.ticket(ticket.id),
+          queryFn: () => getTicket({ data: ticket.id }),
+          staleTime: 30_000,
+        });
+        setSelectedTicket(fullTicket as Ticket);
+      } catch (err) {
+        logger.error(
+          `Failed to fetch ticket detail: ticketId=${ticket.id}`,
+          err instanceof Error ? err : new Error(String(err))
+        );
+        showToast("error", "Failed to open ticket details");
+      }
+    },
+    [queryClient, showToast]
+  );
 
-  const handleModalClose = () => {
+  const handleModalClose = useCallback(() => {
     setSelectedTicket(null);
-  };
+  }, []);
 
-  const handleTicketUpdate = () => {
+  const handleTicketUpdate = useCallback(() => {
     refetch();
     setSelectedTicket(null);
-  };
+  }, [refetch]);
 
   // Tag drill-down: click tag row -> navigate to /board with tag filter, pushing history
   const handleTagClick = useCallback(

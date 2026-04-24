@@ -1,4 +1,5 @@
-import { useState, useMemo, useRef } from "react";
+import { memo, useCallback, useState, useMemo, useRef } from "react";
+import type { KeyboardEvent, SyntheticEvent } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronUp, ChevronDown, AlertCircle, GitBranch, GitPullRequest } from "lucide-react";
 
@@ -15,12 +16,21 @@ import { CopyableTag } from "./board/CopyableTag";
 
 const VIRTUALIZATION_THRESHOLD = 20;
 const ROW_HEIGHT_ESTIMATE = 45;
+const TABLE_COLUMN_COUNT = 8;
+const dateFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
 
 interface ParsedTicketRow {
   ticket: TicketSummary;
   tags: string[];
   subtaskCount: number;
   completedSubtaskCount: number;
+  createdAtMs: number;
+  createdAtLabel: string;
+  epicTitle: string | null;
 }
 
 interface Epic {
@@ -68,15 +78,20 @@ export default function TicketListView({ tickets, epics, onTicketClick }: Ticket
     const rows: ParsedTicketRow[] = tickets.map((ticket) => {
       const tags = safeJsonParse<string[]>(ticket.tags, []);
       const subtasks = safeJsonParse<{ completed: boolean }[]>(ticket.subtasks, []);
+      const createdAtMs = new Date(ticket.createdAt).getTime();
+      const epic = ticket.epicId ? epicMap.get(ticket.epicId) : null;
       return {
         ticket,
         tags,
         subtaskCount: subtasks.length,
         completedSubtaskCount: subtasks.filter((s) => s.completed).length,
+        createdAtMs,
+        createdAtLabel: dateFormatter.format(createdAtMs),
+        epicTitle: epic?.title ?? null,
       };
     });
     return rows;
-  }, [tickets]);
+  }, [tickets, epicMap]);
 
   const sortedRows = useMemo(() => {
     return [...parsedRows].sort((a, b) => {
@@ -96,8 +111,7 @@ export default function TicketListView({ tickets, epics, onTicketClick }: Ticket
             (PRIORITY_ORDER[b.ticket.priority ?? ""] ?? 99);
           break;
         case "createdAt":
-          comparison =
-            new Date(a.ticket.createdAt).getTime() - new Date(b.ticket.createdAt).getTime();
+          comparison = a.createdAtMs - b.createdAtMs;
           break;
       }
 
@@ -105,22 +119,17 @@ export default function TicketListView({ tickets, epics, onTicketClick }: Ticket
     });
   }, [parsedRows, sortField, sortDirection]);
 
-  const handleSort = (field: SortField) => {
-    if (field === sortField) {
-      setSortDirection((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortField(field);
-      setSortDirection("asc");
-    }
-  };
-
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  };
+  const handleSort = useCallback(
+    (field: SortField) => {
+      if (field === sortField) {
+        setSortDirection((d) => (d === "asc" ? "desc" : "asc"));
+      } else {
+        setSortField(field);
+        setSortDirection("asc");
+      }
+    },
+    [sortField]
+  );
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const useVirtual = sortedRows.length > VIRTUALIZATION_THRESHOLD;
@@ -135,96 +144,12 @@ export default function TicketListView({ tickets, epics, onTicketClick }: Ticket
 
   const virtualItems = useVirtual ? virtualizer.getVirtualItems() : [];
 
-  function renderRow({ ticket, tags, subtaskCount, completedSubtaskCount }: ParsedTicketRow) {
-    const epic = ticket.epicId ? epicMap.get(ticket.epicId) : null;
-
-    return (
-      <tr
-        key={ticket.id}
-        onClick={() => onTicketClick(ticket)}
-        className="border-b border-[var(--border-primary)] hover:bg-[var(--bg-hover)]/50 cursor-pointer"
-      >
-        <td className="px-4 py-3">
-          <div className="flex items-center gap-2">
-            {ticket.isBlocked && (
-              <span title={ticket.blockedReason ?? "Blocked"}>
-                <AlertCircle size={14} className="text-[var(--error)] flex-shrink-0" />
-              </span>
-            )}
-            <span className="text-sm text-[var(--text-primary)] truncate max-w-xs">
-              {ticket.title}
-            </span>
-          </div>
-        </td>
-        <td className="px-4 py-3">
-          <StatusBadge status={ticket.status} />
-        </td>
-        <td className="px-4 py-3">
-          {ticket.priority && <PriorityBadge priority={ticket.priority} />}
-        </td>
-        <td className="px-4 py-3">
-          {epic && (
-            <span className="text-sm text-[var(--text-primary)] truncate max-w-xs">
-              {epic.title}
-            </span>
-          )}
-        </td>
-        <td className="px-4 py-3">
-          <div className="flex gap-1 flex-wrap max-w-xs items-center">
-            {tags.slice(0, 3).map((tag) => (
-              <CopyableTag
-                key={tag}
-                tag={tag}
-                onClick={(e) => e.stopPropagation()}
-                onPointerDown={(e) => e.stopPropagation()}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.stopPropagation();
-                  }
-                }}
-              />
-            ))}
-            {tags.length > 3 && (
-              <span className="text-xs text-[var(--text-muted)]">+{tags.length - 3}</span>
-            )}
-          </div>
-        </td>
-        <td className="px-4 py-3">
-          <div className="flex items-center gap-2">
-            {ticket.branchName && (
-              <span
-                className="flex items-center gap-1 text-xs text-[var(--text-secondary)]"
-                title={ticket.branchName}
-              >
-                <GitBranch size={12} className="text-[var(--accent-ai)]" />
-                <span className="truncate max-w-[120px]">
-                  {ticket.branchName.replace(/^feature\//, "")}
-                </span>
-              </span>
-            )}
-            {ticket.prNumber && (
-              <span
-                className={`flex items-center gap-1 text-xs ${getPrStatusIconColor(ticket.prStatus)}`}
-                title={`PR #${ticket.prNumber} - ${ticket.prStatus ?? "open"}`}
-              >
-                <GitPullRequest size={12} />#{ticket.prNumber}
-              </span>
-            )}
-          </div>
-        </td>
-        <td className="px-4 py-3">
-          {subtaskCount > 0 && (
-            <span className="text-xs text-[var(--text-secondary)]">
-              {completedSubtaskCount}/{subtaskCount}
-            </span>
-          )}
-        </td>
-        <td className="px-4 py-3 text-sm text-[var(--text-secondary)]">
-          {formatDate(ticket.createdAt)}
-        </td>
-      </tr>
-    );
-  }
+  const renderRow = useCallback(
+    (row: ParsedTicketRow) => (
+      <TicketTableRow key={row.ticket.id} row={row} onTicketClick={onTicketClick} />
+    ),
+    [onTicketClick]
+  );
 
   const tableHeader = (
     <thead className="sticky top-0 bg-[var(--bg-secondary)] z-10">
@@ -283,15 +208,21 @@ export default function TicketListView({ tickets, epics, onTicketClick }: Ticket
         <tbody>
           {sortedRows.length === 0 ? (
             <tr>
-              <td colSpan={8} className="px-4 py-8 text-center text-[var(--text-muted)] text-sm">
+              <td
+                colSpan={TABLE_COLUMN_COUNT}
+                className="px-4 py-8 text-center text-[var(--text-muted)] text-sm"
+              >
                 No tickets found
               </td>
             </tr>
           ) : useVirtual ? (
             <>
               {virtualItems.length > 0 && virtualItems[0]!.start > 0 && (
-                <tr>
-                  <td style={{ height: virtualItems[0]!.start, padding: 0 }} />
+                <tr aria-hidden="true">
+                  <td
+                    colSpan={TABLE_COLUMN_COUNT}
+                    style={{ height: virtualItems[0]!.start, padding: 0 }}
+                  />
                 </tr>
               )}
               {virtualItems.map((virtualRow) => {
@@ -300,8 +231,9 @@ export default function TicketListView({ tickets, epics, onTicketClick }: Ticket
                 return renderRow(row);
               })}
               {virtualItems.length > 0 && (
-                <tr>
+                <tr aria-hidden="true">
                   <td
+                    colSpan={TABLE_COLUMN_COUNT}
                     style={{
                       height:
                         virtualizer.getTotalSize() - virtualItems[virtualItems.length - 1]!.end,
@@ -319,6 +251,108 @@ export default function TicketListView({ tickets, epics, onTicketClick }: Ticket
     </div>
   );
 }
+
+const TicketTableRow = memo(function TicketTableRow({
+  row,
+  onTicketClick,
+}: {
+  row: ParsedTicketRow;
+  onTicketClick: (ticket: TicketSummary) => void;
+}) {
+  const { ticket, tags, subtaskCount, completedSubtaskCount, createdAtLabel, epicTitle } = row;
+
+  const handleClick = useCallback(() => {
+    onTicketClick(ticket);
+  }, [onTicketClick, ticket]);
+
+  const stopPropagation = useCallback((event: SyntheticEvent) => {
+    event.stopPropagation();
+  }, []);
+
+  const handleTagKeyDown = useCallback((event: KeyboardEvent) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.stopPropagation();
+    }
+  }, []);
+
+  return (
+    <tr
+      onClick={handleClick}
+      className="border-b border-[var(--border-primary)] hover:bg-[var(--bg-hover)]/50 cursor-pointer"
+    >
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-2">
+          {ticket.isBlocked && (
+            <span title={ticket.blockedReason ?? "Blocked"}>
+              <AlertCircle size={14} className="text-[var(--error)] flex-shrink-0" />
+            </span>
+          )}
+          <span className="text-sm text-[var(--text-primary)] truncate max-w-xs">
+            {ticket.title}
+          </span>
+        </div>
+      </td>
+      <td className="px-4 py-3">
+        <StatusBadge status={ticket.status} />
+      </td>
+      <td className="px-4 py-3">
+        {ticket.priority && <PriorityBadge priority={ticket.priority} />}
+      </td>
+      <td className="px-4 py-3">
+        {epicTitle && (
+          <span className="text-sm text-[var(--text-primary)] truncate max-w-xs">{epicTitle}</span>
+        )}
+      </td>
+      <td className="px-4 py-3">
+        <div className="flex gap-1 flex-wrap max-w-xs items-center">
+          {tags.slice(0, 3).map((tag) => (
+            <CopyableTag
+              key={tag}
+              tag={tag}
+              onClick={stopPropagation}
+              onPointerDown={stopPropagation}
+              onKeyDown={handleTagKeyDown}
+            />
+          ))}
+          {tags.length > 3 && (
+            <span className="text-xs text-[var(--text-muted)]">+{tags.length - 3}</span>
+          )}
+        </div>
+      </td>
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-2">
+          {ticket.branchName && (
+            <span
+              className="flex items-center gap-1 text-xs text-[var(--text-secondary)]"
+              title={ticket.branchName}
+            >
+              <GitBranch size={12} className="text-[var(--accent-ai)]" />
+              <span className="truncate max-w-[120px]">
+                {ticket.branchName.replace(/^feature\//, "")}
+              </span>
+            </span>
+          )}
+          {ticket.prNumber && (
+            <span
+              className={`flex items-center gap-1 text-xs ${getPrStatusIconColor(ticket.prStatus)}`}
+              title={`PR #${ticket.prNumber} - ${ticket.prStatus ?? "open"}`}
+            >
+              <GitPullRequest size={12} />#{ticket.prNumber}
+            </span>
+          )}
+        </div>
+      </td>
+      <td className="px-4 py-3">
+        {subtaskCount > 0 && (
+          <span className="text-xs text-[var(--text-secondary)]">
+            {completedSubtaskCount}/{subtaskCount}
+          </span>
+        )}
+      </td>
+      <td className="px-4 py-3 text-sm text-[var(--text-secondary)]">{createdAtLabel}</td>
+    </tr>
+  );
+});
 
 function StatusBadge({ status }: { status: string }) {
   const config = STATUS_BADGE_CONFIG[status] ?? {
