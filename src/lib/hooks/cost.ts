@@ -251,6 +251,17 @@ export function useCostExplorer(params?: CostExplorerParams) {
   });
 }
 
+export function deriveCostExplorerSummary(tree: CostExplorerNode) {
+  const allTickets = tree.children?.flatMap((e) => e.children ?? []) ?? [];
+  return {
+    totalSpend: tree.costUsd,
+    avgPerTicket: allTickets.length > 0 ? tree.costUsd / allTickets.length : 0,
+    mostExpensive: findMostExpensiveNode(tree),
+    cacheSavings: computeTotalCacheSavings(tree),
+    totalSessions: tree.sessionCount,
+  };
+}
+
 /**
  * Derived view of the explorer data — same cache, no extra fetch.
  * Computes summary stats from the explorer tree.
@@ -264,16 +275,7 @@ export function useCostExplorerSummary(params?: CostExplorerParams) {
     },
     staleTime: 300_000,
     gcTime: 300_000,
-    select: (tree: CostExplorerNode) => {
-      const allTickets = tree.children?.flatMap((e) => e.children ?? []) ?? [];
-      return {
-        totalSpend: tree.costUsd,
-        avgPerTicket: allTickets.length > 0 ? tree.costUsd / allTickets.length : 0,
-        mostExpensive: findMostExpensiveNode(tree),
-        cacheSavings: computeTotalCacheSavings(tree),
-        totalSessions: tree.sessionCount,
-      };
-    },
+    select: deriveCostExplorerSummary,
   });
 }
 

@@ -29,9 +29,9 @@ import {
   useInvalidateQueries,
   useDockerAvailable,
   useRalphContainers,
-  useActiveRalphSessions,
   useLaunchRalphForEpic,
   useSettings,
+  type ActiveRalphSession,
   type Epic,
   type ProjectBase,
   type SearchResult,
@@ -130,9 +130,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const navigate = useNavigate();
   const { projects, refetch: refetchProjects } = useProjects();
   // Enhanced projects with AI activity for ProjectsPanel
-  const { projects: projectsWithAI } = useProjectsWithAIActivity();
-  // Active Ralph sessions for computing epics with AI
-  const { sessions: activeSessions } = useActiveRalphSessions();
+  const { projects: projectsWithAI, activeSessions } = useProjectsWithAIActivity();
   // Settings for Ralph launch
   const { settings } = useSettings();
   // Ralph launch mutation
@@ -632,7 +630,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
               aria-modal="true"
               aria-label="Mobile navigation menu"
             >
-              <Sidebar onItemClick={closeMobileMenu} />
+              <Sidebar onItemClick={closeMobileMenu} activeSessions={activeSessions} />
             </div>
           </div>
         )}
@@ -852,9 +850,10 @@ function AppHeader() {
 interface SidebarProps {
   /** Optional callback when a navigation item is clicked (for mobile menu close) */
   onItemClick?: () => void;
+  activeSessions: Record<string, ActiveRalphSession>;
 }
 
-function Sidebar({ onItemClick }: SidebarProps = {}) {
+function Sidebar({ onItemClick, activeSessions }: SidebarProps) {
   const { projects, loading, error } = useProjects();
   const {
     filters,
@@ -870,8 +869,6 @@ function Sidebar({ onItemClick }: SidebarProps = {}) {
     onDeleteEpic,
   } = useAppState();
 
-  // Get active Ralph sessions for AI indicators
-  const { sessions: activeSessions } = useActiveRalphSessions();
   const { settings } = useSettings();
   const launchRalphMutation = useLaunchRalphForEpic();
   const { showToast } = useToast();

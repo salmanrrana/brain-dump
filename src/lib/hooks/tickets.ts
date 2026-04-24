@@ -140,7 +140,6 @@ export function useCreateTicket() {
       };
 
       // Add optimistic ticket to all matching full-ticket queries
-      // Array.isArray guard: allTickets prefix also matches count queries (Record<string, number>)
       for (const [queryKey, tickets] of previousTicketQueries) {
         if (Array.isArray(tickets)) {
           queryClient.setQueryData<Ticket[]>(queryKey, [...tickets, optimisticTicket]);
@@ -227,7 +226,6 @@ export function useUpdateTicket() {
       };
 
       // Optimistically update full-ticket queries
-      // Array.isArray guard: allTickets prefix also matches count queries (Record<string, number>)
       for (const [queryKey, tickets] of previousTicketQueries) {
         if (Array.isArray(tickets)) {
           queryClient.setQueryData<Ticket[]>(
@@ -320,7 +318,6 @@ export function useUpdateTicketStatus() {
         return updated;
       };
 
-      // Array.isArray guard: allTickets prefix also matches count queries (Record<string, number>)
       for (const [queryKey, tickets] of previousTicketQueries) {
         if (Array.isArray(tickets)) {
           queryClient.setQueryData<Ticket[]>(
@@ -381,7 +378,6 @@ export function useUpdateTicketPosition() {
         queryKey: queryKeys.allTicketSummaries,
       });
 
-      // Array.isArray guard: allTickets prefix also matches count queries (Record<string, number>)
       for (const [queryKey, tickets] of previousTicketQueries) {
         if (Array.isArray(tickets)) {
           queryClient.setQueryData<Ticket[]>(
@@ -639,83 +635,62 @@ export function usePaginatedTicketSummaries(
 // SEARCH HOOK
 // =============================================================================
 
-// Hook for searching tickets with debouncing
+// Hook for searching tickets with debounced, cache-backed queries
 export function useSearch(projectId?: string | null) {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
-  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const normalizedProjectId = projectId ?? undefined;
+  const trimmedDebouncedQuery = debouncedQuery.trim();
 
-  const search = useCallback(
-    async (searchQuery: string) => {
-      if (!searchQuery.trim()) {
-        setResults([]);
-        setSearchError(null);
-        return;
-      }
-
-      setLoading(true);
-      setSearchError(null);
-      try {
-        const searchData: { query: string; projectId?: string } = {
-          query: searchQuery,
-        };
-        if (projectId) {
-          searchData.projectId = projectId;
-        }
-        const data = await searchTickets({
-          data: searchData,
-        });
-        setResults(data);
-      } catch (err) {
-        // Note: Components using this hook should show user-facing error notifications
-        logger.error("Search failed", err instanceof Error ? err : new Error(String(err)));
-        setResults([]);
-        setSearchError(err instanceof Error ? err.message : "Search failed");
-      } finally {
-        setLoading(false);
-      }
-    },
-    [projectId]
-  );
-
-  const debouncedSearch = useCallback(
-    (searchQuery: string) => {
-      setQuery(searchQuery);
-
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-      }
-
-      if (!searchQuery.trim()) {
-        setResults([]);
-        return;
-      }
-
-      debounceRef.current = setTimeout(() => {
-        void search(searchQuery);
-      }, 300);
-    },
-    [search]
-  );
-
-  // Cleanup timeout on unmount
   useEffect(() => {
-    return () => {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery) return;
+
+    const timeout = setTimeout(() => setDebouncedQuery(trimmedQuery), 300);
+    return () => clearTimeout(timeout);
+  }, [query]);
+
+  const searchQuery = useQuery({
+    queryKey: queryKeys.search(trimmedDebouncedQuery, normalizedProjectId),
+    queryFn: async () => {
+      const searchData: { query: string; projectId?: string } = {
+        query: trimmedDebouncedQuery,
+      };
+      if (normalizedProjectId) {
+        searchData.projectId = normalizedProjectId;
       }
-    };
+      return searchTickets({ data: searchData });
+    },
+    enabled: trimmedDebouncedQuery.length > 0,
+    staleTime: 60_000,
+  });
+
+  useEffect(() => {
+    if (searchQuery.error) {
+      logger.error("Search failed", searchQuery.error);
+    }
+  }, [searchQuery.error]);
+
+  const search = useCallback((searchQuery: string) => {
+    setQuery(searchQuery);
+    if (!searchQuery.trim()) {
+      setDebouncedQuery("");
+    }
   }, []);
 
   const clearSearch = useCallback(() => {
     setQuery("");
-    setResults([]);
-    setSearchError(null);
+    setDebouncedQuery("");
   }, []);
 
-  return { query, results, loading, error: searchError, search: debouncedSearch, clearSearch };
+  return {
+    query,
+    results: query.trim() ? (searchQuery.data ?? []) : [],
+    loading: trimmedDebouncedQuery.length > 0 && searchQuery.isFetching,
+    error: searchQuery.error?.message ?? null,
+    search,
+    clearSearch,
+  };
 }
 
 // =============================================================================

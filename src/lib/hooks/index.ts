@@ -192,6 +192,7 @@ export {
   useRecalculateCosts,
   useCostExplorer,
   useCostExplorerSummary,
+  deriveCostExplorerSummary,
   useTicketCostDetail,
 } from "./cost";
 

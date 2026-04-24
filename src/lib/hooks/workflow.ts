@@ -91,6 +91,7 @@ export function useDemoScript(
     },
     enabled,
     refetchInterval: pollingInterval > 0 ? pollingInterval : false,
+    refetchOnWindowFocus: pollingInterval === 0,
     staleTime: 0, // Demo script status can change externally
   });
 
@@ -240,6 +241,7 @@ export function useWorkflowState(
     },
     enabled,
     refetchInterval: pollingInterval > 0 ? pollingInterval : false,
+    refetchOnWindowFocus: pollingInterval === 0,
     staleTime: 0, // Workflow state can change externally (MCP tools)
   });
 
