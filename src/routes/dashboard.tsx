@@ -27,23 +27,25 @@ const CostExplorerTab = lazy(loadCostExplorerTab);
 
 export const Route = createFileRoute("/dashboard")({
   pendingComponent: DashboardSkeleton,
-  loader: ({ context }) => {
+  loader: async ({ context }) => {
     markLoaderStart("dashboard");
     // Pre-warm the overview data only; secondary tab code and data are prefetched on intent.
-    void timedFetch("dashboard:tickets", () =>
-      context.queryClient.ensureQueryData({
-        queryKey: queryKeys.ticketSummaries({}),
-        queryFn: () => getTicketSummaries({ data: {} }),
-        staleTime: 30_000,
-      })
-    );
-    void timedFetch("dashboard:analytics", () =>
-      context.queryClient.ensureQueryData({
-        queryKey: queryKeys.analytics.dashboard(),
-        queryFn: () => getDashboardAnalytics(),
-        staleTime: 60_000,
-      })
-    );
+    await Promise.all([
+      timedFetch("dashboard:tickets", () =>
+        context.queryClient.ensureQueryData({
+          queryKey: queryKeys.ticketSummaries({}),
+          queryFn: () => getTicketSummaries({ data: {} }),
+          staleTime: 30_000,
+        })
+      ),
+      timedFetch("dashboard:analytics", () =>
+        context.queryClient.ensureQueryData({
+          queryKey: queryKeys.analytics.dashboard(),
+          queryFn: () => getDashboardAnalytics(),
+          staleTime: 60_000,
+        })
+      ),
+    ]);
     markLoaderEnd("dashboard");
   },
   component: Dashboard,

@@ -15,18 +15,20 @@ const logger = createBrowserLogger("routes:project-detail");
 
 export const Route = createFileRoute("/projects/$projectId")({
   pendingComponent: ProjectDetailSkeleton,
-  loader: ({ context, params }) => {
+  loader: async ({ context, params }) => {
     // Pre-warm cache with projects (with epics) and per-epic ticket counts
-    void context.queryClient.ensureQueryData({
-      queryKey: queryKeys.projectsWithEpics,
-      queryFn: () => getProjectsWithEpics(),
-      staleTime: 30_000,
-    });
-    void context.queryClient.ensureQueryData({
-      queryKey: queryKeys.epicTicketCounts(params.projectId),
-      queryFn: () => getEpicTicketCounts({ data: params.projectId }),
-      staleTime: 30_000,
-    });
+    await Promise.all([
+      context.queryClient.ensureQueryData({
+        queryKey: queryKeys.projectsWithEpics,
+        queryFn: () => getProjectsWithEpics(),
+        staleTime: 30_000,
+      }),
+      context.queryClient.ensureQueryData({
+        queryKey: queryKeys.epicTicketCounts(params.projectId),
+        queryFn: () => getEpicTicketCounts({ data: params.projectId }),
+        staleTime: 30_000,
+      }),
+    ]);
   },
   component: ProjectDetail,
 });

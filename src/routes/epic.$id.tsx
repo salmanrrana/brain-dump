@@ -19,19 +19,21 @@ import { useToast } from "../components/Toast";
 import { queryKeys } from "../lib/query-keys";
 
 export const Route = createFileRoute("/epic/$id")({
-  loader: ({ context, params }) => {
+  loader: async ({ context, params }) => {
     const epicId = params.id;
     // Pre-warm both epic detail and epic cost in parallel to avoid waterfall
-    void context.queryClient.ensureQueryData({
-      queryKey: queryKeys.epicDetail(epicId),
-      queryFn: () => getEpicDetail({ data: epicId }),
-      staleTime: 0,
-    });
-    void context.queryClient.ensureQueryData({
-      queryKey: queryKeys.cost.epicCost(epicId),
-      queryFn: () => getEpicCost({ data: epicId }),
-      staleTime: 300_000,
-    });
+    await Promise.all([
+      context.queryClient.ensureQueryData({
+        queryKey: queryKeys.epicDetail(epicId),
+        queryFn: () => getEpicDetail({ data: epicId }),
+        staleTime: 30_000,
+      }),
+      context.queryClient.ensureQueryData({
+        queryKey: queryKeys.cost.epicCost(epicId),
+        queryFn: () => getEpicCost({ data: epicId }),
+        staleTime: 300_000,
+      }),
+    ]);
   },
   component: EpicDetailPage,
   errorComponent: EpicDetailError,

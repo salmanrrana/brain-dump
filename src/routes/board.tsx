@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { Profiler, useCallback, useEffect, useMemo, useState } from "react";
 import { onRenderCallback } from "../lib/profiler";
 import { useAppState } from "../components/AppLayout";
@@ -23,23 +24,25 @@ import { markLoaderStart, markLoaderEnd, timedFetch } from "../lib/navigation-ti
 import { BoardSkeleton } from "../components/route-skeletons";
 export const Route = createFileRoute("/board")({
   pendingComponent: BoardSkeleton,
-  loader: ({ context }) => {
+  loader: async ({ context }) => {
     markLoaderStart("board");
     // Pre-warm cache with default (unfiltered) tickets and projects
-    void timedFetch("board:tickets", () =>
-      context.queryClient.ensureQueryData({
-        queryKey: queryKeys.ticketSummaries({}),
-        queryFn: () => getTicketSummaries({ data: {} }),
-        staleTime: 30_000,
-      })
-    );
-    void timedFetch("board:projects", () =>
-      context.queryClient.ensureQueryData({
-        queryKey: queryKeys.projectsWithEpics,
-        queryFn: () => getProjectsWithEpics(),
-        staleTime: 30_000,
-      })
-    );
+    await Promise.all([
+      timedFetch("board:tickets", () =>
+        context.queryClient.ensureQueryData({
+          queryKey: queryKeys.ticketSummaries({}),
+          queryFn: () => getTicketSummaries({ data: {} }),
+          staleTime: 30_000,
+        })
+      ),
+      timedFetch("board:projects", () =>
+        context.queryClient.ensureQueryData({
+          queryKey: queryKeys.projectsWithEpics,
+          queryFn: () => getProjectsWithEpics(),
+          staleTime: 30_000,
+        })
+      ),
+    ]);
     markLoaderEnd("board");
   },
   component: Board,
@@ -57,6 +60,7 @@ function Board() {
   const { projects } = useProjects();
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const { showToast } = useToast();
+  const queryClient = useQueryClient();
 
   const filters = useMemo(() => {
     const f: { projectId?: string; epicId?: string; tags?: string[] } = {};
@@ -106,7 +110,11 @@ function Board() {
 
     const fetchAndSelectTicket = async () => {
       try {
-        const response = await getTicket({ data: selectedTicketIdFromSearch });
+        const response = await queryClient.ensureQueryData({
+          queryKey: queryKeys.ticket(selectedTicketIdFromSearch),
+          queryFn: () => getTicket({ data: selectedTicketIdFromSearch }),
+          staleTime: 30_000,
+        });
 
         // Validate response has required fields
         if (
@@ -134,13 +142,17 @@ function Board() {
     };
 
     void fetchAndSelectTicket();
-  }, [selectedTicketIdFromSearch, clearSelectedTicketFromSearch, showToast]);
+  }, [selectedTicketIdFromSearch, clearSelectedTicketFromSearch, queryClient, showToast]);
 
   const allEpics = projects.flatMap((p) => p.epics);
 
   const handleTicketClick = async (ticket: TicketSummary) => {
     try {
-      const fullTicket = await getTicket({ data: ticket.id });
+      const fullTicket = await queryClient.ensureQueryData({
+        queryKey: queryKeys.ticket(ticket.id),
+        queryFn: () => getTicket({ data: ticket.id }),
+        staleTime: 30_000,
+      });
       setSelectedTicket(fullTicket as Ticket);
     } catch (err) {
       logger.error(

@@ -40,6 +40,14 @@ import {
 } from "../lib/hooks";
 
 export const Route = createFileRoute("/ticket/$id")({
+  pendingComponent: TicketDetailSkeleton,
+  loader: async ({ context, params }) => {
+    await context.queryClient.ensureQueryData({
+      queryKey: queryKeys.ticket(params.id),
+      queryFn: () => getTicket({ data: params.id }),
+      staleTime: 30_000,
+    });
+  },
   component: TicketDetailPage,
   errorComponent: TicketDetailError,
 });
@@ -257,8 +265,8 @@ function TicketDetailPage() {
   } = useQuery({
     queryKey: queryKeys.ticket(id),
     queryFn: () => getTicket({ data: id }),
-    // Ticket could be updated externally via MCP
-    staleTime: 0,
+    // Mutations invalidate this key; short freshness lets recent navigations reuse loaded detail data.
+    staleTime: 30_000,
   });
 
   // Fetch workflow state for this ticket
