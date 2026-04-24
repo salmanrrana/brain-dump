@@ -48,6 +48,8 @@ describe("useSearch", () => {
     act(() => result.current.search("stale"));
     await new Promise((resolve) => setTimeout(resolve, 100));
     act(() => result.current.search("fresh"));
+    expect(result.current.results).toEqual([]);
+    expect(result.current.loading).toBe(true);
 
     await waitFor(() => expect(result.current.results[0]?.title).toBe("Result for fresh"));
     expect(searchTickets).toHaveBeenCalledTimes(1);

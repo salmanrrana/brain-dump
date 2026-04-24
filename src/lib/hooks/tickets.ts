@@ -640,15 +640,16 @@ export function useSearch(projectId?: string | null) {
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const normalizedProjectId = projectId ?? undefined;
+  const trimmedQuery = query.trim();
   const trimmedDebouncedQuery = debouncedQuery.trim();
+  const isShowingCurrentQuery = trimmedQuery === trimmedDebouncedQuery;
 
   useEffect(() => {
-    const trimmedQuery = query.trim();
     if (!trimmedQuery) return;
 
     const timeout = setTimeout(() => setDebouncedQuery(trimmedQuery), 300);
     return () => clearTimeout(timeout);
-  }, [query]);
+  }, [trimmedQuery]);
 
   const searchQuery = useQuery({
     queryKey: queryKeys.search(trimmedDebouncedQuery, normalizedProjectId),
@@ -685,8 +686,8 @@ export function useSearch(projectId?: string | null) {
 
   return {
     query,
-    results: query.trim() ? (searchQuery.data ?? []) : [],
-    loading: trimmedDebouncedQuery.length > 0 && searchQuery.isFetching,
+    results: trimmedQuery && isShowingCurrentQuery ? (searchQuery.data ?? []) : [],
+    loading: trimmedQuery.length > 0 && (!isShowingCurrentQuery || searchQuery.isFetching),
     error: searchQuery.error?.message ?? null,
     search,
     clearSearch,
