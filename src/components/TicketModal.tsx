@@ -39,6 +39,7 @@ import {
 } from "../lib/hooks";
 import { RalphStatusBadge } from "./RalphStatusBadge";
 import { useToast } from "./Toast";
+import ErrorAlert from "./ErrorAlert";
 import type { TicketStatus, TicketPriority } from "../api/tickets";
 import {
   STATUS_OPTIONS,
@@ -879,6 +880,10 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
   }, [ticket.id, ticket.title, deleteTicketMutation, showToast, onClose, onUpdate]);
 
   const handleSave = useCallback(() => {
+    if (updateTicketMutation.isPending) {
+      return;
+    }
+
     const values = form.state.values;
 
     // Build updates object conditionally to satisfy exactOptionalPropertyTypes
@@ -1633,6 +1638,10 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
             </button>
           </div>
         )}
+
+        <div className="mx-4 mb-0">
+          <ErrorAlert error={updateTicketMutation.error} />
+        </div>
 
         {/* Footer */}
         <div className="flex justify-between gap-3 px-5 py-4 border-t border-[var(--border-primary)]">

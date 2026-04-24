@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { X, Bot, GitBranch, Settings, Building2, DollarSign } from "lucide-react";
-import { useForm } from "@tanstack/react-form-start";
+import { useForm, useStore } from "@tanstack/react-form-start";
 import {
   useSettings,
   useUpdateSettings,
@@ -106,6 +106,10 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
 
   const isSaving = updateMutation.isPending;
   const error = updateMutation.error;
+  const defaultProjectsDirectory = useStore(
+    form.store,
+    (state) => state.values.defaultProjectsDirectory
+  );
 
   // Handle Escape key
   useEffect(() => {
@@ -152,6 +156,10 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
   }, []);
 
   const handleSave = useCallback(() => {
+    if (updateMutation.isPending) {
+      return;
+    }
+
     const values = form.state.values;
     updateMutation.mutate(
       {
@@ -176,7 +184,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
         },
       }
     );
-  }, [updateMutation, form.state.values, onClose]);
+  }, [updateMutation, form, onClose]);
 
   const handleBuildImage = useCallback(() => {
     buildImageMutation.mutate(undefined, {
@@ -332,7 +340,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
       {/* Directory Picker Modal */}
       <DirectoryPicker
         isOpen={showDirectoryPicker}
-        initialPath={form.state.values.defaultProjectsDirectory || undefined}
+        initialPath={defaultProjectsDirectory || undefined}
         onSelect={handleDirectorySelect}
         onClose={() => setShowDirectoryPicker(false)}
       />

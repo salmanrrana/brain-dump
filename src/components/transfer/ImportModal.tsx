@@ -55,6 +55,10 @@ const ImportModal: FC<ImportModalProps> = ({ isOpen, onClose, defaultProjectId }
   // Read file and get preview
   const processFile = useCallback(
     (file: File) => {
+      if (previewMutation.isPending) {
+        return;
+      }
+
       if (!file.name.endsWith(".braindump")) {
         showToast("error", "Please select a .braindump file");
         return;
@@ -62,7 +66,12 @@ const ImportModal: FC<ImportModalProps> = ({ isOpen, onClose, defaultProjectId }
 
       const reader = new FileReader();
       reader.onload = (e) => {
-        const arrayBuffer = e.target?.result as ArrayBuffer;
+        const arrayBuffer = e.target?.result;
+        if (!(arrayBuffer instanceof ArrayBuffer)) {
+          showToast("error", "Failed to read file contents. Please try again.");
+          return;
+        }
+
         const bytes = new Uint8Array(arrayBuffer);
         let binary = "";
         for (let i = 0; i < bytes.length; i++) {
@@ -83,6 +92,9 @@ const ImportModal: FC<ImportModalProps> = ({ isOpen, onClose, defaultProjectId }
             showToast("error", err instanceof Error ? err.message : "Failed to read archive");
           },
         });
+      };
+      reader.onerror = () => {
+        showToast("error", `Failed to read file "${file.name}". Please try again.`);
       };
       reader.readAsArrayBuffer(file);
     },
@@ -120,6 +132,10 @@ const ImportModal: FC<ImportModalProps> = ({ isOpen, onClose, defaultProjectId }
 
   // Import handler
   const handleImport = useCallback(() => {
+    if (importMutation.isPending) {
+      return;
+    }
+
     if (!base64Data || !targetProjectId) return;
 
     importMutation.mutate(
@@ -268,9 +284,7 @@ const ImportModal: FC<ImportModalProps> = ({ isOpen, onClose, defaultProjectId }
                   <span>Comments: {preview.commentCount}</span>
                   <span>Findings: {preview.findingCount}</span>
                   <span>Attachments: {preview.attachmentCount}</span>
-                  <span>
-                    Exported: {new Date(preview.exportedAt).toLocaleDateString()}
-                  </span>
+                  <span>Exported: {new Date(preview.exportedAt).toLocaleDateString()}</span>
                 </div>
               </div>
 

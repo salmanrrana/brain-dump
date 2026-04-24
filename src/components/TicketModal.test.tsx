@@ -16,6 +16,12 @@ const mockUseStore = vi.hoisted(() =>
     })
   )
 );
+const mockUpdateTicketMutation = vi.hoisted(() => ({
+  mutate: vi.fn(),
+  mutateAsync: vi.fn(),
+  isPending: false,
+  error: null as Error | null,
+}));
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mockNavigate,
@@ -37,7 +43,7 @@ vi.mock("../lib/hooks", () => ({
   useClickOutside: vi.fn(),
   useDeleteTicket: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
   useTicketDeletePreview: vi.fn(() => ({ data: null })),
-  useUpdateTicket: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false, error: null })),
+  useUpdateTicket: vi.fn(() => mockUpdateTicketMutation),
   useSettings: vi.fn(() => ({ settings: null })),
   useLaunchRalphForTicket: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
   useComments: vi.fn(() => ({ comments: [], loading: false })),
@@ -127,6 +133,8 @@ function createTicket(overrides: Record<string, unknown> = {}) {
 describe("TicketModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUpdateTicketMutation.isPending = false;
+    mockUpdateTicketMutation.error = null;
   });
 
   it("shows an epic tag in the board modal header and navigates to epic details", async () => {
@@ -154,5 +162,13 @@ describe("TicketModal", () => {
       to: "/epic/$id",
       params: { id: "epic-1" },
     });
+  });
+
+  it("shows ticket save errors without requiring another submit", () => {
+    mockUpdateTicketMutation.error = new Error("Unable to save ticket");
+
+    render(<TicketModal ticket={createTicket()} epics={[]} onClose={vi.fn()} onUpdate={vi.fn()} />);
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Unable to save ticket");
   });
 });
