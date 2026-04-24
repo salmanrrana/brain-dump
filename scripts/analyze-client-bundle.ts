@@ -28,6 +28,11 @@ const LARGE_CHUNK_BYTES = 500 * 1024;
 const INITIAL_ROUTE_BUDGET_BYTES = 300 * 1024;
 
 const RISK_RULES: RiskRule[] = [
+  {
+    pattern:
+      /costtreemap|generatecategoricalchart|aiusage|velocity|cycle|piechart|areachart|ychart/i,
+    label: "chart library chunk",
+  },
   { pattern: /dashboard/i, label: "dashboard charts and analytics" },
   { pattern: /board/i, label: "Kanban drag and drop" },
   { pattern: /ticketmodal|ticket-form/i, label: "ticket form modal" },
@@ -90,6 +95,38 @@ function renderAssetTable(assets: AssetSummary[]): string[] {
   });
 }
 
+function renderObservations(scripts: AssetSummary[]): string[] {
+  const largestScript = scripts[0];
+  const overBudgetScripts = scripts.filter((asset) => asset.bytes > LARGE_CHUNK_BYTES);
+  const chartScripts = scripts.filter((asset) => asset.risk === "chart library chunk");
+
+  const lines = [
+    largestScript
+      ? `- The largest current script is \`${largestScript.name}\` at ${formatBytes(largestScript.bytes)} uncompressed (${formatBytes(largestScript.gzipBytes)} gzip).`
+      : "- No client scripts were found in the production assets.",
+    overBudgetScripts.length === 0
+      ? `- No client scripts exceed the ${formatBytes(LARGE_CHUNK_BYTES)} chunk budget.`
+      : `- Scripts over ${formatBytes(LARGE_CHUNK_BYTES)}: ${overBudgetScripts.map((asset) => `\`${asset.name}\``).join(", ")}.`,
+    "- `board-*`, `ticket._id-*`, `epic._id-*`, and route-specific dashboard assets are separated from root assets, making route-level regressions visible in this report.",
+    "- `TicketModal-*`, `SettingsModal-*`, `ProjectModal-*`, `EpicModal-*`, `ImportModal-*`, and other modal assets appear as separate client chunks when present.",
+  ];
+
+  if (chartScripts.length > 0) {
+    lines.push(
+      `- Chart-heavy assets are split from root assets: ${chartScripts
+        .slice(0, 4)
+        .map((asset) => `\`${asset.name}\``)
+        .join(", ")}.`
+    );
+  }
+
+  lines.push(
+    "- Any future `@tanstack/*devtools*` or chart library code showing up in `main-*` should be treated as an initial-load regression."
+  );
+
+  return lines;
+}
+
 function renderReport(assets: AssetSummary[]): string {
   const scripts = assets.filter((asset) => asset.kind === "script");
   const styles = assets.filter((asset) => asset.kind === "style");
@@ -140,10 +177,7 @@ function renderReport(assets: AssetSummary[]): string {
     "",
     "## Observations",
     "",
-    "- The largest current chunks are dashboard and root application scripts, so dashboard charting and root imports are the first optimization targets.",
-    "- `board-*` is separated from root assets, which keeps Kanban drag-and-drop code out of the smallest route surfaces.",
-    "- `TicketModal-*`, `RelatedTickets-*`, `ticket._id-*`, and `epic._id-*` appear as separate client assets, making future modal/detail-route regressions visible in this report.",
-    "- Any future `@tanstack/*devtools*` or chart library code showing up in `main-*` should be treated as an initial-load regression.",
+    ...renderObservations(scripts),
     "",
   ];
 
