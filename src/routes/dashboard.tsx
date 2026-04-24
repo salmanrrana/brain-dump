@@ -1,36 +1,35 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Profiler, useCallback, useState } from "react";
+import { Profiler, Suspense, lazy, useCallback, useState } from "react";
 import { onRenderCallback } from "../lib/profiler";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  useTicketSummaries,
-  useActiveRalphSessions,
-  useDashboardAnalytics,
-  useDashboardTelemetryAnalytics,
-  useCostAnalytics,
-} from "../lib/hooks";
+import { useTicketSummaries, useActiveRalphSessions, useDashboardAnalytics } from "../lib/hooks";
 import { getTicketSummaries } from "../api/tickets";
 import { getDashboardAnalytics } from "../api/analytics";
 import { getDashboardTelemetryAnalytics } from "../api/telemetry";
 import { getCostAnalytics, getCostExplorerData } from "../api/cost";
 import { queryKeys } from "../lib/query-keys";
-import {
-  StatsGrid,
-  AnalyticsSection,
-  AITelemetryTab,
-  CostExplorerTab,
-} from "../components/dashboard";
-import type { StatFilter } from "../components/dashboard";
+import { StatsGrid } from "../components/dashboard/StatsGrid";
+import type { StatFilter } from "../components/dashboard/StatsGrid";
+import { AnalyticsSection } from "../components/dashboard/AnalyticsSection";
 
 import { markLoaderStart, markLoaderEnd, timedFetch } from "../lib/navigation-timing";
 import { DashboardSkeleton } from "../components/route-skeletons";
 
 type DashboardTab = "overview" | "ai-telemetry" | "cost-explorer";
+
+const loadAITelemetryTab = () =>
+  import("../components/dashboard/AITelemetryTab").then((m) => ({ default: m.AITelemetryTab }));
+const AITelemetryTab = lazy(loadAITelemetryTab);
+
+const loadCostExplorerTab = () =>
+  import("../components/dashboard/CostExplorerTab").then((m) => ({ default: m.CostExplorerTab }));
+const CostExplorerTab = lazy(loadCostExplorerTab);
+
 export const Route = createFileRoute("/dashboard")({
   pendingComponent: DashboardSkeleton,
   loader: ({ context }) => {
     markLoaderStart("dashboard");
-    // Pre-warm cache with tickets (for stats), analytics, telemetry, and cost in parallel
+    // Pre-warm the overview data only; secondary tab code and data are prefetched on intent.
     void timedFetch("dashboard:tickets", () =>
       context.queryClient.ensureQueryData({
         queryKey: queryKeys.ticketSummaries({}),
@@ -43,20 +42,6 @@ export const Route = createFileRoute("/dashboard")({
         queryKey: queryKeys.analytics.dashboard(),
         queryFn: () => getDashboardAnalytics(),
         staleTime: 60_000,
-      })
-    );
-    void timedFetch("dashboard:telemetry", () =>
-      context.queryClient.ensureQueryData({
-        queryKey: queryKeys.telemetry.dashboardAnalytics(),
-        queryFn: () => getDashboardTelemetryAnalytics(),
-        staleTime: 60_000,
-      })
-    );
-    void timedFetch("dashboard:cost", () =>
-      context.queryClient.ensureQueryData({
-        queryKey: queryKeys.cost.dashboardAnalytics(),
-        queryFn: () => getCostAnalytics(),
-        staleTime: 300_000,
       })
     );
     markLoaderEnd("dashboard");
@@ -143,16 +128,25 @@ function Dashboard() {
     isLoading: analyticsLoading,
     error: analyticsError,
   } = useDashboardAnalytics();
-  const {
-    data: telemetryAnalytics,
-    isLoading: telemetryLoading,
-    error: telemetryError,
-  } = useDashboardTelemetryAnalytics();
-  const { data: costAnalytics, error: costError } = useCostAnalytics();
   const queryClient = useQueryClient();
 
+  const prefetchTelemetry = useCallback(() => {
+    void loadAITelemetryTab();
+    void queryClient.prefetchQuery({
+      queryKey: queryKeys.telemetry.dashboardAnalytics(),
+      queryFn: () => getDashboardTelemetryAnalytics(),
+      staleTime: 60_000,
+    });
+    void queryClient.prefetchQuery({
+      queryKey: queryKeys.cost.dashboardAnalytics(),
+      queryFn: () => getCostAnalytics(),
+      staleTime: 300_000,
+    });
+  }, [queryClient]);
+
   const prefetchExplorer = useCallback(() => {
-    queryClient.prefetchQuery({
+    void loadCostExplorerTab();
+    void queryClient.prefetchQuery({
       queryKey: queryKeys.cost.explorer(),
       queryFn: async () => {
         const result = await getCostExplorerData({ data: {} });
@@ -229,6 +223,8 @@ function Dashboard() {
               role="tab"
               aria-selected={activeTab === "ai-telemetry"}
               onClick={() => setActiveTab("ai-telemetry")}
+              onMouseEnter={prefetchTelemetry}
+              onFocus={prefetchTelemetry}
               style={activeTab === "ai-telemetry" ? activeTabStyles : tabStyles}
             >
               AI Telemetry
@@ -238,6 +234,7 @@ function Dashboard() {
               aria-selected={activeTab === "cost-explorer"}
               onClick={() => setActiveTab("cost-explorer")}
               onMouseEnter={prefetchExplorer}
+              onFocus={prefetchExplorer}
               style={activeTab === "cost-explorer" ? activeTabStyles : tabStyles}
             >
               Cost Explorer
@@ -265,26 +262,28 @@ function Dashboard() {
           </Profiler>
         )}
 
-        {activeTab === "ai-telemetry" && telemetryAnalytics && (
+        {activeTab === "ai-telemetry" && (
           <Profiler id="Dashboard.AITelemetry" onRender={onRenderCallback}>
-            <AITelemetryTab
-              analytics={telemetryAnalytics}
-              isLoading={telemetryLoading}
-              error={telemetryError}
-              costAnalytics={costAnalytics}
-              costError={costError}
-            />
+            <Suspense fallback={<DashboardTabFallback label="Loading AI telemetry..." />}>
+              <AITelemetryTab />
+            </Suspense>
           </Profiler>
         )}
 
         {activeTab === "cost-explorer" && (
           <Profiler id="Dashboard.CostExplorer" onRender={onRenderCallback}>
-            <CostExplorerTab />
+            <Suspense fallback={<DashboardTabFallback label="Loading cost explorer..." />}>
+              <CostExplorerTab />
+            </Suspense>
           </Profiler>
         )}
       </div>
     </Profiler>
   );
+}
+
+function DashboardTabFallback({ label }: { label: string }) {
+  return <div style={tabFallbackStyles}>{label}</div>;
 }
 
 const containerStyles: React.CSSProperties = {
@@ -336,4 +335,15 @@ const activeTabStyles: React.CSSProperties = {
   ...tabStyles,
   color: "var(--text-primary)",
   background: "var(--bg-hover)",
+};
+
+const tabFallbackStyles: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 240,
+  color: "var(--text-secondary)",
+  background: "var(--bg-card)",
+  border: "1px solid var(--border-primary)",
+  borderRadius: "var(--radius-xl)",
 };

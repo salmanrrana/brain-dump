@@ -13,17 +13,20 @@ vi.mock("../lib/hooks", () => ({
   useTicketSummaries: vi.fn(),
   useActiveRalphSessions: vi.fn(),
   useDashboardAnalytics: vi.fn(),
-  useDashboardTelemetryAnalytics: vi.fn(),
-  useCostAnalytics: vi.fn(() => ({ data: undefined, error: null })),
 }));
 
 // Mock api/cost for getCostExplorerData used in prefetch
 vi.mock("../api/cost", () => ({
   getCostExplorerData: vi.fn(),
+  getCostAnalytics: vi.fn(),
+}));
+
+vi.mock("../api/telemetry", () => ({
+  getDashboardTelemetryAnalytics: vi.fn(),
 }));
 
 // Mock dashboard components - we're testing the route's data transformation logic
-vi.mock("../components/dashboard", () => ({
+vi.mock("../components/dashboard/StatsGrid", () => ({
   StatsGrid: vi.fn(({ total, inProgress, aiActive, done }) => (
     <div data-testid="stats-grid">
       <span data-testid="stat-total">{total}</span>
@@ -32,24 +35,25 @@ vi.mock("../components/dashboard", () => ({
       <span data-testid="stat-done">{done}</span>
     </div>
   )),
+}));
+
+vi.mock("../components/dashboard/AnalyticsSection", () => ({
   AnalyticsSection: vi.fn(() => <div data-testid="analytics-section">Analytics</div>),
+}));
+
+vi.mock("../components/dashboard/AITelemetryTab", () => ({
   AITelemetryTab: vi.fn(() => <div data-testid="ai-telemetry-tab">AI Telemetry</div>),
+}));
+
+vi.mock("../components/dashboard/CostExplorerTab", () => ({
   CostExplorerTab: vi.fn(() => <div data-testid="cost-explorer-tab">Cost Explorer</div>),
 }));
 
-import {
-  useTicketSummaries,
-  useActiveRalphSessions,
-  useDashboardAnalytics,
-  useDashboardTelemetryAnalytics,
-} from "../lib/hooks";
+import { useTicketSummaries, useActiveRalphSessions, useDashboardAnalytics } from "../lib/hooks";
 
 const mockUseTicketSummaries = useTicketSummaries as ReturnType<typeof vi.fn>;
 const mockUseActiveRalphSessions = useActiveRalphSessions as ReturnType<typeof vi.fn>;
 const mockUseDashboardAnalytics = useDashboardAnalytics as ReturnType<typeof vi.fn>;
-const mockUseDashboardTelemetryAnalytics = useDashboardTelemetryAnalytics as ReturnType<
-  typeof vi.fn
->;
 
 function createTicket(
   overrides: Partial<{
@@ -85,11 +89,6 @@ beforeEach(async () => {
   mockUseTicketSummaries.mockReturnValue({ tickets: [], loading: false, error: null });
   mockUseActiveRalphSessions.mockReturnValue({ sessions: {}, error: null });
   mockUseDashboardAnalytics.mockReturnValue({
-    data: null,
-    isLoading: false,
-    error: null,
-  });
-  mockUseDashboardTelemetryAnalytics.mockReturnValue({
     data: null,
     isLoading: false,
     error: null,
