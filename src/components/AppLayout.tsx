@@ -1,4 +1,13 @@
-import { ReactNode, useState, createContext, useContext, useMemo, useCallback } from "react";
+import {
+  lazy,
+  ReactNode,
+  Suspense,
+  useState,
+  createContext,
+  useContext,
+  useMemo,
+  useCallback,
+} from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { LayoutGrid, List, Settings, RefreshCw, Menu, MessageSquareWarning } from "lucide-react";
 import { IconSidebar } from "./navigation/IconSidebar";
@@ -6,17 +15,8 @@ import { ProjectsPanel } from "./navigation/ProjectsPanel";
 import { SearchBar } from "./navigation/SearchBar";
 import ProjectTree from "./ProjectTree";
 import ContainerStatusSection from "./ContainerStatusSection";
-import ContainerLogsModal from "./ContainerLogsModal";
-import NewTicketModal from "./NewTicketModal";
-import ProjectModal from "./ProjectModal";
-import EpicModal from "./EpicModal";
-import { SettingsModal } from "./settings";
-import DeleteConfirmationModal, { type DeletePreview } from "./DeleteConfirmationModal";
+import type { DeletePreview } from "./DeleteConfirmationModal";
 import { NewTicketDropdown } from "./navigation/NewTicketDropdown";
-import { InceptionModal } from "./inception/InceptionModal";
-import { ShortcutsModal } from "./ui/ShortcutsModal";
-import { FeedbackModal } from "./FeedbackModal";
-import ImportModal from "./transfer/ImportModal";
 import { useToast } from "./Toast";
 import {
   useProjects,
@@ -42,6 +42,27 @@ import { deleteEpic as deleteEpicFn } from "../api/epics";
 import { useKeyboardShortcuts } from "../lib/keyboard-shortcuts";
 import { getEpicContext } from "../api/context";
 import { startEpicWorkflowFn } from "../api/workflow-server-fns";
+
+const ContainerLogsModal = lazy(() => import("./ContainerLogsModal"));
+const DeleteConfirmationModal = lazy(() => import("./DeleteConfirmationModal"));
+const EpicModal = lazy(() => import("./EpicModal"));
+const FeedbackModal = lazy(() =>
+  import("./FeedbackModal").then((module) => ({ default: module.FeedbackModal }))
+);
+const ImportModal = lazy(() => import("./transfer/ImportModal"));
+const InceptionModal = lazy(() => import("./inception/InceptionModal"));
+const NewTicketModal = lazy(() => import("./NewTicketModal"));
+const ProjectModal = lazy(() => import("./ProjectModal"));
+const SettingsModal = lazy(() => import("./settings/SettingsModal"));
+const ShortcutsModal = lazy(() => import("./ui/ShortcutsModal"));
+
+function ModalFallback() {
+  return (
+    <div role="status" aria-live="polite" className="sr-only">
+      Loading dialog...
+    </div>
+  );
+}
 
 // App context for managing global state
 interface AppState {
@@ -627,57 +648,65 @@ export default function AppLayout({ children }: AppLayoutProps) {
           </main>
         </div>
 
-        {/* New Ticket Modal */}
-        {modal.type === "newTicket" && (
-          <NewTicketModal
-            projects={projects}
-            epics={allEpics}
-            defaultProjectId={filters.projectId}
-            onClose={closeModal}
-            onCreate={handleTicketCreated}
-          />
-        )}
+        <Suspense fallback={<ModalFallback />}>
+          {/* New Ticket Modal */}
+          {modal.type === "newTicket" && (
+            <NewTicketModal
+              projects={projects}
+              epics={allEpics}
+              defaultProjectId={filters.projectId}
+              onClose={closeModal}
+              onCreate={handleTicketCreated}
+            />
+          )}
 
-        {/* Project Modal */}
-        {modal.type === "project" && (
-          <ProjectModal project={modal.project} onClose={closeModal} onSave={handleProjectSaved} />
-        )}
+          {/* Project Modal */}
+          {modal.type === "project" && (
+            <ProjectModal
+              project={modal.project}
+              onClose={closeModal}
+              onSave={handleProjectSaved}
+            />
+          )}
 
-        {/* Epic Modal */}
-        {modal.type === "epic" && (
-          <EpicModal
-            epic={modal.epic}
-            projectId={modal.projectId}
-            onClose={closeModal}
-            onSave={handleEpicSaved}
-          />
-        )}
+          {/* Epic Modal */}
+          {modal.type === "epic" && (
+            <EpicModal
+              epic={modal.epic}
+              projectId={modal.projectId}
+              onClose={closeModal}
+              onSave={handleEpicSaved}
+            />
+          )}
 
-        {/* Settings Modal */}
-        {modal.type === "settings" && <SettingsModal onClose={closeModal} />}
+          {/* Settings Modal */}
+          {modal.type === "settings" && <SettingsModal onClose={closeModal} />}
 
-        {/* Keyboard Shortcuts Help Modal */}
-        {modal.type === "shortcuts" && <ShortcutsModal isOpen={true} onClose={closeModal} />}
+          {/* Keyboard Shortcuts Help Modal */}
+          {modal.type === "shortcuts" && <ShortcutsModal isOpen={true} onClose={closeModal} />}
 
-        {/* Feedback Modal */}
-        {modal.type === "feedback" && <FeedbackModal onClose={closeModal} />}
+          {/* Feedback Modal */}
+          {modal.type === "feedback" && <FeedbackModal onClose={closeModal} />}
 
-        {/* Delete Epic Confirmation Modal */}
-        {epicToDelete && (
-          <DeleteConfirmationModal
-            isOpen={true}
-            onClose={handleDeleteEpicCancel}
-            onConfirm={handleDeleteEpicConfirm}
-            isLoading={deleteEpicMutation.isPending}
-            entityType="epic"
-            entityName={epicToDelete.title}
-            preview={deleteEpicPreview}
-            error={deleteEpicError}
-          />
-        )}
+          {/* Delete Epic Confirmation Modal */}
+          {epicToDelete && (
+            <DeleteConfirmationModal
+              isOpen={true}
+              onClose={handleDeleteEpicCancel}
+              onConfirm={handleDeleteEpicConfirm}
+              isLoading={deleteEpicMutation.isPending}
+              entityType="epic"
+              entityName={epicToDelete.title}
+              preview={deleteEpicPreview}
+              error={deleteEpicError}
+            />
+          )}
 
-        {/* Import Modal */}
-        <ImportModal isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} />
+          {/* Import Modal */}
+          {isImportModalOpen && (
+            <ImportModal isOpen={true} onClose={() => setIsImportModalOpen(false)} />
+          )}
+        </Suspense>
       </div>
     </AppContext.Provider>
   );
@@ -807,11 +836,15 @@ function AppHeader() {
       />
 
       {/* Inception Modal */}
-      <InceptionModal
-        isOpen={isInceptionModalOpen}
-        onClose={() => setIsInceptionModalOpen(false)}
-        onSkipAI={openNewTicketModal}
-      />
+      {isInceptionModalOpen && (
+        <Suspense fallback={<ModalFallback />}>
+          <InceptionModal
+            isOpen={true}
+            onClose={() => setIsInceptionModalOpen(false)}
+            onSkipAI={openNewTicketModal}
+          />
+        </Suspense>
+      )}
     </header>
   );
 }
@@ -1073,11 +1106,15 @@ function Sidebar({ onItemClick }: SidebarProps = {}) {
       </div>
 
       {/* Container Logs Modal for Docker indicator click */}
-      <ContainerLogsModal
-        isOpen={dockerLogsProjectId !== null}
-        onClose={() => setDockerLogsProjectId(null)}
-        containerName={dockerLogsContainerName}
-      />
+      {dockerLogsProjectId !== null && (
+        <Suspense fallback={<ModalFallback />}>
+          <ContainerLogsModal
+            isOpen={true}
+            onClose={() => setDockerLogsProjectId(null)}
+            containerName={dockerLogsContainerName}
+          />
+        </Suspense>
+      )}
     </aside>
   );
 }
