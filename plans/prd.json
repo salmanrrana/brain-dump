@@ -9,89 +9,257 @@
   ],
   "userStories": [
     {
-      "id": "644d2f04-a6fa-499e-83dc-1f8b2a38f203",
-      "title": "Ralph loop: Codex invocation must use `exec` mode with auto-approval (no permission prompts, exits between tickets)",
+      "id": "ddbf30f9-a96a-45f5-a2cd-85ca338d515f",
+      "title": "Fix production build and client/server module boundaries",
       "passes": true,
-      "overview": "When Ralph is launched against a ticket/epic with `aiBackend: \"codex\"`, Codex opens in **interactive TUI mode** and:\n1. **Asks for permission** every time it wants to edit/run a command (user reported this regression).\n2. **Never exits after completing a ticket**, so the outer bash loop in `generateRalphScript` cannot advance to the next ticket. In Claude / Cursor Agent the CLI exits after `-p` print mode, the loop's next `for` iteration rewrites the prompt file, and the same terminal window continues with the next `passes: false` ticket — that is the \"session reset within the same terminal window\" behavior described in `docs/universal-quality-workflow-per-provider-diagrams.md`.",
+      "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Ralph launched with `aiBackend: \"codex\"` does NOT show any Codex permission prompts during the run.",
-        "Codex does NOT run inside its sandbox during Ralph (verified by Codex being able to read/write normally anywhere it would as a human-driven session).",
-        "After a single ticket iteration, Codex exits and the Ralph bash loop advances to the next iteration in the same terminal window (verified by observing the \"Ralph Iteration 2 of N\" banner without user input).",
-        "`codex --help` is probed; if `exec` or the bypass flag is missing, we print a clear upgrade hint and exit cleanly instead of hanging.",
-        "Unit test in `src/api/ralph-script.test.ts` asserts generated script for `aiBackend: \"codex\"` contains `codex exec` and `--dangerously-bypass-approvals-and-sandbox`.",
-        "`docs/environments/codex.md` documents the flag and explicitly notes we intentionally bypass the sandbox for parity with Claude."
+        "Implement as described",
+        "Verify functionality works as expected"
       ],
       "references": [
-        "src/api/ralph-script.ts",
-        "plans/prd.json",
-        "src/api/ralph-script.test.ts",
-        "src/api/ralph.test.ts"
+        "src/lib/xdg.ts",
+        "src/api/*",
+        "src/lib/logger.ts",
+        "src/lib/db.ts"
       ],
-      "description": "## Problem\n\nWhen Ralph is launched against a ticket/epic with `aiBackend: \"codex\"`, Codex opens in **interactive TUI mode** and:\n\n1. **Asks for permission** every time it wants to edit/run a command (user reported this regression).\n2. **Never exits after completing a ticket**, so the outer bash loop in `generateRalphScript` cannot advance to the next ticket. In Claude / Cursor Agent the CLI exits after `-p` print mode, the loop's next `for` iteration rewrites the prompt file, and the same terminal window continues with the next `passes: false` ticket — that is the \"session reset within the same terminal window\" behavior described in `docs/universal-quality-workflow-per-provider-diagrams.md`.\n\n## Root Cause\n\n`src/api/ralph-script.ts` (the `AI_BACKEND_CONFIGS.codex.invocation`) currently generates:\n\n```bash\ncodex \"$(cat \"$PROMPT_FILE\")\"\n```\n\nThis launches Codex's interactive TUI. There is:\n\n- no `exec` subcommand (needed for non-interactive)\n- no bypass of approval prompts\n- no bypass of the sandbox (which would itself cause a permission nightmare on the user's real workspace)\n\nCompare to the working Claude config on the same file:\n\n```bash\nclaude --dangerously-skip-permissions --output-format text -p \"$(cat \"$PROMPT_FILE\")\"\n```\n\nClaude `-p` exits after completion → bash loop iterates → next ticket. No sandboxing — Claude runs directly in the user's workspace with skip-permissions.\n\n## Expected Behavior\n\n- Codex runs headless per iteration, NO sandbox (writes directly in the user's workspace, same as Claude), auto-approves all tool use, and exits when the iteration is done so the bash loop can pick up the next `passes: false` ticket from `plans/prd.json`.\n- Must NOT run under Codex's sandboxed filesystem (`read-only` or `workspace-write` sandbox modes). Sandboxing + Ralph's loop of `git` / `pnpm` / MCP tool calls creates exactly the permission-prompt loop we want to eliminate.\n\n## Proposed Fix\n\nUpdate `AI_BACKEND_CONFIGS.codex.invocation` in `src/api/ralph-script.ts` to use `codex exec` with the combined bypass flag:\n\n```bash\ncodex exec --dangerously-bypass-approvals-and-sandbox \"$(cat \"$PROMPT_FILE\")\"\n```\n\nWhy the combined bypass flag specifically:\n\n- `--dangerously-bypass-approvals-and-sandbox` is documented as disabling BOTH mechanisms (https://developers.openai.com/codex/config-advanced). This matches Claude's `--dangerously-skip-permissions` posture: no prompts, no sandbox.\n- The alternative `--ask-for-approval never --sandbox workspace-write` still runs Codex inside its sandbox layer, which will still prompt/fail on operations outside the workspace (e.g. reading `$HOME` configs, spawning subprocess commands not in the allowlist) — exactly the \"permission nightmare\" we're fixing.\n\nRefs:\n\n- https://developers.openai.com/codex/config-advanced — `--ask-for-approval {on-request|on-failure|never}`, `--sandbox {read-only|workspace-write|danger-full-access}`, `--dangerously-bypass-approvals-and-sandbox`.\n- https://developers.openai.com/codex/config-basic.\n\n## Acceptance Criteria\n\n- [ ] Ralph launched with `aiBackend: \"codex\"` does NOT show any Codex permission prompts during the run.\n- [ ] Codex does NOT run inside its sandbox during Ralph (verified by Codex being able to read/write normally anywhere it would as a human-driven session).\n- [ ] After a single ticket iteration, Codex exits and the Ralph bash loop advances to the next iteration in the same terminal window (verified by observing the \"Ralph Iteration 2 of N\" banner without user input).\n- [ ] `codex --help` is probed; if `exec` or the bypass flag is missing, we print a clear upgrade hint and exit cleanly instead of hanging.\n- [ ] Unit test in `src/api/ralph-script.test.ts` asserts generated script for `aiBackend: \"codex\"` contains `codex exec` and `--dangerously-bypass-approvals-and-sandbox`.\n- [ ] `docs/environments/codex.md` documents the flag and explicitly notes we intentionally bypass the sandbox for parity with Claude.\n\n## Files Likely Touched\n\n- `src/api/ralph-script.ts` — `AI_BACKEND_CONFIGS.codex.invocation` + preflightCheck.\n- `src/api/ralph-script.test.ts` or `src/api/ralph.test.ts`.\n- `docs/environments/codex.md`.\n\n## Out of Scope\n\n- Changing Codex MCP config in `~/.codex/config.toml` (that is for interactive usage, not the Ralph loop).\n- Docker sandbox mode for Codex (still Claude-only per `ralph.ts`).\n- Running Codex in sandbox mode — explicitly rejected because it recreates the permission-prompt problem.\n\n## Branch Policy\n\nAll work for this ticket must be done on the current feature branch. Do not create a new branch.",
+      "description": "Production build currently fails because Node/server-only modules are reachable from the browser graph. Fix this first so bundle analysis and later frontend performance work can be measured reliably.\n\nContext:\n- `pnpm build` fails in `src/lib/xdg.ts` because browser bundling sees Node modules like `os`, `path`, and `fs`.\n- Vite also warns that many API/lib modules pull Node modules into client resolution.\n- Likely causes include top-level server-only imports from `src/api/*`, `src/lib/logger.ts`, `src/lib/xdg.ts`, `src/lib/db.ts`, and broad frontend barrels/imports.\n\nImplementation notes:\n- Keep client-callable `createServerFn` entry modules thin and move Node/database work behind server-only implementation modules.\n- Avoid top-level imports of Node built-ins from files reachable by route/component imports.\n- Extend the existing Vite server-only guard if useful, but prefer fixing import boundaries over adding stubs.\n- Preserve existing API behavior.\n\nAcceptance criteria:\n- `pnpm build` completes successfully.\n- Production client build no longer reports Node built-in externalization warnings for reachable frontend modules.\n- Browser/client code cannot import `src/lib/xdg.ts`, `src/lib/logger.ts`, `src/lib/db.ts`, migration/backup/lockfile/watcher/integrity modules, or other server-only implementation files directly.\n- Existing tests for server functions and frontend still pass or are updated for the new boundaries.\n- Run `pnpm type-check && pnpm lint && pnpm test && pnpm build`.",
       "priority": "high",
       "tags": [
-        "ralph",
-        "codex",
-        "cross-environment",
-        "bug"
+        "frontend",
+        "performance",
+        "build",
+        "tanstack-start"
       ]
     },
     {
-      "id": "17a9336d-56c6-4f45-909d-96ef7e435308",
-      "title": "Ralph loop: OpenCode invocation must use `run` subcommand with permission=allow (exits between tickets)",
-      "passes": false,
-      "overview": "When Ralph is launched against a ticket/epic with `aiBackend: \"opencode\"`, OpenCode opens in **interactive TUI mode** and never exits after completing a ticket. The outer bash loop in `generateRalphScript` therefore cannot advance to the next ticket, and the \"same terminal window rolls into the next ticket\" behavior (working for Claude and Cursor Agent) never happens.",
+      "id": "f02f7135-2d36-40eb-bb33-7d1b9ea81151",
+      "title": "Add frontend bundle analysis and performance guardrails",
+      "passes": true,
+      "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Ralph launched with `aiBackend: \"opencode\"` uses `opencode run` (not the TUI entrypoint).",
-        "After a single ticket iteration, OpenCode exits and the Ralph bash loop advances to the next iteration in the same terminal window.",
-        "Tool approvals do not block the loop (either via `OPENCODE_PERMISSION` env or via configured `permission: allow`).",
-        "If `opencode run --help` does not list expected flags, the preflight check in `ralph-script.ts` prints an upgrade hint.",
-        "Unit test asserts the generated script for `aiBackend: \"opencode\"` contains `opencode run` and the permission env.",
-        "`docs/environments/opencode.md` documents the Ralph-loop headless invocation and the permission setting."
+        "Implement as described",
+        "Verify functionality works as expected"
       ],
-      "references": [
-        "src/api/ralph-script.ts",
-        "plans/prd.json"
-      ],
-      "description": "## Problem\n\nWhen Ralph is launched against a ticket/epic with `aiBackend: \"opencode\"`, OpenCode opens in **interactive TUI mode** and never exits after completing a ticket. The outer bash loop in `generateRalphScript` therefore cannot advance to the next ticket, and the \"same terminal window rolls into the next ticket\" behavior (working for Claude and Cursor Agent) never happens.\n\n## Root Cause\n\n`src/api/ralph-script.ts` (the `AI_BACKEND_CONFIGS.opencode.invocation`) currently generates:\n\n```bash\nopencode \"$PROJECT_PATH\" --prompt \"$(cat \"$PROMPT_FILE\")\"\n```\n\nThis is the interactive TUI entrypoint with a seeded prompt — it does not return control to the parent shell after the prompt resolves. Per the official docs (https://opencode.ai/docs/cli/), the **non-interactive entrypoint is `opencode run [message..]`**. Permissions are controlled via the `permission` config (`\"permission\": \"allow\"`) or the `OPENCODE_PERMISSION` env var (https://opencode.ai/docs/permissions/), not by CLI flags.\n\nCompare to the working Claude config:\n\n```bash\nclaude --dangerously-skip-permissions --output-format text -p \"$(cat \"$PROMPT_FILE\")\"\n```\n\nClaude `-p` exits after completion → bash loop iterates → next ticket.\n\n## Expected Behavior\n\n- OpenCode runs headless per iteration, auto-approves tool use, and exits when the iteration is done so the bash loop can pick up the next `passes: false` ticket from `plans/prd.json`.\n- Works inside the same terminal window — matches Claude and Cursor Agent behavior.\n\n## Proposed Fix\n\nUpdate `AI_BACKEND_CONFIGS.opencode.invocation` in `src/api/ralph-script.ts`:\n\n```bash\n# Auto-allow all tool permissions for the duration of this iteration.\n# See https://opencode.ai/docs/permissions/\nOPENCODE_PERMISSION='{\"*\":\"allow\"}' opencode run --format default \"$(cat \"$PROMPT_FILE\")\"\n```\n\nKeep `cd \"$PROJECT_PATH\"` at the top of the script (already present) so we don't rely on the positional-arg path.\n\nAlso consider writing an installed `.opencode/opencode.json` fragment (or documenting one) with `\"permission\": \"allow\"` so interactive users can opt-in globally without the env var.\n\n## Acceptance Criteria\n\n- [ ] Ralph launched with `aiBackend: \"opencode\"` uses `opencode run` (not the TUI entrypoint).\n- [ ] After a single ticket iteration, OpenCode exits and the Ralph bash loop advances to the next iteration in the same terminal window.\n- [ ] Tool approvals do not block the loop (either via `OPENCODE_PERMISSION` env or via configured `permission: allow`).\n- [ ] If `opencode run --help` does not list expected flags, the preflight check in `ralph-script.ts` prints an upgrade hint.\n- [ ] Unit test asserts the generated script for `aiBackend: \"opencode\"` contains `opencode run` and the permission env.\n- [ ] `docs/environments/opencode.md` documents the Ralph-loop headless invocation and the permission setting.\n\n## Files Likely Touched\n\n- `src/api/ralph-script.ts` — `AI_BACKEND_CONFIGS.opencode.invocation` + preflight.\n- Test file asserting the generated script.\n- `docs/environments/opencode.md`.\n- Optional: `.opencode/opencode.json.example` — surface the `permission: allow` pattern.\n\n## Out of Scope\n\n- Changes to the OpenCode plugin in `~/.config/opencode/plugins/` — this is only about the Ralph-loop invocation in the generated bash script.\n\n## Branch Policy\n\nAll work for this ticket must be done on the current feature branch. Do not create a new branch.",
+      "references": [],
+      "description": "Add a repeatable way to measure frontend bundle output after the production build is fixed, then capture a baseline for future optimization work.\n\nContext:\n- The current build failed before chunk stats were available.\n- `vite.config.ts` has no explicit bundle analysis script, visualizer, chunk budget, or documented performance baseline.\n\nImplementation notes:\n- Add a bundle analysis workflow that works with the current Vite/TanStack Start setup.\n- Prefer a script that can be run locally and in CI without requiring a browser.\n- Capture chunk sizes and identify heavy shared dependencies such as charting, DnD, form, devtools, and server-fn client shims.\n- Add documentation or a short report file with the baseline and how to regenerate it.\n\nAcceptance criteria:\n- A script exists to build and inspect production client bundle output.\n- The baseline identifies top chunks/modules and initial-route payload risks.\n- Bundle analysis can run after `pnpm build` without manual steps.\n- Reasonable chunk warning/budget guidance is documented.\n- Run `pnpm type-check && pnpm lint && pnpm test && pnpm build`.",
       "priority": "high",
       "tags": [
-        "ralph",
-        "opencode",
-        "cross-environment",
-        "bug"
+        "frontend",
+        "performance",
+        "build",
+        "metrics"
       ]
     },
     {
-      "id": "7d7ffa36-8ad8-47b5-aef6-e69e670c5e63",
-      "title": "Ralph loop: add per-provider \"loop advances between tickets\" contract tests + docs",
-      "passes": false,
-      "overview": "The Codex/OpenCode regressions (see sibling tickets) slipped in because there is **no shared contract test** that asserts every `RalphAiBackend` in `src/api/ralph-script.ts`:\n1. uses a **non-interactive / headless entrypoint** (so the CLI exits after one iteration),\n2. runs with **auto-approval** for tool use AND **no sandbox** (so the loop isn't blocked by permission prompts or sandbox-denied operations),\n3. allows the outer bash loop in `generateRalphScript` to roll forward to the next ticket without user input — the \"reset within the same terminal window\" behavior described in `docs/universal-quality-workflow-per-provider-diagrams.md`.\nToday only `claude` and `cursor-agent` actually behave that way; `codex` and `opencode` regressed silently because we only test string contents.",
+      "id": "2eb9180c-14c6-42f9-ae76-e9dd06943bdc",
+      "title": "Enable route-level code splitting for TanStack Router routes",
+      "passes": true,
+      "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "New tests fail if a future change to `AI_BACKEND_CONFIGS` drops the headless entrypoint, drops the auto-approval, or (for codex) reintroduces `--sandbox read-only`/`--sandbox workspace-write`.",
-        "Docs updated with the table above and the \"no sandbox in Ralph\" note; linked from `docs/universal-quality-workflow-per-provider-diagrams.md`.",
-        "Tests catch both the Codex regression (sibling ticket) and the OpenCode regression (sibling ticket) when run against the pre-fix code."
+        "Implement as described",
+        "Verify functionality works as expected"
       ],
       "references": [
-        "src/api/ralph-script.ts",
-        "src/api/ralph-script.test.ts"
+        "src/routeTree.gen.ts"
       ],
-      "description": "## Problem\n\nThe Codex/OpenCode regressions (see sibling tickets) slipped in because there is **no shared contract test** that asserts every `RalphAiBackend` in `src/api/ralph-script.ts`:\n\n1. uses a **non-interactive / headless entrypoint** (so the CLI exits after one iteration),\n2. runs with **auto-approval** for tool use AND **no sandbox** (so the loop isn't blocked by permission prompts or sandbox-denied operations),\n3. allows the outer bash loop in `generateRalphScript` to roll forward to the next ticket without user input — the \"reset within the same terminal window\" behavior described in `docs/universal-quality-workflow-per-provider-diagrams.md`.\n\nToday only `claude` and `cursor-agent` actually behave that way; `codex` and `opencode` regressed silently because we only test string contents.\n\n## Proposed Fix\n\nAdd a table-driven test in `src/api/ralph-script.test.ts` (create if missing) that, for every entry in `RalphAiBackend`, asserts the generated script:\n\n- contains the expected headless subcommand / flag (`-p` for claude, `-p` for cursor-agent, `exec` for codex, `run` for opencode, etc.);\n- contains an auto-approval-AND-no-sandbox mechanism (the specific flag or env var documented for that CLI);\n- does NOT include the plain interactive TUI entrypoint (e.g. `opencode \"$PROJECT_PATH\"` without `run`, or `codex \"$(cat ...)\"` without `exec`);\n- for codex specifically: does NOT include `--sandbox read-only` or `--sandbox workspace-write` (we want Claude-like parity, no sandbox).\n\nAdd a single source-of-truth table in `docs/universal-quality-workflow-per-provider.md` (or companion diagrams doc) listing, per provider:\n\n| Provider | Headless invocation | Auto-approval + no sandbox | Loop re-entry behavior |\n| --- | --- | --- | --- |\n| Claude | `claude --dangerously-skip-permissions -p …` | `--dangerously-skip-permissions` (no sandbox by design) | exits after `-p`, bash loop advances |\n| Cursor Agent | `cursor-agent --force --approve-mcps --trust -p …` | `--approve-mcps --trust` (no sandbox by design) | exits after `-p`, bash loop advances |\n| Codex | `codex exec --dangerously-bypass-approvals-and-sandbox …` | `--dangerously-bypass-approvals-and-sandbox` (explicitly disables BOTH approvals AND sandbox — matches Claude posture) | exits after `exec`, bash loop advances |\n| OpenCode | `OPENCODE_PERMISSION='{\"*\":\"allow\"}' opencode run …` | env var or config `permission: allow` (no sandbox concept) | exits after `run`, bash loop advances |\n\nNote explicitly in the docs: **we do NOT run Codex under its sandbox** (`--sandbox read-only` or `--sandbox workspace-write`) during Ralph, because sandbox + Ralph's file/git/MCP churn recreates the permission-prompt nightmare we are eliminating. Users who want sandboxing should run Codex manually, not through Ralph.\n\n## Acceptance Criteria\n\n- [ ] New tests fail if a future change to `AI_BACKEND_CONFIGS` drops the headless entrypoint, drops the auto-approval, or (for codex) reintroduces `--sandbox read-only`/`--sandbox workspace-write`.\n- [ ] Docs updated with the table above and the \"no sandbox in Ralph\" note; linked from `docs/universal-quality-workflow-per-provider-diagrams.md`.\n- [ ] Tests catch both the Codex regression (sibling ticket) and the OpenCode regression (sibling ticket) when run against the pre-fix code.\n\n## Depends On\n\n- Sibling ticket: Codex `exec` + `--dangerously-bypass-approvals-and-sandbox` fix.\n- Sibling ticket: OpenCode `run` + permissions fix.\n\n## Files Likely Touched\n\n- `src/api/ralph-script.test.ts` (new or extended).\n- `docs/universal-quality-workflow-per-provider.md`.\n- `docs/universal-quality-workflow-per-provider-diagrams.md`.\n\n## Out of Scope\n\n- E2E test that actually drives a Codex/OpenCode binary — unit test on generated bash is enough to prevent regression.\n\n## Branch Policy\n\nAll work for this ticket must be done on the current feature branch. Do not create a new branch.",
+      "description": "Reduce initial JavaScript by ensuring route modules are split and loaded only when needed.\n\nContext:\n- `src/routeTree.gen.ts` statically imports every route module.\n- No lazy route files or lazy route components were found.\n- This can pull board DnD, dashboard charts, ticket detail, epic detail, and project/dev tooling into early chunks.\n\nImplementation notes:\n- Use the TanStack Router/Start-supported route splitting approach for this project.\n- Regenerate route tree as needed.\n- Keep route loaders and head metadata working.\n- Confirm pending/error components still behave correctly.\n- Do not manually edit generated route tree except through the supported generator/plugin configuration.\n\nAcceptance criteria:\n- Initial route no longer eagerly imports every route component module.\n- Heavy route surfaces (`/board`, `/dashboard`, `/ticket/$id`, `/epic/$id`, `/projects/$projectId`) are split into lazy route chunks or equivalent.\n- Route navigation still works for all routes.\n- Bundle analysis shows route-level chunks rather than one monolithic app chunk.\n- Run `pnpm type-check && pnpm lint && pnpm test && pnpm build`.",
+      "priority": "high",
+      "tags": [
+        "frontend",
+        "performance",
+        "routing",
+        "tanstack-router"
+      ]
+    },
+    {
+      "id": "932d14b2-6c36-4538-b02d-aaf6a284942d",
+      "title": "Lazy-load root layout modals and development-only tooling",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "references": [
+        "src/routes/__root.tsx",
+        "src/components/AppLayout.tsx"
+      ],
+      "description": "Shrink the root layout client graph by loading rarely used UI only when users open it, and keep devtools out of production initial load.\n\nContext:\n- `src/routes/__root.tsx` imports and renders TanStack devtools unconditionally.\n- `src/components/AppLayout.tsx` statically imports many modal/tooling components, including ticket/project/epic/settings/feedback/import/logs/inception/shortcuts flows.\n- `ImportModal` and `InceptionModal` are mounted even when closed.\n\nImplementation notes:\n- Dynamically import TanStack devtools only in development.\n- Use `React.lazy`/`Suspense` or route-compatible lazy imports for rarely used modals and heavy panels.\n- Render `ImportModal` and `InceptionModal` only when open.\n- Keep accessible modal loading fallbacks minimal and non-disruptive.\n- Avoid introducing global loading spinners for ordinary page rendering.\n\nAcceptance criteria:\n- Production initial layout does not include TanStack devtools UI code.\n- Root layout no longer statically imports rarely-used modal implementations.\n- Closed modals are not mounted.\n- Opening each lazy modal still works and preserves existing behavior.\n- Bundle analysis shows reduced root/initial chunk size.\n- Run `pnpm type-check && pnpm lint && pnpm test && pnpm build`.",
+      "priority": "high",
+      "tags": [
+        "frontend",
+        "performance",
+        "bundle",
+        "react"
+      ]
+    },
+    {
+      "id": "c1d1d0a0-544b-4c73-9e8c-b7e037fc5778",
+      "title": "Split dashboard chart bundles and remove heavy barrel imports",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "references": [
+        "src/routes/dashboard.tsx",
+        "src/components/dashboard/index.ts"
+      ],
+      "description": "Keep dashboard charting dependencies out of routes/tabs that do not need them, and preserve lazy loading for Recharts/ECharts-heavy surfaces.\n\nContext:\n- `src/routes/dashboard.tsx` imports dashboard components from `src/components/dashboard/index.ts`.\n- The dashboard barrel re-exports chart-heavy modules including Recharts and ECharts surfaces.\n- `AnalyticsSection` already lazy-loads several Recharts components, but barrel imports can pull modules back into the dashboard route chunk.\n- `AITelemetryTab` directly imports Recharts and `CostExplorerTab` lazy-loads ECharts.\n\nImplementation notes:\n- Replace dashboard route barrel imports with direct imports for only the components used immediately.\n- Avoid exporting heavy chart modules from broad barrels that route modules import.\n- Lazy-load secondary dashboard tabs where appropriate, especially AI telemetry and cost explorer chart surfaces.\n- Keep hover/intent prefetch for cost explorer or add equivalent for telemetry.\n\nAcceptance criteria:\n- Dashboard route no longer imports from a barrel that re-exports all chart modules.\n- Recharts and ECharts code are isolated to lazy chunks or tab-specific chunks.\n- Overview renders correctly and secondary tabs load correctly.\n- Bundle analysis shows chart libraries are not part of unrelated initial chunks.\n- Run `pnpm type-check && pnpm lint && pnpm test && pnpm build`.",
+      "priority": "high",
+      "tags": [
+        "frontend",
+        "performance",
+        "dashboard",
+        "bundle"
+      ]
+    },
+    {
+      "id": "9b15fbfe-58d7-4a05-99b5-d44844f7fc1d",
+      "title": "Improve route loaders and navigation cache reuse",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "references": [],
+      "description": "Make TanStack Router loaders and TanStack Query work together so navigation renders with cached data instead of loading gaps and duplicate requests.\n\nContext:\n- Dashboard, board, list, and epic loaders fire `void ensureQueryData(...)` and return immediately, so route pending components do not wait for critical data.\n- Ticket detail route lacks a loader and uses a component query with `staleTime: 0`.\n- Board/list modal opens call `getTicket` directly instead of using Query cache.\n\nImplementation notes:\n- Await above-the-fold route data in loaders, while leaving secondary tabs/analytics as background prefetch or hover/intent prefetch.\n- Add a ticket detail route loader with `ensureQueryData(queryKeys.ticket(id))`.\n- Update board/list ticket modal open flows and search-result selection to use `queryClient.ensureQueryData` with `queryKeys.ticket(id)`.\n- Use practical `staleTime` values and targeted invalidation so recently loaded detail data is reused.\n\nAcceptance criteria:\n- Critical route data is awaited where it affects first paint.\n- Ticket detail navigation reuses cached detail data when available.\n- Opening the same ticket from board/list does not trigger redundant uncached fetches.\n- Secondary dashboard tab data is prefetched only on intent or after the critical view.\n- Existing pending/error states still behave correctly.\n- Run `pnpm type-check && pnpm lint && pnpm test && pnpm build`.",
+      "priority": "high",
+      "tags": [
+        "frontend",
+        "performance",
+        "tanstack-router",
+        "tanstack-query"
+      ]
+    },
+    {
+      "id": "9bca9e28-c770-4fa1-99e5-2a3321fc67a0",
+      "title": "Tighten TanStack Query keys, invalidation, polling, and search",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "references": [],
+      "description": "Reduce unnecessary network activity and observer churn by aligning query keys, invalidation, polling, and search with TanStack Query best practices.\n\nContext:\n- `queryKeys.allTickets = [\"tickets\"]` also prefixes count queries like `projectTicketCounts` and `epicTicketCounts`.\n- Several mutation invalidations are broad and may invalidate more than intended.\n- `useSearch` manually manages debounce/results instead of using existing `queryKeys.search`.\n- Active Ralph session polling is observed from multiple always-mounted places.\n- Comments polling can combine interval and window-focus refetches.\n- Cost explorer summary mounts a second observer for related data.\n\nImplementation notes:\n- Move count keys to a separate namespace or use exact invalidation where appropriate.\n- Convert search to debounced `useQuery` with `enabled`, `staleTime`, and race-safe behavior.\n- Centralize active Ralph session polling or expose it through layout/context to avoid redundant observers.\n- Tune polling hooks to avoid refetch-on-focus storms when intervals are active.\n- Reduce duplicate observers such as cost explorer summary where summary can be derived locally.\n\nAcceptance criteria:\n- Ticket list invalidations no longer accidentally target count queries unless intended.\n- Search results are cached per query/project and cannot be overwritten by stale older requests.\n- Active Ralph polling behavior is centralized or clearly deduplicated.\n- Polling hooks avoid extra focus refetches when interval polling is enabled.\n- Cost explorer no longer mounts duplicate observers for the same data unless justified.\n- Run `pnpm type-check && pnpm lint && pnpm test && pnpm build`.",
+      "priority": "high",
+      "tags": [
+        "frontend",
+        "performance",
+        "tanstack-query"
+      ]
+    },
+    {
+      "id": "ce965979-4c41-4f1e-94d5-0f2ae8d69ed8",
+      "title": "Split AppLayout state to reduce global rerenders",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "references": [],
+      "description": "Reduce rerenders caused by the broad `AppLayout` context by splitting state into smaller, stable contexts or an equivalent selector-based store.\n\nContext:\n- `AppLayout` exposes filters, modal state/actions, refresh state, search selection, sample data state, epic deletion, mobile menu state, and projects panel state in one context.\n- Consumers that only need one action can rerender when unrelated state changes.\n- The layout also owns several polling-driven values that can fan out through context.\n\nImplementation notes:\n- Split into focused contexts such as filters, modal actions/state, refresh/search, mobile/projects panel, and sample-data/epic deletion.\n- Prefer stable action-only contexts where possible.\n- Keep public hooks ergonomic and update consumers incrementally.\n- Avoid overengineering; make the smallest split that isolates high-frequency state changes.\n\nAcceptance criteria:\n- Unrelated context consumers no longer rerender for filter/modal/refresh/search/mobile state changes they do not use.\n- Existing keyboard shortcuts, modals, filtering, mobile menu, and projects panel behavior still works.\n- Tests cover representative consumers or existing tests are updated.\n- React profiler/manual verification shows reduced rerender fanout for common actions such as search, filter change, modal open, and refresh.\n- Run `pnpm type-check && pnpm lint && pnpm test && pnpm build`.",
       "priority": "medium",
       "tags": [
-        "ralph",
-        "cross-environment",
-        "testing",
-        "docs"
+        "frontend",
+        "performance",
+        "react",
+        "layout"
+      ]
+    },
+    {
+      "id": "97322c42-f809-4668-91c4-c56a3d017424",
+      "title": "Optimize Kanban and list rendering for large ticket sets",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "references": [],
+      "description": "Improve render performance for large boards and lists by reducing per-ticket prop churn, unnecessary allocations, and all-card rendering work.\n\nContext:\n- `KanbanBoard` renders every sortable card in every column.\n- `SortableContext.items` allocates arrays during render.\n- Focus state changes can update props across all cards.\n- Board route passes callbacks that are recreated each render.\n- Per-card Ralph session lookup runs during every board render.\n- `TicketListView` already uses virtualization but still formats dates and creates row callbacks during render.\n\nImplementation notes:\n- Wrap board route handlers in `useCallback` and memoize `allEpics`.\n- Memoize per-column ticket IDs and reduce per-card prop churn.\n- Consider per-column virtualization or a threshold-based compact mode for very large columns.\n- Isolate keyboard focus state so only previous/new focused cards need visual updates where feasible.\n- Pass memoized active-session data rather than invoking lookups for each card on each render.\n- Precompute list row dates/parsed metadata and fix virtualization spacer row structure if needed.\n\nAcceptance criteria:\n- Board interactions remain accessible and DnD still works.\n- Large columns render fewer unnecessary updates or use a documented threshold strategy.\n- Common board state changes do not rerender every card unless ticket data actually changes.\n- List virtualization remains correct and table layout is valid.\n- Existing board/list tests pass and new coverage is added for any changed behavior.\n- Run `pnpm type-check && pnpm lint && pnpm test && pnpm build`.",
+      "priority": "medium",
+      "tags": [
+        "frontend",
+        "performance",
+        "react",
+        "kanban"
+      ]
+    },
+    {
+      "id": "4b6cb6a5-e9b7-4fe6-a4da-03dc0ec2bb72",
+      "title": "Audit and tune TanStack Form modal performance",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "references": [],
+      "description": "Review form-heavy modal surfaces for TanStack Form best practices, field subscription granularity, and unnecessary rerenders after lazy-loading makes them load on demand.\n\nContext:\n- Ticket, epic, settings, and project flows use TanStack Form or form-like local state.\n- `TicketModal` already has comments about subscribing to specific values, but form-heavy modals are still part of core user flows.\n- Once modals are lazy-loaded, their runtime render behavior should also be checked.\n\nImplementation notes:\n- Audit `TicketModal`, `EpicModal`, `SettingsModal`, project/import forms, and nested ticket form components.\n- Prefer field-level subscriptions/selectors over broad form state subscriptions.\n- Avoid copying server/query data into form state before data is guaranteed loaded.\n- Ensure submit buttons are disabled during pending mutations and mutation error states are surfaced.\n- Keep server state and form state boundaries clear.\n\nAcceptance criteria:\n- Form components subscribe only to state they render or need for submit behavior.\n- Create/edit forms prevent double submits and show mutation errors consistently.\n- Existing default values are initialized only after required query/server data is available.\n- No form behavior regresses for ticket, epic, project, settings, or import flows.\n- Relevant tests are updated or added.\n- Run `pnpm type-check && pnpm lint && pnpm test && pnpm build`.",
+      "priority": "medium",
+      "tags": [
+        "frontend",
+        "performance",
+        "tanstack-form",
+        "forms"
+      ]
+    },
+    {
+      "id": "579fb8d1-42d7-475d-a421-e8937fc61039",
+      "title": "Validate frontend performance improvements and document results",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "references": [],
+      "description": "Run final measurement after the optimization tickets land, compare against the baseline, and document remaining risks or follow-up work.\n\nContext:\n- Earlier tickets should fix build output, split bundles, improve navigation caching, and reduce render churn.\n- The epic needs a clear before/after summary so future work can tell whether changes materially improved load/navigation performance.\n\nImplementation notes:\n- Re-run the bundle analysis from the baseline ticket.\n- Capture production build chunk sizes and notable heavy dependencies.\n- Exercise key user flows: initial project list load, board navigation, list navigation, dashboard tabs, ticket modal open, ticket detail route, settings/modal open.\n- Use existing profiler/navigation timing helpers where practical.\n- Document follow-up items that remain too large for this epic.\n\nAcceptance criteria:\n- A before/after summary exists with bundle size and route/navigation observations.\n- Core flows are manually verified or covered by automated checks where available.\n- Any remaining performance risks are documented as follow-up tickets or notes.\n- The final state passes `pnpm type-check && pnpm lint && pnpm test && pnpm build`.",
+      "priority": "medium",
+      "tags": [
+        "frontend",
+        "performance",
+        "metrics",
+        "validation"
       ]
     }
   ],
@@ -238,7 +406,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-04-17T02:15:47.071Z",
-  "epicTitle": "Ralph Loop Parity: Codex & OpenCode Headless Invocation",
-  "epicDescription": "Bring the Codex and OpenCode Ralph-loop invocations up to parity with Claude and Cursor Agent, so that the outer bash loop in `generateRalphScript` (`src/api/ralph-script.ts`) can roll the same terminal window forward from one ticket to the next without user input or permission prompts.\n\n## Context\n\nClaude and Cursor Agent use headless/print mode entrypoints (`-p`), which exit after one iteration and let the `for` loop in the generated Ralph script pick up the next `passes: false` ticket from `plans/prd.json` — the \"session reset within the same terminal window\" behavior in `docs/universal-quality-workflow-per-provider-diagrams.md`.\n\nCodex and OpenCode currently launch their interactive TUI entrypoints:\n\n- `codex \"$(cat \"$PROMPT_FILE\")\"` — no `exec`, no approval bypass. Prompts for permissions, never exits.\n- `opencode \"$PROJECT_PATH\" --prompt \"...\"` — no `run` subcommand, no permission config. Stays in TUI, never exits.\n\n## Scope\n\n1. Codex: switch to `codex exec --dangerously-bypass-approvals-and-sandbox` (NO sandbox — sandbox + Ralph recreates the permission-prompt problem).\n2. OpenCode: switch to `opencode run` with `OPENCODE_PERMISSION='{\"*\":\"allow\"}'`.\n3. Contract tests + docs covering every `RalphAiBackend` so this regression can't recur silently."
+  "generatedAt": "2026-04-24T15:49:18.685Z",
+  "epicTitle": "Frontend performance optimization",
+  "epicDescription": "Improve Brain Dump frontend performance from production build stability through initial load, route navigation, TanStack Query usage, and React render efficiency.\n\nPrimary goals:\n- Make the production frontend build pass reliably.\n- Keep server-only Node/database modules out of the browser graph.\n- Reduce initial JavaScript by route-splitting and lazy-loading rarely used UI.\n- Improve navigation by using loaders and Query cache consistently.\n- Reduce rerenders in layout, board, list, and polling-heavy paths.\n- Add measurement guardrails so future regressions are visible."
 }

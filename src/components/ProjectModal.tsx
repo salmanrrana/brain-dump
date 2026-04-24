@@ -210,10 +210,17 @@ export default function ProjectModal({ project, onClose, onSave }: ProjectModalP
   }, [previewMutation, createAndImportMutation]);
 
   const handleSave = () => {
+    if (isSaving) {
+      return;
+    }
+
     const trimmedName = name.trim();
     const trimmedPath = path.trim();
 
-    if (!trimmedName || !trimmedPath) return;
+    if (!trimmedName || !trimmedPath) {
+      showToast("error", "Project name and path are required");
+      return;
+    }
 
     if (isEditing && project) {
       const updates: UpdateProjectInput = {
@@ -234,7 +241,15 @@ export default function ProjectModal({ project, onClose, onSave }: ProjectModalP
       ) {
         updates.workingMethod = workingMethod;
       }
-      updateMutation.mutate({ id: project.id, updates }, { onSuccess: onSave });
+      updateMutation.mutate(
+        { id: project.id, updates },
+        {
+          onSuccess: onSave,
+          onError: (err) => {
+            showToast("error", err instanceof Error ? err.message : "Failed to update project");
+          },
+        }
+      );
     } else if (createMode === "import" && base64Data) {
       createAndImportMutation.mutate(
         {
@@ -265,7 +280,12 @@ export default function ProjectModal({ project, onClose, onSave }: ProjectModalP
           path: trimmedPath,
           ...(color ? { color } : {}),
         },
-        { onSuccess: onSave }
+        {
+          onSuccess: onSave,
+          onError: (err) => {
+            showToast("error", err instanceof Error ? err.message : "Failed to create project");
+          },
+        }
       );
     }
   };

@@ -139,7 +139,70 @@ const DEFAULT_COST_MODELS: DefaultCostModelDefinition[] = [
   },
   {
     provider: "anthropic",
+    modelName: "claude-opus-4-5",
+    inputCostPerMtok: 5,
+    outputCostPerMtok: 25,
+    cacheReadCostPerMtok: 0.5,
+    cacheCreateCostPerMtok: 6.25,
+    isDefault: true,
+  },
+  {
+    provider: "anthropic",
+    modelName: "claude-opus-4-1",
+    inputCostPerMtok: 15,
+    outputCostPerMtok: 75,
+    cacheReadCostPerMtok: 1.5,
+    cacheCreateCostPerMtok: 18.75,
+    isDefault: true,
+  },
+  {
+    provider: "anthropic",
+    modelName: "claude-opus-4",
+    inputCostPerMtok: 15,
+    outputCostPerMtok: 75,
+    cacheReadCostPerMtok: 1.5,
+    cacheCreateCostPerMtok: 18.75,
+    isDefault: true,
+  },
+  {
+    provider: "anthropic",
+    modelName: "claude-opus-3",
+    inputCostPerMtok: 15,
+    outputCostPerMtok: 75,
+    cacheReadCostPerMtok: 1.5,
+    cacheCreateCostPerMtok: 18.75,
+    isDefault: true,
+  },
+  {
+    provider: "anthropic",
     modelName: "claude-sonnet-4-6",
+    inputCostPerMtok: 3,
+    outputCostPerMtok: 15,
+    cacheReadCostPerMtok: 0.3,
+    cacheCreateCostPerMtok: 3.75,
+    isDefault: true,
+  },
+  {
+    provider: "anthropic",
+    modelName: "claude-sonnet-4-5",
+    inputCostPerMtok: 3,
+    outputCostPerMtok: 15,
+    cacheReadCostPerMtok: 0.3,
+    cacheCreateCostPerMtok: 3.75,
+    isDefault: true,
+  },
+  {
+    provider: "anthropic",
+    modelName: "claude-sonnet-4",
+    inputCostPerMtok: 3,
+    outputCostPerMtok: 15,
+    cacheReadCostPerMtok: 0.3,
+    cacheCreateCostPerMtok: 3.75,
+    isDefault: true,
+  },
+  {
+    provider: "anthropic",
+    modelName: "claude-sonnet-3-7",
     inputCostPerMtok: 3,
     outputCostPerMtok: 15,
     cacheReadCostPerMtok: 0.3,
@@ -153,6 +216,24 @@ const DEFAULT_COST_MODELS: DefaultCostModelDefinition[] = [
     outputCostPerMtok: 5,
     cacheReadCostPerMtok: 0.1,
     cacheCreateCostPerMtok: 1.25,
+    isDefault: true,
+  },
+  {
+    provider: "anthropic",
+    modelName: "claude-haiku-3-5",
+    inputCostPerMtok: 0.8,
+    outputCostPerMtok: 4,
+    cacheReadCostPerMtok: 0.08,
+    cacheCreateCostPerMtok: 1,
+    isDefault: true,
+  },
+  {
+    provider: "anthropic",
+    modelName: "claude-haiku-3",
+    inputCostPerMtok: 0.25,
+    outputCostPerMtok: 1.25,
+    cacheReadCostPerMtok: 0.03,
+    cacheCreateCostPerMtok: 0.3,
     isDefault: true,
   },
   // OpenAI
@@ -193,6 +274,14 @@ const DEFAULT_COST_MODELS: DefaultCostModelDefinition[] = [
     modelName: "gpt-5.4-pro",
     inputCostPerMtok: 30,
     outputCostPerMtok: 180,
+    isDefault: true,
+  },
+  {
+    provider: "openai",
+    modelName: "gpt-5.5",
+    inputCostPerMtok: 5,
+    outputCostPerMtok: 30,
+    cacheReadCostPerMtok: 0.5,
     isDefault: true,
   },
   // Google
@@ -850,6 +939,8 @@ export interface RecalculateResult {
  * Also rebuilds telemetry_sessions aggregate totals.
  */
 export function recalculateCosts(db: DbHandle): RecalculateResult {
+  syncDefaultCostModels(db);
+
   const rows = db
     .prepare(
       `SELECT id, model, input_tokens, output_tokens,

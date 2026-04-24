@@ -28,18 +28,10 @@ import {
   subtitleStyle,
 } from "./chart-utils";
 import type { DashboardTelemetryAnalytics } from "../../api/telemetry";
-import type { DashboardCostAnalytics } from "../../api/cost";
+import { useCostAnalytics, useDashboardTelemetryAnalytics } from "../../lib/hooks";
 import { CostTrendChart } from "./CostTrendChart";
 import { CostPerTicketChart } from "./CostPerTicketChart";
 import { CostByEpicChart } from "./CostByEpicChart";
-
-interface AITelemetryTabProps {
-  analytics: DashboardTelemetryAnalytics;
-  isLoading: boolean;
-  error: Error | null;
-  costAnalytics?: DashboardCostAnalytics | null | undefined;
-  costError?: Error | null | undefined;
-}
 
 const OUTCOME_COLORS: Record<string, string> = {
   success: "#22c55e",
@@ -452,14 +444,11 @@ const AvgDurationOverTimeChart: FC<{
 /**
  * AITelemetryTab - Full AI Telemetry dashboard tab with premium visualizations.
  */
-export const AITelemetryTab: FC<AITelemetryTabProps> = ({
-  analytics,
-  isLoading,
-  error,
-  costAnalytics,
-  costError,
-}) => {
-  if (isLoading) {
+export const AITelemetryTab: FC = () => {
+  const { data: analytics, isLoading, error } = useDashboardTelemetryAnalytics();
+  const { data: costAnalytics, error: costError } = useCostAnalytics();
+
+  if (isLoading || !analytics) {
     return (
       <div
         style={{

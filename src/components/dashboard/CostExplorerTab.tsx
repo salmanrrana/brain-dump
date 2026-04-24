@@ -11,7 +11,7 @@
 
 import { type FC, useState, useCallback, useMemo, Suspense, lazy } from "react";
 import type { CostExplorerNode, CostExplorerParams } from "../../../core/types.ts";
-import { useCostExplorer, useCostExplorerSummary } from "../../lib/hooks";
+import { deriveCostExplorerSummary, useCostExplorer } from "../../lib/hooks";
 import { CostSummaryCards } from "./CostSummaryCards";
 import { CostDetailPanel } from "./CostDetailPanel";
 import {
@@ -63,7 +63,7 @@ export const CostExplorerTab: FC = () => {
   );
 
   const { data: tree, isLoading, isPlaceholderData, error } = useCostExplorer(params);
-  const { data: summary } = useCostExplorerSummary(params);
+  const summary = useMemo(() => (tree ? deriveCostExplorerSummary(tree) : null), [tree]);
 
   const handleNodeSelect = useCallback((node: CostExplorerNode | null) => {
     setSelectedNode(node);

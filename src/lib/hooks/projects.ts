@@ -160,6 +160,7 @@ export function useProjectsWithAIActivity() {
 
   return {
     projects: projectsWithActivity,
+    activeSessions: sessions,
     loading: isLoading,
     error: overallError,
     refetch,

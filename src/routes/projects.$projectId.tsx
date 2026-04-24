@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Plus, AlertCircle } from "lucide-react";
 import { useProjects, useEpicTicketCounts } from "../lib/hooks";
-import { useAppState } from "../components/AppLayout";
+import { useAppModalActions } from "../components/AppLayoutContext";
 import { createBrowserLogger } from "../lib/browser-logger";
 import EpicListItem from "../components/navigation/EpicListItem";
 import DevHubToolbar from "../components/projects/DevHubToolbar";
@@ -15,18 +15,20 @@ const logger = createBrowserLogger("routes:project-detail");
 
 export const Route = createFileRoute("/projects/$projectId")({
   pendingComponent: ProjectDetailSkeleton,
-  loader: ({ context, params }) => {
+  loader: async ({ context, params }) => {
     // Pre-warm cache with projects (with epics) and per-epic ticket counts
-    void context.queryClient.ensureQueryData({
-      queryKey: queryKeys.projectsWithEpics,
-      queryFn: () => getProjectsWithEpics(),
-      staleTime: 30_000,
-    });
-    void context.queryClient.ensureQueryData({
-      queryKey: queryKeys.epicTicketCounts(params.projectId),
-      queryFn: () => getEpicTicketCounts({ data: params.projectId }),
-      staleTime: 30_000,
-    });
+    await Promise.all([
+      context.queryClient.ensureQueryData({
+        queryKey: queryKeys.projectsWithEpics,
+        queryFn: () => getProjectsWithEpics(),
+        staleTime: 30_000,
+      }),
+      context.queryClient.ensureQueryData({
+        queryKey: queryKeys.epicTicketCounts(params.projectId),
+        queryFn: () => getEpicTicketCounts({ data: params.projectId }),
+        staleTime: 30_000,
+      }),
+    ]);
   },
   component: ProjectDetail,
 });
@@ -36,7 +38,7 @@ function ProjectDetail() {
   const navigate = useNavigate();
   const { projects, loading, error } = useProjects();
   const { data: epicTicketCounts } = useEpicTicketCounts(projectId);
-  const { openEpicModal } = useAppState();
+  const { openEpicModal } = useAppModalActions();
 
   if (loading) {
     return (

@@ -190,8 +190,10 @@ export {
   useUpdateCostModel,
   useDeleteCostModel,
   useRecalculateCosts,
+  useDeepRecalculateCosts,
   useCostExplorer,
   useCostExplorerSummary,
+  deriveCostExplorerSummary,
   useTicketCostDetail,
 } from "./cost";
 

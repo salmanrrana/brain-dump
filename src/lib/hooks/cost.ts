@@ -15,6 +15,7 @@ import {
   updateCostModel,
   deleteCostModel,
   recalculateCosts,
+  deepRecalculateCosts,
   getCostExplorerData,
   getTicketCostDetail,
   type UpdateCostModelInput,
@@ -114,6 +115,26 @@ export function useRecalculateCosts() {
     onError: (err) => {
       logger.error(
         "Failed to recalculate costs",
+        err instanceof Error ? err : new Error(String(err))
+      );
+    },
+  });
+}
+
+/**
+ * Mutation hook for backfilling missing CLI provider usage and recalculating all costs.
+ * Invalidates all cost-related queries on success.
+ */
+export function useDeepRecalculateCosts() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => deepRecalculateCosts(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.cost.all });
+    },
+    onError: (err) => {
+      logger.error(
+        "Failed to deep recalculate costs",
         err instanceof Error ? err : new Error(String(err))
       );
     },
@@ -251,6 +272,17 @@ export function useCostExplorer(params?: CostExplorerParams) {
   });
 }
 
+export function deriveCostExplorerSummary(tree: CostExplorerNode) {
+  const allTickets = tree.children?.flatMap((e) => e.children ?? []) ?? [];
+  return {
+    totalSpend: tree.costUsd,
+    avgPerTicket: allTickets.length > 0 ? tree.costUsd / allTickets.length : 0,
+    mostExpensive: findMostExpensiveNode(tree),
+    cacheSavings: computeTotalCacheSavings(tree),
+    totalSessions: tree.sessionCount,
+  };
+}
+
 /**
  * Derived view of the explorer data — same cache, no extra fetch.
  * Computes summary stats from the explorer tree.
@@ -264,16 +296,7 @@ export function useCostExplorerSummary(params?: CostExplorerParams) {
     },
     staleTime: 300_000,
     gcTime: 300_000,
-    select: (tree: CostExplorerNode) => {
-      const allTickets = tree.children?.flatMap((e) => e.children ?? []) ?? [];
-      return {
-        totalSpend: tree.costUsd,
-        avgPerTicket: allTickets.length > 0 ? tree.costUsd / allTickets.length : 0,
-        mostExpensive: findMostExpensiveNode(tree),
-        cacheSavings: computeTotalCacheSavings(tree),
-        totalSessions: tree.sessionCount,
-      };
-    },
+    select: deriveCostExplorerSummary,
   });
 }
 

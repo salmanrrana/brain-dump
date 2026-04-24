@@ -1,10 +1,11 @@
 import { useState, useCallback, useId } from "react";
-import { Plus, Pencil, Trash2, Check, X, Loader2, RefreshCw } from "lucide-react";
+import { Plus, Pencil, Trash2, Check, X, Loader2, RefreshCw, Search, Info } from "lucide-react";
 import {
   useCostModels,
   useUpdateCostModel,
   useDeleteCostModel,
   useRecalculateCosts,
+  useDeepRecalculateCosts,
 } from "../../lib/hooks";
 import { useToast } from "../Toast";
 import type { CostModel } from "../../api/cost";
@@ -58,6 +59,7 @@ export function CostModelSettings({ isActive }: CostModelSettingsProps) {
   const updateMutation = useUpdateCostModel();
   const deleteMutation = useDeleteCostModel();
   const recalculateMutation = useRecalculateCosts();
+  const deepRecalculateMutation = useDeepRecalculateCosts();
   const { showToast } = useToast();
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -157,6 +159,47 @@ export function CostModelSettings({ isActive }: CostModelSettingsProps) {
     [handleSave, handleCancel]
   );
 
+  const handleRecalculateCosts = useCallback(() => {
+    recalculateMutation.mutate(undefined, {
+      onSuccess: (result) => {
+        const diff = result.newTotalCost - result.oldTotalCost;
+        const diffStr = diff >= 0 ? `+$${diff.toFixed(2)}` : `-$${Math.abs(diff).toFixed(2)}`;
+        showToast(
+          "success",
+          `Recalculated ${result.updatedRows} of ${result.totalRows} rows (${diffStr})`
+        );
+      },
+      onError: (err) => {
+        showToast(
+          "error",
+          `Failed to recalculate: ${err instanceof Error ? err.message : "Unknown error"}`
+        );
+      },
+    });
+  }, [recalculateMutation, showToast]);
+
+  const handleDeepRecalculateCosts = useCallback(() => {
+    deepRecalculateMutation.mutate(undefined, {
+      onSuccess: (result) => {
+        const insertedRows = result.backfills.reduce((sum, source) => sum + source.insertedRows, 0);
+        const matchedSessions = result.backfills.reduce(
+          (sum, source) => sum + source.matchedSessions,
+          0
+        );
+        showToast(
+          "success",
+          `Deep recalculation backfilled ${insertedRows} usage rows from ${matchedSessions} sessions and recalculated ${result.updatedRows} rows`
+        );
+      },
+      onError: (err) => {
+        showToast(
+          "error",
+          `Failed to deep recalculate: ${err instanceof Error ? err.message : "Unknown error"}`
+        );
+      },
+    });
+  }, [deepRecalculateMutation, showToast]);
+
   // Group models by provider
   const grouped = (models ?? []).reduce<Record<string, CostModel[]>>((acc, model) => {
     const key = model.provider;
@@ -254,8 +297,27 @@ export function CostModelSettings({ isActive }: CostModelSettingsProps) {
             </div>
           )}
 
+          <div className="mt-4 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-3">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--bg-tertiary)] text-[var(--accent-primary)]">
+                <Info size={15} />
+              </div>
+              <div className="min-w-0 space-y-1">
+                <h4 className="text-sm font-semibold text-[var(--text-primary)]">
+                  Cost recalculation
+                </h4>
+                <p className="text-xs leading-5 text-[var(--text-secondary)]">
+                  Recalculate All Costs updates existing usage rows with the current pricing
+                  catalog. Deep Recalculation scans CLI provider logs for missing usage first, then
+                  reprices everything. It checks Claude Code, OpenCode, Codex CLI, Cursor Agent CLI,
+                  and GitHub Copilot CLI.
+                </p>
+              </div>
+            </div>
+          </div>
+
           {/* Actions */}
-          <div className="mt-4 flex items-center gap-2">
+          <div className="mt-4 flex flex-wrap items-center gap-2">
             {!isAdding && (
               <button
                 onClick={handleAdd}
@@ -266,26 +328,9 @@ export function CostModelSettings({ isActive }: CostModelSettingsProps) {
               </button>
             )}
             <button
-              onClick={() => {
-                recalculateMutation.mutate(undefined, {
-                  onSuccess: (result) => {
-                    const diff = result.newTotalCost - result.oldTotalCost;
-                    const diffStr =
-                      diff >= 0 ? `+$${diff.toFixed(2)}` : `-$${Math.abs(diff).toFixed(2)}`;
-                    showToast(
-                      "success",
-                      `Recalculated ${result.updatedRows} of ${result.totalRows} rows (${diffStr})`
-                    );
-                  },
-                  onError: (err) => {
-                    showToast(
-                      "error",
-                      `Failed to recalculate: ${err instanceof Error ? err.message : "Unknown error"}`
-                    );
-                  },
-                });
-              }}
-              disabled={recalculateMutation.isPending}
+              onClick={handleRecalculateCosts}
+              disabled={recalculateMutation.isPending || deepRecalculateMutation.isPending}
+              title="Reprice existing token_usage rows with the current pricing catalog. This does not scan provider logs."
               className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-lg transition-colors disabled:opacity-50"
             >
               <RefreshCw
@@ -293,6 +338,19 @@ export function CostModelSettings({ isActive }: CostModelSettingsProps) {
                 className={recalculateMutation.isPending ? "animate-spin" : ""}
               />
               {recalculateMutation.isPending ? "Recalculating..." : "Recalculate All Costs"}
+            </button>
+            <button
+              onClick={handleDeepRecalculateCosts}
+              disabled={recalculateMutation.isPending || deepRecalculateMutation.isPending}
+              title="Scan CLI provider logs for missing token usage, backfill matched sessions, then reprice all costs."
+              className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-lg transition-colors disabled:opacity-50"
+            >
+              {deepRecalculateMutation.isPending ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <Search size={16} />
+              )}
+              {deepRecalculateMutation.isPending ? "Deep Recalculating..." : "Deep Recalculation"}
             </button>
           </div>
         </>

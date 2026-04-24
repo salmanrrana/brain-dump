@@ -44,7 +44,7 @@ export interface KanbanBoardProps {
   /** Handler when a ticket card is clicked */
   onTicketClick?: (ticket: TicketSummary) => void;
   /** Function to get active Ralph session for a ticket */
-  getRalphSession?: (ticketId: string) => ActiveRalphSession | null;
+  activeRalphSessions?: Record<string, ActiveRalphSession>;
   /** Handler to refresh data */
   onRefresh?: () => void;
   /** Pre-loaded tickets (optional, will fetch if not provided) */
@@ -150,7 +150,7 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
   epicId,
   tags = [],
   onTicketClick,
-  getRalphSession,
+  activeRalphSessions,
   onRefresh,
   tickets: providedTickets,
   loading: providedLoading,
@@ -226,6 +226,23 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
 
     return grouped;
   }, [tickets]);
+
+  const ticketIdsByStatus = useMemo(() => {
+    const idsByStatus: Record<TicketStatus, string[]> = {
+      backlog: [],
+      ready: [],
+      in_progress: [],
+      ai_review: [],
+      human_review: [],
+      done: [],
+    };
+
+    for (const status of COLUMNS) {
+      idsByStatus[status] = ticketsByStatus[status].map((ticket) => ticket.id);
+    }
+
+    return idsByStatus;
+  }, [ticketsByStatus]);
 
   // Keyboard navigation hook (after ticketsByStatus is defined)
   const {
@@ -400,7 +417,7 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
                 accentColor={accentColor}
               >
                 <SortableContext
-                  items={columnTickets.map((t) => t.id)}
+                  items={ticketIdsByStatus[status]}
                   strategy={verticalListSortingStrategy}
                 >
                   {columnTickets.map((ticket) => (
@@ -408,7 +425,7 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
                       key={ticket.id}
                       ticket={ticket}
                       onTicketClick={onTicketClick}
-                      ralphSession={getRalphSession?.(ticket.id) ?? null}
+                      ralphSession={activeRalphSessions?.[ticket.id] ?? null}
                       tabIndex={getTabIndex(ticket.id)}
                       isFocused={focusedTicketId === ticket.id}
                       registerCardRef={registerCardRef}
@@ -425,7 +442,7 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
             <TicketCard
               ticket={activeTicket}
               isOverlay
-              isAiActive={!!getRalphSession?.(activeTicket.id)}
+              isAiActive={!!activeRalphSessions?.[activeTicket.id]}
             />
           ) : null}
         </DragOverlay>

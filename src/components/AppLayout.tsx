@@ -1,4 +1,4 @@
-import { ReactNode, useState, createContext, useContext, useMemo, useCallback } from "react";
+import { lazy, ReactNode, Suspense, useState, useMemo, useCallback } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { LayoutGrid, List, Settings, RefreshCw, Menu, MessageSquareWarning } from "lucide-react";
 import { IconSidebar } from "./navigation/IconSidebar";
@@ -6,17 +6,8 @@ import { ProjectsPanel } from "./navigation/ProjectsPanel";
 import { SearchBar } from "./navigation/SearchBar";
 import ProjectTree from "./ProjectTree";
 import ContainerStatusSection from "./ContainerStatusSection";
-import ContainerLogsModal from "./ContainerLogsModal";
-import NewTicketModal from "./NewTicketModal";
-import ProjectModal from "./ProjectModal";
-import EpicModal from "./EpicModal";
-import { SettingsModal } from "./settings";
-import DeleteConfirmationModal, { type DeletePreview } from "./DeleteConfirmationModal";
+import type { DeletePreview } from "./DeleteConfirmationModal";
 import { NewTicketDropdown } from "./navigation/NewTicketDropdown";
-import { InceptionModal } from "./inception/InceptionModal";
-import { ShortcutsModal } from "./ui/ShortcutsModal";
-import { FeedbackModal } from "./FeedbackModal";
-import ImportModal from "./transfer/ImportModal";
 import { useToast } from "./Toast";
 import {
   useProjects,
@@ -29,76 +20,62 @@ import {
   useInvalidateQueries,
   useDockerAvailable,
   useRalphContainers,
-  useActiveRalphSessions,
   useLaunchRalphForEpic,
   useSettings,
+  type ActiveRalphSession,
   type Epic,
   type ProjectBase,
   type SearchResult,
-  type ModalState,
-  type Filters,
 } from "../lib/hooks";
+import {
+  AppEpicDeletionContext,
+  AppFiltersContext,
+  AppMobileMenuContext,
+  AppModalActionsContext,
+  AppProjectsPanelContext,
+  AppRefreshContext,
+  AppSampleDataContext,
+  AppSearchNavigationContext,
+  useAppEpicDeletion,
+  useAppFilters,
+  useAppMobileMenu,
+  useAppModalActions,
+  useAppRefresh,
+  useAppSampleData,
+  useAppSearchNavigation,
+  type AppEpicDeletionState,
+  type AppFiltersState,
+  type AppMobileMenuState,
+  type AppModalActionsState,
+  type AppProjectsPanelState,
+  type AppRefreshState,
+  type AppSampleDataState,
+  type AppSearchNavigationState,
+} from "./AppLayoutContext";
 import { deleteEpic as deleteEpicFn } from "../api/epics";
 import { useKeyboardShortcuts } from "../lib/keyboard-shortcuts";
 import { getEpicContext } from "../api/context";
 import { startEpicWorkflowFn } from "../api/workflow-server-fns";
 
-// App context for managing global state
-interface AppState {
-  // Filters
-  filters: Filters;
-  setProjectId: (id: string | null) => void;
-  setEpicId: (id: string | null, projectId?: string) => void;
-  toggleTag: (tag: string) => void;
-  clearTagFilters: () => void;
-  clearAllFilters: () => void;
+const ContainerLogsModal = lazy(() => import("./ContainerLogsModal"));
+const DeleteConfirmationModal = lazy(() => import("./DeleteConfirmationModal"));
+const EpicModal = lazy(() => import("./EpicModal"));
+const FeedbackModal = lazy(() =>
+  import("./FeedbackModal").then((module) => ({ default: module.FeedbackModal }))
+);
+const ImportModal = lazy(() => import("./transfer/ImportModal"));
+const InceptionModal = lazy(() => import("./inception/InceptionModal"));
+const NewTicketModal = lazy(() => import("./NewTicketModal"));
+const ProjectModal = lazy(() => import("./ProjectModal"));
+const SettingsModal = lazy(() => import("./settings/SettingsModal"));
+const ShortcutsModal = lazy(() => import("./ui/ShortcutsModal"));
 
-  // Modals
-  modal: ModalState;
-  openNewTicketModal: () => void;
-  openProjectModal: (project?: ProjectBase) => void;
-  openEpicModal: (projectId: string, epic?: Epic) => void;
-  openSettingsModal: () => void;
-  openFeedbackModal: () => void;
-  closeModal: () => void;
-
-  // Refresh
-  ticketRefreshKey: number;
-  refreshAllData: () => void;
-  isRefreshing: boolean;
-
-  // Search navigation
-  selectedTicketIdFromSearch: string | null;
-  onSelectTicketFromSearch: (ticketId: string) => void;
-  clearSelectedTicketFromSearch: () => void;
-
-  // Sample data
-  hasSampleData: boolean;
-  isDeletingSampleData: boolean;
-  deleteSampleData: () => void;
-
-  // Epic deletion
-  onDeleteEpic: (epic: Epic) => void;
-
-  // Mobile menu
-  isMobileMenuOpen: boolean;
-  openMobileMenu: () => void;
-  closeMobileMenu: () => void;
-
-  // Projects panel
-  isProjectsPanelOpen: boolean;
-  openProjectsPanel: () => void;
-  closeProjectsPanel: () => void;
-}
-
-const AppContext = createContext<AppState | null>(null);
-
-export function useAppState() {
-  const context = useContext(AppContext);
-  if (!context) {
-    throw new Error("useAppState must be used within AppLayout");
-  }
-  return context;
+function ModalFallback() {
+  return (
+    <div role="status" aria-live="polite" className="sr-only">
+      Loading dialog...
+    </div>
+  );
 }
 
 interface AppLayoutProps {
@@ -109,9 +86,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const navigate = useNavigate();
   const { projects, refetch: refetchProjects } = useProjects();
   // Enhanced projects with AI activity for ProjectsPanel
-  const { projects: projectsWithAI } = useProjectsWithAIActivity();
-  // Active Ralph sessions for computing epics with AI
-  const { sessions: activeSessions } = useActiveRalphSessions();
+  const { projects: projectsWithAI, activeSessions } = useProjectsWithAIActivity();
   // Settings for Ralph launch
   const { settings } = useSettings();
   // Ralph launch mutation
@@ -347,84 +322,80 @@ export default function AppLayout({ children }: AppLayoutProps) {
     isRefreshing,
   });
 
-  const appState: AppState = useMemo(
+  const appFiltersState: AppFiltersState = useMemo(
     () => ({
-      // Filters
       filters,
       setProjectId,
       setEpicId,
       toggleTag,
       clearTagFilters: clearTags,
       clearAllFilters: clearAll,
+    }),
+    [filters, setProjectId, setEpicId, toggleTag, clearTags, clearAll]
+  );
 
-      // Modals
-      modal,
+  const appModalActionsState: AppModalActionsState = useMemo(
+    () => ({
       openNewTicketModal: openNewTicket,
       openProjectModal: openProject,
       openEpicModal: openEpic,
       openSettingsModal: openSettings,
       openFeedbackModal: openFeedback,
       closeModal,
+    }),
+    [openNewTicket, openProject, openEpic, openSettings, openFeedback, closeModal]
+  );
 
-      // Refresh
+  const appRefreshState: AppRefreshState = useMemo(
+    () => ({
       ticketRefreshKey,
       refreshAllData,
       isRefreshing,
+    }),
+    [ticketRefreshKey, refreshAllData, isRefreshing]
+  );
 
-      // Search navigation
+  const appSearchNavigationState: AppSearchNavigationState = useMemo(
+    () => ({
       selectedTicketIdFromSearch,
       onSelectTicketFromSearch,
       clearSelectedTicketFromSearch,
+    }),
+    [selectedTicketIdFromSearch, onSelectTicketFromSearch, clearSelectedTicketFromSearch]
+  );
 
-      // Sample data
+  const appSampleDataState: AppSampleDataState = useMemo(
+    () => ({
       hasSampleData,
       isDeletingSampleData,
       deleteSampleData,
+    }),
+    [hasSampleData, isDeletingSampleData, deleteSampleData]
+  );
 
-      // Epic deletion
+  const appEpicDeletionState: AppEpicDeletionState = useMemo(
+    () => ({
       onDeleteEpic: handleDeleteEpicClick,
+    }),
+    [handleDeleteEpicClick]
+  );
 
-      // Mobile menu
+  const appMobileMenuState: AppMobileMenuState = useMemo(
+    () => ({
       isMobileMenuOpen,
       openMobileMenu,
       closeMobileMenu,
+    }),
+    [isMobileMenuOpen, openMobileMenu, closeMobileMenu]
+  );
 
-      // Projects panel
+  const appProjectsPanelState: AppProjectsPanelState = useMemo(
+    () => ({
       isProjectsPanelOpen,
       openProjectsPanel,
       closeProjectsPanel,
     }),
-    [
-      filters,
-      setProjectId,
-      setEpicId,
-      toggleTag,
-      clearTags,
-      clearAll,
-      modal,
-      openNewTicket,
-      openProject,
-      openEpic,
-      openSettings,
-      openFeedback,
-      closeModal,
-      ticketRefreshKey,
-      refreshAllData,
-      isRefreshing,
-      selectedTicketIdFromSearch,
-      onSelectTicketFromSearch,
-      clearSelectedTicketFromSearch,
-      hasSampleData,
-      isDeletingSampleData,
-      deleteSampleData,
-      handleDeleteEpicClick,
-      isMobileMenuOpen,
-      openMobileMenu,
-      closeMobileMenu,
-      isProjectsPanelOpen,
-      openProjectsPanel,
-      closeProjectsPanel,
-    ]
+    [isProjectsPanelOpen, openProjectsPanel, closeProjectsPanel]
   );
 
   // Handler for IconSidebar actions
@@ -565,121 +536,148 @@ export default function AppLayout({ children }: AppLayoutProps) {
   }, [projects, activeSessions]);
 
   return (
-    <AppContext.Provider value={appState}>
-      {/* Desktop: grid with IconSidebar (64px) | Mobile: single column */}
-      <div className="h-screen grid grid-cols-1 md:grid-cols-[64px_1fr] text-[var(--text-primary)]">
-        {/* Desktop IconSidebar - hidden on mobile, z-30 so tooltips render above main content */}
-        <div className="hidden md:block relative z-30">
-          <IconSidebar onAction={handleSidebarAction} />
-        </div>
+    <AppFiltersContext.Provider value={appFiltersState}>
+      <AppModalActionsContext.Provider value={appModalActionsState}>
+        <AppRefreshContext.Provider value={appRefreshState}>
+          <AppSearchNavigationContext.Provider value={appSearchNavigationState}>
+            <AppSampleDataContext.Provider value={appSampleDataState}>
+              <AppEpicDeletionContext.Provider value={appEpicDeletionState}>
+                <AppMobileMenuContext.Provider value={appMobileMenuState}>
+                  <AppProjectsPanelContext.Provider value={appProjectsPanelState}>
+                    {/* Desktop: grid with IconSidebar (64px) | Mobile: single column */}
+                    <div className="h-screen grid grid-cols-1 md:grid-cols-[64px_1fr] text-[var(--text-primary)]">
+                      {/* Desktop IconSidebar - hidden on mobile, z-30 so tooltips render above main content */}
+                      <div className="hidden md:block relative z-30">
+                        <IconSidebar onAction={handleSidebarAction} />
+                      </div>
 
-        {/* Projects Panel - slide-out panel (desktop only) */}
-        <ProjectsPanel
-          isOpen={isProjectsPanelOpen}
-          onClose={closeProjectsPanel}
-          projects={projectsWithAI}
-          selectedProjectId={filters.projectId}
-          selectedEpicId={filters.epicId}
-          onSelectProject={handleProjectSelect}
-          onSelectEpic={handleEpicSelectFromPanel}
-          onAddProject={handleAddProjectFromPanel}
-          onEditProject={handleProjectEdit}
-          onAddEpic={handleAddEpicFromPanel}
-          onEditEpic={handleEditEpicFromPanel}
-          onLaunchRalphForEpic={handleLaunchRalphForEpic}
-          onImport={() => {
-            closeProjectsPanel();
-            setIsImportModalOpen(true);
-          }}
-          epicTicketCounts={epicTicketCounts}
-          epicsWithActiveAI={epicsWithActiveAI}
-        />
+                      {/* Projects Panel - slide-out panel (desktop only) */}
+                      <ProjectsPanel
+                        isOpen={isProjectsPanelOpen}
+                        onClose={closeProjectsPanel}
+                        projects={projectsWithAI}
+                        selectedProjectId={filters.projectId}
+                        selectedEpicId={filters.epicId}
+                        onSelectProject={handleProjectSelect}
+                        onSelectEpic={handleEpicSelectFromPanel}
+                        onAddProject={handleAddProjectFromPanel}
+                        onEditProject={handleProjectEdit}
+                        onAddEpic={handleAddEpicFromPanel}
+                        onEditEpic={handleEditEpicFromPanel}
+                        onLaunchRalphForEpic={handleLaunchRalphForEpic}
+                        onImport={() => {
+                          closeProjectsPanel();
+                          setIsImportModalOpen(true);
+                        }}
+                        epicTicketCounts={epicTicketCounts}
+                        epicsWithActiveAI={epicsWithActiveAI}
+                      />
 
-        {/* Mobile sidebar overlay */}
-        {isMobileMenuOpen && (
-          <div className="fixed inset-0 z-50 md:hidden">
-            {/* Backdrop */}
-            <div
-              className="absolute inset-0 bg-black/60"
-              onClick={closeMobileMenu}
-              aria-hidden="true"
-            />
-            {/* Slide-out menu */}
-            <div
-              className="absolute top-0 left-0 bottom-0 w-[280px] bg-[var(--bg-secondary)] shadow-xl transform transition-transform duration-200 ease-out animate-slide-in-left"
-              role="dialog"
-              aria-modal="true"
-              aria-label="Mobile navigation menu"
-            >
-              <Sidebar onItemClick={closeMobileMenu} />
-            </div>
-          </div>
-        )}
+                      {/* Mobile sidebar overlay */}
+                      {isMobileMenuOpen && (
+                        <div className="fixed inset-0 z-50 md:hidden">
+                          {/* Backdrop */}
+                          <div
+                            className="absolute inset-0 bg-black/60"
+                            onClick={closeMobileMenu}
+                            aria-hidden="true"
+                          />
+                          {/* Slide-out menu */}
+                          <div
+                            className="absolute top-0 left-0 bottom-0 w-[280px] bg-[var(--bg-secondary)] shadow-xl transform transition-transform duration-200 ease-out animate-slide-in-left"
+                            role="dialog"
+                            aria-modal="true"
+                            aria-label="Mobile navigation menu"
+                          >
+                            <Sidebar
+                              onItemClick={closeMobileMenu}
+                              activeSessions={activeSessions}
+                            />
+                          </div>
+                        </div>
+                      )}
 
-        {/* Main content area - takes remaining space */}
-        <div className="flex flex-col min-w-0 overflow-hidden">
-          {/* Header */}
-          <AppHeader />
+                      {/* Main content area - takes remaining space */}
+                      <div className="flex flex-col min-w-0 overflow-hidden">
+                        {/* Header */}
+                        <AppHeader />
 
-          {/* Content */}
-          <main id="main-content" tabIndex={-1} className="flex-1 overflow-auto p-6">
-            {children}
-          </main>
-        </div>
+                        {/* Content */}
+                        <main id="main-content" tabIndex={-1} className="flex-1 overflow-auto p-6">
+                          {children}
+                        </main>
+                      </div>
 
-        {/* New Ticket Modal */}
-        {modal.type === "newTicket" && (
-          <NewTicketModal
-            projects={projects}
-            epics={allEpics}
-            defaultProjectId={filters.projectId}
-            onClose={closeModal}
-            onCreate={handleTicketCreated}
-          />
-        )}
+                      <Suspense fallback={<ModalFallback />}>
+                        {/* New Ticket Modal */}
+                        {modal.type === "newTicket" && (
+                          <NewTicketModal
+                            projects={projects}
+                            epics={allEpics}
+                            defaultProjectId={filters.projectId}
+                            onClose={closeModal}
+                            onCreate={handleTicketCreated}
+                          />
+                        )}
 
-        {/* Project Modal */}
-        {modal.type === "project" && (
-          <ProjectModal project={modal.project} onClose={closeModal} onSave={handleProjectSaved} />
-        )}
+                        {/* Project Modal */}
+                        {modal.type === "project" && (
+                          <ProjectModal
+                            project={modal.project}
+                            onClose={closeModal}
+                            onSave={handleProjectSaved}
+                          />
+                        )}
 
-        {/* Epic Modal */}
-        {modal.type === "epic" && (
-          <EpicModal
-            epic={modal.epic}
-            projectId={modal.projectId}
-            onClose={closeModal}
-            onSave={handleEpicSaved}
-          />
-        )}
+                        {/* Epic Modal */}
+                        {modal.type === "epic" && (
+                          <EpicModal
+                            epic={modal.epic}
+                            projectId={modal.projectId}
+                            onClose={closeModal}
+                            onSave={handleEpicSaved}
+                          />
+                        )}
 
-        {/* Settings Modal */}
-        {modal.type === "settings" && <SettingsModal onClose={closeModal} />}
+                        {/* Settings Modal */}
+                        {modal.type === "settings" && <SettingsModal onClose={closeModal} />}
 
-        {/* Keyboard Shortcuts Help Modal */}
-        {modal.type === "shortcuts" && <ShortcutsModal isOpen={true} onClose={closeModal} />}
+                        {/* Keyboard Shortcuts Help Modal */}
+                        {modal.type === "shortcuts" && (
+                          <ShortcutsModal isOpen={true} onClose={closeModal} />
+                        )}
 
-        {/* Feedback Modal */}
-        {modal.type === "feedback" && <FeedbackModal onClose={closeModal} />}
+                        {/* Feedback Modal */}
+                        {modal.type === "feedback" && <FeedbackModal onClose={closeModal} />}
 
-        {/* Delete Epic Confirmation Modal */}
-        {epicToDelete && (
-          <DeleteConfirmationModal
-            isOpen={true}
-            onClose={handleDeleteEpicCancel}
-            onConfirm={handleDeleteEpicConfirm}
-            isLoading={deleteEpicMutation.isPending}
-            entityType="epic"
-            entityName={epicToDelete.title}
-            preview={deleteEpicPreview}
-            error={deleteEpicError}
-          />
-        )}
+                        {/* Delete Epic Confirmation Modal */}
+                        {epicToDelete && (
+                          <DeleteConfirmationModal
+                            isOpen={true}
+                            onClose={handleDeleteEpicCancel}
+                            onConfirm={handleDeleteEpicConfirm}
+                            isLoading={deleteEpicMutation.isPending}
+                            entityType="epic"
+                            entityName={epicToDelete.title}
+                            preview={deleteEpicPreview}
+                            error={deleteEpicError}
+                          />
+                        )}
 
-        {/* Import Modal */}
-        <ImportModal isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} />
-      </div>
-    </AppContext.Provider>
+                        {/* Import Modal */}
+                        {isImportModalOpen && (
+                          <ImportModal isOpen={true} onClose={() => setIsImportModalOpen(false)} />
+                        )}
+                      </Suspense>
+                    </div>
+                  </AppProjectsPanelContext.Provider>
+                </AppMobileMenuContext.Provider>
+              </AppEpicDeletionContext.Provider>
+            </AppSampleDataContext.Provider>
+          </AppSearchNavigationContext.Provider>
+        </AppRefreshContext.Provider>
+      </AppModalActionsContext.Provider>
+    </AppFiltersContext.Provider>
   );
 }
 
@@ -689,17 +687,11 @@ function AppHeader() {
   const pathname = routerState.pathname;
   const isProjectPage = pathname === "/" || pathname.startsWith("/projects/");
   const isListView = pathname === "/list";
-
-  const {
-    openNewTicketModal,
-    openSettingsModal,
-    openFeedbackModal,
-    filters,
-    onSelectTicketFromSearch,
-    refreshAllData,
-    isRefreshing,
-    openMobileMenu,
-  } = useAppState();
+  const { filters } = useAppFilters();
+  const { openNewTicketModal, openSettingsModal, openFeedbackModal } = useAppModalActions();
+  const { onSelectTicketFromSearch } = useAppSearchNavigation();
+  const { refreshAllData, isRefreshing } = useAppRefresh();
+  const { openMobileMenu } = useAppMobileMenu();
   const handleSearchResultSelect = useCallback(
     (result: SearchResult) => {
       onSelectTicketFromSearch(result.id);
@@ -807,11 +799,15 @@ function AppHeader() {
       />
 
       {/* Inception Modal */}
-      <InceptionModal
-        isOpen={isInceptionModalOpen}
-        onClose={() => setIsInceptionModalOpen(false)}
-        onSkipAI={openNewTicketModal}
-      />
+      {isInceptionModalOpen && (
+        <Suspense fallback={<ModalFallback />}>
+          <InceptionModal
+            isOpen={true}
+            onClose={() => setIsInceptionModalOpen(false)}
+            onSkipAI={openNewTicketModal}
+          />
+        </Suspense>
+      )}
     </header>
   );
 }
@@ -819,26 +815,16 @@ function AppHeader() {
 interface SidebarProps {
   /** Optional callback when a navigation item is clicked (for mobile menu close) */
   onItemClick?: () => void;
+  activeSessions: Record<string, ActiveRalphSession>;
 }
 
-function Sidebar({ onItemClick }: SidebarProps = {}) {
+function Sidebar({ onItemClick, activeSessions }: SidebarProps) {
   const { projects, loading, error } = useProjects();
-  const {
-    filters,
-    setProjectId,
-    setEpicId,
-    openProjectModal,
-    openEpicModal,
-    toggleTag,
-    clearTagFilters,
-    hasSampleData,
-    isDeletingSampleData,
-    deleteSampleData,
-    onDeleteEpic,
-  } = useAppState();
+  const { filters, setProjectId, setEpicId, toggleTag, clearTagFilters } = useAppFilters();
+  const { openProjectModal, openEpicModal } = useAppModalActions();
+  const { hasSampleData, isDeletingSampleData, deleteSampleData } = useAppSampleData();
+  const { onDeleteEpic } = useAppEpicDeletion();
 
-  // Get active Ralph sessions for AI indicators
-  const { sessions: activeSessions } = useActiveRalphSessions();
   const { settings } = useSettings();
   const launchRalphMutation = useLaunchRalphForEpic();
   const { showToast } = useToast();
@@ -1073,11 +1059,15 @@ function Sidebar({ onItemClick }: SidebarProps = {}) {
       </div>
 
       {/* Container Logs Modal for Docker indicator click */}
-      <ContainerLogsModal
-        isOpen={dockerLogsProjectId !== null}
-        onClose={() => setDockerLogsProjectId(null)}
-        containerName={dockerLogsContainerName}
-      />
+      {dockerLogsProjectId !== null && (
+        <Suspense fallback={<ModalFallback />}>
+          <ContainerLogsModal
+            isOpen={true}
+            onClose={() => setDockerLogsProjectId(null)}
+            containerName={dockerLogsContainerName}
+          />
+        </Suspense>
+      )}
     </aside>
   );
 }

@@ -14,7 +14,7 @@
  * @see src/lib/service-discovery.ts for service types
  */
 
-import { useState, useCallback, useEffect } from "react";
+import { lazy, Suspense, useState, useCallback, useEffect } from "react";
 import {
   ChevronDown,
   ChevronUp,
@@ -38,7 +38,16 @@ import {
 } from "../lib/hooks";
 import type { RalphService, ServiceStatus } from "../lib/service-discovery";
 import { useToast } from "./Toast";
-import ContainerLogsModal from "./ContainerLogsModal";
+
+const ContainerLogsModal = lazy(() => import("./ContainerLogsModal"));
+
+function ModalFallback() {
+  return (
+    <div role="status" aria-live="polite" className="sr-only">
+      Loading dialog...
+    </div>
+  );
+}
 
 interface ContainerStatusSectionProps {
   /** Path to the selected project (null if none selected) */
@@ -543,11 +552,15 @@ export default function ContainerStatusSection({ projectPath }: ContainerStatusS
       </div>
 
       {/* Container Logs Modal */}
-      <ContainerLogsModal
-        isOpen={logsModalOpen}
-        onClose={() => setLogsModalOpen(false)}
-        containerName={ralphContainer?.name ?? null}
-      />
+      {logsModalOpen && (
+        <Suspense fallback={<ModalFallback />}>
+          <ContainerLogsModal
+            isOpen={true}
+            onClose={() => setLogsModalOpen(false)}
+            containerName={ralphContainer?.name ?? null}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

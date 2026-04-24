@@ -3,7 +3,7 @@ import { useCallback, useMemo, useState } from "react";
 import { Plus, AlertCircle, Search, X } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useProjectsWithAIActivity } from "../lib/hooks";
-import { useAppState } from "../components/AppLayout";
+import { useAppModalActions } from "../components/AppLayoutContext";
 import ProjectListItem from "../components/projects/ProjectListItem";
 export const Route = createFileRoute("/")({
   component: Home,
@@ -12,7 +12,7 @@ export const Route = createFileRoute("/")({
 function Home() {
   const navigate = useNavigate();
   const { projects, loading, error, refetch } = useProjectsWithAIActivity();
-  const { openProjectModal } = useAppState();
+  const { openProjectModal } = useAppModalActions();
   const [searchQuery, setSearchQuery] = useState("");
 
   const filteredProjects = useMemo(

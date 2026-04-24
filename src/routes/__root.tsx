@@ -1,8 +1,6 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { HeadContent, Scripts, createRootRouteWithContext } from "@tanstack/react-router";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { TanStackDevtools } from "@tanstack/react-devtools";
-import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import type { RouterContext } from "../router";
 // Side-effect imports: dev-only performance instrumentation
 import { markHydrationComplete } from "../lib/navigation-timing";
@@ -14,6 +12,31 @@ import { ToastProvider } from "../components/Toast";
 import { ThemeProvider, THEME_STORAGE_KEY, THEMES, DEFAULT_THEME } from "../lib/theme";
 
 import appCss from "../styles.css?url";
+
+const DevelopmentDevtools = import.meta.env.DEV
+  ? lazy(async () => {
+      const [{ TanStackDevtools }, { TanStackRouterDevtoolsPanel }] = await Promise.all([
+        import("@tanstack/react-devtools"),
+        import("@tanstack/react-router-devtools"),
+      ]);
+
+      return {
+        default: function DevelopmentDevtoolsPanel() {
+          return (
+            <TanStackDevtools
+              config={{ position: "bottom-right" }}
+              plugins={[
+                {
+                  name: "Tanstack Router",
+                  render: <TanStackRouterDevtoolsPanel />,
+                },
+              ]}
+            />
+          );
+        },
+      };
+    })
+  : null;
 
 export const Route = createRootRouteWithContext<RouterContext>()({
   head: () => ({
@@ -104,15 +127,11 @@ function RootDocument({ children }: { children: React.ReactNode }) {
             </ToastProvider>
           </ThemeProvider>
         </QueryClientProvider>
-        <TanStackDevtools
-          config={{ position: "bottom-right" }}
-          plugins={[
-            {
-              name: "Tanstack Router",
-              render: <TanStackRouterDevtoolsPanel />,
-            },
-          ]}
-        />
+        {DevelopmentDevtools && (
+          <Suspense fallback={null}>
+            <DevelopmentDevtools />
+          </Suspense>
+        )}
         <Scripts />
       </body>
     </html>

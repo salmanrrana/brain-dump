@@ -266,7 +266,7 @@ switch (resource) {
     runSync(git.handle, action, rest);
     break;
   case "telemetry":
-    runSync(telemetry.handle, action, rest);
+    runAsync(telemetry.handle, action, rest);
     break;
   case "files":
     runSync(files.handle, action, rest);
