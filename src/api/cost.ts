@@ -12,8 +12,10 @@ import {
   getTicketCostDetail as coreGetTicketCostDetail,
   syncDefaultCostModels as coreSyncDefaultCostModels,
 } from "../../core/cost.ts";
+import { deepRecalculateCosts as coreDeepRecalculateCosts } from "../../core/deep-cost-recalculate.ts";
 import type { CostModel, CostExplorerParams, CostExplorerNode } from "../../core/types.ts";
 import type { RecalculateResult } from "../../core/cost.ts";
+import type { DeepRecalculateResult } from "../../core/deep-cost-recalculate.ts";
 
 // =============================================================================
 // Types
@@ -284,6 +286,16 @@ export const recalculateCosts = createServerFn({ method: "POST" }).handler(
   }
 );
 
+/**
+ * Backfill missing CLI token usage from local provider logs, then recalculate all costs.
+ * CLI-only by design: OpenCode, Claude Code, Codex, Cursor Agent CLI, and Copilot CLI.
+ */
+export const deepRecalculateCosts = createServerFn({ method: "POST" }).handler(
+  async (): Promise<DeepRecalculateResult> => {
+    return coreDeepRecalculateCosts(sqlite);
+  }
+);
+
 // =============================================================================
 // Cost Explorer
 // =============================================================================
@@ -341,3 +353,7 @@ export type {
   TicketCostDetail,
 } from "../../core/types.ts";
 export type { RecalculateResult } from "../../core/cost.ts";
+export type {
+  BackfillSourceResult,
+  DeepRecalculateResult,
+} from "../../core/deep-cost-recalculate.ts";

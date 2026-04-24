@@ -15,6 +15,7 @@ import {
   updateCostModel,
   deleteCostModel,
   recalculateCosts,
+  deepRecalculateCosts,
   getCostExplorerData,
   getTicketCostDetail,
   type UpdateCostModelInput,
@@ -114,6 +115,26 @@ export function useRecalculateCosts() {
     onError: (err) => {
       logger.error(
         "Failed to recalculate costs",
+        err instanceof Error ? err : new Error(String(err))
+      );
+    },
+  });
+}
+
+/**
+ * Mutation hook for backfilling missing CLI provider usage and recalculating all costs.
+ * Invalidates all cost-related queries on success.
+ */
+export function useDeepRecalculateCosts() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => deepRecalculateCosts(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.cost.all });
+    },
+    onError: (err) => {
+      logger.error(
+        "Failed to deep recalculate costs",
         err instanceof Error ? err : new Error(String(err))
       );
     },

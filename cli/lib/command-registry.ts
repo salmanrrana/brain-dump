@@ -1014,6 +1014,13 @@ export const COMMAND_REGISTRY: CommandDef[] = [
     flags: [prettyFlag],
     examples: ["brain-dump telemetry recalculate-costs --pretty"],
   },
+  {
+    resource: "telemetry",
+    action: "deep-recalculate-costs",
+    description: "Backfill missing CLI token usage from provider logs, then recalculate all costs",
+    flags: [prettyFlag],
+    examples: ["brain-dump telemetry deep-recalculate-costs --pretty"],
+  },
 
   // ── files ──────────────────────────────────────────────────
   {

@@ -265,6 +265,10 @@ export type {
   RecalculateResult,
 } from "./cost.ts";
 
+export { deepRecalculateCosts } from "./deep-cost-recalculate.ts";
+
+export type { BackfillSourceResult, DeepRecalculateResult } from "./deep-cost-recalculate.ts";
+
 // Telemetry business logic
 export {
   startTelemetrySession,

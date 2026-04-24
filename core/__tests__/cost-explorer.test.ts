@@ -6,6 +6,7 @@ import {
   getCostExplorerData,
   getTicketCostDetail,
   listCostModels,
+  recalculateCosts,
   seedCostModels,
   recordUsage,
   syncDefaultCostModels,
@@ -70,6 +71,44 @@ beforeEach(() => {
 });
 
 describe("cost model defaults", () => {
+  it("seeds the current Anthropic pricing catalog", () => {
+    const anthropicModels = listCostModels(db)
+      .filter((model) => model.provider === "anthropic")
+      .map((model) => model.modelName);
+
+    expect(anthropicModels).toEqual([
+      "claude-haiku-3",
+      "claude-haiku-3-5",
+      "claude-haiku-4-5",
+      "claude-opus-3",
+      "claude-opus-4",
+      "claude-opus-4-1",
+      "claude-opus-4-5",
+      "claude-opus-4-6",
+      "claude-opus-4-7",
+      "claude-sonnet-3-7",
+      "claude-sonnet-4",
+      "claude-sonnet-4-5",
+      "claude-sonnet-4-6",
+    ]);
+
+    const sonnet45 = listCostModels(db).find((model) => model.modelName === "claude-sonnet-4-5");
+    expect(sonnet45).toMatchObject({
+      inputCostPerMtok: 3,
+      outputCostPerMtok: 15,
+      cacheReadCostPerMtok: 0.3,
+      cacheCreateCostPerMtok: 3.75,
+    });
+
+    const haiku3 = listCostModels(db).find((model) => model.modelName === "claude-haiku-3");
+    expect(haiku3).toMatchObject({
+      inputCostPerMtok: 0.25,
+      outputCostPerMtok: 1.25,
+      cacheReadCostPerMtok: 0.03,
+      cacheCreateCostPerMtok: 0.3,
+    });
+  });
+
   it("seeds the current OpenAI pricing catalog", () => {
     const openaiModels = listCostModels(db)
       .filter((model) => model.provider === "openai")
@@ -81,6 +120,7 @@ describe("cost model defaults", () => {
       "gpt-5.4-mini",
       "gpt-5.4-nano",
       "gpt-5.4-pro",
+      "gpt-5.5",
     ]);
 
     const codex = listCostModels(db).find((model) => model.modelName === "gpt-5.3-codex");
@@ -88,6 +128,13 @@ describe("cost model defaults", () => {
       inputCostPerMtok: 1.75,
       outputCostPerMtok: 14,
       cacheReadCostPerMtok: 0.18,
+    });
+
+    const gpt55 = listCostModels(db).find((model) => model.modelName === "gpt-5.5");
+    expect(gpt55).toMatchObject({
+      inputCostPerMtok: 5,
+      outputCostPerMtok: 30,
+      cacheReadCostPerMtok: 0.5,
     });
   });
 
@@ -166,12 +213,19 @@ describe("cost model defaults", () => {
 
     const result = syncDefaultCostModels(db);
 
-    expect(result).toEqual({ inserted: 3, updated: 0, removed: 2 });
+    expect(result).toEqual({ inserted: 4, updated: 0, removed: 2 });
     expect(
       listCostModels(db)
         .filter((model) => model.provider === "openai")
         .map((model) => model.modelName)
-    ).toEqual(["gpt-5.3-codex", "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.4-pro"]);
+    ).toEqual([
+      "gpt-5.3-codex",
+      "gpt-5.4",
+      "gpt-5.4-mini",
+      "gpt-5.4-nano",
+      "gpt-5.4-pro",
+      "gpt-5.5",
+    ]);
   });
 
   it("keeps custom OpenAI rows that do not match the legacy defaults", () => {
@@ -186,7 +240,7 @@ describe("cost model defaults", () => {
 
     const result = syncDefaultCostModels(db);
 
-    expect(result).toEqual({ inserted: 5, updated: 0, removed: 0 });
+    expect(result).toEqual({ inserted: 6, updated: 0, removed: 0 });
     expect(
       listCostModels(db).some(
         (model) =>
@@ -196,6 +250,30 @@ describe("cost model defaults", () => {
           model.outputCostPerMtok === 11
       )
     ).toBe(true);
+  });
+
+  it("syncs missing defaults before recalculating costs", () => {
+    db.prepare("DELETE FROM cost_models WHERE provider = 'anthropic'").run();
+    recordUsage(db, {
+      model: "claude-sonnet-4-5-20250929",
+      inputTokens: 1_000_000,
+      outputTokens: 1_000_000,
+      cacheReadTokens: 1_000_000,
+      cacheCreationTokens: 1_000_000,
+    });
+
+    const before = db.prepare("SELECT cost_usd FROM token_usage").get() as {
+      cost_usd: number | null;
+    };
+    expect(before.cost_usd).toBe(0);
+
+    const result = recalculateCosts(db);
+
+    const after = db.prepare("SELECT cost_usd FROM token_usage").get() as {
+      cost_usd: number | null;
+    };
+    expect(result.updatedRows).toBe(1);
+    expect(after.cost_usd).toBeCloseTo(22.05);
   });
 });
 

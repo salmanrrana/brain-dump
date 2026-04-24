@@ -12,6 +12,7 @@ import {
   logContext,
   recordUsage,
   recalculateCosts,
+  deepRecalculateCosts,
   detectActiveTicket,
   InvalidActionError,
 } from "../../core/index.ts";
@@ -31,9 +32,10 @@ const ACTIONS = [
   "log-context",
   "record-usage",
   "recalculate-costs",
+  "deep-recalculate-costs",
 ];
 
-export function handle(action: string, args: string[]): void {
+export async function handle(action: string, args: string[]): Promise<void> {
   if (!action || action === "--help" || action === "help") {
     showResourceHelp("telemetry");
   }
@@ -226,6 +228,12 @@ export function handle(action: string, args: string[]): void {
 
       case "recalculate-costs": {
         const result = recalculateCosts(db);
+        outputResult(result, pretty);
+        break;
+      }
+
+      case "deep-recalculate-costs": {
+        const result = await deepRecalculateCosts(db);
         outputResult(result, pretty);
         break;
       }
