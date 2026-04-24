@@ -1,7 +1,11 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useAppState } from "../components/AppLayout";
+import {
+  useAppFilters,
+  useAppRefresh,
+  useAppSearchNavigation,
+} from "../components/AppLayoutContext";
 import {
   useTicketSummaries,
   useProjects,
@@ -59,12 +63,9 @@ type ListSubMode = "tickets" | "tags";
 
 function ListView() {
   const logger = createBrowserLogger("routes:list");
-  const {
-    filters: appFilters,
-    ticketRefreshKey,
-    selectedTicketIdFromSearch,
-    clearSelectedTicketFromSearch,
-  } = useAppState();
+  const { filters: appFilters } = useAppFilters();
+  const { ticketRefreshKey } = useAppRefresh();
+  const { selectedTicketIdFromSearch, clearSelectedTicketFromSearch } = useAppSearchNavigation();
   const navigate = useNavigate();
   const { projects } = useProjects();
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);

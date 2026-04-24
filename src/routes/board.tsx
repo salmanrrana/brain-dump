@@ -2,7 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { Profiler, useCallback, useEffect, useMemo, useState } from "react";
 import { onRenderCallback } from "../lib/profiler";
-import { useAppState } from "../components/AppLayout";
+import {
+  useAppFilters,
+  useAppRefresh,
+  useAppSearchNavigation,
+} from "../components/AppLayoutContext";
 import {
   useTicketSummaries,
   useProjects,
@@ -50,13 +54,9 @@ export const Route = createFileRoute("/board")({
 
 function Board() {
   const logger = createBrowserLogger("routes:board");
-  const {
-    filters: appFilters,
-    ticketRefreshKey,
-    selectedTicketIdFromSearch,
-    clearSelectedTicketFromSearch,
-    clearAllFilters,
-  } = useAppState();
+  const { filters: appFilters, clearAllFilters } = useAppFilters();
+  const { ticketRefreshKey } = useAppRefresh();
+  const { selectedTicketIdFromSearch, clearSelectedTicketFromSearch } = useAppSearchNavigation();
   const { projects } = useProjects();
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const { showToast } = useToast();

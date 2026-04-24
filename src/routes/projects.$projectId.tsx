@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Plus, AlertCircle } from "lucide-react";
 import { useProjects, useEpicTicketCounts } from "../lib/hooks";
-import { useAppState } from "../components/AppLayout";
+import { useAppModalActions } from "../components/AppLayoutContext";
 import { createBrowserLogger } from "../lib/browser-logger";
 import EpicListItem from "../components/navigation/EpicListItem";
 import DevHubToolbar from "../components/projects/DevHubToolbar";
@@ -38,7 +38,7 @@ function ProjectDetail() {
   const navigate = useNavigate();
   const { projects, loading, error } = useProjects();
   const { data: epicTicketCounts } = useEpicTicketCounts(projectId);
-  const { openEpicModal } = useAppState();
+  const { openEpicModal } = useAppModalActions();
 
   if (loading) {
     return (
