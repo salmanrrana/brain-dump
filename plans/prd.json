@@ -9,257 +9,27 @@
   ],
   "userStories": [
     {
-      "id": "ddbf30f9-a96a-45f5-a2cd-85ca338d515f",
-      "title": "Fix production build and client/server module boundaries",
+      "id": "d1900aeb-14e3-40c0-94ae-a0963060a292",
+      "title": "Document human review rework loop",
       "passes": true,
+      "humanRequestedChanges": "## Changes Requested\n\n### Overall Feedback\nChanges requested - see failed steps.\n\n### Failed Demo Steps\n- **Step 4: Search the three updated docs for stale rejection wording such as `stays in human_review` or `Ticket → in_progress` in the human rejection path.**\n  - Expected: No stale wording remains for the failed human review path; approval still moves tickets to `done`.\n  - Status: failed\n  - Reviewer notes: this is a test to see if this works\n\n### Full Demo Checklist Snapshot\n- Step 1: Open `docs/universal-quality-workflow-per-provider-diagrams.md` and inspect the Universal Ticket State Machine plus Review And Demo Gate Loop diagrams.\n  - Expected: Rejected human review paths point from `human_review` to `ready`, not back to `human_review`, and the docs mention preserving failed demo history through a highlighted `Changes Requested` activity comment.\n  - Status: passed\n  - Reviewer notes: None provided\n- Step 2: Open `docs/uqw-multi-environment.md` and read the Human Change-Request Side Loop section.\n  - Expected: The guide explains that `passed=false` returns the ticket to `ready`, preserves failed demo steps/notes/feedback, prioritizes human-requested changes on the next AI launch, and requires the full implementation/test/AI-review/demo cycle again.\n  - Status: passed\n  - Reviewer notes: None provided\n- Step 3: Open `docs/claude-flow-ticket-lifecycle.md` and inspect the ticket state machine, Human Review phase, Ralph autonomous flow, and lifecycle summary.\n  - Expected: All lifecycle references are consistent with rejected demos returning to `ready`, not `in_progress`, and the text says the latest generated demo remains the active checklist while failed attempts remain discoverable in activity history.\n  - Status: passed\n  - Reviewer notes: None provided\n- Step 4: Search the three updated docs for stale rejection wording such as `stays in human_review` or `Ticket → in_progress` in the human rejection path.\n  - Expected: No stale wording remains for the failed human review path; approval still moves tickets to `done`.\n  - Status: failed\n  - Reviewer notes: this is a test to see if this works",
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
-      ],
-      "references": [
-        "src/lib/xdg.ts",
-        "src/api/*",
-        "src/lib/logger.ts",
-        "src/lib/db.ts"
-      ],
-      "description": "Production build currently fails because Node/server-only modules are reachable from the browser graph. Fix this first so bundle analysis and later frontend performance work can be measured reliably.\n\nContext:\n- `pnpm build` fails in `src/lib/xdg.ts` because browser bundling sees Node modules like `os`, `path`, and `fs`.\n- Vite also warns that many API/lib modules pull Node modules into client resolution.\n- Likely causes include top-level server-only imports from `src/api/*`, `src/lib/logger.ts`, `src/lib/xdg.ts`, `src/lib/db.ts`, and broad frontend barrels/imports.\n\nImplementation notes:\n- Keep client-callable `createServerFn` entry modules thin and move Node/database work behind server-only implementation modules.\n- Avoid top-level imports of Node built-ins from files reachable by route/component imports.\n- Extend the existing Vite server-only guard if useful, but prefer fixing import boundaries over adding stubs.\n- Preserve existing API behavior.\n\nAcceptance criteria:\n- `pnpm build` completes successfully.\n- Production client build no longer reports Node built-in externalization warnings for reachable frontend modules.\n- Browser/client code cannot import `src/lib/xdg.ts`, `src/lib/logger.ts`, `src/lib/db.ts`, migration/backup/lockfile/watcher/integrity modules, or other server-only implementation files directly.\n- Existing tests for server functions and frontend still pass or are updated for the new boundaries.\n- Run `pnpm type-check && pnpm lint && pnpm test && pnpm build`.",
-      "priority": "high",
-      "tags": [
-        "frontend",
-        "performance",
-        "build",
-        "tanstack-start"
-      ]
-    },
-    {
-      "id": "f02f7135-2d36-40eb-bb33-7d1b9ea81151",
-      "title": "Add frontend bundle analysis and performance guardrails",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
+        "`docs/universal-quality-workflow-per-provider-diagrams.md` shows rejection moving to `ready` rather than staying in `human_review`.",
+        "`docs/uqw-multi-environment.md` describes the change-request side loop.",
+        "`docs/claude-flow-ticket-lifecycle.md` is made consistent with the implemented behavior.",
+        "Docs explain that the AI must still run the full implementation, test, AI review, and demo cycle after rework.",
+        "Docs note that demo history is preserved via highlighted activity comments, while the active demo script remains the latest generated demo."
       ],
       "references": [],
-      "description": "Add a repeatable way to measure frontend bundle output after the production build is fixed, then capture a baseline for future optimization work.\n\nContext:\n- The current build failed before chunk stats were available.\n- `vite.config.ts` has no explicit bundle analysis script, visualizer, chunk budget, or documented performance baseline.\n\nImplementation notes:\n- Add a bundle analysis workflow that works with the current Vite/TanStack Start setup.\n- Prefer a script that can be run locally and in CI without requiring a browser.\n- Capture chunk sizes and identify heavy shared dependencies such as charting, DnD, form, devtools, and server-fn client shims.\n- Add documentation or a short report file with the baseline and how to regenerate it.\n\nAcceptance criteria:\n- A script exists to build and inspect production client bundle output.\n- The baseline identifies top chunks/modules and initial-route payload risks.\n- Bundle analysis can run after `pnpm build` without manual steps.\n- Reasonable chunk warning/budget guidance is documented.\n- Run `pnpm type-check && pnpm lint && pnpm test && pnpm build`.",
-      "priority": "high",
-      "tags": [
-        "frontend",
-        "performance",
-        "build",
-        "metrics"
-      ]
-    },
-    {
-      "id": "2eb9180c-14c6-42f9-ae76-e9dd06943bdc",
-      "title": "Enable route-level code splitting for TanStack Router routes",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
-      ],
-      "references": [
-        "src/routeTree.gen.ts"
-      ],
-      "description": "Reduce initial JavaScript by ensuring route modules are split and loaded only when needed.\n\nContext:\n- `src/routeTree.gen.ts` statically imports every route module.\n- No lazy route files or lazy route components were found.\n- This can pull board DnD, dashboard charts, ticket detail, epic detail, and project/dev tooling into early chunks.\n\nImplementation notes:\n- Use the TanStack Router/Start-supported route splitting approach for this project.\n- Regenerate route tree as needed.\n- Keep route loaders and head metadata working.\n- Confirm pending/error components still behave correctly.\n- Do not manually edit generated route tree except through the supported generator/plugin configuration.\n\nAcceptance criteria:\n- Initial route no longer eagerly imports every route component module.\n- Heavy route surfaces (`/board`, `/dashboard`, `/ticket/$id`, `/epic/$id`, `/projects/$projectId`) are split into lazy route chunks or equivalent.\n- Route navigation still works for all routes.\n- Bundle analysis shows route-level chunks rather than one monolithic app chunk.\n- Run `pnpm type-check && pnpm lint && pnpm test && pnpm build`.",
-      "priority": "high",
-      "tags": [
-        "frontend",
-        "performance",
-        "routing",
-        "tanstack-router"
-      ]
-    },
-    {
-      "id": "932d14b2-6c36-4538-b02d-aaf6a284942d",
-      "title": "Lazy-load root layout modals and development-only tooling",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
-      ],
-      "references": [
-        "src/routes/__root.tsx",
-        "src/components/AppLayout.tsx"
-      ],
-      "description": "Shrink the root layout client graph by loading rarely used UI only when users open it, and keep devtools out of production initial load.\n\nContext:\n- `src/routes/__root.tsx` imports and renders TanStack devtools unconditionally.\n- `src/components/AppLayout.tsx` statically imports many modal/tooling components, including ticket/project/epic/settings/feedback/import/logs/inception/shortcuts flows.\n- `ImportModal` and `InceptionModal` are mounted even when closed.\n\nImplementation notes:\n- Dynamically import TanStack devtools only in development.\n- Use `React.lazy`/`Suspense` or route-compatible lazy imports for rarely used modals and heavy panels.\n- Render `ImportModal` and `InceptionModal` only when open.\n- Keep accessible modal loading fallbacks minimal and non-disruptive.\n- Avoid introducing global loading spinners for ordinary page rendering.\n\nAcceptance criteria:\n- Production initial layout does not include TanStack devtools UI code.\n- Root layout no longer statically imports rarely-used modal implementations.\n- Closed modals are not mounted.\n- Opening each lazy modal still works and preserves existing behavior.\n- Bundle analysis shows reduced root/initial chunk size.\n- Run `pnpm type-check && pnpm lint && pnpm test && pnpm build`.",
-      "priority": "high",
-      "tags": [
-        "frontend",
-        "performance",
-        "bundle",
-        "react"
-      ]
-    },
-    {
-      "id": "c1d1d0a0-544b-4c73-9e8c-b7e037fc5778",
-      "title": "Split dashboard chart bundles and remove heavy barrel imports",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
-      ],
-      "references": [
-        "src/routes/dashboard.tsx",
-        "src/components/dashboard/index.ts"
-      ],
-      "description": "Keep dashboard charting dependencies out of routes/tabs that do not need them, and preserve lazy loading for Recharts/ECharts-heavy surfaces.\n\nContext:\n- `src/routes/dashboard.tsx` imports dashboard components from `src/components/dashboard/index.ts`.\n- The dashboard barrel re-exports chart-heavy modules including Recharts and ECharts surfaces.\n- `AnalyticsSection` already lazy-loads several Recharts components, but barrel imports can pull modules back into the dashboard route chunk.\n- `AITelemetryTab` directly imports Recharts and `CostExplorerTab` lazy-loads ECharts.\n\nImplementation notes:\n- Replace dashboard route barrel imports with direct imports for only the components used immediately.\n- Avoid exporting heavy chart modules from broad barrels that route modules import.\n- Lazy-load secondary dashboard tabs where appropriate, especially AI telemetry and cost explorer chart surfaces.\n- Keep hover/intent prefetch for cost explorer or add equivalent for telemetry.\n\nAcceptance criteria:\n- Dashboard route no longer imports from a barrel that re-exports all chart modules.\n- Recharts and ECharts code are isolated to lazy chunks or tab-specific chunks.\n- Overview renders correctly and secondary tabs load correctly.\n- Bundle analysis shows chart libraries are not part of unrelated initial chunks.\n- Run `pnpm type-check && pnpm lint && pnpm test && pnpm build`.",
-      "priority": "high",
-      "tags": [
-        "frontend",
-        "performance",
-        "dashboard",
-        "bundle"
-      ]
-    },
-    {
-      "id": "9b15fbfe-58d7-4a05-99b5-d44844f7fc1d",
-      "title": "Improve route loaders and navigation cache reuse",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
-      ],
-      "references": [],
-      "description": "Make TanStack Router loaders and TanStack Query work together so navigation renders with cached data instead of loading gaps and duplicate requests.\n\nContext:\n- Dashboard, board, list, and epic loaders fire `void ensureQueryData(...)` and return immediately, so route pending components do not wait for critical data.\n- Ticket detail route lacks a loader and uses a component query with `staleTime: 0`.\n- Board/list modal opens call `getTicket` directly instead of using Query cache.\n\nImplementation notes:\n- Await above-the-fold route data in loaders, while leaving secondary tabs/analytics as background prefetch or hover/intent prefetch.\n- Add a ticket detail route loader with `ensureQueryData(queryKeys.ticket(id))`.\n- Update board/list ticket modal open flows and search-result selection to use `queryClient.ensureQueryData` with `queryKeys.ticket(id)`.\n- Use practical `staleTime` values and targeted invalidation so recently loaded detail data is reused.\n\nAcceptance criteria:\n- Critical route data is awaited where it affects first paint.\n- Ticket detail navigation reuses cached detail data when available.\n- Opening the same ticket from board/list does not trigger redundant uncached fetches.\n- Secondary dashboard tab data is prefetched only on intent or after the critical view.\n- Existing pending/error states still behave correctly.\n- Run `pnpm type-check && pnpm lint && pnpm test && pnpm build`.",
-      "priority": "high",
-      "tags": [
-        "frontend",
-        "performance",
-        "tanstack-router",
-        "tanstack-query"
-      ]
-    },
-    {
-      "id": "9bca9e28-c770-4fa1-99e5-2a3321fc67a0",
-      "title": "Tighten TanStack Query keys, invalidation, polling, and search",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
-      ],
-      "references": [],
-      "description": "Reduce unnecessary network activity and observer churn by aligning query keys, invalidation, polling, and search with TanStack Query best practices.\n\nContext:\n- `queryKeys.allTickets = [\"tickets\"]` also prefixes count queries like `projectTicketCounts` and `epicTicketCounts`.\n- Several mutation invalidations are broad and may invalidate more than intended.\n- `useSearch` manually manages debounce/results instead of using existing `queryKeys.search`.\n- Active Ralph session polling is observed from multiple always-mounted places.\n- Comments polling can combine interval and window-focus refetches.\n- Cost explorer summary mounts a second observer for related data.\n\nImplementation notes:\n- Move count keys to a separate namespace or use exact invalidation where appropriate.\n- Convert search to debounced `useQuery` with `enabled`, `staleTime`, and race-safe behavior.\n- Centralize active Ralph session polling or expose it through layout/context to avoid redundant observers.\n- Tune polling hooks to avoid refetch-on-focus storms when intervals are active.\n- Reduce duplicate observers such as cost explorer summary where summary can be derived locally.\n\nAcceptance criteria:\n- Ticket list invalidations no longer accidentally target count queries unless intended.\n- Search results are cached per query/project and cannot be overwritten by stale older requests.\n- Active Ralph polling behavior is centralized or clearly deduplicated.\n- Polling hooks avoid extra focus refetches when interval polling is enabled.\n- Cost explorer no longer mounts duplicate observers for the same data unless justified.\n- Run `pnpm type-check && pnpm lint && pnpm test && pnpm build`.",
-      "priority": "high",
-      "tags": [
-        "frontend",
-        "performance",
-        "tanstack-query"
-      ]
-    },
-    {
-      "id": "ce965979-4c41-4f1e-94d5-0f2ae8d69ed8",
-      "title": "Split AppLayout state to reduce global rerenders",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
-      ],
-      "references": [],
-      "description": "Reduce rerenders caused by the broad `AppLayout` context by splitting state into smaller, stable contexts or an equivalent selector-based store.\n\nContext:\n- `AppLayout` exposes filters, modal state/actions, refresh state, search selection, sample data state, epic deletion, mobile menu state, and projects panel state in one context.\n- Consumers that only need one action can rerender when unrelated state changes.\n- The layout also owns several polling-driven values that can fan out through context.\n\nImplementation notes:\n- Split into focused contexts such as filters, modal actions/state, refresh/search, mobile/projects panel, and sample-data/epic deletion.\n- Prefer stable action-only contexts where possible.\n- Keep public hooks ergonomic and update consumers incrementally.\n- Avoid overengineering; make the smallest split that isolates high-frequency state changes.\n\nAcceptance criteria:\n- Unrelated context consumers no longer rerender for filter/modal/refresh/search/mobile state changes they do not use.\n- Existing keyboard shortcuts, modals, filtering, mobile menu, and projects panel behavior still works.\n- Tests cover representative consumers or existing tests are updated.\n- React profiler/manual verification shows reduced rerender fanout for common actions such as search, filter change, modal open, and refresh.\n- Run `pnpm type-check && pnpm lint && pnpm test && pnpm build`.",
+      "description": "## Goal\nUpdate the Universal Quality Workflow documentation so provider diagrams and lifecycle docs match the new failed-human-review behavior.\n\n## Scope\nDocument the side journey from `human_review` back to `ready` after `Request Changes`, including how human notes become top-priority AI context on the next launch.\n\n## Acceptance Criteria\n- `docs/universal-quality-workflow-per-provider-diagrams.md` shows rejection moving to `ready` rather than staying in `human_review`.\n- `docs/uqw-multi-environment.md` describes the change-request side loop.\n- `docs/claude-flow-ticket-lifecycle.md` is made consistent with the implemented behavior.\n- Docs explain that the AI must still run the full implementation, test, AI review, and demo cycle after rework.\n- Docs note that demo history is preserved via highlighted activity comments, while the active demo script remains the latest generated demo.",
       "priority": "medium",
       "tags": [
-        "frontend",
-        "performance",
-        "react",
-        "layout"
-      ]
-    },
-    {
-      "id": "97322c42-f809-4668-91c4-c56a3d017424",
-      "title": "Optimize Kanban and list rendering for large ticket sets",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
-      ],
-      "references": [],
-      "description": "Improve render performance for large boards and lists by reducing per-ticket prop churn, unnecessary allocations, and all-card rendering work.\n\nContext:\n- `KanbanBoard` renders every sortable card in every column.\n- `SortableContext.items` allocates arrays during render.\n- Focus state changes can update props across all cards.\n- Board route passes callbacks that are recreated each render.\n- Per-card Ralph session lookup runs during every board render.\n- `TicketListView` already uses virtualization but still formats dates and creates row callbacks during render.\n\nImplementation notes:\n- Wrap board route handlers in `useCallback` and memoize `allEpics`.\n- Memoize per-column ticket IDs and reduce per-card prop churn.\n- Consider per-column virtualization or a threshold-based compact mode for very large columns.\n- Isolate keyboard focus state so only previous/new focused cards need visual updates where feasible.\n- Pass memoized active-session data rather than invoking lookups for each card on each render.\n- Precompute list row dates/parsed metadata and fix virtualization spacer row structure if needed.\n\nAcceptance criteria:\n- Board interactions remain accessible and DnD still works.\n- Large columns render fewer unnecessary updates or use a documented threshold strategy.\n- Common board state changes do not rerender every card unless ticket data actually changes.\n- List virtualization remains correct and table layout is valid.\n- Existing board/list tests pass and new coverage is added for any changed behavior.\n- Run `pnpm type-check && pnpm lint && pnpm test && pnpm build`.",
-      "priority": "medium",
-      "tags": [
-        "frontend",
-        "performance",
-        "react",
-        "kanban"
-      ]
-    },
-    {
-      "id": "4b6cb6a5-e9b7-4fe6-a4da-03dc0ec2bb72",
-      "title": "Audit and tune TanStack Form modal performance",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
-      ],
-      "references": [],
-      "description": "Review form-heavy modal surfaces for TanStack Form best practices, field subscription granularity, and unnecessary rerenders after lazy-loading makes them load on demand.\n\nContext:\n- Ticket, epic, settings, and project flows use TanStack Form or form-like local state.\n- `TicketModal` already has comments about subscribing to specific values, but form-heavy modals are still part of core user flows.\n- Once modals are lazy-loaded, their runtime render behavior should also be checked.\n\nImplementation notes:\n- Audit `TicketModal`, `EpicModal`, `SettingsModal`, project/import forms, and nested ticket form components.\n- Prefer field-level subscriptions/selectors over broad form state subscriptions.\n- Avoid copying server/query data into form state before data is guaranteed loaded.\n- Ensure submit buttons are disabled during pending mutations and mutation error states are surfaced.\n- Keep server state and form state boundaries clear.\n\nAcceptance criteria:\n- Form components subscribe only to state they render or need for submit behavior.\n- Create/edit forms prevent double submits and show mutation errors consistently.\n- Existing default values are initialized only after required query/server data is available.\n- No form behavior regresses for ticket, epic, project, settings, or import flows.\n- Relevant tests are updated or added.\n- Run `pnpm type-check && pnpm lint && pnpm test && pnpm build`.",
-      "priority": "medium",
-      "tags": [
-        "frontend",
-        "performance",
-        "tanstack-form",
-        "forms"
-      ]
-    },
-    {
-      "id": "579fb8d1-42d7-475d-a421-e8937fc61039",
-      "title": "Validate frontend performance improvements and document results",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
-      ],
-      "references": [],
-      "description": "Run final measurement after the optimization tickets land, compare against the baseline, and document remaining risks or follow-up work.\n\nContext:\n- Earlier tickets should fix build output, split bundles, improve navigation caching, and reduce render churn.\n- The epic needs a clear before/after summary so future work can tell whether changes materially improved load/navigation performance.\n\nImplementation notes:\n- Re-run the bundle analysis from the baseline ticket.\n- Capture production build chunk sizes and notable heavy dependencies.\n- Exercise key user flows: initial project list load, board navigation, list navigation, dashboard tabs, ticket modal open, ticket detail route, settings/modal open.\n- Use existing profiler/navigation timing helpers where practical.\n- Document follow-up items that remain too large for this epic.\n\nAcceptance criteria:\n- A before/after summary exists with bundle size and route/navigation observations.\n- Core flows are manually verified or covered by automated checks where available.\n- Any remaining performance risks are documented as follow-up tickets or notes.\n- The final state passes `pnpm type-check && pnpm lint && pnpm test && pnpm build`.",
-      "priority": "medium",
-      "tags": [
-        "frontend",
-        "performance",
-        "metrics",
-        "validation"
+        "docs",
+        "workflow"
       ]
     }
   ],
@@ -406,7 +176,5 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-04-24T15:49:18.685Z",
-  "epicTitle": "Frontend performance optimization",
-  "epicDescription": "Improve Brain Dump frontend performance from production build stability through initial load, route navigation, TanStack Query usage, and React render efficiency.\n\nPrimary goals:\n- Make the production frontend build pass reliably.\n- Keep server-only Node/database modules out of the browser graph.\n- Reduce initial JavaScript by route-splitting and lazy-loading rarely used UI.\n- Improve navigation by using loaders and Query cache consistently.\n- Reduce rerenders in layout, board, list, and polling-heavy paths.\n- Add measurement guardrails so future regressions are visible."
+  "generatedAt": "2026-04-25T19:13:41.088Z"
 }
