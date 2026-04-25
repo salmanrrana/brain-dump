@@ -1,13 +1,89 @@
 import React, { useState, useCallback } from "react";
-import { PlayCircle, ThumbsUp, ThumbsDown, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import {
+  PlayCircle,
+  ThumbsUp,
+  ThumbsDown,
+  Loader2,
+  CheckCircle2,
+  XCircle,
+  MinusCircle,
+  Circle,
+} from "lucide-react";
 import { DemoStep, type DemoStepStatus } from "./DemoStep";
 import { useDemoScript, useUpdateDemoStep, useSubmitDemoFeedback } from "../../lib/hooks";
 import { useToast } from "../Toast";
+import type { DemoStep as DemoStepSchema } from "../../lib/schema";
 
 export interface DemoPanelProps {
   ticketId: string;
   /** Called when demo is completed (approved or rejected) */
   onComplete?: (passed: boolean) => void;
+}
+
+const READ_ONLY_STATUS_CONFIG: Record<
+  DemoStepStatus,
+  { label: string; className: string; icon: React.ReactNode }
+> = {
+  pending: {
+    label: "Pending",
+    className: "bg-[var(--bg-tertiary)] text-[var(--text-secondary)]",
+    icon: <Circle size={14} />,
+  },
+  passed: {
+    label: "Passed",
+    className: "bg-[var(--success-muted)] text-[var(--success)]",
+    icon: <CheckCircle2 size={14} />,
+  },
+  failed: {
+    label: "Failed",
+    className: "bg-[var(--accent-danger)]/10 text-[var(--accent-danger)]",
+    icon: <XCircle size={14} />,
+  },
+  skipped: {
+    label: "Skipped",
+    className: "bg-[var(--bg-hover)] text-[var(--text-tertiary)]",
+    icon: <MinusCircle size={14} />,
+  },
+};
+
+function ReadOnlyDemoStep({ step }: { step: DemoStepSchema }) {
+  const status = (step.status as DemoStepStatus) || "pending";
+  const statusConfig = READ_ONLY_STATUS_CONFIG[status];
+
+  return (
+    <div className="rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 flex-1">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <span className="font-semibold text-[var(--text-primary)]">Step {step.order}</span>
+            <span className="rounded-full bg-[var(--info-muted)] px-2 py-1 text-xs capitalize text-[var(--info)]">
+              {step.type}
+            </span>
+          </div>
+          <p className="text-sm text-[var(--text-secondary)]">{step.description}</p>
+        </div>
+        <span
+          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${statusConfig.className}`}
+        >
+          {statusConfig.icon}
+          {statusConfig.label}
+        </span>
+      </div>
+
+      <div className="mt-4 space-y-3 border-t border-[var(--border-primary)] pt-4">
+        <div>
+          <p className="mb-1 text-sm font-medium text-[var(--text-primary)]">Expected Outcome:</p>
+          <p className="text-sm text-[var(--text-secondary)]">{step.expectedOutcome}</p>
+        </div>
+        {step.notes && (
+          <div>
+            <p className="mb-1 text-sm font-medium text-[var(--text-primary)]">Reviewer Notes:</p>
+            <p className="text-sm text-[var(--text-secondary)]">{step.notes}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -251,11 +327,11 @@ export const DemoPanel: React.FC<DemoPanelProps> = ({ ticketId, onComplete }) =>
     );
   }
 
-  // Already completed
+  // Already completed - keep the latest demo visible as a read-only verification record.
   if (demoScript.completedAt) {
     return (
       <div
-        className={`border rounded-lg p-6 ${
+        className={`space-y-4 border rounded-lg p-6 ${
           demoScript.passed
             ? "bg-[var(--success-muted)] border-[var(--success)]/30"
             : "bg-[var(--accent-danger)]/10 border-[var(--accent-danger)]/30"
@@ -269,10 +345,11 @@ export const DemoPanel: React.FC<DemoPanelProps> = ({ ticketId, onComplete }) =>
           )}
           <div>
             <h3 className="font-semibold text-[var(--text-primary)]">
-              Demo {demoScript.passed ? "Approved" : "Rejected"}
+              Read-Only Demo Review: {demoScript.passed ? "Approved" : "Rejected"}
             </h3>
             <p className="text-sm text-[var(--text-secondary)]">
-              Completed on {new Date(demoScript.completedAt).toLocaleString()}
+              Completed on {new Date(demoScript.completedAt).toLocaleString()}. This record cannot
+              be edited.
             </p>
           </div>
         </div>
@@ -282,6 +359,14 @@ export const DemoPanel: React.FC<DemoPanelProps> = ({ ticketId, onComplete }) =>
             <p className="text-sm text-[var(--text-secondary)]">{demoScript.feedback}</p>
           </div>
         )}
+        <div className="space-y-3">
+          <h4 className="text-sm font-semibold text-[var(--text-primary)]">
+            Verification Checklist Snapshot
+          </h4>
+          {demoScript.steps.map((step) => (
+            <ReadOnlyDemoStep key={step.order} step={step} />
+          ))}
+        </div>
       </div>
     );
   }

@@ -1,9 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
+import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
 // NOTE: db is imported dynamically inside handlers to prevent bundling server code in client
 import { submitFeedback } from "../../core/review";
 import { demoScripts } from "../lib/schema";
-import { eq } from "drizzle-orm";
 import type { DemoStep } from "../lib/schema";
 
 /**
@@ -30,7 +30,12 @@ export const getDemoScript = createServerFn({ method: "GET" })
   .inputValidator(z.object({ ticketId: z.string() }))
   .handler(async ({ data: { ticketId } }: { data: { ticketId: string } }) => {
     const { db } = await import("../lib/db");
-    const script = db.select().from(demoScripts).where(eq(demoScripts.ticketId, ticketId)).get();
+    const script = db
+      .select()
+      .from(demoScripts)
+      .where(eq(demoScripts.ticketId, ticketId))
+      .orderBy(desc(demoScripts.generatedAt))
+      .get();
 
     if (!script) {
       return null;

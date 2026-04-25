@@ -5,11 +5,12 @@ import TicketModal from "./TicketModal";
 
 const mockNavigate = vi.hoisted(() => vi.fn(() => Promise.resolve()));
 const mockShowToast = vi.hoisted(() => vi.fn());
+const mockFormStatus = vi.hoisted(() => ({ value: "ready" }));
 const mockUseStore = vi.hoisted(() =>
   vi.fn((_store, selector) =>
     selector({
       values: {
-        status: "ready",
+        status: mockFormStatus.value,
         tags: [],
         acceptanceCriteria: [],
       },
@@ -72,7 +73,7 @@ vi.mock("./RalphStatusBadge", () => ({
 }));
 
 vi.mock("./tickets/DemoPanel", () => ({
-  DemoPanel: () => null,
+  DemoPanel: () => <div>Demo panel loaded</div>,
 }));
 
 vi.mock("./TelemetryPanel", () => ({
@@ -81,6 +82,18 @@ vi.mock("./TelemetryPanel", () => ({
 
 vi.mock("./tickets/ClaudeTasks", () => ({
   ClaudeTasks: () => null,
+}));
+
+vi.mock("./tickets/AttachmentsSection", () => ({
+  AttachmentsSection: () => null,
+}));
+
+vi.mock("./tickets/ModalCommentsSection", () => ({
+  ModalCommentsSection: () => null,
+}));
+
+vi.mock("./tickets/ServicesSection", () => ({
+  ServicesSection: () => null,
 }));
 
 vi.mock("../api/attachments", () => ({
@@ -133,6 +146,7 @@ function createTicket(overrides: Record<string, unknown> = {}) {
 describe("TicketModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockFormStatus.value = "ready";
     mockUpdateTicketMutation.isPending = false;
     mockUpdateTicketMutation.error = null;
   });
@@ -170,5 +184,20 @@ describe("TicketModal", () => {
     render(<TicketModal ticket={createTicket()} epics={[]} onClose={vi.fn()} onUpdate={vi.fn()} />);
 
     expect(screen.getByRole("alert")).toHaveTextContent("Unable to save ticket");
+  });
+
+  it("shows demo history for completed tickets in the board modal", async () => {
+    mockFormStatus.value = "done";
+
+    render(
+      <TicketModal
+        ticket={createTicket({ status: "done", completedAt: "2026-04-25T11:00:00.000Z" })}
+        epics={[]}
+        onClose={vi.fn()}
+        onUpdate={vi.fn()}
+      />
+    );
+
+    expect(await screen.findByText("Demo panel loaded")).toBeInTheDocument();
   });
 });

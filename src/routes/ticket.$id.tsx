@@ -912,8 +912,8 @@ function TicketDetailPage() {
         </div>
       </div>
 
-      {/* Demo Review Panel - Shows prominently when ticket is in human_review status */}
-      {ticket.status === "human_review" && (
+      {/* Demo Review Panel - interactive in human_review, read-only after completion */}
+      {(ticket.status === "human_review" || ticket.status === "done") && (
         <section style={sectionStyles}>
           <DemoPanel ticketId={ticket.id} />
         </section>
