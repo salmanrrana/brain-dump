@@ -8,7 +8,7 @@ The **Universal Quality Workflow (UQW)** is a structured quality system that ens
 backlog → ready → in_progress → ai_review → human_review → done
 ```
 
-If a human clicks `Request Changes` during demo verification, the ticket leaves `human_review` and returns to `ready` instead of staying in review. Brain Dump preserves the failed demo attempt as history, posts a highlighted `Changes Requested` activity comment, and makes the human notes the first context on the next AI launch.
+If a human clicks `Request Changes` during demo verification, Brain Dump moves the ticket from `human_review` to `ready` for rework (it does not remain in `human_review`). Brain Dump preserves the failed demo attempt as history, posts a highlighted `Changes Requested` activity comment, and makes the human notes the first context on the next AI launch.
 
 ### Why UQW Matters
 

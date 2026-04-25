@@ -343,8 +343,9 @@ flowchart TB
     L --> M["Ticket enters done"]
     K -->|No| N["review.submit-feedback passed=false"]
     N --> O["Ticket returns to ready"]
-    O --> P["Next AI launch fixes human-requested changes first"]
-    P --> A
+    O --> P["Next launch: workflow.start-work from ready"]
+    P --> Q["Ticket enters in_progress (new implementation pass)"]
+    Q --> A
 
     style B fill:#1e293b,stroke:#f59e0b,color:#fff
     style O fill:#1e293b,stroke:#f59e0b,color:#fff
