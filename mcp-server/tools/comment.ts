@@ -32,7 +32,13 @@ const AUTHORS = [
   "brain-dump",
 ] as const;
 const RALPH_AUTHOR_PATTERN = /^ralph:[a-z0-9-]+$/i;
-const COMMENT_TYPES = ["comment", "work_summary", "test_report", "progress"] as const;
+const COMMENT_TYPES = [
+  "comment",
+  "work_summary",
+  "test_report",
+  "progress",
+  "change_request",
+] as const;
 
 /**
  * Register the consolidated comment tool with the MCP server.

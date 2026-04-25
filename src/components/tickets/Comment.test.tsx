@@ -36,4 +36,25 @@ describe("Comment", () => {
 
     expect(screen.getByText("Ralph (Codex)")).toBeInTheDocument();
   });
+
+  it("visually distinguishes change-request comments", () => {
+    render(
+      <Comment
+        comment={{
+          id: "comment-3",
+          ticketId: "ticket-1",
+          content: "## Changes Requested\n\nButton did not save.",
+          author: "brain-dump",
+          type: "change_request",
+          createdAt: new Date().toISOString(),
+        }}
+      />
+    );
+
+    expect(screen.getByText("Changes Requested")).toBeInTheDocument();
+    expect(screen.getByTestId("comment")).toHaveStyle({
+      background: "rgba(249, 115, 22, 0.1)",
+      borderLeft: "3px solid #f97316",
+    });
+  });
 });

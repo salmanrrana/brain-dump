@@ -17,11 +17,12 @@ interface CommentTypeLabels {
   work_summary: string;
   test_report: string;
   progress: string;
+  change_request: string;
   comment: string;
 }
 
 /** Comment type - must match database values */
-type CommentType = "comment" | "work_summary" | "test_report" | "progress";
+type CommentType = "comment" | "work_summary" | "test_report" | "progress" | "change_request";
 
 /** Author type - who created the comment */
 type CommentAuthor =
@@ -77,6 +78,7 @@ export const COMMENT_TYPE_LABELS: CommentTypeLabels = {
   work_summary: "📋 Work Summary",
   test_report: "🧪 Test Report",
   progress: "📈 Progress",
+  change_request: "⚠️ Changes Requested",
   comment: "💬 Comment",
 };
 

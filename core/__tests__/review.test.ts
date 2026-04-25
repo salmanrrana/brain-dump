@@ -808,6 +808,21 @@ describe("submitFeedback", () => {
     expect(demo!.steps[0]!.notes).toBe("Button did nothing");
     expect(demo!.steps[1]!.status).toBe("skipped");
     expect(demo!.steps[1]!.notes).toBe("Blocked by the first failure");
+
+    const changeRequestComment = db
+      .prepare("SELECT content, author, type FROM ticket_comments WHERE ticket_id = ?")
+      .get("ticket-1") as { content: string; author: string; type: string };
+    expect(changeRequestComment.type).toBe("change_request");
+    expect(changeRequestComment.author).toBe("brain-dump");
+    expect(changeRequestComment.content).toContain("## Changes Requested");
+    expect(changeRequestComment.content).toContain("Button doesn't work");
+    expect(changeRequestComment.content).toContain("### Failed Demo Steps");
+    expect(changeRequestComment.content).toContain("Step 1: Test");
+    expect(changeRequestComment.content).toContain("Status: failed");
+    expect(changeRequestComment.content).toContain("Button did nothing");
+    expect(changeRequestComment.content).toContain("### Full Demo Checklist Snapshot");
+    expect(changeRequestComment.content).toContain("Step 2: Retest");
+    expect(changeRequestComment.content).toContain("Status: skipped");
   });
 
   it("applies step results when provided", () => {

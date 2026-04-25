@@ -28,6 +28,7 @@ const TYPE_BORDER_COLORS: Record<CommentType, string> = {
   progress: "#14b8a6", // teal
   work_summary: "#a855f7", // purple
   test_report: "#22c55e", // green
+  change_request: "#f97316", // orange
 };
 
 /** Type labels for display */
@@ -36,6 +37,7 @@ const TYPE_LABELS: Record<CommentType, string | null> = {
   progress: "Progress",
   work_summary: "Work Summary",
   test_report: "Test Report",
+  change_request: "Changes Requested",
 };
 
 // =============================================================================
@@ -252,6 +254,7 @@ export const Comment = memo(function Comment({
   const authorDisplayName = getCommentAuthorDisplayName(comment.author);
   const authorColor = getCommentAuthorStyle(comment.author).textColor;
   const typeLabel = TYPE_LABELS[comment.type as CommentType];
+  const isChangeRequest = comment.type === "change_request";
 
   // Toggle expansion
   function toggleExpanded(): void {
@@ -279,7 +282,8 @@ export const Comment = memo(function Comment({
     gap: "var(--spacing-3)",
     padding: "var(--spacing-3)",
     borderRadius: "var(--radius-md)",
-    background: "var(--bg-primary)",
+    background: isChangeRequest ? "rgba(249, 115, 22, 0.1)" : "var(--bg-primary)",
+    ...(isChangeRequest && { border: "1px solid rgba(249, 115, 22, 0.35)" }),
     borderLeft: `3px solid ${borderColor}`,
   };
 

@@ -129,6 +129,43 @@ function getOrCreateWorkflowState(db: DbHandle, ticketId: string): DbTicketWorkf
   return state;
 }
 
+function formatDemoStepStatus(status: DemoStep["status"] | undefined): string {
+  return status ?? "pending";
+}
+
+function formatChangeRequestComment(feedback: string, steps: DemoStep[]): string {
+  const failedSteps = steps.filter((step) => step.status === "failed");
+  const failedSection =
+    failedSteps.length > 0
+      ? failedSteps
+          .map(
+            (step) =>
+              `- **Step ${step.order}: ${step.description}**\n  - Expected: ${step.expectedOutcome}\n  - Status: ${formatDemoStepStatus(step.status)}\n  - Reviewer notes: ${step.notes?.trim() || "None provided"}`
+          )
+          .join("\n")
+      : "No failed steps were marked.";
+
+  const checklistSnapshot = steps
+    .map(
+      (step) =>
+        `- Step ${step.order}: ${step.description}\n  - Expected: ${step.expectedOutcome}\n  - Status: ${formatDemoStepStatus(step.status)}\n  - Reviewer notes: ${step.notes?.trim() || "None provided"}`
+    )
+    .join("\n");
+
+  return [
+    "## Changes Requested",
+    "",
+    "### Overall Feedback",
+    feedback.trim() || "No overall feedback provided.",
+    "",
+    "### Failed Demo Steps",
+    failedSection,
+    "",
+    "### Full Demo Checklist Snapshot",
+    checklistSnapshot || "No demo steps were recorded.",
+  ].join("\n");
+}
+
 // ============================================
 // Public API – Findings
 // ============================================
@@ -546,6 +583,15 @@ export function submitFeedback(db: DbHandle, params: SubmitFeedbackParams): Feed
   }
 
   const now = new Date().toISOString();
+  let steps: DemoStep[];
+
+  try {
+    steps = JSON.parse(demo.steps || "[]");
+  } catch {
+    throw new ValidationError(
+      `Demo script for ticket ${ticketId} has corrupted step data. Cannot apply feedback.`
+    );
+  }
 
   // Update demo script
   db.prepare(
@@ -554,14 +600,6 @@ export function submitFeedback(db: DbHandle, params: SubmitFeedbackParams): Feed
 
   // Update individual step results if provided
   if (stepResults && stepResults.length > 0) {
-    let steps: DemoStep[];
-    try {
-      steps = JSON.parse(demo.steps || "[]");
-    } catch {
-      throw new ValidationError(
-        `Demo script for ticket ${ticketId} has corrupted step data. Cannot apply step results.`
-      );
-    }
     for (const result of stepResults) {
       const step = steps.find((s) => s.order === result.order);
       if (step) {
@@ -591,6 +629,11 @@ export function submitFeedback(db: DbHandle, params: SubmitFeedbackParams): Feed
     ).run(now, ticketId);
   } else {
     newStatus = "ready";
+    const commentId = randomUUID();
+    db.prepare(
+      "INSERT INTO ticket_comments (id, ticket_id, content, author, type, created_at) VALUES (?, ?, ?, 'brain-dump', 'change_request', ?)"
+    ).run(commentId, ticketId, formatChangeRequestComment(feedback, steps), now);
+
     db.prepare("UPDATE tickets SET status = 'ready', updated_at = ? WHERE id = ?").run(
       now,
       ticketId
