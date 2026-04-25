@@ -192,7 +192,7 @@ export const DemoPanel: React.FC<DemoPanelProps> = ({ ticketId, onComplete }) =>
       },
       {
         onSuccess: () => {
-          showToast("info", "Changes requested. Ticket remains in human review.");
+          showToast("info", "Changes requested. Ticket moved back to ready.");
           onComplete?.(false);
           void refetch();
         },

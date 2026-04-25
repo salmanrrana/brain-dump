@@ -513,8 +513,9 @@ export interface SubmitFeedbackParams {
   feedback: string;
   stepResults?: Array<{
     order: number;
-    passed: boolean;
-    notes?: string;
+    passed?: boolean;
+    status?: DemoStepStatus;
+    notes?: string | undefined;
   }>;
 }
 
@@ -522,7 +523,7 @@ export interface SubmitFeedbackParams {
  * Submit final demo feedback from human reviewer.
  *
  * If passed: transitions ticket to "done".
- * If rejected: keeps in "human_review", resets demo_generated flag.
+ * If rejected: transitions ticket to "ready", resets demo_generated flag, and preserves demo feedback.
  *
  * @throws TicketNotFoundError if the ticket doesn't exist
  * @throws InvalidStateError if the ticket is not in human_review
@@ -564,7 +565,7 @@ export function submitFeedback(db: DbHandle, params: SubmitFeedbackParams): Feed
     for (const result of stepResults) {
       const step = steps.find((s) => s.order === result.order);
       if (step) {
-        step.status = result.passed ? "passed" : "failed";
+        step.status = result.status ?? (result.passed === true ? "passed" : "failed");
         if (result.notes) {
           step.notes = result.notes;
         }
@@ -589,10 +590,16 @@ export function submitFeedback(db: DbHandle, params: SubmitFeedbackParams): Feed
       "UPDATE ticket_workflow_state SET current_phase = 'done', updated_at = ? WHERE ticket_id = ?"
     ).run(now, ticketId);
   } else {
-    newStatus = "human_review";
-    // Reset demo_generated flag so demo can be regenerated
+    newStatus = "ready";
+    db.prepare("UPDATE tickets SET status = 'ready', updated_at = ? WHERE id = ?").run(
+      now,
+      ticketId
+    );
+
+    // Reset demo_generated so the next implementation pass can generate a fresh demo without
+    // deleting the rejection feedback that explains the requested changes.
     db.prepare(
-      "UPDATE ticket_workflow_state SET demo_generated = 0, updated_at = ? WHERE ticket_id = ?"
+      "UPDATE ticket_workflow_state SET current_phase = 'implementation', demo_generated = 0, updated_at = ? WHERE ticket_id = ?"
     ).run(now, ticketId);
   }
 

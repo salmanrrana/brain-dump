@@ -343,7 +343,7 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
               result,
               passed
                 ? "Demo approved! Ticket moved to done."
-                : "Demo rejected. Ticket remains in human_review."
+                : "Demo rejected. Ticket moved to ready for rework."
             );
           }
         }
