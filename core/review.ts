@@ -129,6 +129,43 @@ function getOrCreateWorkflowState(db: DbHandle, ticketId: string): DbTicketWorkf
   return state;
 }
 
+function formatDemoStepStatus(status: DemoStep["status"] | undefined): string {
+  return status ?? "pending";
+}
+
+function formatChangeRequestComment(feedback: string, steps: DemoStep[]): string {
+  const failedSteps = steps.filter((step) => step.status === "failed");
+  const failedSection =
+    failedSteps.length > 0
+      ? failedSteps
+          .map(
+            (step) =>
+              `- **Step ${step.order}: ${step.description}**\n  - Expected: ${step.expectedOutcome}\n  - Status: ${formatDemoStepStatus(step.status)}\n  - Reviewer notes: ${step.notes?.trim() || "None provided"}`
+          )
+          .join("\n")
+      : "No failed steps were marked.";
+
+  const checklistSnapshot = steps
+    .map(
+      (step) =>
+        `- Step ${step.order}: ${step.description}\n  - Expected: ${step.expectedOutcome}\n  - Status: ${formatDemoStepStatus(step.status)}\n  - Reviewer notes: ${step.notes?.trim() || "None provided"}`
+    )
+    .join("\n");
+
+  return [
+    "## Changes Requested",
+    "",
+    "### Overall Feedback",
+    feedback.trim() || "No overall feedback provided.",
+    "",
+    "### Failed Demo Steps",
+    failedSection,
+    "",
+    "### Full Demo Checklist Snapshot",
+    checklistSnapshot || "No demo steps were recorded.",
+  ].join("\n");
+}
+
 // ============================================
 // Public API – Findings
 // ============================================
@@ -513,8 +550,9 @@ export interface SubmitFeedbackParams {
   feedback: string;
   stepResults?: Array<{
     order: number;
-    passed: boolean;
-    notes?: string;
+    passed?: boolean;
+    status?: DemoStepStatus;
+    notes?: string | undefined;
   }>;
 }
 
@@ -522,7 +560,7 @@ export interface SubmitFeedbackParams {
  * Submit final demo feedback from human reviewer.
  *
  * If passed: transitions ticket to "done".
- * If rejected: keeps in "human_review", resets demo_generated flag.
+ * If rejected: transitions ticket to "ready", resets demo_generated flag, and preserves demo feedback.
  *
  * @throws TicketNotFoundError if the ticket doesn't exist
  * @throws InvalidStateError if the ticket is not in human_review
@@ -545,6 +583,15 @@ export function submitFeedback(db: DbHandle, params: SubmitFeedbackParams): Feed
   }
 
   const now = new Date().toISOString();
+  let steps: DemoStep[];
+
+  try {
+    steps = JSON.parse(demo.steps || "[]");
+  } catch {
+    throw new ValidationError(
+      `Demo script for ticket ${ticketId} has corrupted step data. Cannot apply feedback.`
+    );
+  }
 
   // Update demo script
   db.prepare(
@@ -553,18 +600,10 @@ export function submitFeedback(db: DbHandle, params: SubmitFeedbackParams): Feed
 
   // Update individual step results if provided
   if (stepResults && stepResults.length > 0) {
-    let steps: DemoStep[];
-    try {
-      steps = JSON.parse(demo.steps || "[]");
-    } catch {
-      throw new ValidationError(
-        `Demo script for ticket ${ticketId} has corrupted step data. Cannot apply step results.`
-      );
-    }
     for (const result of stepResults) {
       const step = steps.find((s) => s.order === result.order);
       if (step) {
-        step.status = result.passed ? "passed" : "failed";
+        step.status = result.status ?? (result.passed === true ? "passed" : "failed");
         if (result.notes) {
           step.notes = result.notes;
         }
@@ -589,10 +628,21 @@ export function submitFeedback(db: DbHandle, params: SubmitFeedbackParams): Feed
       "UPDATE ticket_workflow_state SET current_phase = 'done', updated_at = ? WHERE ticket_id = ?"
     ).run(now, ticketId);
   } else {
-    newStatus = "human_review";
-    // Reset demo_generated flag so demo can be regenerated
+    newStatus = "ready";
+    const commentId = randomUUID();
     db.prepare(
-      "UPDATE ticket_workflow_state SET demo_generated = 0, updated_at = ? WHERE ticket_id = ?"
+      "INSERT INTO ticket_comments (id, ticket_id, content, author, type, created_at) VALUES (?, ?, ?, 'brain-dump', 'change_request', ?)"
+    ).run(commentId, ticketId, formatChangeRequestComment(feedback, steps), now);
+
+    db.prepare("UPDATE tickets SET status = 'ready', updated_at = ? WHERE id = ?").run(
+      now,
+      ticketId
+    );
+
+    // Reset demo_generated so the next implementation pass can generate a fresh demo without
+    // deleting the rejection feedback that explains the requested changes.
+    db.prepare(
+      "UPDATE ticket_workflow_state SET current_phase = 'implementation', demo_generated = 0, updated_at = ? WHERE ticket_id = ?"
     ).run(now, ticketId);
   }
 

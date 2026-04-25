@@ -763,29 +763,66 @@ describe("submitFeedback", () => {
     expect(ticket.completed_at).toBeTruthy();
   });
 
-  it("keeps ticket in human_review when rejected", () => {
+  it("moves ticket to ready when rejected", () => {
     seedProject();
     seedAiReviewTicket();
 
     generateDemo(db, {
       ticketId: "ticket-1",
-      steps: [{ order: 1, description: "Test", expectedOutcome: "Pass", type: "manual" }],
+      steps: [
+        { order: 1, description: "Test", expectedOutcome: "Pass", type: "manual" },
+        { order: 2, description: "Retest", expectedOutcome: "Pass", type: "manual" },
+      ],
     });
 
     const result = submitFeedback(db, {
       ticketId: "ticket-1",
       passed: false,
       feedback: "Button doesn't work",
+      stepResults: [
+        { order: 1, passed: false, notes: "Button did nothing" },
+        { order: 2, status: "skipped", notes: "Blocked by the first failure" },
+      ],
     });
 
     expect(result.passed).toBe(false);
-    expect(result.newStatus).toBe("human_review");
+    expect(result.newStatus).toBe("ready");
 
-    // Verify demo_generated was reset
+    const ticket = db.prepare("SELECT status FROM tickets WHERE id = ?").get("ticket-1") as {
+      status: string;
+    };
+    expect(ticket.status).toBe("ready");
+
     const state = db
-      .prepare("SELECT demo_generated FROM ticket_workflow_state WHERE ticket_id = ?")
-      .get("ticket-1") as { demo_generated: number };
+      .prepare(
+        "SELECT current_phase, demo_generated FROM ticket_workflow_state WHERE ticket_id = ?"
+      )
+      .get("ticket-1") as { current_phase: string; demo_generated: number };
+    expect(state.current_phase).toBe("implementation");
     expect(state.demo_generated).toBe(0);
+
+    const demo = getDemo(db, "ticket-1");
+    expect(demo!.feedback).toBe("Button doesn't work");
+    expect(demo!.passed).toBe(false);
+    expect(demo!.steps[0]!.status).toBe("failed");
+    expect(demo!.steps[0]!.notes).toBe("Button did nothing");
+    expect(demo!.steps[1]!.status).toBe("skipped");
+    expect(demo!.steps[1]!.notes).toBe("Blocked by the first failure");
+
+    const changeRequestComment = db
+      .prepare("SELECT content, author, type FROM ticket_comments WHERE ticket_id = ?")
+      .get("ticket-1") as { content: string; author: string; type: string };
+    expect(changeRequestComment.type).toBe("change_request");
+    expect(changeRequestComment.author).toBe("brain-dump");
+    expect(changeRequestComment.content).toContain("## Changes Requested");
+    expect(changeRequestComment.content).toContain("Button doesn't work");
+    expect(changeRequestComment.content).toContain("### Failed Demo Steps");
+    expect(changeRequestComment.content).toContain("Step 1: Test");
+    expect(changeRequestComment.content).toContain("Status: failed");
+    expect(changeRequestComment.content).toContain("Button did nothing");
+    expect(changeRequestComment.content).toContain("### Full Demo Checklist Snapshot");
+    expect(changeRequestComment.content).toContain("Step 2: Retest");
+    expect(changeRequestComment.content).toContain("Status: skipped");
   });
 
   it("applies step results when provided", () => {

@@ -20,7 +20,7 @@ stateDiagram-v2
 
     human_review --> done: Human calls<br/>review submit-feedback<br/>(passed: true)
 
-    human_review --> in_progress: Human rejects<br/>(passed: false)
+    human_review --> ready: Human requests changes<br/>(passed: false)
 
     note right of backlog
         Created by user in UI
@@ -45,6 +45,12 @@ stateDiagram-v2
         Demo script with 3-7 steps
         Claude STOPS here
         Only human can approve
+    end note
+
+    note right of ready
+        Rework starts from ready
+        Change-request notes are prioritized
+        Full workflow repeats after relaunch
     end note
 ```
 
@@ -532,17 +538,23 @@ sequenceDiagram
     end
 
     rect rgb(60, 30, 30)
-        Note over Human,DB: Option B: Reject
+        Note over Human,DB: Option B: Request Changes
         Human->>UI: Click "Request Changes"
         UI->>SF: submitFeedback({ ticketId, passed: false,<br/>feedback: "Login button misaligned on mobile" })
         SF->>Core: submitFeedback(db, { ... })
         Core->>DB: UPDATE demo_scripts<br/>SET passed = false,<br/>feedback = "Login button misaligned..."
-        Core->>DB: UPDATE ticket<br/>SET status = "in_progress"
-        Core->>DB: UPDATE ticket_workflow_state<br/>SET currentPhase = "implementation"
-        Core-->>UI: Ticket returned to in_progress
-        Note over Human: Claude picks it up again<br/>and the cycle repeats
+        Core->>DB: Preserve failed step statuses<br/>and reviewer notes
+        Core->>DB: INSERT highlighted Changes Requested<br/>activity comment with demo snapshot
+        Core->>DB: UPDATE ticket<br/>SET status = "ready"
+        Core->>DB: UPDATE ticket_workflow_state<br/>SET currentPhase = "ready"
+        Core-->>UI: Ticket returned to ready
+        Note over Human: Next Claude launch prioritizes<br/>the unresolved human change request
     end
 ```
+
+Rejected human reviews do not reuse the same active demo as the next work item. The failed attempt remains available through the highlighted `Changes Requested` activity comment, including failed demo steps, expected outcomes, statuses, and reviewer notes. When Claude is launched again, the prompt context includes those human-requested changes before the normal ticket description and acceptance criteria.
+
+After relaunch, Claude must run the same full cycle as any other implementation pass: `workflow start-work`, implementation, `comment.add` test report, `workflow complete-work`, AI review findings, `review check-complete`, and a newly generated demo. The latest generated demo becomes the active checklist for the next `human_review` attempt.
 
 ## Phase 7: Session End (Cleanup)
 
@@ -699,6 +711,9 @@ flowchart TB
     Stop -->|"AUTO_SPAWN_NEXT_TICKET=1"| SpawnNext["Spawn new terminal<br/>with next ticket"]
     SpawnNext --> ReadPRD
 
+    Stop -->|"Human requests changes"| ChangeRequest["Ticket returns to ready<br/>failed demo preserved in activity"]
+    ChangeRequest --> ReadPRD
+
     style Stop fill:#dc2626,color:#fff
 ```
 
@@ -794,7 +809,8 @@ graph TB
     subgraph "Phase 6: Human Review"
         G1["Human executes demo steps"] --> G2{Passed?}
         G2 -->|Yes| G3["Ticket → done"]
-        G2 -->|No| G4["Ticket → in_progress<br/>(cycle repeats)"]
+        G2 -->|No| G4["Changes Requested activity<br/>preserves failed demo history"]
+        G4 --> G5["Ticket → ready<br/>(full cycle repeats)"]
     end
 
     subgraph "Phase 7: Cleanup"
@@ -809,6 +825,6 @@ graph TB
     D3 --> E1
     E5 --> F1
     F4 --> G1
-    G4 --> C1
+    G5 --> B1
     G3 --> H1
 ```

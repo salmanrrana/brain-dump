@@ -8,6 +8,8 @@ The **Universal Quality Workflow (UQW)** is a structured quality system that ens
 backlog → ready → in_progress → ai_review → human_review → done
 ```
 
+If a human clicks `Request Changes` during demo verification, Brain Dump moves the ticket from `human_review` to `ready` for rework (it does not remain in `human_review`). Brain Dump preserves the failed demo attempt as history, posts a highlighted `Changes Requested` activity comment, and makes the human notes the first context on the next AI launch.
+
 ### Why UQW Matters
 
 - **Consistency**: Same workflow across Claude Code, OpenCode, VS Code, Cursor
@@ -433,9 +435,32 @@ The mandatory AI review phase is identical across all environments:
 
 12. Human calls `review` tool, `action: "submit-feedback"`, `ticketId`, `passed`, `feedback`
     - If approved (passed: true) → ticket moves to `done`
-    - If rejected (passed: false) → stays in `human_review`, AI can fix and re-submit demo
+    - If rejected (passed: false) → ticket moves to `ready`, preserving failed demo steps, notes, and feedback for rework
 
 **Key Rule**: Only humans can move tickets to `done`. AI cannot approve its own work.
+
+### Human Change-Request Side Loop
+
+Rejected demo feedback creates a side loop through the normal workflow rather than a shortcut back into review:
+
+```mermaid
+flowchart LR
+    A["human_review"] --> B{"Human approves?"}
+    B -->|Yes| C["done"]
+    B -->|No| D["Changes Requested activity comment"]
+    D --> E["ready"]
+    E --> F["workflow.start-work"]
+    F --> G["in_progress"]
+    G --> H["workflow.complete-work"]
+    H --> I["ai_review"]
+    I --> J["review.check-complete"]
+    J --> K["review.generate-demo"]
+    K --> A
+```
+
+The next AI launch receives a top-level `Human Requested Changes - Fix This First` section before the regular ticket description. That section points to the latest unresolved change-request comment, failed demo steps, and human notes. The AI must still run the complete implementation, validation, AI review, and demo generation cycle after rework.
+
+Demo history is not wiped when this loop runs. Failed step statuses, per-step notes, and overall feedback remain discoverable through the highlighted activity comment. The active demo script is always the latest generated demo for the current `human_review` attempt.
 
 ---
 

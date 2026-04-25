@@ -1579,8 +1579,8 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
             </Suspense>
           )}
 
-          {/* Demo Review Panel — lazy loaded */}
-          {currentStatus === "human_review" && (
+          {/* Demo Review Panel — interactive in human_review, read-only after completion */}
+          {(currentStatus === "human_review" || currentStatus === "done") && (
             <Suspense fallback={<SectionFallback />}>
               <DemoPanel ticketId={ticket.id} />
             </Suspense>

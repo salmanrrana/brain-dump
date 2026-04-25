@@ -106,7 +106,7 @@ stateDiagram-v2
     in_progress --> ai_review: workflow.complete-work
     ai_review --> ai_review: findings submitted / fixed / rechecked
     ai_review --> human_review: review.generate-demo
-    human_review --> human_review: human rejects / requests changes
+    human_review --> ready: human rejects / requests changes
     human_review --> done: review.submit-feedback passed=true
     done --> [*]
 
@@ -125,7 +125,13 @@ stateDiagram-v2
     note right of human_review
         Demo exists
         AI must stop here
-        Human decides done
+        Human approves or requests changes
+    end note
+
+    note right of ready
+        Rejected demos return here
+        Human notes become top-priority context
+        Next AI pass runs full workflow again
     end note
 ```
 
@@ -235,6 +241,15 @@ sequenceDiagram
     Human->>MCP: review.submit-feedback(passed=true)
     MCP->>Core: submitFeedback()
     Core->>DB: ticket -> done
+
+    alt Human requests changes
+        Human->>MCP: review.submit-feedback(passed=false)
+        MCP->>Core: submitFeedback()
+        Core->>DB: preserve failed step statuses, notes, and feedback
+        Core->>DB: add highlighted Changes Requested activity comment
+        Core->>DB: ticket -> ready
+        Note over LLM,DB: Next launch prioritizes human change request context<br/>and repeats start-work, tests, AI review, and demo generation.
+    end
 ```
 
 ## Diagram 6: Provider Variations At A Glance
@@ -327,12 +342,18 @@ flowchart TB
     K -->|Yes| L["review.submit-feedback passed=true"]
     L --> M["Ticket enters done"]
     K -->|No| N["review.submit-feedback passed=false"]
-    N --> I
+    N --> O["Ticket returns to ready"]
+    O --> P["Next launch: workflow.start-work from ready"]
+    P --> Q["Ticket enters in_progress (new implementation pass)"]
+    Q --> A
 
     style B fill:#1e293b,stroke:#f59e0b,color:#fff
+    style O fill:#1e293b,stroke:#f59e0b,color:#fff
     style I fill:#1e293b,stroke:#3b82f6,color:#fff
     style M fill:#1e293b,stroke:#22c55e,color:#fff
 ```
+
+Rejected human reviews do not leave the active demo in place as the next work item. The failed demo attempt is preserved in demo history and summarized in a highlighted `Changes Requested` activity comment, while the ticket returns to `ready` so the next AI launch starts a fresh implementation pass. That pass must still run the full implementation, test report, AI review, `check-complete`, and new demo generation cycle before returning to `human_review`.
 
 ## Diagram 9: Who Creates Which Comment?
 
@@ -349,6 +370,7 @@ flowchart TB
     J["review.submit-finding"] --> K["review tool"] --> L["Finding audit comment"]
     M["review.mark-fixed"] --> N["review tool"] --> O["Fix audit comment"]
     P["review.generate-demo"] --> Q["review tool"] --> R["Demo generated comment"]
+    S["review.submit-feedback passed=false"] --> T["review tool"] --> U["Changes Requested activity comment\nwith failed steps + full demo snapshot"]
 ```
 
 ## Diagram 10: Where Provider Identity Comes From
@@ -459,8 +481,11 @@ flowchart LR
     G --> H["LLM submits/fixes findings"]
     H --> I["LLM generates demo"]
     I --> J["Brain Dump moves ticket to human_review"]
-    J --> K["Human approves"]
-    K --> L["Ticket becomes done"]
+    J --> K{"Human approves?"}
+    K -->|Yes| L["Ticket becomes done"]
+    K -->|No| M["Changes Requested comment preserves demo history"]
+    M --> N["Ticket returns to ready"]
+    N --> A
 ```
 
 ## Best Pages To Open Next

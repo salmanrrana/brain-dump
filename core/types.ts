@@ -126,7 +126,7 @@ export interface Comment {
   ticketId: string;
   content: string;
   author: string;
-  type: "comment" | "work_summary" | "test_report" | "progress";
+  type: "comment" | "work_summary" | "test_report" | "progress" | "change_request";
   createdAt: string;
 }
 

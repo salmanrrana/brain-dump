@@ -14,6 +14,8 @@ import { tickets } from "../lib/schema";
 
 type TicketRecord = typeof tickets.$inferSelect;
 
+export type HumanRequestedChangesByTicketId = Record<string, string | undefined>;
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -217,6 +219,9 @@ export function getRalphPrompt(profile: RalphPromptProfile = { type: "implementa
 function buildImplementationContext(prd: EnhancedPRDDocument): string {
   const incompleteTickets = prd.userStories.filter((story) => !story.passes);
   const completedTickets = prd.userStories.filter((story) => story.passes);
+  const ticketsWithHumanRequestedChanges = incompleteTickets.filter((ticket) =>
+    ticket.humanRequestedChanges?.trim()
+  );
 
   const ticketList = incompleteTickets
     .map((ticket) => {
@@ -226,6 +231,21 @@ function buildImplementationContext(prd: EnhancedPRDDocument): string {
     .join("\n");
 
   const epicHeader = prd.epicTitle ? `\n**Epic:** ${prd.epicTitle}` : "";
+  const humanRequestedChangesSection =
+    ticketsWithHumanRequestedChanges.length > 0
+      ? `
+---
+
+## Human Requested Changes - Fix This First
+
+${ticketsWithHumanRequestedChanges
+  .map(
+    (ticket) =>
+      `### ${ticket.title}\nID: \`${ticket.id}\`\n\n${ticket.humanRequestedChanges?.trim()}`
+  )
+  .join("\n\n")}
+`
+      : "";
 
   return `# Ralph Context - ${prd.projectName}
 
@@ -241,6 +261,7 @@ ${epicHeader}
 You are Ralph, an autonomous coding agent. Follow the Universal Quality Workflow:
 ${SCOPE_CONSTRAINTS}
 ${WORKFLOW_PHASES}
+${humanRequestedChangesSection}
 ---
 
 ## Current Tickets
@@ -262,6 +283,18 @@ ${prd.testingRequirements.map((req) => `- ${req}`).join("\n")}
 `;
 }
 
+function buildHumanRequestedChangesSection(content: string | undefined): string {
+  const trimmed = content?.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  return `## Human Requested Changes - Fix This First
+
+${trimmed}
+`;
+}
+
 function buildReviewContext(prd: EnhancedPRDDocument, profile: RalphReviewPromptProfile): string {
   const ticket = prd.userStories.find((story) => story.id === profile.selectedTicket.id);
   const epicHeader = prd.epicTitle ? `\n**Epic:** ${prd.epicTitle}` : "";
@@ -279,6 +312,9 @@ function buildReviewContext(prd: EnhancedPRDDocument, profile: RalphReviewPrompt
 ${ticket.description}
 `
       : "";
+  const humanRequestedChangesSection = buildHumanRequestedChangesSection(
+    ticket?.humanRequestedChanges
+  );
   const steeringSection = steeringPrompt
     ? `
 ## Review Steering
@@ -319,6 +355,7 @@ ${steeringSection}
 - Do not pick unrelated tickets or generic implementation work.
 - Do not skip \`review.check-complete\` before \`review.generate-demo\`.
 - Do not call \`review.submit-feedback\` yourself or move tickets to \`done\`.
+${humanRequestedChangesSection}
 ${descriptionSection}
 ## Acceptance Criteria
 
@@ -388,7 +425,8 @@ export function generateEnhancedPRD(
   projectPath: string,
   ticketList: TicketRecord[],
   epicTitle?: string,
-  epicDescription?: string
+  epicDescription?: string,
+  humanRequestedChangesByTicketId: HumanRequestedChangesByTicketId = {}
 ): EnhancedPRDDocument {
   // Get project context from CLAUDE.md
   const projectContext = getProjectContext(projectPath);
@@ -419,10 +457,13 @@ export function generateEnhancedPRD(
       acceptanceCriteria = ["Implement as described", "Verify functionality works as expected"];
     }
 
+    const humanRequestedChanges = humanRequestedChangesByTicketId[ticket.id]?.trim();
+
     return {
       id: ticket.id,
       title: ticket.title,
       passes: ticket.status === "done",
+      ...(humanRequestedChanges ? { humanRequestedChanges } : {}),
       overview,
       types,
       designDecisions,

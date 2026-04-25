@@ -572,18 +572,18 @@ describe("Universal Quality Workflow E2E", () => {
       ).run(demoId, rejectTicketId, steps, now);
     });
 
-    it("should keep ticket in human_review when demo rejected", () => {
+    it("should move ticket to ready when demo rejected", () => {
       // Submit rejection
       db.prepare(
         `UPDATE demo_scripts SET passed = ?, feedback = ?, completed_at = ? WHERE ticket_id = ?`
       ).run(0, "Button does not work as expected", new Date().toISOString(), rejectTicketId);
 
-      // Keep ticket in human_review (or move back to in_progress)
-      db.prepare(`UPDATE tickets SET status = ? WHERE id = ?`).run("human_review", rejectTicketId);
+      // Requesting changes makes the ticket reworkable while preserving feedback.
+      db.prepare(`UPDATE tickets SET status = ? WHERE id = ?`).run("ready", rejectTicketId);
 
       const ticket = db.prepare(`SELECT * FROM tickets WHERE id = ?`).get(rejectTicketId) as any;
 
-      expect(ticket.status).toBe("human_review");
+      expect(ticket.status).toBe("ready");
     });
 
     it("should create rejection comment with feedback", () => {

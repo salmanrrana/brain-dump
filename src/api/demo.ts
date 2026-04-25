@@ -1,8 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
+import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
 // NOTE: db is imported dynamically inside handlers to prevent bundling server code in client
-import { demoScripts, tickets } from "../lib/schema";
-import { eq } from "drizzle-orm";
+import { submitFeedback } from "../../core/review";
+import { demoScripts } from "../lib/schema";
 import type { DemoStep } from "../lib/schema";
 
 /**
@@ -29,7 +30,12 @@ export const getDemoScript = createServerFn({ method: "GET" })
   .inputValidator(z.object({ ticketId: z.string() }))
   .handler(async ({ data: { ticketId } }: { data: { ticketId: string } }) => {
     const { db } = await import("../lib/db");
-    const script = db.select().from(demoScripts).where(eq(demoScripts.ticketId, ticketId)).get();
+    const script = db
+      .select()
+      .from(demoScripts)
+      .where(eq(demoScripts.ticketId, ticketId))
+      .orderBy(desc(demoScripts.generatedAt))
+      .get();
 
     if (!script) {
       return null;
@@ -129,53 +135,18 @@ export const submitDemoFeedback = createServerFn({ method: "POST" })
     })
   )
   .handler(async ({ data: input }) => {
-    const { db } = await import("../lib/db");
+    const { sqlite } = await import("../lib/db");
     const { ticketId, passed, feedback, stepResults } = input;
-
-    // Find the demo script for this ticket
-    const script = db.select().from(demoScripts).where(eq(demoScripts.ticketId, ticketId)).get();
-
-    if (!script) {
-      throw new Error("No demo script found for this ticket");
-    }
-
-    // Update demo script with feedback and completion, verify rows modified
-    const scriptResult = db
-      .update(demoScripts)
-      .set({
-        passed,
-        feedback,
-        completedAt: new Date().toISOString(),
-        steps: stepResults ? JSON.stringify(stepResults) : script.steps,
-      })
-      .where(eq(demoScripts.id, script.id))
-      .run();
-
-    if (scriptResult.changes === 0) {
-      throw new Error(
-        "Failed to update demo script - it may have been deleted. Please refresh and try again."
-      );
-    }
-
-    // Update ticket status based on result, verify rows modified
-    const newStatus = passed ? "done" : "human_review";
-    const ticketResult = db
-      .update(tickets)
-      .set({
-        status: newStatus,
-      })
-      .where(eq(tickets.id, ticketId))
-      .run();
-
-    if (ticketResult.changes === 0) {
-      throw new Error(
-        "Failed to update ticket status - the ticket may have been deleted. Please refresh and try again."
-      );
-    }
+    const result = submitFeedback(sqlite, {
+      ticketId,
+      passed,
+      feedback,
+      ...(stepResults !== undefined ? { stepResults } : {}),
+    });
 
     return {
       success: true,
-      ticketStatus: newStatus,
-      demoId: script.id,
+      ticketStatus: result.newStatus,
+      ticketId: result.ticketId,
     };
   });

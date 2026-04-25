@@ -27,7 +27,12 @@ export type CommentAuthor =
   | "ai"
   | "brain-dump"
   | `ralph:${string}`;
-export type CommentType = "comment" | "work_summary" | "test_report" | "progress";
+export type CommentType =
+  | "comment"
+  | "work_summary"
+  | "test_report"
+  | "progress"
+  | "change_request";
 
 // ============================================
 // Internal Helpers

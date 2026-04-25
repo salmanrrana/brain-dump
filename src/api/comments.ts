@@ -25,7 +25,13 @@ export interface CreateCommentInput {
 
 // Valid authors and types for validation
 const VALID_AUTHORS = [...BASE_COMMENT_AUTHORS];
-const VALID_TYPES: CommentType[] = ["comment", "work_summary", "test_report", "progress"];
+const VALID_TYPES: CommentType[] = [
+  "comment",
+  "work_summary",
+  "test_report",
+  "progress",
+  "change_request",
+];
 
 // Get comments for a ticket
 export const getComments = createServerFn({ method: "GET" })

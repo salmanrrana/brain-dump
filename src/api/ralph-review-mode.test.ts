@@ -210,6 +210,49 @@ describe("review-mode prompt builders", () => {
     expect(context).not.toContain("Unrelated ticket");
   });
 
+  it("puts unresolved human requested changes before review ticket details", () => {
+    const prd = createReviewPrd();
+    const ticket = prd.userStories.find((story) => story.id === "ticket-review");
+    if (!ticket) {
+      throw new Error("Expected review ticket fixture");
+    }
+    ticket.humanRequestedChanges =
+      "## Changes Requested\n\nThe demo failed because notes were missing.";
+
+    const context = generateVSCodeContext(prd, {
+      type: "review",
+      selectedTicket: {
+        id: "ticket-review",
+        title: "Review launch contract",
+      },
+    });
+
+    expect(context).toContain("## Human Requested Changes - Fix This First");
+    expect(context.indexOf("## Human Requested Changes - Fix This First")).toBeLessThan(
+      context.indexOf("## Ticket Description")
+    );
+    expect(context.indexOf("The demo failed because notes were missing.")).toBeLessThan(
+      context.indexOf("## Acceptance Criteria")
+    );
+  });
+
+  it("puts unresolved human requested changes in implementation launch context", () => {
+    const prd = createReviewPrd();
+    const ticket = prd.userStories.find((story) => story.id === "ticket-review");
+    if (!ticket) {
+      throw new Error("Expected review ticket fixture");
+    }
+    ticket.humanRequestedChanges = "## Changes Requested\n\nFix the failed demo step first.";
+
+    const context = generateVSCodeContext(prd);
+
+    expect(context).toContain("## Human Requested Changes - Fix This First");
+    expect(context).toContain("Fix the failed demo step first.");
+    expect(context.indexOf("## Human Requested Changes - Fix This First")).toBeLessThan(
+      context.indexOf("## Current Tickets")
+    );
+  });
+
   it("keeps review-only workflow gates in the focused review context", () => {
     const context = generateVSCodeContext(createReviewPrd(), {
       type: "review",

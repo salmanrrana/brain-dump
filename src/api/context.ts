@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { db } from "../lib/db";
-import { tickets, projects, epics } from "../lib/schema";
-import { eq, and, not } from "drizzle-orm";
+import { demoScripts, ticketComments, tickets, projects, epics } from "../lib/schema";
+import { eq, and, not, desc, gt } from "drizzle-orm";
 import type { Subtask } from "./tickets";
 import { safeJsonParse } from "../lib/utils";
 
@@ -75,6 +75,39 @@ export const getTicketContext = createServerFn({ method: "GET" })
         contextParts.push(epic.description);
       }
       contextParts.push("");
+    }
+
+    if (ticket.status !== "done") {
+      const latestChangeRequest = db
+        .select()
+        .from(ticketComments)
+        .where(
+          and(eq(ticketComments.ticketId, ticket.id), eq(ticketComments.type, "change_request"))
+        )
+        .orderBy(desc(ticketComments.createdAt))
+        .limit(1)
+        .get();
+
+      const newerApproval = latestChangeRequest
+        ? db
+            .select()
+            .from(demoScripts)
+            .where(
+              and(
+                eq(demoScripts.ticketId, ticket.id),
+                eq(demoScripts.passed, true),
+                gt(demoScripts.completedAt, latestChangeRequest.createdAt)
+              )
+            )
+            .limit(1)
+            .get()
+        : null;
+
+      if (latestChangeRequest && !newerApproval) {
+        contextParts.push("## Human Requested Changes - Fix This First");
+        contextParts.push(latestChangeRequest.content);
+        contextParts.push("");
+      }
     }
 
     // Description
