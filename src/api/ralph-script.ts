@@ -156,13 +156,11 @@ fi
   pi: {
     displayName: "Pi",
     preflightCheck: `
-if ! command -v pi >/dev/null 2>&1; then
-  echo -e "\\033[0;31m❌ Pi CLI not found in PATH\\033[0m"
-  exit 1
-fi
+echo -e "\\033[0;31m❌ Pi Ralph launcher support is not implemented yet\\033[0m"
+echo -e "\\033[0;33m  Pi is available as a provider setting; CLI-only launch support is tracked separately.\\033[0m"
+exit 1
 `,
-    invocation: `  export PI=1
-  pi "$(cat "$PROMPT_FILE")"`,
+    invocation: `  export PI=1`,
   },
 };
 
