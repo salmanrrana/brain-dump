@@ -8,6 +8,7 @@
 # - VS Code (.vscode/ + .github/)
 # - Copilot CLI (~/.copilot/)
 # - Codex (~/.codex/)
+# - Pi (~/.pi/)
 #
 # Usage:
 #   ./scripts/install.sh              # Install all detected environments
@@ -51,6 +52,7 @@ OPENCODE_AVAILABLE=0
 VSCODE_AVAILABLE=0
 COPILOT_CLI_AVAILABLE=0
 CODEX_AVAILABLE=0
+PI_AVAILABLE=0
 
 # Detect Claude Code
 if command -v claude &>/dev/null 2>&1; then
@@ -117,6 +119,14 @@ if command -v codex &>/dev/null 2>&1 || [ -d "$HOME/.codex" ] 2>/dev/null; then
   echo -e "${GREEN}✓${NC} Codex detected"
 else
   echo -e "${YELLOW}○${NC} Codex not found"
+fi
+
+# Detect Pi
+if command -v pi &>/dev/null 2>&1 || [ -d "$HOME/.pi" ] 2>/dev/null; then
+  PI_AVAILABLE=1
+  echo -e "${GREEN}✓${NC} Pi detected"
+else
+  echo -e "${YELLOW}○${NC} Pi not found"
 fi
 
 echo ""
@@ -221,6 +231,22 @@ install_codex() {
   echo ""
 }
 
+install_pi() {
+  echo -e "${BLUE}Installing Pi configuration...${NC}"
+
+  if [ -f "$BRAIN_DUMP_DIR/scripts/setup-pi.sh" ]; then
+    if ! bash "$BRAIN_DUMP_DIR/scripts/setup-pi.sh"; then
+      echo -e "${RED}✗ Pi installation failed${NC}"
+      exit 1
+    fi
+    echo -e "${GREEN}✓ Pi installation complete${NC}"
+  else
+    echo -e "${RED}✗ setup-pi.sh not found${NC}"
+    exit 1
+  fi
+  echo ""
+}
+
 # ─────────────────────────────────────────────────────────────────
 # Build MCP Server (required before any environment install)
 # ─────────────────────────────────────────────────────────────────
@@ -281,6 +307,11 @@ if [ $CODEX_AVAILABLE -eq 1 ]; then
   INSTALL_COUNT=$((INSTALL_COUNT + 1))
 fi
 
+if [ $PI_AVAILABLE -eq 1 ]; then
+  install_pi
+  INSTALL_COUNT=$((INSTALL_COUNT + 1))
+fi
+
 # ─────────────────────────────────────────────────────────────────
 # Summary
 # ─────────────────────────────────────────────────────────────────
@@ -295,6 +326,7 @@ if [ $INSTALL_COUNT -eq 0 ]; then
   echo "  • VS Code + Copilot"
   echo "  • Copilot CLI (https://githubnext.com/projects/copilot-cli)"
   echo "  • Codex (https://developers.openai.com/codex/app)"
+  echo "  • Pi CLI"
   echo ""
   echo "Install one of these tools and try again."
   exit 1
