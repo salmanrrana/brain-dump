@@ -4,7 +4,7 @@ import { getRalphPrompt, type RalphPromptProfile } from "./ralph-prompts";
 // TYPES
 // ============================================================================
 
-export type RalphAiBackend = "claude" | "opencode" | "codex" | "cursor-agent";
+export type RalphAiBackend = "claude" | "opencode" | "codex" | "cursor-agent" | "pi";
 
 // Resource limit configuration for Docker sandbox
 export interface DockerResourceLimits {
@@ -152,6 +152,17 @@ fi
     invocation: `  export CURSOR_AGENT=1
   # Run Cursor Agent in headless mode with prompt
   "$CURSOR_AGENT_BIN" --force --approve-mcps --trust -p "$(cat "$PROMPT_FILE")"`,
+  },
+  pi: {
+    displayName: "Pi",
+    preflightCheck: `
+if ! command -v pi >/dev/null 2>&1; then
+  echo -e "\\033[0;31m❌ Pi CLI not found in PATH\\033[0m"
+  exit 1
+fi
+`,
+    invocation: `  export PI=1
+  pi "$(cat "$PROMPT_FILE")"`,
   },
 };
 

@@ -11,6 +11,7 @@ describe("translateProvider", () => {
     expect(translateProvider("claude-code")).toEqual({ aiBackend: "claude" });
     expect(translateProvider("opencode")).toEqual({ aiBackend: "opencode" });
     expect(translateProvider("codex")).toEqual({ aiBackend: "codex" });
+    expect(translateProvider("pi")).toEqual({ aiBackend: "pi", workingMethodOverride: "pi" });
     expect(translateProvider("cursor-agent")).toEqual({ aiBackend: "cursor-agent" });
   });
 
@@ -43,6 +44,7 @@ describe("parseProviderFlag", () => {
 
   it("returns the provider when it is in the allowed set", () => {
     expect(parseProviderFlag("claude-code")).toBe("claude-code");
+    expect(parseProviderFlag("pi")).toBe("pi");
     expect(parseProviderFlag("copilot-cli")).toBe("copilot-cli");
   });
 

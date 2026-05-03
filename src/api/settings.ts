@@ -31,7 +31,8 @@ export interface UpdateSettingsInput {
     | "cursor"
     | "cursor-agent"
     | "copilot-cli"
-    | "codex";
+    | "codex"
+    | "pi";
   // Docker runtime settings
   dockerRuntime?: DockerRuntimeSetting | null; // null = auto-detect
   dockerSocketPath?: string | null; // Custom socket path override
@@ -95,6 +96,7 @@ export const updateSettings = createServerFn({ method: "POST" })
         "cursor-agent",
         "copilot-cli",
         "codex",
+        "pi",
       ];
       if (!validMethods.includes(input.defaultWorkingMethod)) {
         throw new Error(`Invalid working method: ${input.defaultWorkingMethod}`);

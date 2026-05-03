@@ -11,6 +11,7 @@ export interface CreateProjectInput {
   name: string;
   path: string;
   color?: string;
+  workingMethod?: UpdateProjectInput["workingMethod"];
 }
 
 export interface UpdateProjectInput {
@@ -25,8 +26,21 @@ export interface UpdateProjectInput {
     | "cursor"
     | "cursor-agent"
     | "copilot-cli"
-    | "codex";
+    | "codex"
+    | "pi";
 }
+
+const VALID_WORKING_METHODS: Array<NonNullable<UpdateProjectInput["workingMethod"]>> = [
+  "auto",
+  "claude-code",
+  "vscode",
+  "opencode",
+  "cursor",
+  "cursor-agent",
+  "copilot-cli",
+  "codex",
+  "pi",
+];
 
 // Get all projects
 export const getProjects = createServerFn({ method: "GET" }).handler(async () => {
@@ -116,6 +130,9 @@ export const createProject = createServerFn({ method: "POST" })
     if (!existsSync(input.path)) {
       throw new Error(`Directory does not exist: ${input.path}`);
     }
+    if (input.workingMethod && !VALID_WORKING_METHODS.includes(input.workingMethod)) {
+      throw new Error(`Invalid working method: ${input.workingMethod}`);
+    }
     return input;
   })
   .handler(async ({ data: input }) => {
@@ -125,6 +142,7 @@ export const createProject = createServerFn({ method: "POST" })
       name: input.name.trim(),
       path: input.path.trim(),
       color: input.color ?? null,
+      workingMethod: input.workingMethod ?? "auto",
     };
 
     db.insert(projects).values(newProject).run();
@@ -140,6 +158,12 @@ export const updateProject = createServerFn({ method: "POST" })
     }
     if (input.updates.path && !existsSync(input.updates.path)) {
       throw new Error(`Directory does not exist: ${input.updates.path}`);
+    }
+    if (
+      input.updates.workingMethod &&
+      !VALID_WORKING_METHODS.includes(input.updates.workingMethod)
+    ) {
+      throw new Error(`Invalid working method: ${input.updates.workingMethod}`);
     }
     return input;
   })
