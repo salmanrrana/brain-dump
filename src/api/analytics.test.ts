@@ -183,7 +183,7 @@ describe("loadDashboardAnalytics", () => {
       trend: "stable",
     });
 
-    expect(result.aiUsage).toEqual({ claude: 0, ralph: 0, opencode: 0, user: 0 });
+    expect(result.aiUsage).toEqual({ claude: 0, ralph: 0, opencode: 0, pi: 0, user: 0 });
     expect(result.ralphMetrics.totalSessions).toBe(0);
     expect(result.ralphMetrics.successRate).toBe(0);
     expect(result.prMetrics.total).toBe(0);
@@ -233,14 +233,17 @@ describe("loadDashboardAnalytics", () => {
     insertComment(ticketId, "claude");
     insertComment(ticketId, "claude");
     insertComment(ticketId, "ralph");
+    insertComment(ticketId, "ralph:pi");
     insertComment(ticketId, "opencode");
+    insertComment(ticketId, "pi");
     insertComment(ticketId, "alice"); // counted as user
 
     const result = loadDashboardAnalytics(testDb.db);
 
     expect(result.aiUsage.claude).toBe(2);
-    expect(result.aiUsage.ralph).toBe(1);
+    expect(result.aiUsage.ralph).toBe(2);
     expect(result.aiUsage.opencode).toBe(1);
+    expect(result.aiUsage.pi).toBe(1);
     expect(result.aiUsage.user).toBe(1);
   });
 

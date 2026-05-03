@@ -275,6 +275,21 @@ describe("cost model defaults", () => {
     expect(result.updatedRows).toBe(1);
     expect(after.cost_usd).toBeCloseTo(22.05);
   });
+
+  it("records Pi token usage sources without rejecting them", () => {
+    seedTicket();
+
+    const usage = recordUsage(db, {
+      ticketId: "ticket-1",
+      model: "pi-default",
+      inputTokens: 100,
+      outputTokens: 50,
+      source: "pi",
+    });
+
+    expect(usage.source).toBe("pi");
+    expect(usage.ticketId).toBe("ticket-1");
+  });
 });
 
 // ============================================
