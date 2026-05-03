@@ -243,7 +243,7 @@ describe("loadDashboardAnalytics", () => {
     expect(result.aiUsage.claude).toBe(2);
     expect(result.aiUsage.ralph).toBe(2);
     expect(result.aiUsage.opencode).toBe(1);
-    expect(result.aiUsage.pi).toBe(1);
+    expect(result.aiUsage.pi).toBe(2);
     expect(result.aiUsage.user).toBe(1);
   });
 

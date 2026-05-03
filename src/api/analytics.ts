@@ -161,9 +161,11 @@ export function loadDashboardAnalytics(database: BetterSQLite3Database<any>): Da
   for (const row of aiUsageRows) {
     const count = Number(row.count) || 0;
     if (row.author === "claude") aiUsage.claude = count;
-    else if (row.author === "ralph" || row.author.startsWith("ralph:")) aiUsage.ralph += count;
-    else if (row.author === "opencode") aiUsage.opencode = count;
-    else if (row.author === "pi") aiUsage.pi = count;
+    else if (row.author === "ralph" || row.author.startsWith("ralph:")) {
+      aiUsage.ralph += count;
+      if (row.author === "ralph:pi") aiUsage.pi += count;
+    } else if (row.author === "opencode") aiUsage.opencode = count;
+    else if (row.author === "pi") aiUsage.pi += count;
     else aiUsage.user += count; // Sum all other authors as "user"
   }
 
