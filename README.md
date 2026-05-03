@@ -4,7 +4,7 @@
 >
 > Brain Dump is under active development and continuously evolving. Features may change, break, or be removed without notice. Not all configurations are fully supported. Use at your own risk and [report issues](https://github.com/salmanrrana/brain-dump/issues) to help us improve!
 
-**Your backlog, worked by AI.** A kanban board where clicking a ticket launches Claude, Codex, OpenCode, Copilot, or Cursor with full context — or let Ralph, the autonomous agent, implement tickets while you're away.
+**Your backlog, worked by AI.** A kanban board where clicking a ticket launches Claude, Codex, OpenCode, Copilot, Cursor, or Pi with full context — or let Ralph, the autonomous agent, implement tickets while you're away.
 
 ### Real Results, Real Metrics
 
@@ -315,9 +315,10 @@ All environments get the same MCP tools, quality workflow, and 3 global skills (
 ### Pi
 
 - Use `Start with Pi` or launch Ralph with `--provider pi`
-- Installs Brain Dump prompts and skills into `~/.pi/`
+- Installs Brain Dump-managed prompts and skills into `~/.pi/`
 - CLI-only: no MCP server or Pi credential/settings changes are configured
 - Local project prompts and skills live in `.pi/prompts/` and `.pi/skills/`
+- [Full setup guide →](docs/environments/pi.md)
 </details>
 
 ---
@@ -412,7 +413,7 @@ ready → in_progress → ai_review → human_review → done
 4. **Demo** - AI generates step-by-step test instructions
 5. **Human approval** - You run the demo and approve or request changes
 
-All automatic via MCP tools. Same workflow in Claude Code, Codex, Cursor, VS Code, OpenCode, and Copilot CLI.
+All automatic via MCP tools. Same workflow in Claude Code, Codex, Cursor, VS Code, OpenCode, Copilot CLI, and Pi.
 
 [Detailed workflow guide →](docs/universal-workflow.md)
 

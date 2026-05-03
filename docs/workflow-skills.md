@@ -61,7 +61,7 @@ cp scripts/skills/*.md ~/.claude/commands/
 **What it does**:
 
 1. Resolves the ticket (from argument or by listing ready tickets)
-2. Selects the AI provider (claude-code, vscode, cursor, cursor-agent, copilot-cli, codex, opencode)
+2. Selects the AI provider (claude-code, vscode, cursor, cursor-agent, copilot-cli, codex, opencode, pi)
 3. Runs `brain-dump workflow launch-ticket` with the chosen options
 4. Opens a new terminal window with Ralph ready to work
 
