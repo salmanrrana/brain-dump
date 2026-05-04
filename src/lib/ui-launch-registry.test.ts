@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   INTERACTIVE_UI_LAUNCH_PROVIDERS,
+  PROJECT_WORKING_METHOD_UI_PROVIDERS,
   RALPH_AUTONOMOUS_UI_LAUNCH_PROVIDERS,
+  getInteractiveUiLaunchProvidersForContext,
+  getRalphAutonomousUiLaunchProvidersForContext,
 } from "./ui-launch-registry";
 import {
   dispatchInteractiveUiLaunch,
@@ -9,9 +12,10 @@ import {
   type InteractiveLaunchDependencies,
   type RalphLaunchDependencies,
 } from "./ui-launch-dispatcher";
-import type {
-  InteractiveLaunchProviderId,
-  RalphAutonomousProviderId,
+import {
+  PROJECT_WORKING_METHOD_PROVIDER_IDS,
+  type InteractiveLaunchProviderId,
+  type RalphAutonomousProviderId,
 } from "./launch-provider-contract";
 
 const expectedInteractiveProviderIds: InteractiveLaunchProviderId[] = [
@@ -70,6 +74,28 @@ describe("shared UI launch registry", () => {
   it("exports every supported Ralph autonomous provider exactly once in order", () => {
     expect(RALPH_AUTONOMOUS_UI_LAUNCH_PROVIDERS.map((provider) => provider.id)).toEqual(
       expectedRalphProviderIds
+    );
+  });
+
+  it("keeps ticket and epic interactive launch surfaces on the full shared provider set", () => {
+    for (const context of ["ticket", "epic-next-ticket"] as const) {
+      expect(
+        getInteractiveUiLaunchProvidersForContext(context).map((provider) => provider.id)
+      ).toEqual(expectedInteractiveProviderIds);
+    }
+  });
+
+  it("keeps ticket, epic, and focused review Ralph surfaces on the full shared provider set", () => {
+    for (const context of ["ticket", "epic", "focused-review"] as const) {
+      expect(
+        getRalphAutonomousUiLaunchProvidersForContext(context).map((provider) => provider.id)
+      ).toEqual(expectedRalphProviderIds);
+    }
+  });
+
+  it("keeps project working methods aligned with the supported provider contract", () => {
+    expect(PROJECT_WORKING_METHOD_UI_PROVIDERS.map((provider) => provider.id)).toEqual(
+      PROJECT_WORKING_METHOD_PROVIDER_IDS
     );
   });
 });

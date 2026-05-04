@@ -1,7 +1,9 @@
 import type {
   InteractiveUiLaunchProvider,
   LaunchProviderAvailability,
+  ProjectWorkingMethodProvider,
   RalphAutonomousUiLaunchProvider,
+  UiLaunchContextKind,
 } from "./launch-provider-contract";
 
 const ticketAndEpicNextAvailability: LaunchProviderAvailability = {
@@ -156,6 +158,108 @@ export const INTERACTIVE_UI_LAUNCH_PROVIDERS: readonly InteractiveUiLaunchProvid
   },
 ] as const;
 
+export const PROJECT_WORKING_METHOD_UI_PROVIDERS: readonly ProjectWorkingMethodProvider[] = [
+  {
+    id: "auto",
+    display: {
+      label: "Auto-detect",
+      description: "Detect from environment",
+      iconKey: "sparkles",
+      iconColor: "var(--accent-primary)",
+      group: "project-environment",
+      order: 10,
+    },
+  },
+  {
+    id: "claude-code",
+    display: {
+      label: "Claude Code",
+      description: "Anthropic CLI",
+      iconKey: "sparkles",
+      iconColor: "var(--accent-primary)",
+      group: "project-environment",
+      order: 20,
+    },
+  },
+  {
+    id: "vscode",
+    display: {
+      label: "VS Code",
+      description: "VS Code + MCP",
+      iconKey: "code",
+      iconColor: "var(--info)",
+      group: "project-environment",
+      order: 30,
+    },
+  },
+  {
+    id: "opencode",
+    display: {
+      label: "OpenCode",
+      description: "Alternative client",
+      iconKey: "terminal",
+      iconColor: "var(--success)",
+      group: "project-environment",
+      order: 40,
+    },
+  },
+  {
+    id: "cursor",
+    display: {
+      label: "Cursor",
+      description: "AI-first editor",
+      iconKey: "monitor",
+      iconColor: "var(--accent-secondary)",
+      group: "project-environment",
+      order: 50,
+    },
+  },
+  {
+    id: "cursor-agent",
+    display: {
+      label: "Cursor Agent",
+      description: "Terminal AI with multi-model access",
+      iconKey: "terminal",
+      iconColor: "var(--accent-secondary)",
+      group: "project-environment",
+      order: 60,
+    },
+  },
+  {
+    id: "copilot-cli",
+    display: {
+      label: "Copilot CLI",
+      description: "GitHub terminal agent",
+      iconKey: "github",
+      iconColor: "var(--text-secondary)",
+      group: "project-environment",
+      order: 70,
+    },
+  },
+  {
+    id: "codex",
+    display: {
+      label: "Codex",
+      description: "OpenAI coding agent",
+      iconKey: "terminal",
+      iconColor: "var(--success)",
+      group: "project-environment",
+      order: 80,
+    },
+  },
+  {
+    id: "pi",
+    display: {
+      label: "Pi",
+      description: "Pi coding agent",
+      iconKey: "terminal",
+      iconColor: "var(--accent-primary)",
+      group: "project-environment",
+      order: 90,
+    },
+  },
+] as const;
+
 export const RALPH_AUTONOMOUS_UI_LAUNCH_PROVIDERS: readonly RalphAutonomousUiLaunchProvider[] = [
   {
     id: "ralph-native",
@@ -244,6 +348,22 @@ export const RALPH_AUTONOMOUS_UI_LAUNCH_PROVIDERS: readonly RalphAutonomousUiLau
     availability: ralphAvailability,
   },
 ] as const;
+
+export function getInteractiveUiLaunchProvidersForContext(
+  context: UiLaunchContextKind
+): readonly InteractiveUiLaunchProvider[] {
+  return INTERACTIVE_UI_LAUNCH_PROVIDERS.filter((provider) =>
+    provider.availability.supportedContexts.includes(context)
+  );
+}
+
+export function getRalphAutonomousUiLaunchProvidersForContext(
+  context: UiLaunchContextKind
+): readonly RalphAutonomousUiLaunchProvider[] {
+  return RALPH_AUTONOMOUS_UI_LAUNCH_PROVIDERS.filter((provider) =>
+    provider.availability.supportedContexts.includes(context)
+  );
+}
 
 export function getInteractiveUiLaunchProvider(
   id: string

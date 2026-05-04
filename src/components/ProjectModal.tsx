@@ -28,19 +28,14 @@ import { useToast } from "./Toast";
 import ErrorAlert from "./ErrorAlert";
 import { COLOR_OPTIONS } from "../lib/constants";
 import type { ConflictResolution, ManifestPreview } from "../../core/index.ts";
+import { PROJECT_WORKING_METHOD_UI_PROVIDERS } from "../lib/ui-launch-registry";
 
-const WORKING_METHOD_OPTIONS = [
-  { value: "auto", label: "Auto-detect" },
-  { value: "claude-code", label: "Claude Code" },
-  { value: "vscode", label: "VS Code" },
-  { value: "opencode", label: "OpenCode" },
-  { value: "cursor", label: "Cursor" },
-  { value: "copilot-cli", label: "Copilot CLI" },
-  { value: "codex", label: "Codex" },
-  { value: "pi", label: "Pi" },
-] as const;
+const WORKING_METHOD_OPTIONS = PROJECT_WORKING_METHOD_UI_PROVIDERS.map((provider) => ({
+  value: provider.id,
+  label: provider.display.label,
+}));
 
-type ProjectWorkingMethod = (typeof WORKING_METHOD_OPTIONS)[number]["value"];
+type ProjectWorkingMethod = (typeof PROJECT_WORKING_METHOD_UI_PROVIDERS)[number]["id"];
 
 function isProjectWorkingMethod(value: string): value is ProjectWorkingMethod {
   return WORKING_METHOD_OPTIONS.some((option) => option.value === value);

@@ -34,7 +34,8 @@ import {
 } from "../../lib/ui-launch-dispatcher";
 import {
   INTERACTIVE_UI_LAUNCH_PROVIDERS,
-  RALPH_AUTONOMOUS_UI_LAUNCH_PROVIDERS,
+  getInteractiveUiLaunchProvidersForContext,
+  getRalphAutonomousUiLaunchProvidersForContext,
 } from "../../lib/ui-launch-registry";
 import { queryKeys } from "../../lib/query-keys";
 import { useLaunchRalphForEpic, useSettings } from "../../lib/hooks";
@@ -48,17 +49,12 @@ const ICONS_BY_KEY: Record<LaunchProviderIconKey, LucideIcon> = {
   github: Github,
 };
 
-const EPIC_NEXT_TICKET_PROVIDERS = INTERACTIVE_UI_LAUNCH_PROVIDERS.filter((provider) =>
-  provider.availability.supportedContexts.includes("epic-next-ticket")
-);
+const EPIC_NEXT_TICKET_PROVIDERS = getInteractiveUiLaunchProvidersForContext("epic-next-ticket");
 
-const EPIC_RALPH_PROVIDERS = RALPH_AUTONOMOUS_UI_LAUNCH_PROVIDERS.filter((provider) =>
-  provider.availability.supportedContexts.includes("epic")
-);
+const EPIC_RALPH_PROVIDERS = getRalphAutonomousUiLaunchProvidersForContext("epic");
 
-const FOCUSED_REVIEW_RALPH_PROVIDERS = RALPH_AUTONOMOUS_UI_LAUNCH_PROVIDERS.filter((provider) =>
-  provider.availability.supportedContexts.includes("focused-review")
-);
+const FOCUSED_REVIEW_RALPH_PROVIDERS =
+  getRalphAutonomousUiLaunchProvidersForContext("focused-review");
 
 export interface EpicDetailHeaderProps {
   epic: EpicDetailResult["epic"];

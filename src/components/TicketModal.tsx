@@ -56,10 +56,10 @@ import {
   defaultRalphLaunchDependencies,
 } from "../lib/ui-launch-dispatcher";
 import {
-  INTERACTIVE_UI_LAUNCH_PROVIDERS,
-  RALPH_AUTONOMOUS_UI_LAUNCH_PROVIDERS,
   getInteractiveUiLaunchProvider,
+  getInteractiveUiLaunchProvidersForContext,
   getRalphAutonomousUiLaunchProvider,
+  getRalphAutonomousUiLaunchProvidersForContext,
 } from "../lib/ui-launch-registry";
 import { safeJsonParse } from "../lib/utils";
 import { ticketFormOpts } from "./tickets/ticket-form-opts";
@@ -107,13 +107,13 @@ interface TicketModalProps {
 // Stable empty state for tag suggestions to prevent recreation on every render
 const EMPTY_TAG_STATE = { tagSuggestions: [] as string[], showCreateHelper: false };
 
-const TICKET_INTERACTIVE_LAUNCH_PROVIDERS = INTERACTIVE_UI_LAUNCH_PROVIDERS.filter((provider) =>
-  provider.availability.supportedContexts.includes("ticket")
-).sort((left, right) => left.display.order - right.display.order);
+const TICKET_INTERACTIVE_LAUNCH_PROVIDERS = [
+  ...getInteractiveUiLaunchProvidersForContext("ticket"),
+].sort((left, right) => left.display.order - right.display.order);
 
-const TICKET_RALPH_LAUNCH_PROVIDERS = RALPH_AUTONOMOUS_UI_LAUNCH_PROVIDERS.filter((provider) =>
-  provider.availability.supportedContexts.includes("ticket")
-).sort((left, right) => left.display.order - right.display.order);
+const TICKET_RALPH_LAUNCH_PROVIDERS = [
+  ...getRalphAutonomousUiLaunchProvidersForContext("ticket"),
+].sort((left, right) => left.display.order - right.display.order);
 
 const TICKET_MODAL_ICON_BY_KEY: Record<LaunchProviderIconKey, typeof Terminal> = {
   sparkles: Sparkles,

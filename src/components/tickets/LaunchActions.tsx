@@ -4,8 +4,8 @@ import type { LucideIcon } from "lucide-react";
 import type { TicketStatus } from "../../api/tickets";
 import type { LaunchProviderIconKey, UiLaunchProviderId } from "../../lib/launch-provider-contract";
 import {
-  INTERACTIVE_UI_LAUNCH_PROVIDERS,
-  RALPH_AUTONOMOUS_UI_LAUNCH_PROVIDERS,
+  getInteractiveUiLaunchProvidersForContext,
+  getRalphAutonomousUiLaunchProvidersForContext,
 } from "../../lib/ui-launch-registry";
 
 export type LaunchType = UiLaunchProviderId;
@@ -52,10 +52,9 @@ const ICONS_BY_KEY: Record<LaunchProviderIconKey, LucideIcon> = {
 };
 
 const TICKET_LAUNCH_OPTIONS: LaunchOption[] = [
-  ...INTERACTIVE_UI_LAUNCH_PROVIDERS,
-  ...RALPH_AUTONOMOUS_UI_LAUNCH_PROVIDERS,
+  ...getInteractiveUiLaunchProvidersForContext("ticket"),
+  ...getRalphAutonomousUiLaunchProvidersForContext("ticket"),
 ]
-  .filter((provider) => provider.availability.supportedContexts.includes("ticket"))
   .sort((left, right) => left.display.order - right.display.order)
   .map((provider) => ({
     id: provider.id,

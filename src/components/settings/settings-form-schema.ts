@@ -1,16 +1,7 @@
 import { z } from "zod";
+import { PROJECT_WORKING_METHOD_PROVIDER_IDS } from "../../lib/launch-provider-contract";
 
-export const workingMethodSchema = z.enum([
-  "auto",
-  "claude-code",
-  "vscode",
-  "opencode",
-  "cursor",
-  "cursor-agent",
-  "copilot-cli",
-  "codex",
-  "pi",
-]);
+export const workingMethodSchema = z.enum(PROJECT_WORKING_METHOD_PROVIDER_IDS);
 
 // Must match DOCKER_RUNTIME_TYPES from src/api/settings.ts
 export const dockerRuntimeSchema = z.enum([
