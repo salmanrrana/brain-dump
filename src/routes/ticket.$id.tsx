@@ -3,20 +3,17 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useCallback, useRef } from "react";
 import { ArrowLeft, AlertCircle } from "lucide-react";
 import { getTicket } from "../api/tickets";
-import { getTicketContext } from "../api/context";
 import { pushBranchServerFn } from "../api/ship-server-fns";
-import { startTicketWorkflowFn } from "../api/workflow-server-fns";
 import { useToast } from "../components/Toast";
 import {
-  launchClaudeInTerminal,
-  launchCodexInTerminal,
-  launchVSCodeInTerminal,
-  launchCursorInTerminal,
-  launchCursorAgentInTerminal,
-  launchCopilotInTerminal,
-  launchOpenCodeInTerminal,
-  launchPiInTerminal,
-} from "../api/terminal";
+  dispatchInteractiveUiLaunch,
+  dispatchRalphAutonomousUiLaunch,
+  defaultRalphLaunchDependencies,
+} from "../lib/ui-launch-dispatcher";
+import {
+  getInteractiveUiLaunchProvider,
+  getRalphAutonomousUiLaunchProvider,
+} from "../lib/ui-launch-registry";
 import { ActivitySection } from "../components/tickets/ActivitySection";
 import { TicketDetailHeader } from "../components/tickets/TicketDetailHeader";
 import { EditTicketModal } from "../components/tickets/EditTicketModal";
@@ -403,7 +400,7 @@ function TicketDetailPage() {
     }
   }, [canGoBack, router, showToast]);
 
-  // Handle launch action - launches Claude, OpenCode, or Ralph
+  // Handle launch action through the shared ticket launch dispatcher.
   const handleLaunch = useCallback(
     async (type: LaunchType) => {
       if (!ticket) return;
@@ -412,449 +409,71 @@ function TicketDetailPage() {
       setLaunchingType(type);
 
       try {
-        // Get ticket context for all launch types
-        const contextResult = await getTicketContext({ data: ticket.id });
+        const interactiveProvider = getInteractiveUiLaunchProvider(type);
+        const ralphProvider = getRalphAutonomousUiLaunchProvider(type);
 
-        if (type === "claude") {
-          // Launch Claude in terminal
-          const launchResult = await launchClaudeInTerminal({
-            data: {
-              ticketId: ticket.id,
-              context: contextResult.context,
-              projectPath: contextResult.projectPath,
-              preferredTerminal: settings?.terminalEmulator ?? null,
-              projectName: contextResult.projectName,
-              epicName: contextResult.epicName,
-              ticketTitle: contextResult.ticketTitle,
-            },
-          });
-
-          // Show warnings if any
-          if (launchResult.warnings) {
-            launchResult.warnings.forEach((warning) => showToast("info", warning));
-          }
-
-          if (launchResult.success) {
-            showToast("success", `Claude launched in ${launchResult.terminalUsed}`);
-            void refetch(); // Refetch to show updated status
-          } else {
-            showToast("error", launchResult.message);
-          }
-        } else if (type === "codex") {
-          // Launch Codex in terminal
-          const launchResult = await launchCodexInTerminal({
-            data: {
-              ticketId: ticket.id,
-              context: contextResult.context,
-              projectPath: contextResult.projectPath,
-              launchMode: "auto",
-              preferredTerminal: settings?.terminalEmulator ?? null,
-              projectName: contextResult.projectName,
-              epicName: contextResult.epicName,
-              ticketTitle: contextResult.ticketTitle,
-            },
-          });
-
-          // Show warnings if any
-          if (launchResult.warnings) {
-            launchResult.warnings.forEach((warning) => showToast("info", warning));
-          }
-
-          if (launchResult.success) {
-            showToast("success", `Codex launched in ${launchResult.terminalUsed}`);
-            void refetch();
-          } else {
-            showToast("error", launchResult.message);
-          }
-        } else if (type === "codex-cli") {
-          const launchResult = await launchCodexInTerminal({
-            data: {
-              ticketId: ticket.id,
-              context: contextResult.context,
-              projectPath: contextResult.projectPath,
-              launchMode: "cli",
-              preferredTerminal: settings?.terminalEmulator ?? null,
-              projectName: contextResult.projectName,
-              epicName: contextResult.epicName,
-              ticketTitle: contextResult.ticketTitle,
-            },
-          });
-
-          if (launchResult.warnings) {
-            launchResult.warnings.forEach((warning) => showToast("info", warning));
-          }
-
-          if (launchResult.success) {
-            showToast("success", "Codex CLI launched");
-            void refetch();
-          } else {
-            showToast("error", launchResult.message);
-          }
-        } else if (type === "codex-app") {
-          const launchResult = await launchCodexInTerminal({
-            data: {
-              ticketId: ticket.id,
-              context: contextResult.context,
-              projectPath: contextResult.projectPath,
-              launchMode: "app",
-              preferredTerminal: settings?.terminalEmulator ?? null,
-              projectName: contextResult.projectName,
-              epicName: contextResult.epicName,
-              ticketTitle: contextResult.ticketTitle,
-            },
-          });
-
-          if (launchResult.warnings) {
-            launchResult.warnings.forEach((warning) => showToast("info", warning));
-          }
-
-          if (launchResult.success) {
-            showToast("success", "Codex App launched");
-            void refetch();
-          } else {
-            showToast("error", launchResult.message);
-          }
-        } else if (type === "vscode") {
-          const launchResult = await launchVSCodeInTerminal({
-            data: {
-              ticketId: ticket.id,
-              context: contextResult.context,
-              projectPath: contextResult.projectPath,
-              preferredTerminal: settings?.terminalEmulator ?? null,
-              projectName: contextResult.projectName,
-              epicName: contextResult.epicName,
-              ticketTitle: contextResult.ticketTitle,
-            },
-          });
-
-          if (launchResult.warnings) {
-            launchResult.warnings.forEach((warning) => showToast("info", warning));
-          }
-
-          if (launchResult.success) {
-            showToast("success", "VS Code launched");
-            void refetch();
-          } else {
-            showToast("error", launchResult.message);
-          }
-        } else if (type === "cursor") {
-          const launchResult = await launchCursorInTerminal({
-            data: {
-              ticketId: ticket.id,
-              context: contextResult.context,
-              projectPath: contextResult.projectPath,
-              preferredTerminal: settings?.terminalEmulator ?? null,
-              projectName: contextResult.projectName,
-              epicName: contextResult.epicName,
-              ticketTitle: contextResult.ticketTitle,
-            },
-          });
-
-          if (launchResult.warnings) {
-            launchResult.warnings.forEach((warning) => showToast("info", warning));
-          }
-
-          if (launchResult.success) {
-            showToast(
-              "success",
-              `Cursor launched${launchResult.terminalUsed ? ` (${launchResult.terminalUsed})` : ""}`
-            );
-            void refetch();
-          } else {
-            showToast("error", launchResult.message);
-          }
-        } else if (type === "cursor-agent") {
-          const launchResult = await launchCursorAgentInTerminal({
-            data: {
-              ticketId: ticket.id,
-              context: contextResult.context,
-              projectPath: contextResult.projectPath,
-              preferredTerminal: settings?.terminalEmulator ?? null,
-              projectName: contextResult.projectName,
-              epicName: contextResult.epicName,
-              ticketTitle: contextResult.ticketTitle,
-            },
-          });
-
-          if (launchResult.warnings) {
-            launchResult.warnings.forEach((warning) => showToast("info", warning));
-          }
-
-          if (launchResult.success) {
-            showToast(
-              "success",
-              `Cursor Agent launched${launchResult.terminalUsed ? ` (${launchResult.terminalUsed})` : ""}`
-            );
-            void refetch();
-          } else {
-            showToast("error", launchResult.message);
-          }
-        } else if (type === "copilot") {
-          const launchResult = await launchCopilotInTerminal({
-            data: {
-              ticketId: ticket.id,
-              context: contextResult.context,
-              projectPath: contextResult.projectPath,
-              preferredTerminal: settings?.terminalEmulator ?? null,
-              projectName: contextResult.projectName,
-              epicName: contextResult.epicName,
-              ticketTitle: contextResult.ticketTitle,
-            },
-          });
-
-          if (launchResult.warnings) {
-            launchResult.warnings.forEach((warning) => showToast("info", warning));
-          }
-
-          if (launchResult.success) {
-            showToast("success", `Copilot CLI launched in ${launchResult.terminalUsed}`);
-            void refetch();
-          } else {
-            showToast("error", launchResult.message);
-          }
-        } else if (type === "pi") {
-          const launchResult = await launchPiInTerminal({
-            data: {
-              ticketId: ticket.id,
-              context: contextResult.context,
-              projectPath: contextResult.projectPath,
-              preferredTerminal: settings?.terminalEmulator ?? null,
-              projectName: contextResult.projectName,
-              epicName: contextResult.epicName,
-              ticketTitle: contextResult.ticketTitle,
-            },
-          });
-
-          if (launchResult.warnings) {
-            launchResult.warnings.forEach((warning) => showToast("info", warning));
-          }
-
-          if (launchResult.success) {
-            showToast("success", `Pi launched in ${launchResult.terminalUsed}`);
-            void refetch();
-          } else {
-            showToast("error", launchResult.message);
-          }
-        } else if (type === "opencode") {
-          // Launch OpenCode in terminal
-          const launchResult = await launchOpenCodeInTerminal({
-            data: {
-              ticketId: ticket.id,
-              context: contextResult.context,
-              projectPath: contextResult.projectPath,
-              preferredTerminal: settings?.terminalEmulator ?? null,
-              projectName: contextResult.projectName,
-              epicName: contextResult.epicName,
-              ticketTitle: contextResult.ticketTitle,
-            },
-          });
-
-          // Show warnings if any
-          if (launchResult.warnings) {
-            launchResult.warnings.forEach((warning) => showToast("info", warning));
-          }
-
-          if (launchResult.success) {
-            showToast("success", `OpenCode launched in ${launchResult.terminalUsed}`);
-            void refetch();
-          } else {
-            showToast("error", launchResult.message);
-          }
-        } else if (type === "ralph-native") {
-          // Initialize workflow first (git branch, status, audit comment)
-          const workflowResult = await startTicketWorkflowFn({
-            data: { ticketId: ticket.id, projectPath: contextResult.projectPath },
-          });
-          if (!workflowResult.success) {
-            showToast(
-              "info",
-              `Branch setup skipped: ${workflowResult.error || "Unknown error"}. Launching on the current branch.`
-            );
-          } else if (workflowResult.warnings?.length) {
-            workflowResult.warnings.forEach((warning) => showToast("info", warning));
-          }
-
-          // Launch Ralph with Claude backend
-          const result = await launchRalphMutation.mutateAsync({
+        if (interactiveProvider) {
+          const launchResult = await dispatchInteractiveUiLaunch(interactiveProvider, {
+            kind: "ticket",
             ticketId: ticket.id,
             preferredTerminal: settings?.terminalEmulator ?? null,
-            useSandbox: false,
-            aiBackend: "claude",
           });
 
-          // Show warnings if any
-          if ("warnings" in result && result.warnings) {
-            (result.warnings as string[]).forEach((warning) => showToast("info", warning));
+          if (launchResult.warnings) {
+            launchResult.warnings.forEach((warning) => showToast("info", warning));
           }
 
-          if (result.success) {
-            showToast("success", result.message);
+          if (launchResult.success) {
+            showToast("success", launchResult.message);
             void refetch();
           } else {
-            showToast("error", result.message);
+            showToast("error", launchResult.message);
           }
-        } else if (type === "ralph-opencode") {
-          // Initialize workflow first (git branch, status, audit comment)
-          const workflowResult = await startTicketWorkflowFn({
-            data: { ticketId: ticket.id, projectPath: contextResult.projectPath },
-          });
-          if (!workflowResult.success) {
-            showToast(
-              "info",
-              `Branch setup skipped: ${workflowResult.error || "Unknown error"}. Launching on the current branch.`
-            );
-          } else if (workflowResult.warnings?.length) {
-            workflowResult.warnings.forEach((warning) => showToast("info", warning));
-          }
-
-          // Launch Ralph with OpenCode backend
-          const result = await launchRalphMutation.mutateAsync({
-            ticketId: ticket.id,
-            preferredTerminal: settings?.terminalEmulator ?? null,
-            useSandbox: false,
-            aiBackend: "opencode",
-          });
-
-          if ("warnings" in result && result.warnings) {
-            (result.warnings as string[]).forEach((warning) => showToast("info", warning));
-          }
-
-          if (result.success) {
-            showToast("success", result.message);
-            void refetch();
-          } else {
-            showToast("error", result.message);
-          }
-        } else if (type === "ralph-codex") {
-          // Initialize workflow first (git branch, status, audit comment)
-          const workflowResult = await startTicketWorkflowFn({
-            data: { ticketId: ticket.id, projectPath: contextResult.projectPath },
-          });
-          if (!workflowResult.success) {
-            showToast(
-              "info",
-              `Branch setup skipped: ${workflowResult.error || "Unknown error"}. Launching on the current branch.`
-            );
-          } else if (workflowResult.warnings?.length) {
-            workflowResult.warnings.forEach((warning) => showToast("info", warning));
-          }
-
-          // Launch Ralph with Codex backend
-          const result = await launchRalphMutation.mutateAsync({
-            ticketId: ticket.id,
-            preferredTerminal: settings?.terminalEmulator ?? null,
-            useSandbox: false,
-            aiBackend: "codex",
-          });
-
-          if ("warnings" in result && result.warnings) {
-            (result.warnings as string[]).forEach((warning) => showToast("info", warning));
-          }
-
-          if (result.success) {
-            showToast("success", result.message);
-            void refetch();
-          } else {
-            showToast("error", result.message);
-          }
-        } else if (type === "ralph-cursor-agent") {
-          // Initialize workflow first (git branch, status, audit comment)
-          const workflowResult = await startTicketWorkflowFn({
-            data: { ticketId: ticket.id, projectPath: contextResult.projectPath },
-          });
-          if (!workflowResult.success) {
-            showToast(
-              "info",
-              `Branch setup skipped: ${workflowResult.error || "Unknown error"}. Launching on the current branch.`
-            );
-          } else if (workflowResult.warnings?.length) {
-            workflowResult.warnings.forEach((warning) => showToast("info", warning));
-          }
-
-          // Launch Ralph with Cursor Agent backend
-          const result = await launchRalphMutation.mutateAsync({
-            ticketId: ticket.id,
-            preferredTerminal: settings?.terminalEmulator ?? null,
-            useSandbox: false,
-            aiBackend: "cursor-agent",
-          });
-
-          if ("warnings" in result && result.warnings) {
-            (result.warnings as string[]).forEach((warning) => showToast("info", warning));
-          }
-
-          if (result.success) {
-            showToast("success", result.message);
-            void refetch();
-          } else {
-            showToast("error", result.message);
-          }
-        } else if (type === "ralph-copilot") {
-          // Initialize workflow first (git branch, status, audit comment)
-          const workflowResult = await startTicketWorkflowFn({
-            data: { ticketId: ticket.id, projectPath: contextResult.projectPath },
-          });
-          if (!workflowResult.success) {
-            showToast(
-              "info",
-              `Branch setup skipped: ${workflowResult.error || "Unknown error"}. Launching on the current branch.`
-            );
-          } else if (workflowResult.warnings?.length) {
-            workflowResult.warnings.forEach((warning) => showToast("info", warning));
-          }
-
-          // Launch Ralph with Copilot CLI backend
-          const result = await launchRalphMutation.mutateAsync({
-            ticketId: ticket.id,
-            preferredTerminal: settings?.terminalEmulator ?? null,
-            useSandbox: false,
-            aiBackend: "claude",
-            workingMethodOverride: "copilot-cli",
-          });
-
-          if ("warnings" in result && result.warnings) {
-            (result.warnings as string[]).forEach((warning) => showToast("info", warning));
-          }
-
-          if (result.success) {
-            showToast("success", result.message);
-            void refetch();
-          } else {
-            showToast("error", result.message);
-          }
-        } else if (type === "ralph-pi") {
-          // Initialize workflow first (git branch, status, audit comment)
-          const workflowResult = await startTicketWorkflowFn({
-            data: { ticketId: ticket.id, projectPath: contextResult.projectPath },
-          });
-          if (!workflowResult.success) {
-            showToast(
-              "info",
-              `Branch setup skipped: ${workflowResult.error || "Unknown error"}. Launching on the current branch.`
-            );
-          } else if (workflowResult.warnings?.length) {
-            workflowResult.warnings.forEach((warning) => showToast("info", warning));
-          }
-
-          const result = await launchRalphMutation.mutateAsync({
-            ticketId: ticket.id,
-            preferredTerminal: settings?.terminalEmulator ?? null,
-            useSandbox: false,
-            aiBackend: "pi",
-          });
-
-          if ("warnings" in result && result.warnings) {
-            (result.warnings as string[]).forEach((warning) => showToast("info", warning));
-          }
-
-          if (result.success) {
-            showToast("success", result.message);
-            void refetch();
-          } else {
-            showToast("error", result.message);
-          }
+          return;
         }
-        // Docker launch mode removed from LaunchActions; no docker handler needed here
+
+        if (ralphProvider) {
+          const result = await dispatchRalphAutonomousUiLaunch(
+            ralphProvider,
+            {
+              kind: "ticket",
+              ticketId: ticket.id,
+              preferredTerminal: settings?.terminalEmulator ?? null,
+            },
+            {
+              ...defaultRalphLaunchDependencies,
+              launchTicketRalph: async (payload) => {
+                const launchResult = await launchRalphMutation.mutateAsync(payload);
+                return {
+                  success: launchResult.success,
+                  message: launchResult.message,
+                  ...(launchResult.warnings ? { warnings: launchResult.warnings } : {}),
+                  ...("terminalUsed" in launchResult && launchResult.terminalUsed
+                    ? { terminalUsed: launchResult.terminalUsed }
+                    : {}),
+                };
+              },
+              launchEpicRalph: async () => ({
+                success: false,
+                message: "Epic Ralph launch is not available from ticket detail.",
+              }),
+            }
+          );
+
+          if (result.warnings) {
+            result.warnings.forEach((warning) => showToast("info", warning));
+          }
+
+          if (result.success) {
+            showToast("success", result.message);
+            void refetch();
+          } else {
+            showToast("error", result.message);
+          }
+          return;
+        }
+
+        showToast("error", `Unknown launch provider: ${type}`);
       } catch (err) {
         const message = err instanceof Error ? err.message : "An unexpected error occurred";
         showToast("error", `Failed to launch: ${message}`);
