@@ -191,6 +191,33 @@ async function isCopilotInstalled(): Promise<InstallCheck> {
   }
 }
 
+async function isPiInstalled(): Promise<InstallCheck> {
+  const { exec } = await import("child_process");
+  const { promisify } = await import("util");
+  const execAsync = promisify(exec);
+
+  try {
+    await execAsync("pi --version");
+    return { installed: true, mode: "cli" };
+  } catch (error) {
+    const err = error as Error & { code?: string };
+    if (
+      err.code === "ENOENT" ||
+      err.message?.includes("not found") ||
+      err.message?.includes("command not found")
+    ) {
+      return {
+        installed: false,
+        error: "Pi CLI is not installed in PATH. Install Pi CLI and try again.",
+      };
+    }
+    return {
+      installed: false,
+      error: `Pi CLI check failed: ${err.message}`,
+    };
+  }
+}
+
 // Check if Cursor is installed (CLI or app)
 async function isCursorInstalled(): Promise<InstallCheck> {
   const { exec } = await import("child_process");
@@ -1114,6 +1141,192 @@ exec bash
 
   return scriptPath;
 }
+
+export async function createPiLaunchScript(projectPath: string, context: string): Promise<string> {
+  const { writeFileSync, mkdirSync, chmodSync } = await import("fs");
+  const { join } = await import("path");
+  const { homedir } = await import("os");
+  const { randomUUID } = await import("crypto");
+
+  validateProjectPath(projectPath);
+  await cleanupOldScripts();
+
+  const scriptDir = join(homedir(), ".brain-dump", "scripts");
+  mkdirSync(scriptDir, { recursive: true });
+
+  const scriptPath = join(scriptDir, `launch-pi-${randomUUID()}.sh`);
+  const titleMatch = context.match(/^# Task: (.+)$/m);
+  const ticketTitle = titleMatch?.[1] ?? "Unknown Task";
+
+  const safeProjectPath = escapeForBashDoubleQuote(projectPath);
+  const safeTicketTitle = escapeForBashDoubleQuote(ticketTitle);
+
+  const script = `#!/bin/bash
+set -e  # Exit on error
+
+cd "${safeProjectPath}"
+
+CONTEXT_FILE="${safeProjectPath}/.brain-dump-context.md"
+cat > "$CONTEXT_FILE" << 'BRAIN_DUMP_CONTEXT_EOF_7f3a9b2c'
+${context}
+BRAIN_DUMP_CONTEXT_EOF_7f3a9b2c
+
+echo ""
+echo -e "\\033[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+echo -e "\\033[0;35m🧠 Brain Dump - Starting with Pi\\033[0m"
+echo -e "\\033[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+echo -e "\\033[1;33m📋 Task:\\033[0m ${safeTicketTitle}"
+echo -e "\\033[1;33m📁 Project:\\033[0m ${safeProjectPath}"
+echo -e "\\033[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+echo ""
+
+export PI=1
+export BRAIN_DUMP_PROVIDER=pi
+
+PI_PROMPT="$(cat "$CONTEXT_FILE")"
+pi "$PI_PROMPT"
+
+rm -f "$CONTEXT_FILE"
+
+echo ""
+echo -e "\\033[0;35m✅ Pi session ended.\\033[0m"
+exec bash
+`;
+
+  writeFileSync(scriptPath, script, { mode: 0o700 });
+  chmodSync(scriptPath, 0o700);
+
+  return scriptPath;
+}
+
+export const launchPiInTerminal = createServerFn({ method: "POST" })
+  .inputValidator(
+    (data: {
+      ticketId: string;
+      context: string;
+      projectPath: string;
+      preferredTerminal?: string | null;
+      projectName: string;
+      epicName: string | null;
+      ticketTitle: string;
+    }) => data
+  )
+  .handler(async ({ data }): Promise<LaunchResult> => {
+    const {
+      ticketId,
+      context,
+      projectPath,
+      preferredTerminal,
+      projectName,
+      epicName,
+      ticketTitle,
+    } = data;
+    const { exec } = await import("child_process");
+    const { existsSync } = await import("fs");
+
+    if (!existsSync(projectPath)) {
+      return {
+        success: false,
+        method: "clipboard",
+        message: `Project directory not found: ${projectPath}. Context copied to clipboard instead.`,
+      };
+    }
+
+    const piCheck = await isPiInstalled();
+    if (!piCheck.installed) {
+      return {
+        success: false,
+        method: "clipboard",
+        message: piCheck.error || "Pi CLI is not installed. Context copied to clipboard instead.",
+      };
+    }
+
+    let terminal: string | null = null;
+    const warnings: string[] = [];
+
+    if (preferredTerminal) {
+      const result = await isTerminalAvailable(preferredTerminal);
+      if (result.available) {
+        terminal = preferredTerminal;
+      } else {
+        const reason = result.error || "not installed";
+        warnings.push(
+          `Your preferred terminal "${preferredTerminal}" is not available (${reason}). Using auto-detected terminal instead.`
+        );
+      }
+    }
+
+    if (!terminal) {
+      terminal = await detectTerminal();
+    }
+
+    if (!terminal) {
+      return {
+        success: false,
+        method: "clipboard",
+        message: "No supported terminal emulator found. Context copied to clipboard instead.",
+        ...(warnings.length > 0 && { warnings }),
+      };
+    }
+
+    try {
+      const workflowResult = await startWorkflowForLaunch(ticketId);
+      warnings.push(...workflowResult.warnings);
+    } catch (err) {
+      warnings.push(await formatCoreError(err));
+    }
+
+    try {
+      const { writeFileSync, mkdirSync } = await import("fs");
+      const { join } = await import("path");
+      const { homedir } = await import("os");
+
+      const stateDir = join(homedir(), ".brain-dump");
+      mkdirSync(stateDir, { recursive: true });
+
+      const stateFile = join(stateDir, "current-ticket.json");
+      writeFileSync(
+        stateFile,
+        JSON.stringify({
+          ticketId,
+          projectPath,
+          startedAt: new Date().toISOString(),
+        })
+      );
+    } catch (error) {
+      console.error("Failed to save current ticket state:", error);
+      warnings.push(
+        "Could not save ticket state. The 'brain-dump' CLI commands may not work for this session."
+      );
+    }
+
+    const scriptPath = await createPiLaunchScript(projectPath, context);
+    const windowTitle = buildWindowTitle(projectName, epicName, ticketTitle);
+    const terminalCommand = buildTerminalCommand(terminal, projectPath, scriptPath, windowTitle);
+
+    try {
+      exec(terminalCommand, (error) => {
+        if (error) {
+          console.error("Terminal launch error:", error);
+        }
+      });
+
+      return {
+        success: true,
+        method: "terminal",
+        message: `Opening Pi in ${terminal}... If no window appears, check that ${terminal} is running.`,
+        terminalUsed: terminal,
+        ...(warnings.length > 0 && { warnings }),
+      };
+    } catch (error) {
+      return {
+        success: false,
+        method: "clipboard",
+        message: `Failed to launch terminal: ${error instanceof Error ? error.message : "Unknown error"}. Context copied to clipboard instead.`,
+        ...(warnings.length > 0 && { warnings }),
+      };
+    }
+  });
 
 // Launch Cursor Agent CLI in terminal with ticket context
 // Note: exec() is used intentionally here for fire-and-forget terminal launches.

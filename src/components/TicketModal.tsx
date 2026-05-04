@@ -57,6 +57,7 @@ import {
   launchCursorAgentInTerminal,
   launchCopilotInTerminal,
   launchOpenCodeInTerminal,
+  launchPiInTerminal,
 } from "../api/terminal";
 import { safeJsonParse } from "../lib/utils";
 import { ticketFormOpts } from "./tickets/ticket-form-opts";
@@ -715,7 +716,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
       workingMethodOverride,
     }: {
       useSandbox: boolean;
-      aiBackend: "claude" | "opencode" | "codex" | "cursor-agent";
+      aiBackend: "claude" | "opencode" | "codex" | "cursor-agent" | "pi";
       workingMethodOverride?:
         | "auto"
         | "claude-code"
@@ -724,7 +725,8 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
         | "cursor"
         | "cursor-agent"
         | "copilot-cli"
-        | "codex";
+        | "codex"
+        | "pi";
     }) => {
       setIsStartingWork(true);
       setStartWorkNotification(null);
@@ -855,6 +857,64 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
           message: `Failed to start OpenCode: ${fallbackError instanceof Error ? fallbackError.message : "Could not copy context to clipboard"}`,
         });
       }
+    } finally {
+      setIsStartingWork(false);
+    }
+  }, [ticket.id, onUpdate, settings?.terminalEmulator, showToast, setStartWorkNotification, form]);
+
+  const handleStartPi = useCallback(async () => {
+    setIsStartingWork(true);
+    setStartWorkNotification(null);
+    setShowStartWorkMenu(false);
+
+    try {
+      const contextResult = await getTicketContext({ data: ticket.id });
+      const launchResult = await launchPiInTerminal({
+        data: {
+          ticketId: ticket.id,
+          context: contextResult.context,
+          projectPath: contextResult.projectPath,
+          preferredTerminal: settings?.terminalEmulator ?? null,
+          projectName: contextResult.projectName,
+          epicName: contextResult.epicName,
+          ticketTitle: contextResult.ticketTitle,
+        },
+      });
+
+      if (launchResult.warnings) {
+        launchResult.warnings.forEach((warning) => showToast("info", warning));
+      }
+
+      if (launchResult.success && launchResult.method !== "clipboard") {
+        form.setFieldValue("status", "in_progress");
+        setStartWorkNotification({
+          type: "success",
+          message: launchResult.terminalUsed
+            ? `Pi launched in ${launchResult.terminalUsed}! Ticket moved to In Progress.`
+            : "Pi launched. Ticket moved to In Progress.",
+        });
+        setTimeout(() => onUpdate(), 500);
+      } else if (!launchResult.success) {
+        showToast("error", launchResult.message);
+        await navigator.clipboard.writeText(contextResult.context);
+        setStartWorkNotification({
+          type: "success",
+          message: `Context copied to clipboard. Run: cd "${contextResult.projectPath}" && pi`,
+        });
+      } else {
+        await navigator.clipboard.writeText(contextResult.context);
+        setStartWorkNotification({
+          type: "success",
+          message: launchResult.message,
+        });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "An unexpected error occurred";
+      showToast("error", `Failed to launch Pi: ${message}`);
+      setStartWorkNotification({
+        type: "error",
+        message: "Failed to launch Pi",
+      });
     } finally {
       setIsStartingWork(false);
     }
@@ -1743,6 +1803,13 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                         <span className="text-sm text-[var(--text-primary)]">Copilot CLI</span>
                       </button>
                       <button
+                        onClick={() => void handleStartPi()}
+                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                      >
+                        <Terminal size={14} className="text-pink-500 flex-shrink-0" />
+                        <span className="text-sm text-[var(--text-primary)]">Pi</span>
+                      </button>
+                      <button
                         onClick={() => void handleStartOpenCode()}
                         className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
                       >
@@ -1802,6 +1869,15 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                       >
                         <Github size={14} className="text-[var(--text-secondary)] flex-shrink-0" />
                         <span className="text-sm text-[var(--text-primary)]">Copilot CLI</span>
+                      </button>
+                      <button
+                        onClick={() =>
+                          void handleStartRalph({ useSandbox: false, aiBackend: "pi" })
+                        }
+                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                      >
+                        <Bot size={14} className="text-pink-500 flex-shrink-0" />
+                        <span className="text-sm text-[var(--text-primary)]">Pi</span>
                       </button>
                       <button
                         onClick={() =>

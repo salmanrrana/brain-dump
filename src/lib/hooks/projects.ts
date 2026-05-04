@@ -171,11 +171,27 @@ export function useProjectsWithAIActivity() {
 // PROJECT MUTATIONS
 // =============================================================================
 
+type ProjectWorkingMethod =
+  | "auto"
+  | "claude-code"
+  | "vscode"
+  | "opencode"
+  | "cursor"
+  | "cursor-agent"
+  | "copilot-cli"
+  | "codex"
+  | "pi";
+
 export function useCreateProject() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: { name: string; path: string; color?: string }) => createProject({ data }),
+    mutationFn: (data: {
+      name: string;
+      path: string;
+      color?: string;
+      workingMethod?: ProjectWorkingMethod;
+    }) => createProject({ data }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.projects });
     },
@@ -192,15 +208,7 @@ export function useUpdateProject() {
         name?: string;
         path?: string;
         color?: string;
-        workingMethod?:
-          | "auto"
-          | "claude-code"
-          | "vscode"
-          | "opencode"
-          | "cursor"
-          | "cursor-agent"
-          | "copilot-cli"
-          | "codex";
+        workingMethod?: ProjectWorkingMethod;
       };
     }) => updateProject({ data }),
     onSuccess: () => {

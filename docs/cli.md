@@ -697,23 +697,24 @@ brain-dump workflow start-epic --epic abc --create-pr
 Launch Ralph for a single ticket in the chosen provider (parity with UI)
 
 ```bash
-brain-dump workflow launch-ticket --ticket <value> [--provider <claude-code|vscode|cursor|cursor-agent|copilot-cli|codex|opencode>] [--terminal <value>] [--max-iterations <n>] [--sandbox] [--pretty]
+brain-dump workflow launch-ticket --ticket <value> [--provider <claude-code|vscode|cursor|cursor-agent|copilot-cli|codex|opencode|pi>] [--terminal <value>] [--max-iterations <n>] [--sandbox] [--pretty]
 ```
 
-| Flag               | Type    | Required | Description                                                                                                               |
-| ------------------ | ------- | -------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `--ticket`         | string  | Yes      | Ticket ID                                                                                                                 |
-| `--provider`       | enum    | No       | AI backend to launch (default: project setting) (claude-code, vscode, cursor, cursor-agent, copilot-cli, codex, opencode) |
-| `--terminal`       | string  | No       | Preferred terminal emulator (e.g. ghostty, kitty, iterm2)                                                                 |
-| `--max-iterations` | number  | No       | Override Ralph loop iteration cap                                                                                         |
-| `--sandbox`        | boolean | No       | Run inside the Docker sandbox (claude-code only)                                                                          |
-| `--pretty`         | boolean | No       | Human-readable output (default: JSON)                                                                                     |
+| Flag               | Type    | Required | Description                                                                                                                   |
+| ------------------ | ------- | -------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `--ticket`         | string  | Yes      | Ticket ID                                                                                                                     |
+| `--provider`       | enum    | No       | AI backend to launch (default: project setting) (claude-code, vscode, cursor, cursor-agent, copilot-cli, codex, opencode, pi) |
+| `--terminal`       | string  | No       | Preferred terminal emulator (e.g. ghostty, kitty, iterm2)                                                                     |
+| `--max-iterations` | number  | No       | Override Ralph loop iteration cap                                                                                             |
+| `--sandbox`        | boolean | No       | Run inside the Docker sandbox (claude-code only)                                                                              |
+| `--pretty`         | boolean | No       | Human-readable output (default: JSON)                                                                                         |
 
 **Examples:**
 
 ```bash
 brain-dump workflow launch-ticket --ticket abc --provider claude-code
 brain-dump workflow launch-ticket --ticket abc --provider copilot-cli --terminal ghostty
+brain-dump workflow launch-ticket --ticket abc --provider pi --terminal ghostty
 brain-dump workflow launch-ticket --ticket abc --provider claude-code --sandbox
 ```
 
@@ -722,23 +723,24 @@ brain-dump workflow launch-ticket --ticket abc --provider claude-code --sandbox
 Launch Ralph for an entire epic in the chosen provider (parity with UI)
 
 ```bash
-brain-dump workflow launch-epic --epic <value> [--provider <claude-code|vscode|cursor|cursor-agent|copilot-cli|codex|opencode>] [--terminal <value>] [--max-iterations <n>] [--sandbox] [--pretty]
+brain-dump workflow launch-epic --epic <value> [--provider <claude-code|vscode|cursor|cursor-agent|copilot-cli|codex|opencode|pi>] [--terminal <value>] [--max-iterations <n>] [--sandbox] [--pretty]
 ```
 
-| Flag               | Type    | Required | Description                                                                                                               |
-| ------------------ | ------- | -------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `--epic`           | string  | Yes      | Epic ID                                                                                                                   |
-| `--provider`       | enum    | No       | AI backend to launch (default: project setting) (claude-code, vscode, cursor, cursor-agent, copilot-cli, codex, opencode) |
-| `--terminal`       | string  | No       | Preferred terminal emulator (e.g. ghostty, kitty, iterm2)                                                                 |
-| `--max-iterations` | number  | No       | Override Ralph loop iteration cap                                                                                         |
-| `--sandbox`        | boolean | No       | Run inside the Docker sandbox (claude-code only)                                                                          |
-| `--pretty`         | boolean | No       | Human-readable output (default: JSON)                                                                                     |
+| Flag               | Type    | Required | Description                                                                                                                   |
+| ------------------ | ------- | -------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `--epic`           | string  | Yes      | Epic ID                                                                                                                       |
+| `--provider`       | enum    | No       | AI backend to launch (default: project setting) (claude-code, vscode, cursor, cursor-agent, copilot-cli, codex, opencode, pi) |
+| `--terminal`       | string  | No       | Preferred terminal emulator (e.g. ghostty, kitty, iterm2)                                                                     |
+| `--max-iterations` | number  | No       | Override Ralph loop iteration cap                                                                                             |
+| `--sandbox`        | boolean | No       | Run inside the Docker sandbox (claude-code only)                                                                              |
+| `--pretty`         | boolean | No       | Human-readable output (default: JSON)                                                                                         |
 
 **Examples:**
 
 ```bash
 brain-dump workflow launch-epic --epic abc --provider claude-code
 brain-dump workflow launch-epic --epic abc --provider opencode --max-iterations 20
+brain-dump workflow launch-epic --epic abc --provider pi --max-iterations 20
 ```
 
 ---

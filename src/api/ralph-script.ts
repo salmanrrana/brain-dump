@@ -4,7 +4,7 @@ import { getRalphPrompt, type RalphPromptProfile } from "./ralph-prompts";
 // TYPES
 // ============================================================================
 
-export type RalphAiBackend = "claude" | "opencode" | "codex" | "cursor-agent";
+export type RalphAiBackend = "claude" | "opencode" | "codex" | "cursor-agent" | "pi";
 
 // Resource limit configuration for Docker sandbox
 export interface DockerResourceLimits {
@@ -152,6 +152,34 @@ fi
     invocation: `  export CURSOR_AGENT=1
   # Run Cursor Agent in headless mode with prompt
   "$CURSOR_AGENT_BIN" --force --approve-mcps --trust -p "$(cat "$PROMPT_FILE")"`,
+  },
+  pi: {
+    displayName: "Pi",
+    preflightCheck: `
+if ! command -v pi >/dev/null 2>&1; then
+  echo -e "\\033[0;31m❌ Pi CLI not found in PATH\\033[0m"
+  echo -e "\\033[0;33m  Install Pi CLI and ensure the 'pi' command is available before launching Ralph.\\033[0m"
+  exit 1
+fi
+
+if ! PI_HELP_OUTPUT="$(pi --help 2>&1)"; then
+  echo -e "\\033[0;31m❌ Unable to inspect Pi CLI help output\\033[0m"
+  echo -e "\\033[0;33m  Ralph requires a Pi CLI build with non-interactive prompt support.\\033[0m"
+  exit 1
+fi
+
+if ! printf '%s\\n' "$PI_HELP_OUTPUT" | grep -qE -- "(^|[[:space:]])-p,|--prompt"; then
+  echo -e "\\033[0;31m❌ Installed Pi CLI is missing prompt/headless support\\033[0m"
+  echo -e "\\033[0;33m  Ralph requires 'pi -p' or 'pi --prompt' so each iteration can run non-interactively.\\033[0m"
+  echo -e "\\033[0;33m  Upgrade Pi CLI or use a provider with a headless launcher.\\033[0m"
+  exit 1
+fi
+`,
+    invocation: `  export PI=1
+  export BRAIN_DUMP_PROVIDER=pi
+  export BRAIN_DUMP_RALPH_PROVIDER=pi
+  # Run Pi non-interactively so the outer Ralph loop regains control after each iteration.
+  pi -p "$(cat "$PROMPT_FILE")"`,
   },
 };
 

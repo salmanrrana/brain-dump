@@ -4,7 +4,7 @@
 >
 > Brain Dump is under active development and continuously evolving. Features may change, break, or be removed without notice. Not all configurations are fully supported. Use at your own risk and [report issues](https://github.com/salmanrrana/brain-dump/issues) to help us improve!
 
-**Your backlog, worked by AI.** A kanban board where clicking a ticket launches Claude, Codex, OpenCode, Copilot, or Cursor with full context — or let Ralph, the autonomous agent, implement tickets while you're away.
+**Your backlog, worked by AI.** A kanban board where clicking a ticket launches Claude, Codex, OpenCode, Copilot, Cursor, or Pi with full context — or let Ralph, the autonomous agent, implement tickets while you're away.
 
 ### Real Results, Real Metrics
 
@@ -19,7 +19,7 @@
 - macOS or Linux (WSL works)
 - `git`, `bash`, `curl`
 - Node.js 18+ and `pnpm` (installer will install/upgrade if missing)
-- One AI environment to integrate (`--claude`, `--codex`, `--cursor`, `--vscode`, `--opencode`, `--copilot`)
+- One AI environment to integrate (`--claude`, `--codex`, `--cursor`, `--vscode`, `--opencode`, `--copilot`, `--pi`)
 
 ### 2. Install (recommended)
 
@@ -68,15 +68,15 @@ pnpm brain-dump status --pretty
 
 ## Why Brain Dump?
 
-| Feature                | What It Does                                                                                  |
-| ---------------------- | --------------------------------------------------------------------------------------------- |
-| **One-click context**  | Click a ticket → AI opens with full context (description, acceptance criteria, linked files)  |
-| **Quality Workflow**   | AI review → fix loop → human demo approval. Same quality in all environments.                 |
-| **Ralph Mode**         | Autonomous agent works your backlog while you sleep                                           |
-| **Multi-environment**  | Works in Claude Code, Codex, Cursor, VS Code, OpenCode, Copilot CLI with same tools/workflows |
-| **MCP-powered**        | AI can update tickets, link commits, manage your board directly                               |
-| **Telemetry & audits** | Tracks AI work sessions, tool usage, decisions made. View detailed telemetry in ticket detail |
-| **Local-first**        | SQLite on your machine. Your data stays yours.                                                |
+| Feature                | What It Does                                                                                      |
+| ---------------------- | ------------------------------------------------------------------------------------------------- |
+| **One-click context**  | Click a ticket → AI opens with full context (description, acceptance criteria, linked files)      |
+| **Quality Workflow**   | AI review → fix loop → human demo approval. Same quality in all environments.                     |
+| **Ralph Mode**         | Autonomous agent works your backlog while you sleep                                               |
+| **Multi-environment**  | Works in Claude Code, Codex, Cursor, VS Code, OpenCode, Copilot CLI, Pi with same tools/workflows |
+| **MCP-powered**        | AI can update tickets, link commits, manage your board directly                                   |
+| **Telemetry & audits** | Tracks AI work sessions, tool usage, decisions made. View detailed telemetry in ticket detail     |
+| **Local-first**        | SQLite on your machine. Your data stays yours.                                                    |
 
 ---
 
@@ -255,6 +255,7 @@ All environments get the same MCP tools, quality workflow, and 3 global skills (
 | **Cursor Agent CLI** | `./install.sh --cursor`   | Headless terminal multi-model  |
 | **Copilot CLI**      | `./install.sh --copilot`  | GitHub Copilot in the terminal |
 | **Codex**            | `./install.sh --codex`    | OpenAI Codex in terminal/app   |
+| **Pi**               | `./install.sh --pi`       | CLI-only Pi ticket workflows   |
 | **All**              | `./install.sh --all`      | Try everything                 |
 
 <details>
@@ -310,6 +311,14 @@ All environments get the same MCP tools, quality workflow, and 3 global skills (
 - Installs: MCP server only (`config.toml` entry)
 - Supports AGENTS.md, rules, and skills-based workflow guidance
 - [Full setup guide →](docs/environments/codex.md)
+
+### Pi
+
+- Use `Start with Pi` or launch Ralph with `--provider pi`
+- Installs Brain Dump-managed prompts and skills into `~/.pi/`
+- CLI-only: no MCP server or Pi credential/settings changes are configured
+- Local project prompts and skills live in `.pi/prompts/` and `.pi/skills/`
+- [Full setup guide →](docs/environments/pi.md)
 </details>
 
 ---
@@ -354,8 +363,8 @@ brain-dump workflow launch-ticket --ticket <id> --provider claude-code --pretty
 # Launch Ralph for an entire epic (all tickets)
 brain-dump workflow launch-epic --epic <id> --provider claude-code --pretty
 
-# Use any provider: claude-code, vscode, cursor, cursor-agent, copilot-cli, codex, opencode
-brain-dump workflow launch-ticket --ticket <id> --provider copilot-cli --terminal ghostty --pretty
+# Use any provider: claude-code, vscode, cursor, cursor-agent, copilot-cli, codex, opencode, pi
+brain-dump workflow launch-ticket --ticket <id> --provider pi --terminal ghostty --pretty
 
 # Run in Docker sandbox (claude-code only)
 brain-dump workflow launch-ticket --ticket <id> --provider claude-code --sandbox --pretty
@@ -404,7 +413,7 @@ ready → in_progress → ai_review → human_review → done
 4. **Demo** - AI generates step-by-step test instructions
 5. **Human approval** - You run the demo and approve or request changes
 
-All automatic via MCP tools. Same workflow in Claude Code, Codex, Cursor, VS Code, OpenCode, and Copilot CLI.
+All automatic via MCP tools. Same workflow in Claude Code, Codex, Cursor, VS Code, OpenCode, Copilot CLI, and Pi.
 
 [Detailed workflow guide →](docs/universal-workflow.md)
 

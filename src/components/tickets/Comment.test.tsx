@@ -20,6 +20,23 @@ describe("Comment", () => {
     expect(screen.getByText("Codex")).toBeInTheDocument();
   });
 
+  it("shows Pi comment authors by provider name", () => {
+    render(
+      <Comment
+        comment={{
+          id: "comment-pi",
+          ticketId: "ticket-1",
+          content: "Implemented with Pi.",
+          author: "pi",
+          type: "comment",
+          createdAt: new Date().toISOString(),
+        }}
+      />
+    );
+
+    expect(screen.getByText("Pi")).toBeInTheDocument();
+  });
+
   it("shows Ralph-prefixed provider comments with the underlying provider", () => {
     render(
       <Comment
@@ -35,6 +52,23 @@ describe("Comment", () => {
     );
 
     expect(screen.getByText("Ralph (Codex)")).toBeInTheDocument();
+  });
+
+  it("shows Ralph-prefixed Pi comments clearly", () => {
+    render(
+      <Comment
+        comment={{
+          id: "comment-ralph-pi",
+          ticketId: "ticket-1",
+          content: "Automated Pi pass completed.",
+          author: "ralph:pi",
+          type: "progress",
+          createdAt: new Date().toISOString(),
+        }}
+      />
+    );
+
+    expect(screen.getByText("Ralph (Pi)")).toBeInTheDocument();
   });
 
   it("visually distinguishes change-request comments", () => {

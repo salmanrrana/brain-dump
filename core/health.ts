@@ -61,7 +61,8 @@ export type WorkingMethod =
   | "cursor"
   | "cursor-agent"
   | "copilot-cli"
-  | "codex";
+  | "codex"
+  | "pi";
 
 export interface HealthReport {
   status: "healthy" | "warning" | "error";
@@ -122,7 +123,8 @@ function resolveEffectiveEnvironment(workingMethod: string, detectedEnvironment:
     workingMethod === "cursor" ||
     workingMethod === "cursor-agent" ||
     workingMethod === "copilot-cli" ||
-    workingMethod === "codex"
+    workingMethod === "codex" ||
+    workingMethod === "pi"
   ) {
     return workingMethod;
   }

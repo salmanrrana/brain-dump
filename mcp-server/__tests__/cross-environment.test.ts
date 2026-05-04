@@ -538,6 +538,9 @@ describe("Copilot CLI Environment Detection (functional)", () => {
     delete process.env.COPILOT_TRACE_ID;
     delete process.env.COPILOT_SESSION;
     delete process.env.COPILOT_CLI_VERSION;
+    // Pi patterns
+    delete process.env.PI;
+    delete process.env.BRAIN_DUMP_PROVIDER;
     // Cursor patterns
     delete process.env.CURSOR;
     delete process.env.CURSOR_TRACE_ID;
@@ -607,6 +610,22 @@ describe("Copilot CLI Environment Detection (functional)", () => {
     expect(author === "copilot" || author === "ralph:copilot").toBe(true);
   });
 
+  it("detects Pi environment and comment author from launcher markers", () => {
+    process.env.PI = "1";
+    expect(detectEnvironment()).toBe("pi");
+    expect(["pi", "ralph:pi"]).toContain(detectAuthor());
+
+    delete process.env.PI;
+    process.env.BRAIN_DUMP_PROVIDER = "pi";
+    expect(detectEnvironment()).toBe("pi");
+  });
+
+  it("prioritizes Pi launcher markers over inherited provider vars", () => {
+    process.env.OPENCODE = "1";
+    process.env.PI = "1";
+    expect(detectEnvironment()).toBe("pi");
+  });
+
   it("prioritizes explicit Copilot CLI flag over inherited Claude Code vars", () => {
     process.env.CLAUDE_CODE = "true";
     process.env.COPILOT_CLI = "1";
@@ -638,5 +657,14 @@ describe("Copilot CLI Environment Detection (functional)", () => {
     expect(info.environment).toBe("copilot-cli");
     expect(info.envVarsDetected).toContain("COPILOT_CLI");
     expect(info.envVarsDetected).toContain("COPILOT_TRACE_ID");
+  });
+
+  it("includes Pi env vars in getEnvironmentInfo()", () => {
+    process.env.PI = "1";
+    process.env.BRAIN_DUMP_PROVIDER = "pi";
+    const info = getEnvironmentInfo();
+    expect(info.environment).toBe("pi");
+    expect(info.envVarsDetected).toContain("PI");
+    expect(info.envVarsDetected).toContain("BRAIN_DUMP_PROVIDER");
   });
 });

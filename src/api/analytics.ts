@@ -33,6 +33,7 @@ export interface DashboardAnalytics {
     claude: number;
     ralph: number;
     opencode: number;
+    pi: number;
     user: number;
   };
 
@@ -154,13 +155,17 @@ export function loadDashboardAnalytics(database: BetterSQLite3Database<any>): Da
     claude: 0,
     ralph: 0,
     opencode: 0,
+    pi: 0,
     user: 0,
   };
   for (const row of aiUsageRows) {
     const count = Number(row.count) || 0;
     if (row.author === "claude") aiUsage.claude = count;
-    else if (row.author === "ralph") aiUsage.ralph = count;
-    else if (row.author === "opencode") aiUsage.opencode = count;
+    else if (row.author === "ralph" || row.author.startsWith("ralph:")) {
+      aiUsage.ralph += count;
+      if (row.author === "ralph:pi") aiUsage.pi += count;
+    } else if (row.author === "opencode") aiUsage.opencode = count;
+    else if (row.author === "pi") aiUsage.pi += count;
     else aiUsage.user += count; // Sum all other authors as "user"
   }
 

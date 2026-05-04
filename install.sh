@@ -9,6 +9,7 @@
 #   ./install.sh --cursor         # Install with Cursor integration
 #   ./install.sh --copilot        # Install with Copilot CLI integration
 #   ./install.sh --codex          # Install with Codex integration
+#   ./install.sh --pi             # Install with Pi CLI prompts and skills
 #   ./install.sh --claude --sandbox # Install with Claude Code + sandbox
 #   ./install.sh --all            # Install all IDEs (sandbox off by default)
 #   ./install.sh --help           # Show help
@@ -1256,6 +1257,35 @@ setup_codex() {
     fi
 }
 
+# Setup Pi integration using the setup script. Pi is CLI-only and does not use MCP.
+setup_pi() {
+    print_step "Setting up Pi integration"
+
+    local setup_script="scripts/setup-pi.sh"
+
+    if [ ! -f "$setup_script" ]; then
+        print_warning "Pi setup script not found: $setup_script"
+        SKIPPED+=("Pi setup (script not found)")
+        return 1
+    fi
+
+    if [ ! -x "$setup_script" ]; then
+        print_info "Making setup script executable..."
+        chmod +x "$setup_script"
+    fi
+
+    print_info "Running Pi setup script..."
+    if bash "$setup_script"; then
+        print_success "Pi integration configured"
+        INSTALLED+=("Pi integration")
+        return 0
+    else
+        print_error "Pi setup script failed"
+        FAILED+=("Pi integration")
+        return 1
+    fi
+}
+
 # Prompt user to select IDE(s)
 prompt_ide_selection() {
     echo ""
@@ -1267,10 +1297,11 @@ prompt_ide_selection() {
     echo "  4) OpenCode"
     echo "  5) Copilot CLI"
     echo "  6) Codex"
-    echo "  7) All IDEs (Claude Code + VS Code + Cursor + OpenCode + Copilot CLI + Codex)"
-    echo "  8) Skip IDE setup (just install Brain Dump)"
+    echo "  7) Pi"
+    echo "  8) All IDEs (Claude Code + VS Code + Cursor + OpenCode + Copilot CLI + Codex + Pi)"
+    echo "  9) Skip IDE setup (just install Brain Dump)"
     echo ""
-    read -r -p "Enter choice [1-8]: " choice
+    read -r -p "Enter choice [1-9]: " choice
 
     case $choice in
         1)
@@ -1280,6 +1311,7 @@ prompt_ide_selection() {
             SETUP_OPENCODE=false
             SETUP_COPILOT=false
             SETUP_CODEX=false
+            SETUP_PI=false
             ;;
         2)
             SETUP_CLAUDE=false
@@ -1288,6 +1320,7 @@ prompt_ide_selection() {
             SETUP_OPENCODE=false
             SETUP_COPILOT=false
             SETUP_CODEX=false
+            SETUP_PI=false
             ;;
         3)
             SETUP_CLAUDE=false
@@ -1296,6 +1329,7 @@ prompt_ide_selection() {
             SETUP_OPENCODE=false
             SETUP_COPILOT=false
             SETUP_CODEX=false
+            SETUP_PI=false
             ;;
         4)
             SETUP_CLAUDE=false
@@ -1304,6 +1338,7 @@ prompt_ide_selection() {
             SETUP_OPENCODE=true
             SETUP_COPILOT=false
             SETUP_CODEX=false
+            SETUP_PI=false
             ;;
         5)
             SETUP_CLAUDE=false
@@ -1312,6 +1347,7 @@ prompt_ide_selection() {
             SETUP_OPENCODE=false
             SETUP_COPILOT=true
             SETUP_CODEX=false
+            SETUP_PI=false
             ;;
         6)
             SETUP_CLAUDE=false
@@ -1320,22 +1356,34 @@ prompt_ide_selection() {
             SETUP_OPENCODE=false
             SETUP_COPILOT=false
             SETUP_CODEX=true
+            SETUP_PI=false
             ;;
         7)
-            SETUP_CLAUDE=true
-            SETUP_VSCODE=true
-            SETUP_CURSOR=true
-            SETUP_OPENCODE=true
-            SETUP_COPILOT=true
-            SETUP_CODEX=true
-            ;;
-        8)
             SETUP_CLAUDE=false
             SETUP_VSCODE=false
             SETUP_CURSOR=false
             SETUP_OPENCODE=false
             SETUP_COPILOT=false
             SETUP_CODEX=false
+            SETUP_PI=true
+            ;;
+        8)
+            SETUP_CLAUDE=true
+            SETUP_VSCODE=true
+            SETUP_CURSOR=true
+            SETUP_OPENCODE=true
+            SETUP_COPILOT=true
+            SETUP_CODEX=true
+            SETUP_PI=true
+            ;;
+        9)
+            SETUP_CLAUDE=false
+            SETUP_VSCODE=false
+            SETUP_CURSOR=false
+            SETUP_OPENCODE=false
+            SETUP_COPILOT=false
+            SETUP_CODEX=false
+            SETUP_PI=false
             ;;
         *)
             print_warning "Invalid choice, defaulting to Claude Code"
@@ -1345,6 +1393,7 @@ prompt_ide_selection() {
             SETUP_OPENCODE=false
             SETUP_COPILOT=false
             SETUP_CODEX=false
+            SETUP_PI=false
             ;;
     esac
 }
@@ -1443,6 +1492,12 @@ print_summary() {
         echo "  6. Launch ticket work from Brain Dump using Codex"
     fi
 
+    if [ "$SETUP_PI" = true ]; then
+        echo -e "  4. Start Pi from a project directory: ${CYAN}pi${NC}"
+        echo "  5. Brain Dump prompts and skills are installed in ~/.pi/"
+        echo "  6. Launch ticket work from Brain Dump using Pi CLI"
+    fi
+
     echo ""
 
     echo -e "${BLUE}Data locations:${NC}"
@@ -1457,8 +1512,9 @@ print_summary() {
     [ "$SETUP_OPENCODE" = true ] && ide_count=$((ide_count + 1))
     [ "$SETUP_COPILOT" = true ] && ide_count=$((ide_count + 1))
     [ "$SETUP_CODEX" = true ] && ide_count=$((ide_count + 1))
+    [ "$SETUP_PI" = true ] && ide_count=$((ide_count + 1))
 
-    if [ $ide_count -lt 6 ]; then
+    if [ $ide_count -lt 7 ]; then
         echo -e "${BLUE}Want more IDEs?${NC} Run: ${CYAN}./install.sh --all${NC} for all integrations"
         echo ""
     fi
@@ -1477,7 +1533,8 @@ show_help() {
     echo "  --opencode  Set up OpenCode integration (MCP server + agents + skills)"
     echo "  --copilot   Set up Copilot CLI integration (MCP server + agents + skills + hooks)"
     echo "  --codex     Set up Codex integration (MCP server in ~/.codex/config.toml)"
-    echo "  --all       Set up all IDE integrations (Claude Code, VS Code, Cursor, OpenCode, Copilot CLI, Codex)"
+    echo "  --pi        Set up Pi CLI prompts and skills (CLI-only, no MCP)"
+    echo "  --all       Set up all IDE integrations (Claude Code, VS Code, Cursor, OpenCode, Copilot CLI, Codex, Pi)"
     echo ""
     echo "  If no IDE flag is provided, you'll be prompted to choose."
     echo ""
@@ -1500,6 +1557,7 @@ show_help() {
     echo "  ./install.sh --opencode          # OpenCode only"
     echo "  ./install.sh --copilot           # Copilot CLI only"
     echo "  ./install.sh --codex             # Codex only"
+    echo "  ./install.sh --pi                # Pi CLI only"
     echo "  ./install.sh --all               # All IDEs (sandbox off by default)"
     echo "  ./install.sh                     # Interactive prompt"
     echo ""
@@ -1524,6 +1582,7 @@ main() {
     SETUP_OPENCODE=false
     SETUP_COPILOT=false
     SETUP_CODEX=false
+    SETUP_PI=false
     SETUP_DOCKER=false
     SETUP_SANDBOX=false
     SETUP_DEVCONTAINER=false
@@ -1563,6 +1622,10 @@ main() {
                 SETUP_CODEX=true
                 IDE_FLAG_PROVIDED=true
                 ;;
+            --pi)
+                SETUP_PI=true
+                IDE_FLAG_PROVIDED=true
+                ;;
             --all)
                 SETUP_CLAUDE=true
                 SETUP_VSCODE=true
@@ -1570,6 +1633,7 @@ main() {
                 SETUP_OPENCODE=true
                 SETUP_COPILOT=true
                 SETUP_CODEX=true
+                SETUP_PI=true
                 IDE_FLAG_PROVIDED=true
                 ;;
             --docker)
@@ -1696,10 +1760,15 @@ main() {
         setup_codex || true
     fi
 
+    # Pi setup
+    if [ "$SETUP_PI" = true ]; then
+        setup_pi || true
+    fi
+
     # If no IDE selected, just note it
-    if [ "$SETUP_CLAUDE" = false ] && [ "$SETUP_VSCODE" = false ] && [ "$SETUP_CURSOR" = false ] && [ "$SETUP_OPENCODE" = false ] && [ "$SETUP_COPILOT" = false ] && [ "$SETUP_CODEX" = false ]; then
+    if [ "$SETUP_CLAUDE" = false ] && [ "$SETUP_VSCODE" = false ] && [ "$SETUP_CURSOR" = false ] && [ "$SETUP_OPENCODE" = false ] && [ "$SETUP_COPILOT" = false ] && [ "$SETUP_CODEX" = false ] && [ "$SETUP_PI" = false ]; then
         print_step "Skipping IDE integration"
-        print_info "Run again with --claude, --vscode, --cursor, --opencode, --copilot, or --codex to set up IDE integration"
+        print_info "Run again with --claude, --vscode, --cursor, --opencode, --copilot, --codex, or --pi to set up IDE integration"
         SKIPPED+=("IDE integration (not selected)")
     fi
 

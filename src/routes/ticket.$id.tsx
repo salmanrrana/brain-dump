@@ -15,6 +15,7 @@ import {
   launchCursorAgentInTerminal,
   launchCopilotInTerminal,
   launchOpenCodeInTerminal,
+  launchPiInTerminal,
 } from "../api/terminal";
 import { ActivitySection } from "../components/tickets/ActivitySection";
 import { TicketDetailHeader } from "../components/tickets/TicketDetailHeader";
@@ -611,6 +612,29 @@ function TicketDetailPage() {
           } else {
             showToast("error", launchResult.message);
           }
+        } else if (type === "pi") {
+          const launchResult = await launchPiInTerminal({
+            data: {
+              ticketId: ticket.id,
+              context: contextResult.context,
+              projectPath: contextResult.projectPath,
+              preferredTerminal: settings?.terminalEmulator ?? null,
+              projectName: contextResult.projectName,
+              epicName: contextResult.epicName,
+              ticketTitle: contextResult.ticketTitle,
+            },
+          });
+
+          if (launchResult.warnings) {
+            launchResult.warnings.forEach((warning) => showToast("info", warning));
+          }
+
+          if (launchResult.success) {
+            showToast("success", `Pi launched in ${launchResult.terminalUsed}`);
+            void refetch();
+          } else {
+            showToast("error", launchResult.message);
+          }
         } else if (type === "opencode") {
           // Launch OpenCode in terminal
           const launchResult = await launchOpenCodeInTerminal({
@@ -786,6 +810,37 @@ function TicketDetailPage() {
             useSandbox: false,
             aiBackend: "claude",
             workingMethodOverride: "copilot-cli",
+          });
+
+          if ("warnings" in result && result.warnings) {
+            (result.warnings as string[]).forEach((warning) => showToast("info", warning));
+          }
+
+          if (result.success) {
+            showToast("success", result.message);
+            void refetch();
+          } else {
+            showToast("error", result.message);
+          }
+        } else if (type === "ralph-pi") {
+          // Initialize workflow first (git branch, status, audit comment)
+          const workflowResult = await startTicketWorkflowFn({
+            data: { ticketId: ticket.id, projectPath: contextResult.projectPath },
+          });
+          if (!workflowResult.success) {
+            showToast(
+              "info",
+              `Branch setup skipped: ${workflowResult.error || "Unknown error"}. Launching on the current branch.`
+            );
+          } else if (workflowResult.warnings?.length) {
+            workflowResult.warnings.forEach((warning) => showToast("info", warning));
+          }
+
+          const result = await launchRalphMutation.mutateAsync({
+            ticketId: ticket.id,
+            preferredTerminal: settings?.terminalEmulator ?? null,
+            useSandbox: false,
+            aiBackend: "pi",
           });
 
           if ("warnings" in result && result.warnings) {

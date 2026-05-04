@@ -7,6 +7,7 @@ export const BASE_COMMENT_AUTHORS = [
   "vscode",
   "copilot",
   "codex",
+  "pi",
   "cursor-agent",
   "ai",
   "brain-dump",
@@ -71,6 +72,12 @@ const COMMENT_AUTHOR_STYLES: Record<BaseCommentAuthor, CommentAuthorStyle> = {
     color: "#ffffff",
     textColor: "#059669",
   },
+  pi: {
+    gradient: ["#8b5cf6", "#ec4899"],
+    display: "PI",
+    color: "#ffffff",
+    textColor: "#8b5cf6",
+  },
   "cursor-agent": {
     gradient: ["#f59e0b", "#d97706"],
     display: "CA",
@@ -100,6 +107,7 @@ const COMMENT_AUTHOR_LABELS: Record<BaseCommentAuthor, string> = {
   vscode: "VS Code",
   copilot: "Copilot",
   codex: "Codex",
+  pi: "Pi",
   "cursor-agent": "Cursor Agent",
   ai: "AI",
   "brain-dump": "Brain Dump",

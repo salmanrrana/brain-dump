@@ -38,6 +38,12 @@ export function handle(action: string, args: string[]): void {
           "auto",
           "claude-code",
           "vscode",
+          "opencode",
+          "cursor",
+          "cursor-agent",
+          "copilot-cli",
+          "codex",
+          "pi",
         ]);
         const result = updateProjectSettings(db, projectId, workingMethod, detectEnvironment);
         outputResult(result, pretty);

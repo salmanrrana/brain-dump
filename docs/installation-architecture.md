@@ -22,13 +22,14 @@ flowchart TB
 
     GlobalBin --> IDESetup
 
-    subgraph IDESetup ["IDE Setup (all 6 in parallel)"]
+    subgraph IDESetup ["Provider Setup (all 7 in parallel)"]
         Claude["setup-claude-code.sh"]
         VSCode["setup-vscode.sh"]
         Cursor["setup-cursor.sh"]
         OpenCode["setup-opencode.sh"]
         Copilot["setup-copilot-cli.sh"]
         Codex["setup-codex.sh"]
+        Pi["setup-pi.sh"]
     end
 
     IDESetup --> Summary["Print summary:<br/>installed, skipped, failed"]
@@ -234,6 +235,31 @@ flowchart TB
 | ---------------------- | ---------------------------------- | ------------------------------------ |
 | `~/.codex/config.toml` | `[mcp_servers.brain-dump]` section | Points to `mcp-server/dist/index.js` |
 
+### Pi (`scripts/setup-pi.sh`)
+
+Pi setup is CLI-only. It copies Brain Dump-managed prompts and skills for Pi launches, but does not configure MCP or change Pi credentials/settings.
+
+```mermaid
+flowchart TB
+    Start["setup-pi.sh"] --> Detect{"pi CLI<br/>available?"}
+    Detect -->|No| Warn["Warn with install guidance"]
+    Detect -->|Yes| Prepare["Create ~/.pi/brain-dump<br/>managed directories"]
+    Prepare --> Prompts["Copy .pi/prompts/"]
+    Prompts --> Skills["Copy .pi/skills/"]
+    Skills --> Done["Pi setup complete"]
+    Warn --> Done
+```
+
+**Files created/modified:**
+
+| Location       | File(s)               | Purpose                                      |
+| -------------- | --------------------- | -------------------------------------------- |
+| `~/.pi/`       | Brain Dump prompts    | Ticket start, review, demo, completion flows |
+| `~/.pi/`       | Brain Dump skills     | Workflow, ticket selection, review guidance  |
+| Project `.pi/` | Source prompts/skills | Local workflow source copied by setup        |
+
+**Note:** Pi intentionally has no MCP server registration. Launches use the Pi CLI with Brain Dump-generated context files and environment markers for attribution.
+
 ## Post-Install: What the System Looks Like
 
 After `./install.sh --all` completes, here is every file that was created or modified outside the project directory:
@@ -284,6 +310,11 @@ graph TB
         CX_Config["config.toml<br/>[mcp_servers.brain-dump]"]
     end
 
+    subgraph "~/.pi/ (Pi)"
+        PI_Prompts["prompts/"]
+        PI_Skills["skills/"]
+    end
+
     subgraph "Project Directory (workspace-scoped)"
         subgraph VS [".vscode/"]
             VS1["mcp.json"]
@@ -307,19 +338,19 @@ graph TB
 
 ## IDE Capability Comparison
 
-| Capability             |  Claude Code  |  VS Code   |   Cursor   |  OpenCode  |  Copilot CLI  |     Codex     |
-| ---------------------- | :-----------: | :--------: | :--------: | :--------: | :-----------: | :-----------: |
-| MCP Tools (9 tools)    |      Yes      |    Yes     |    Yes     |    Yes     |      Yes      |      Yes      |
-| State Enforcement      |  Shell hooks  | MCP errors | MCP errors | TS plugins |  Shell hooks  |  MCP errors   |
-| Telemetry Capture      |  Shell hooks  |    MCP     |    MCP     | TS plugins |  Shell hooks  |      --       |
-| Auto PR Creation       |     Hook      |     --     |     --     |     --     |      --       |      --       |
-| Commit Linking         |     Hook      |     --     |     --     |     --     |      --       |      --       |
-| Review Enforcement     |     Hook      |     --     |     --     |   Plugin   |     Hook      |      --       |
-| Auto-Spawn Next Ticket | Hook (opt-in) |     --     |     --     |     --     |      --       |      --       |
-| Skills                 |       8       |     8      |     1      |     8+     |      --       |      --       |
-| Agent Definitions      |      Yes      |    Yes     |     --     |    Yes     |      --       |      --       |
-| Slash Commands         |      Yes      |     --     |     --     |     --     |      --       |      --       |
-| Config Scope           | Global (`~/`) | Workspace  | Workspace  | Workspace  | Global (`~/`) | Global (`~/`) |
+| Capability             |  Claude Code  |  VS Code   |   Cursor   |  OpenCode  |  Copilot CLI  |     Codex     |        Pi         |
+| ---------------------- | :-----------: | :--------: | :--------: | :--------: | :-----------: | :-----------: | :---------------: |
+| MCP Tools (9 tools)    |      Yes      |    Yes     |    Yes     |    Yes     |      Yes      |      Yes      |  CLI launch only  |
+| State Enforcement      |  Shell hooks  | MCP errors | MCP errors | TS plugins |  Shell hooks  |  MCP errors   | Server-side start |
+| Telemetry Capture      |  Shell hooks  |    MCP     |    MCP     | TS plugins |  Shell hooks  |      --       |    Env markers    |
+| Auto PR Creation       |     Hook      |     --     |     --     |     --     |      --       |      --       |        --         |
+| Commit Linking         |     Hook      |     --     |     --     |     --     |      --       |      --       |        --         |
+| Review Enforcement     |     Hook      |     --     |     --     |   Plugin   |     Hook      |      --       |  Prompt workflow  |
+| Auto-Spawn Next Ticket | Hook (opt-in) |     --     |     --     |     --     |      --       |      --       |        --         |
+| Skills                 |       8       |     8      |     1      |     8+     |      --       |      --       |         3         |
+| Agent Definitions      |      Yes      |    Yes     |     --     |    Yes     |      --       |      --       |        --         |
+| Slash Commands         |      Yes      |     --     |     --     |     --     |      --       |      --       |        --         |
+| Config Scope           | Global (`~/`) | Workspace  | Workspace  | Workspace  | Global (`~/`) | Global (`~/`) |   Global (`~/`)   |
 
 ## Uninstallation
 
@@ -333,6 +364,7 @@ flowchart TB
     Start --> OpenCode["Remove OpenCode:<br/>rm .opencode/plugins/<br/>rm .opencode/skill/<br/>Clean opencode.json"]
     Start --> Copilot["Remove Copilot:<br/>rm ~/.copilot/hooks/<br/>rm ~/.copilot/mcp-config.json<br/>rm ~/.copilot/hooks.json"]
     Start --> Codex["Remove Codex:<br/>Remove [mcp_servers.brain-dump]<br/>from ~/.codex/config.toml"]
+    Start --> Pi["Remove Pi:<br/>Remove Brain Dump-managed<br/>prompts and skills only"]
 
     Claude --> Summary
     VSCode --> Summary
@@ -340,4 +372,5 @@ flowchart TB
     OpenCode --> Summary
     Copilot --> Summary
     Codex --> Summary["Print summary"]
+    Pi --> Summary
 ```

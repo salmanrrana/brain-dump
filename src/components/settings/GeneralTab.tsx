@@ -28,7 +28,7 @@ export interface GeneralTabProps {
  * Features:
  * - **Projects directory**: Browse button to select default directory for new projects
  * - **Terminal emulator**: Dropdown with detected terminals marked as installed
- * - **Working method**: Default environment for new projects (auto, claude-code, vscode, opencode)
+ * - **Working method**: Default environment for new projects
  *
  * Uses TanStack Form field render props for form state management.
  * Note: Theme/Appearance settings have been moved to EnterpriseTab.
@@ -121,6 +121,7 @@ export function GeneralTab({
                           | "cursor-agent"
                           | "copilot-cli"
                           | "codex"
+                          | "pi"
                       )
                     }
                     onBlur={field.handleBlur}
@@ -134,6 +135,7 @@ export function GeneralTab({
                     <option value="cursor-agent">Cursor Agent</option>
                     <option value="copilot-cli">Copilot CLI</option>
                     <option value="codex">Codex</option>
+                    <option value="pi">Pi</option>
                   </select>
                   <ChevronDown size={16} className={inputStyles.selectArrow} />
                 </div>

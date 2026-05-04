@@ -13,7 +13,8 @@ export type RalphWorkingMethod =
   | "cursor"
   | "cursor-agent"
   | "copilot-cli"
-  | "codex";
+  | "codex"
+  | "pi";
 
 export interface RalphImplementationLaunchProfile {
   type?: "implementation";
