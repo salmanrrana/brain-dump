@@ -5,6 +5,7 @@
  * - OpenCode (open source AI coding agent)
  * - Copilot CLI (GitHub's CLI AI agent)
  * - Codex (OpenAI Codex CLI/App)
+ * - Pi CLI
  * - VS Code (with MCP extension)
  * - Cursor (with MCP extension)
  * - Unknown environment
@@ -18,6 +19,7 @@ type Environment =
   | "opencode"
   | "copilot-cli"
   | "codex"
+  | "pi"
   | "cursor"
   | "cursor-agent"
   | "vscode"
@@ -48,6 +50,7 @@ const COPILOT_CLI_FLAG = "COPILOT_CLI";
 const CURSOR_FLAG = "CURSOR";
 const CURSOR_AGENT_FLAG = "CURSOR_AGENT";
 const CODEX_FLAG = "CODEX";
+const PI_FLAG = "PI";
 
 /**
  * Known OpenCode environment variable patterns.
@@ -84,6 +87,8 @@ const CODEX_ENV_PATTERNS = [
   "CODEX_PROFILE",
   "CODEX_APPROVAL_POLICY",
 ];
+
+const PI_ENV_PATTERNS = ["BRAIN_DUMP_PROVIDER"];
 
 function hasVSCodeEnvironment(): boolean {
   for (const envVar of VSCODE_ENV_PATTERNS) {
@@ -176,11 +181,16 @@ function hasCodexEnvironment(): boolean {
   return false;
 }
 
+function hasPiEnvironment(): boolean {
+  if (process.env[PI_FLAG]) return true;
+  return process.env.BRAIN_DUMP_PROVIDER === "pi";
+}
+
 /**
- * Detect the current environment (claude-code, opencode, copilot-cli, codex, cursor, cursor-agent, vscode, or unknown).
+ * Detect the current environment (claude-code, opencode, copilot-cli, codex, pi, cursor, cursor-agent, vscode, or unknown).
  *
  * Detection priority:
- * 1. Explicit provider flags (CURSOR_AGENT, OPENCODE, COPILOT_CLI, CODEX, CURSOR)
+ * 1. Explicit provider flags (CURSOR_AGENT, PI, OPENCODE, COPILOT_CLI, CODEX, CURSOR)
  *    — set intentionally by Brain Dump launchers or MCP config and should override inherited shell state
  * 2. Claude Code runtime vars (CLAUDE_CODE, CLAUDE_CODE_ENTRYPOINT, CLAUDE_CODE_TERMINAL_ID)
  *    — reliable when no explicit provider flag was set
@@ -194,6 +204,7 @@ function hasCodexEnvironment(): boolean {
 export function detectEnvironment(): Environment {
   // Explicit provider flags — intentionally set by Brain Dump launchers or MCP config
   if (process.env[CURSOR_AGENT_FLAG]) return "cursor-agent";
+  if (process.env[PI_FLAG]) return "pi";
   if (process.env[OPENCODE_FLAG]) return "opencode";
   if (process.env[COPILOT_CLI_FLAG]) return "copilot-cli";
   if (process.env[CODEX_FLAG]) return "codex";
@@ -203,6 +214,7 @@ export function detectEnvironment(): Environment {
   if (hasClaudeCodeEnvironment()) return "claude-code";
 
   // Heuristic detection via provider-specific env var patterns
+  if (hasPiEnvironment()) return "pi";
   if (hasOpenCodeEnvironment()) return "opencode";
   if (hasCopilotCliEnvironment()) return "copilot-cli";
   if (hasCodexEnvironment()) return "codex";
@@ -251,6 +263,9 @@ export function detectAuthor(): string {
       break;
     case "codex":
       baseTool = "codex";
+      break;
+    case "pi":
+      baseTool = "pi";
       break;
     case "vscode":
       baseTool = "vscode";
@@ -328,6 +343,11 @@ export function getEnvironmentInfo(): EnvironmentInfo {
     }
   }
   if (process.env[CODEX_FLAG]) envVarsDetected.push(CODEX_FLAG);
+
+  for (const envVar of PI_ENV_PATTERNS) {
+    if (process.env[envVar]) envVarsDetected.push(envVar);
+  }
+  if (process.env[PI_FLAG]) envVarsDetected.push(PI_FLAG);
 
   for (const envVar of VSCODE_ENV_PATTERNS) {
     if (envVar === "TERM_PROGRAM") {

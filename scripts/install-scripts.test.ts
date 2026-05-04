@@ -9,7 +9,7 @@ function readScript(path: string): string {
 }
 
 // All providers that should have install/uninstall parity
-const ALL_PROVIDERS = ["claude", "vscode", "cursor", "opencode", "copilot", "codex"];
+const ALL_PROVIDERS = ["claude", "vscode", "cursor", "opencode", "copilot", "codex", "pi"];
 
 // Telemetry hook scripts removed post-refactor (MCP self-instrumentation handles telemetry)
 const TELEMETRY_HOOK_SCRIPTS = [
@@ -52,6 +52,7 @@ describe("install.sh (root)", () => {
     expect(script).toContain("OpenCode");
     expect(script).toContain("Copilot CLI");
     expect(script).toContain("Codex");
+    expect(script).toContain("Pi");
   });
 
   it("delegates copilot setup to scripts/setup-copilot-cli.sh", () => {
@@ -60,6 +61,10 @@ describe("install.sh (root)", () => {
 
   it("delegates cursor setup to scripts/setup-cursor.sh", () => {
     expect(script).toContain("setup-cursor.sh");
+  });
+
+  it("delegates pi setup to scripts/setup-pi.sh", () => {
+    expect(script).toContain("setup-pi.sh");
   });
 
   it("has a setup section for copilot in the main flow", () => {
@@ -186,6 +191,7 @@ describe("README.md environment table", () => {
     expect(readme).toContain("./install.sh --cursor");
     expect(readme).toContain("./install.sh --copilot");
     expect(readme).toContain("./install.sh --codex");
+    expect(readme).toContain("./install.sh --pi");
     expect(readme).toContain("./install.sh --all");
   });
 
@@ -195,6 +201,10 @@ describe("README.md environment table", () => {
 
   it("has Codex in the environment details section", () => {
     expect(readme).toContain("### Codex");
+  });
+
+  it("has Pi in the environment details section", () => {
+    expect(readme).toContain("### Pi");
   });
 
   it("has Cursor Editor and Cursor Agent CLI as separate sections", () => {
@@ -214,6 +224,10 @@ describe("scripts/install.sh (universal auto-detect)", () => {
     expect(script).toContain("CODEX_AVAILABLE");
   });
 
+  it("detects Pi", () => {
+    expect(script).toContain("PI_AVAILABLE");
+  });
+
   it("has an install function for copilot CLI", () => {
     expect(script).toContain("install_copilot_cli");
   });
@@ -228,6 +242,10 @@ describe("scripts/install.sh (universal auto-detect)", () => {
 
   it("references setup-codex.sh", () => {
     expect(script).toContain("setup-codex.sh");
+  });
+
+  it("references setup-pi.sh", () => {
+    expect(script).toContain("setup-pi.sh");
   });
 });
 
@@ -245,6 +263,29 @@ describe("scripts/uninstall.sh (universal auto-detect)", () => {
   it("removes copilot hook scripts", () => {
     expect(script).toContain("start-telemetry.sh");
     expect(script).toContain("enforce-state-before-write.sh");
+  });
+
+  it("removes only Brain Dump-managed Pi files", () => {
+    expect(script).toContain("uninstall_pi");
+    expect(script).toContain("brain-dump-ticket-selection");
+    expect(script).toContain(
+      "Pi CLI, credentials, settings, and unrelated ~/.pi files were preserved"
+    );
+  });
+});
+
+describe("setup-pi.sh CLI-only behavior", () => {
+  const script = readScript("scripts/setup-pi.sh");
+
+  it("copies Pi prompts and skills", () => {
+    expect(script).toContain(".pi/prompts");
+    expect(script).toContain(".pi/skills");
+  });
+
+  it("does not configure MCP", () => {
+    expect(script).toContain("No MCP server was configured for Pi");
+    expect(script).not.toContain("mcpServers");
+    expect(script).not.toContain("mcp_servers");
   });
 });
 

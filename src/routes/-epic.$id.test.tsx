@@ -8,6 +8,7 @@ const mockShowToast = vi.hoisted(() => vi.fn());
 const mockPushBranchServerFn = vi.hoisted(() => vi.fn());
 const mockInvalidateQueries = vi.hoisted(() => vi.fn());
 const mockLaunchRalphForEpic = vi.hoisted(() => vi.fn());
+const mockLaunchPiInTerminal = vi.hoisted(() => vi.fn());
 
 let epicDetailState: ReturnType<typeof createEpicDetail>;
 let mockRefetch: ReturnType<typeof vi.fn>;
@@ -77,6 +78,7 @@ vi.mock("../api/terminal", () => ({
   launchCursorAgentInTerminal: vi.fn(),
   launchCopilotInTerminal: vi.fn(),
   launchOpenCodeInTerminal: vi.fn(),
+  launchPiInTerminal: mockLaunchPiInTerminal,
 }));
 
 vi.mock("../components/epics/EpicProgressOverview", () => ({
@@ -192,6 +194,10 @@ describe("EpicDetailPage ship entry points", () => {
     mockLaunchRalphForEpic.mockResolvedValue({
       success: true,
       message: "Launched Ralph in terminal",
+    });
+    mockLaunchPiInTerminal.mockResolvedValue({
+      success: true,
+      message: "Launched Pi in terminal",
     });
     mockPushBranchServerFn.mockResolvedValue({
       success: true,
@@ -423,5 +429,53 @@ describe("EpicDetailPage ship entry points", () => {
     });
 
     expect(mockShowToast).toHaveBeenCalledWith("success", "Focused review launched for 2 tickets");
+  });
+
+  it("shows Pi in epic launch menus and launches Ralph with the Pi backend", async () => {
+    const user = userEvent.setup();
+
+    render(<EpicDetailPage />);
+
+    await user.click(screen.getByRole("button", { name: /launch options/i }));
+
+    const piButtons = screen.getAllByRole("button", { name: /^pi$/i });
+    expect(piButtons).toHaveLength(2);
+
+    expect(piButtons[1]).toBeDefined();
+    await user.click(piButtons[1]!);
+
+    await waitFor(() => {
+      expect(mockLaunchRalphForEpic).toHaveBeenCalledWith({
+        epicId: "epic-1",
+        preferredTerminal: null,
+        useSandbox: false,
+        aiBackend: "pi",
+      });
+    });
+  });
+
+  it("shows Pi as a focused review provider", async () => {
+    const user = userEvent.setup();
+
+    render(<EpicDetailPage />);
+
+    await user.click(screen.getByRole("button", { name: /more actions/i }));
+    await user.click(screen.getByText("Review Ticket"));
+    await user.click(screen.getByLabelText(/select ship modal for focused review/i));
+    await user.click(screen.getByRole("button", { name: /^pi$/i }));
+
+    await waitFor(() => {
+      expect(mockLaunchRalphForEpic).toHaveBeenCalledWith({
+        epicId: "epic-1",
+        preferredTerminal: null,
+        useSandbox: false,
+        aiBackend: "pi",
+        launchProfile: {
+          type: "review",
+          selectedTicketIds: ["ticket-1"],
+          steeringPrompt: "",
+        },
+      });
+    });
   });
 });

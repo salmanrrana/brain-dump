@@ -39,6 +39,7 @@ import {
   launchCursorAgentInTerminal,
   launchCopilotInTerminal,
   launchOpenCodeInTerminal,
+  launchPiInTerminal,
 } from "../api/terminal";
 
 interface Epic {
@@ -203,7 +204,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
 
   // Handle Start Ralph for entire epic
   // useSandbox param allows explicit choice at launch time, overriding settings default
-  // aiBackend param allows choosing between Claude, Codex, and OpenCode
+  // aiBackend param allows choosing between supported Ralph CLI providers.
   const handleStartRalph = useCallback(
     async ({
       useSandbox,
@@ -211,7 +212,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
       workingMethodOverride,
     }: {
       useSandbox: boolean;
-      aiBackend: "claude" | "opencode" | "codex" | "cursor-agent";
+      aiBackend: "claude" | "opencode" | "codex" | "cursor-agent" | "pi";
       workingMethodOverride?:
         | "auto"
         | "claude-code"
@@ -316,6 +317,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
         | "cursor"
         | "cursor-agent"
         | "copilot"
+        | "pi"
         | "opencode"
     ) => {
       if (!epic) return;
@@ -363,6 +365,8 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
               return launchCursorAgentInTerminal({ data: payload });
             case "copilot":
               return launchCopilotInTerminal({ data: payload });
+            case "pi":
+              return launchPiInTerminal({ data: payload });
             case "opencode":
               return launchOpenCodeInTerminal({ data: payload });
           }
@@ -732,6 +736,13 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
                         <Code2 size={14} className="text-[var(--info)] flex-shrink-0" />
                         <span className="text-sm text-[var(--text-primary)]">OpenCode</span>
                       </button>
+                      <button
+                        onClick={() => void handleStartInteractive("pi")}
+                        className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
+                      >
+                        <Terminal size={14} className="text-[var(--info)] flex-shrink-0" />
+                        <span className="text-sm text-[var(--text-primary)]">Pi</span>
+                      </button>
                     </div>
                   </div>
 
@@ -794,6 +805,15 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
                       >
                         <Code2 size={14} className="text-[var(--accent-ai)] flex-shrink-0" />
                         <span className="text-sm text-[var(--text-primary)]">OpenCode</span>
+                      </button>
+                      <button
+                        onClick={() =>
+                          void handleStartRalph({ useSandbox: false, aiBackend: "pi" })
+                        }
+                        className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
+                      >
+                        <Terminal size={14} className="text-[var(--info)] flex-shrink-0" />
+                        <span className="text-sm text-[var(--text-primary)]">Pi</span>
                       </button>
                     </div>
                   </div>

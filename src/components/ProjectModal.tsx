@@ -37,7 +37,14 @@ const WORKING_METHOD_OPTIONS = [
   { value: "cursor", label: "Cursor" },
   { value: "copilot-cli", label: "Copilot CLI" },
   { value: "codex", label: "Codex" },
-];
+  { value: "pi", label: "Pi" },
+] as const;
+
+type ProjectWorkingMethod = (typeof WORKING_METHOD_OPTIONS)[number]["value"];
+
+function isProjectWorkingMethod(value: string): value is ProjectWorkingMethod {
+  return WORKING_METHOD_OPTIONS.some((option) => option.value === value);
+}
 
 type CreateMode = "new" | "import";
 
@@ -230,15 +237,7 @@ export default function ProjectModal({ project, onClose, onSave }: ProjectModalP
       if (color) {
         updates.color = color;
       }
-      if (
-        workingMethod === "auto" ||
-        workingMethod === "claude-code" ||
-        workingMethod === "vscode" ||
-        workingMethod === "opencode" ||
-        workingMethod === "cursor" ||
-        workingMethod === "copilot-cli" ||
-        workingMethod === "codex"
-      ) {
+      if (isProjectWorkingMethod(workingMethod)) {
         updates.workingMethod = workingMethod;
       }
       updateMutation.mutate(
@@ -279,6 +278,7 @@ export default function ProjectModal({ project, onClose, onSave }: ProjectModalP
           name: trimmedName,
           path: trimmedPath,
           ...(color ? { color } : {}),
+          workingMethod: isProjectWorkingMethod(workingMethod) ? workingMethod : "auto",
         },
         {
           onSuccess: onSave,

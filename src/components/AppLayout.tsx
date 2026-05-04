@@ -78,6 +78,15 @@ function ModalFallback() {
   );
 }
 
+function getEpicRalphBackend(
+  projects: Array<ProjectBase & { epics?: Epic[] }>,
+  epicId: string
+): "claude" | "pi" {
+  const project = projects.find((candidate) => candidate.epics?.some((epic) => epic.id === epicId));
+
+  return project?.workingMethod === "pi" ? "pi" : "claude";
+}
+
 interface AppLayoutProps {
   children: ReactNode;
 }
@@ -495,7 +504,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
           epicId,
           preferredTerminal: settings?.terminalEmulator ?? null,
           useSandbox: settings?.ralphSandbox ?? false,
-          aiBackend: "claude",
+          aiBackend: getEpicRalphBackend(projects, epicId),
         });
         closeProjectsPanel();
       } catch (err) {
@@ -505,7 +514,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
         );
       }
     },
-    [launchRalphMutation, settings, closeProjectsPanel, showToast]
+    [launchRalphMutation, projects, settings, closeProjectsPanel, showToast]
   );
 
   // Epic ticket counts - currently not computed to avoid showing misleading "0"
@@ -944,7 +953,7 @@ function Sidebar({ onItemClick, activeSessions }: SidebarProps) {
           epicId,
           preferredTerminal: settings?.terminalEmulator ?? null,
           useSandbox: settings?.ralphSandbox ?? false,
-          aiBackend: "claude",
+          aiBackend: getEpicRalphBackend(projects, epicId),
         });
         onItemClick?.();
       } catch (err) {
@@ -954,7 +963,7 @@ function Sidebar({ onItemClick, activeSessions }: SidebarProps) {
         );
       }
     },
-    [launchRalphMutation, settings, onItemClick, showToast]
+    [launchRalphMutation, projects, settings, onItemClick, showToast]
   );
 
   return (

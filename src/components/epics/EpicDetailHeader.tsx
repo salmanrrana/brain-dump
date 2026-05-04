@@ -31,6 +31,7 @@ import {
   launchCursorAgentInTerminal,
   launchCopilotInTerminal,
   launchOpenCodeInTerminal,
+  launchPiInTerminal,
 } from "../../api/terminal";
 import { getTicketContext } from "../../api/context";
 import { queryKeys } from "../../lib/query-keys";
@@ -148,6 +149,7 @@ export function EpicDetailHeader({
         | "cursor"
         | "cursor-agent"
         | "copilot"
+        | "pi"
         | "opencode"
     ) => {
       const launchableTicket = tickets.find((t) => t.status !== "done");
@@ -193,6 +195,8 @@ export function EpicDetailHeader({
               return launchCursorAgentInTerminal({ data: payload });
             case "copilot":
               return launchCopilotInTerminal({ data: payload });
+            case "pi":
+              return launchPiInTerminal({ data: payload });
             case "opencode":
               return launchOpenCodeInTerminal({ data: payload });
           }
@@ -222,7 +226,7 @@ export function EpicDetailHeader({
 
   const handleLaunchRalph = useCallback(
     async (provider: {
-      aiBackend: "claude" | "opencode" | "codex" | "cursor-agent";
+      aiBackend: "claude" | "opencode" | "codex" | "cursor-agent" | "pi";
       workingMethodOverride?: "copilot-cli";
       label: string;
     }): Promise<void> => {
@@ -268,7 +272,7 @@ export function EpicDetailHeader({
 
   const handleLaunchFocusedReview = useCallback(
     async (provider: {
-      aiBackend: "claude" | "opencode" | "codex" | "cursor-agent";
+      aiBackend: "claude" | "opencode" | "codex" | "cursor-agent" | "pi";
       workingMethodOverride?: "copilot-cli";
       label: string;
     }): Promise<void> => {
@@ -573,6 +577,14 @@ export function EpicDetailHeader({
                           <Code2 size={14} color="var(--info)" />
                           <span style={optionTextStyles}>OpenCode</span>
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleLaunchInteractive("pi")}
+                          style={launchOptionButtonStyles}
+                        >
+                          <Terminal size={14} color="var(--info)" />
+                          <span style={optionTextStyles}>Pi</span>
+                        </button>
                       </div>
                     </div>
 
@@ -652,6 +664,19 @@ export function EpicDetailHeader({
                         >
                           <Code2 size={14} color="var(--accent-ai)" />
                           <span style={optionTextStyles}>OpenCode</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void handleLaunchRalph({
+                              aiBackend: "pi",
+                              label: "Pi",
+                            })
+                          }
+                          style={launchOptionButtonStyles}
+                        >
+                          <Terminal size={14} color="var(--info)" />
+                          <span style={optionTextStyles}>Pi</span>
                         </button>
                       </div>
                     </div>
@@ -901,6 +926,11 @@ export function EpicDetailHeader({
                       label: "OpenCode",
                       aiBackend: "opencode" as const,
                       icon: <Code2 size={14} className="text-[var(--accent-ai)] flex-shrink-0" />,
+                    },
+                    {
+                      label: "Pi",
+                      aiBackend: "pi" as const,
+                      icon: <Terminal size={14} className="text-[var(--info)] flex-shrink-0" />,
                     },
                   ].map((p) => {
                     const isThisOne = pendingReviewProvider === p.label;

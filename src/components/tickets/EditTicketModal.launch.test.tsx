@@ -5,6 +5,8 @@ import { EditTicketModal } from "./EditTicketModal";
 
 const mockShowToast = vi.hoisted(() => vi.fn());
 const mockLaunchCodexInTerminal = vi.hoisted(() => vi.fn());
+const mockLaunchPiInTerminal = vi.hoisted(() => vi.fn());
+const mockLaunchRalphForTicket = vi.hoisted(() => vi.fn());
 const mockGetTicketContext = vi.hoisted(() => vi.fn());
 const mockNavigate = vi.hoisted(() => vi.fn(() => Promise.resolve()));
 
@@ -46,7 +48,7 @@ vi.mock("../../lib/hooks", () => ({
   useTicketDeletePreview: vi.fn(() => ({ data: null })),
   useSettings: vi.fn(() => ({ settings: { terminalEmulator: null } })),
   useLaunchRalphForTicket: vi.fn(() => ({
-    mutateAsync: vi.fn().mockResolvedValue({ success: true, message: "ok" }),
+    mutateAsync: mockLaunchRalphForTicket,
   })),
 }));
 
@@ -72,9 +74,17 @@ vi.mock("../epics/CreateEpicModal", () => ({
 
 vi.mock("./LaunchActions", () => ({
   LaunchActions: ({ onLaunch }: { onLaunch: (type: string) => void }) => (
-    <button type="button" onClick={() => onLaunch("codex-app")}>
-      Launch Codex App
-    </button>
+    <>
+      <button type="button" onClick={() => onLaunch("codex-app")}>
+        Launch Codex App
+      </button>
+      <button type="button" onClick={() => onLaunch("pi")}>
+        Launch Pi
+      </button>
+      <button type="button" onClick={() => onLaunch("ralph-pi")}>
+        Launch Ralph Pi
+      </button>
+    </>
   ),
 }));
 
@@ -90,6 +100,7 @@ vi.mock("../../api/terminal", () => ({
   launchCursorAgentInTerminal: vi.fn(),
   launchCopilotInTerminal: vi.fn(),
   launchOpenCodeInTerminal: vi.fn(),
+  launchPiInTerminal: mockLaunchPiInTerminal,
 }));
 
 vi.mock("../../api/workflow-server-fns", () => ({
@@ -114,6 +125,17 @@ describe("EditTicketModal launch behavior", () => {
       message: "Opened Codex App.",
       terminalUsed: "Codex App",
       warnings: [],
+    });
+    mockLaunchPiInTerminal.mockResolvedValue({
+      success: true,
+      method: "terminal",
+      message: "Launched Pi.",
+      terminalUsed: "Terminal",
+      warnings: [],
+    });
+    mockLaunchRalphForTicket.mockResolvedValue({
+      success: true,
+      message: "Ralph launched with Pi",
     });
   });
 
@@ -195,6 +217,81 @@ describe("EditTicketModal launch behavior", () => {
     expect(mockNavigate).toHaveBeenCalledWith({
       to: "/epic/$id",
       params: { id: "epic-1" },
+    });
+  });
+
+  it("launches interactive Pi for a ticket", async () => {
+    render(
+      <EditTicketModal
+        isOpen={true}
+        onClose={vi.fn()}
+        ticket={
+          {
+            id: "ticket-1",
+            title: "Validate security tier",
+            description: "Ensure valid values",
+            status: "ready",
+            priority: "high",
+            projectId: "project-1",
+            epicId: null,
+            tags: "[]",
+            subtasks: "[]",
+            isBlocked: false,
+            blockedReason: null,
+          } as never
+        }
+      />
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Launch Pi" }));
+
+    await waitFor(() => {
+      expect(mockLaunchPiInTerminal).toHaveBeenCalledWith({
+        data: {
+          ticketId: "ticket-1",
+          context: "# Task: Validate security tier",
+          projectPath: "/Users/test/brain-dump",
+          preferredTerminal: null,
+          projectName: "Brain Dump",
+          epicName: "Core Epic",
+          ticketTitle: "Validate security tier",
+        },
+      });
+    });
+  });
+
+  it("launches Ralph with the Pi backend for a ticket", async () => {
+    render(
+      <EditTicketModal
+        isOpen={true}
+        onClose={vi.fn()}
+        ticket={
+          {
+            id: "ticket-1",
+            title: "Validate security tier",
+            description: "Ensure valid values",
+            status: "ready",
+            priority: "high",
+            projectId: "project-1",
+            epicId: null,
+            tags: "[]",
+            subtasks: "[]",
+            isBlocked: false,
+            blockedReason: null,
+          } as never
+        }
+      />
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Launch Ralph Pi" }));
+
+    await waitFor(() => {
+      expect(mockLaunchRalphForTicket).toHaveBeenCalledWith({
+        ticketId: "ticket-1",
+        preferredTerminal: null,
+        useSandbox: false,
+        aiBackend: "pi",
+      });
     });
   });
 });

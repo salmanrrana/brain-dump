@@ -73,6 +73,19 @@ describe("startTelemetrySession", () => {
     expect(result.environment).toBe("claude-code");
   });
 
+  it("records Pi telemetry sessions as pi", () => {
+    const result = startTelemetrySession(db, {
+      ticketId: "ticket-1",
+      environment: "pi",
+    });
+
+    expect(result.environment).toBe("pi");
+
+    const detail = getTelemetrySession(db, { sessionId: result.id });
+    expect(detail.environment).toBe("pi");
+    expect(detail.events[0]?.eventData?.environment).toBe("pi");
+  });
+
   it("falls back to detectEnvironment function", () => {
     const result = startTelemetrySession(db, { ticketId: "ticket-1" }, () => "test-env");
 

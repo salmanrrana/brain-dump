@@ -17,6 +17,7 @@ export const SUPPORTED_PROVIDERS = [
   "cursor-agent",
   "copilot-cli",
   "codex",
+  "pi",
   "opencode",
 ] as const;
 
@@ -35,6 +36,8 @@ export function translateProvider(provider: LaunchProvider): TranslatedProvider 
       return { aiBackend: "opencode" };
     case "codex":
       return { aiBackend: "codex" };
+    case "pi":
+      return { aiBackend: "pi", workingMethodOverride: "pi" };
     case "cursor-agent":
       return { aiBackend: "cursor-agent" };
     case "vscode":

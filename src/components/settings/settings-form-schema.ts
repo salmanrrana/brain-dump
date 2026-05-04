@@ -9,6 +9,7 @@ export const workingMethodSchema = z.enum([
   "cursor-agent",
   "copilot-cli",
   "codex",
+  "pi",
 ]);
 
 // Must match DOCKER_RUNTIME_TYPES from src/api/settings.ts

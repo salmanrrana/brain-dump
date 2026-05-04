@@ -16,10 +16,12 @@ export type LaunchType =
   | "cursor"
   | "cursor-agent"
   | "copilot"
+  | "pi"
   | "ralph-native"
   | "ralph-codex"
   | "ralph-cursor-agent"
   | "ralph-copilot"
+  | "ralph-pi"
   | "opencode"
   | "ralph-opencode";
 
@@ -121,6 +123,13 @@ const LAUNCH_OPTIONS: LaunchOption[] = [
     iconColor: "#94a3b8", // slate
   },
   {
+    id: "pi",
+    name: "Pi",
+    description: "Interactive AI assistance",
+    icon: Terminal,
+    iconColor: "#ec4899", // pink
+  },
+  {
     id: "ralph-native",
     name: "Ralph (Claude)",
     description: "Autonomous agent",
@@ -147,6 +156,13 @@ const LAUNCH_OPTIONS: LaunchOption[] = [
     description: "Autonomous context in Copilot CLI",
     icon: Github,
     iconColor: "#94a3b8", // slate
+  },
+  {
+    id: "ralph-pi",
+    name: "Ralph (Pi)",
+    description: "Autonomous agent",
+    icon: Bot,
+    iconColor: "#ec4899", // pink
   },
   {
     id: "opencode",

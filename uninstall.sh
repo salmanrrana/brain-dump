@@ -9,6 +9,7 @@
 #   ./uninstall.sh --cursor     # Remove Cursor integration only
 #   ./uninstall.sh --copilot    # Remove Copilot CLI integration only
 #   ./uninstall.sh --codex      # Remove Codex integration only
+#   ./uninstall.sh --pi         # Remove Brain Dump-managed Pi prompts and skills only
 #   ./uninstall.sh --sandbox    # Remove Claude Code sandbox configuration
 #   ./uninstall.sh --devcontainer # Remove devcontainer Docker volumes
 #   ./uninstall.sh --all        # Remove everything (including data)
@@ -798,6 +799,47 @@ remove_codex() {
     fi
 }
 
+# Remove Pi integration. Pi is CLI-only, so only Brain Dump-managed prompts and skills are removed.
+remove_pi() {
+    print_step "Removing Pi integration"
+
+    PI_AGENT_DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
+    LEGACY_PROMPTS_DIR="$HOME/.pi/prompts"
+    LEGACY_SKILLS_DIR="$HOME/.pi/skills"
+    local removed=0
+
+    for prompt in start-ticket.md complete-ticket.md next-ticket.md review-ticket.md demo-ticket.md; do
+        if [ -f "$PI_AGENT_DIR/prompts/$prompt" ]; then
+            rm -f "$PI_AGENT_DIR/prompts/$prompt"
+            removed=$((removed + 1))
+        fi
+        if [ -f "$LEGACY_PROMPTS_DIR/$prompt" ]; then
+            rm -f "$LEGACY_PROMPTS_DIR/$prompt"
+            removed=$((removed + 1))
+        fi
+    done
+
+    for skill in brain-dump-workflow brain-dump-ticket-selection brain-dump-review; do
+        if [ -d "$PI_AGENT_DIR/skills/$skill" ]; then
+            rm -rf "$PI_AGENT_DIR/skills/$skill"
+            removed=$((removed + 1))
+        fi
+        if [ -d "$LEGACY_SKILLS_DIR/$skill" ]; then
+            rm -rf "$LEGACY_SKILLS_DIR/$skill"
+            removed=$((removed + 1))
+        fi
+    done
+
+    if [ $removed -gt 0 ]; then
+        print_success "Removed Brain Dump-managed Pi prompts and skills"
+        REMOVED+=("Pi prompts/skills ($removed)")
+    else
+        print_info "No Brain Dump-managed Pi files found"
+    fi
+
+    print_info "Preserved Pi CLI, credentials, settings, and unrelated ~/.pi files"
+}
+
 # Remove Claude Code sandbox configuration
 remove_sandbox() {
     print_step "Removing Claude Code sandbox configuration"
@@ -1168,6 +1210,7 @@ show_help() {
     echo "  --opencode     Remove OpenCode integration only"
     echo "  --copilot      Remove Copilot CLI integration only"
     echo "  --codex        Remove Codex integration only"
+    echo "  --pi           Remove Brain Dump-managed Pi prompts and skills only"
     echo "  --sandbox      Remove Claude Code sandbox configuration"
     echo "  --devcontainer Remove devcontainer Docker volumes (not user data)"
     echo "  --docker       Remove Docker sandbox artifacts only"
@@ -1185,6 +1228,7 @@ show_help() {
     echo "  OpenCode:      MCP config, agents, skill, plugins in ~/.config/opencode/"
     echo "  Copilot CLI:   MCP config, agents, skills, hooks in ~/.copilot/"
     echo "  Codex:         MCP config in ~/.codex/config.toml"
+    echo "  Pi:            Brain Dump-managed prompts/skills under ~/.pi/agent/ (legacy ~/.pi/ cleaned too; no MCP)"
     echo "  Sandbox:       Sandbox config in ~/.claude/settings.json"
     echo "  Devcontainer:  Docker volumes (pnpm store, bash history, claude config)"
     echo "                 Does NOT remove your Brain Dump data (bind-mounted)"
@@ -1202,6 +1246,7 @@ main() {
     REMOVE_OPENCODE=false
     REMOVE_COPILOT=false
     REMOVE_CODEX=false
+    REMOVE_PI=false
     REMOVE_SANDBOX=false
     REMOVE_DEVCONTAINER=false
     REMOVE_DOCKER=false
@@ -1219,6 +1264,7 @@ main() {
         REMOVE_OPENCODE=true
         REMOVE_COPILOT=true
         REMOVE_CODEX=true
+        REMOVE_PI=true
         REMOVE_CLI=true
     else
         for arg in "$@"; do
@@ -1245,6 +1291,9 @@ main() {
                 --codex)
                     REMOVE_CODEX=true
                     ;;
+                --pi)
+                    REMOVE_PI=true
+                    ;;
                 --sandbox)
                     REMOVE_SANDBOX=true
                     ;;
@@ -1264,6 +1313,7 @@ main() {
                     REMOVE_OPENCODE=true
                     REMOVE_COPILOT=true
                     REMOVE_CODEX=true
+                    REMOVE_PI=true
                     REMOVE_SANDBOX=true
                     REMOVE_DEVCONTAINER=true
                     REMOVE_DOCKER=true
@@ -1277,6 +1327,7 @@ main() {
                     REMOVE_OPENCODE=true
                     REMOVE_COPILOT=true
                     REMOVE_CODEX=true
+                    REMOVE_PI=true
                     REMOVE_SANDBOX=true
                     REMOVE_DEVCONTAINER=true
                     REMOVE_DOCKER=true
@@ -1336,6 +1387,7 @@ main() {
     [ "$REMOVE_OPENCODE" = true ] && remove_opencode
     [ "$REMOVE_COPILOT" = true ] && remove_copilot_cli
     [ "$REMOVE_CODEX" = true ] && remove_codex
+    [ "$REMOVE_PI" = true ] && remove_pi
     [ "$REMOVE_SANDBOX" = true ] && remove_sandbox
     [ "$REMOVE_DEVCONTAINER" = true ] && remove_devcontainer
     [ "$REMOVE_DOCKER" = true ] && remove_docker

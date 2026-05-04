@@ -42,7 +42,7 @@ export function useLaunchRalphForTicket() {
       maxIterations?: number;
       preferredTerminal?: string | null;
       useSandbox?: boolean;
-      aiBackend?: "claude" | "opencode" | "codex" | "cursor-agent";
+      aiBackend?: "claude" | "opencode" | "codex" | "cursor-agent" | "pi";
       workingMethodOverride?:
         | "auto"
         | "claude-code"
@@ -51,7 +51,8 @@ export function useLaunchRalphForTicket() {
         | "cursor"
         | "cursor-agent"
         | "copilot-cli"
-        | "codex";
+        | "codex"
+        | "pi";
     }) => launchRalphForTicket({ data }),
     onSuccess: () => {
       // Ticket status will be updated by Ralph, invalidate to reflect changes
@@ -71,7 +72,7 @@ export function useLaunchRalphForEpic() {
       maxIterations?: number;
       preferredTerminal?: string | null;
       useSandbox?: boolean;
-      aiBackend?: "claude" | "opencode" | "codex" | "cursor-agent";
+      aiBackend?: "claude" | "opencode" | "codex" | "cursor-agent" | "pi";
       workingMethodOverride?:
         | "auto"
         | "claude-code"
@@ -80,7 +81,8 @@ export function useLaunchRalphForEpic() {
         | "cursor"
         | "cursor-agent"
         | "copilot-cli"
-        | "codex";
+        | "codex"
+        | "pi";
       launchProfile?: RalphEpicLaunchProfile;
     }) => launchRalphForEpic({ data }),
     onSuccess: () => {

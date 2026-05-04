@@ -73,13 +73,17 @@ afterEach(() => {
 });
 
 describe("workflow launch-ticket CLI → launcher core wiring", () => {
-  // Two representative cases: one CLI-native backend (only aiBackend), and one
-  // editor override (aiBackend + workingMethodOverride). Full mapping coverage
-  // lives in cli/lib/provider-translation.test.ts.
+  // Representative cases: native backends, including Pi's working-method
+  // override, plus an editor override. Full mapping coverage lives in
+  // cli/lib/provider-translation.test.ts.
   it.each([
     {
       provider: "claude-code",
       expected: { aiBackend: "claude", workingMethodOverride: undefined },
+    },
+    {
+      provider: "pi",
+      expected: { aiBackend: "pi", workingMethodOverride: "pi" },
     },
     {
       provider: "vscode",
@@ -156,26 +160,38 @@ describe("workflow launch-ticket CLI → launcher core wiring", () => {
 });
 
 describe("workflow launch-epic CLI → launcher core wiring", () => {
-  it("forwards --epic + provider mapping to launchRalphForEpicCore", async () => {
-    const { handle } = await import("../commands/workflow.ts");
-    await handle("launch-epic", [
-      "--epic",
-      "epic-1",
-      "--provider",
-      "vscode",
-      "--max-iterations",
-      "20",
-    ]);
+  it.each([
+    {
+      provider: "pi",
+      expected: { aiBackend: "pi", workingMethodOverride: "pi" },
+    },
+    {
+      provider: "vscode",
+      expected: { aiBackend: "claude", workingMethodOverride: "vscode" },
+    },
+  ] as const)(
+    "forwards --epic + --provider $provider mapping to launchRalphForEpicCore",
+    async ({ provider, expected }) => {
+      const { handle } = await import("../commands/workflow.ts");
+      await handle("launch-epic", [
+        "--epic",
+        "epic-1",
+        "--provider",
+        provider,
+        "--max-iterations",
+        "20",
+      ]);
 
-    expect(launchEpicSpy).toHaveBeenCalledTimes(1);
-    expect(launchTicketSpy).not.toHaveBeenCalled();
-    expect(inputOf(launchEpicSpy)).toMatchObject({
-      epicId: "epic-1",
-      aiBackend: "claude",
-      workingMethodOverride: "vscode",
-      maxIterations: 20,
-    });
-  });
+      expect(launchEpicSpy).toHaveBeenCalledTimes(1);
+      expect(launchTicketSpy).not.toHaveBeenCalled();
+      expect(inputOf(launchEpicSpy)).toMatchObject({
+        epicId: "epic-1",
+        aiBackend: expected.aiBackend,
+        workingMethodOverride: expected.workingMethodOverride,
+        maxIterations: 20,
+      });
+    }
+  );
 
   it("omits provider-derived fields when --provider is not passed (project default applies downstream)", async () => {
     const { handle } = await import("../commands/workflow.ts");

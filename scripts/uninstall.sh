@@ -10,6 +10,7 @@
 # - OpenCode (~/.config/opencode/)
 # - VS Code (.vscode/ + .github/)
 # - Copilot CLI (~/.copilot/)
+# - Pi (~/.pi/)
 #
 # Usage:
 #   ./scripts/uninstall.sh              # Uninstall from all environments
@@ -562,6 +563,7 @@ try {
     console.error("error:" + err.message);
     process.exit(1);
 }
+
 ' 2>&1)
         case "$node_result" in
           removed)
@@ -670,6 +672,46 @@ try {
 }
 
 # ─────────────────────────────────────────────────────────────────
+# Pi Uninstall
+# ─────────────────────────────────────────────────────────────────
+
+uninstall_pi() {
+  echo -e "${BLUE}Uninstalling Pi configuration...${NC}"
+
+  PI_AGENT_DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
+  LEGACY_PROMPTS_DIR="$HOME/.pi/prompts"
+  LEGACY_SKILLS_DIR="$HOME/.pi/skills"
+  local removed=0
+
+  for prompt in start-ticket.md complete-ticket.md next-ticket.md review-ticket.md demo-ticket.md; do
+    if [ -f "$PI_AGENT_DIR/prompts/$prompt" ]; then
+      rm "$PI_AGENT_DIR/prompts/$prompt" 2>/dev/null && removed=$((removed + 1))
+    fi
+    if [ -f "$LEGACY_PROMPTS_DIR/$prompt" ]; then
+      rm "$LEGACY_PROMPTS_DIR/$prompt" 2>/dev/null && removed=$((removed + 1))
+    fi
+  done
+
+  for skill in brain-dump-workflow brain-dump-ticket-selection brain-dump-review; do
+    if [ -d "$PI_AGENT_DIR/skills/$skill" ]; then
+      rm -rf "$PI_AGENT_DIR/skills/$skill" 2>/dev/null && removed=$((removed + 1))
+    fi
+    if [ -d "$LEGACY_SKILLS_DIR/$skill" ]; then
+      rm -rf "$LEGACY_SKILLS_DIR/$skill" 2>/dev/null && removed=$((removed + 1))
+    fi
+  done
+
+  if [ $removed -gt 0 ]; then
+    echo -e "${GREEN}✓ Removed Brain Dump-managed Pi prompts and skills${NC}"
+  else
+    echo -e "${YELLOW}No Brain Dump-managed Pi files found${NC}"
+  fi
+
+  echo -e "${YELLOW}Note:${NC} Pi CLI, credentials, settings, and unrelated ~/.pi files were preserved"
+  echo ""
+}
+
+# ─────────────────────────────────────────────────────────────────
 # Main Uninstallation
 # ─────────────────────────────────────────────────────────────────
 
@@ -701,6 +743,11 @@ fi
 
 if command -v copilot &>/dev/null 2>&1 || [ -f "$HOME/.copilot/config.json" ] 2>/dev/null; then
   uninstall_copilot_cli
+  REMOVE_COUNT=$((REMOVE_COUNT + 1))
+fi
+
+if command -v pi &>/dev/null 2>&1 || [ -d "$HOME/.pi" ] 2>/dev/null; then
+  uninstall_pi
   REMOVE_COUNT=$((REMOVE_COUNT + 1))
 fi
 
