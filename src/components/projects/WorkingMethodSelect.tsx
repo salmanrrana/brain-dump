@@ -4,12 +4,17 @@ import {
   Wand2,
   Sparkles,
   Code2,
-  MousePointer2,
+  Monitor,
   Terminal,
   Github,
   Check,
 } from "lucide-react";
 import { useClickOutside } from "../../lib/hooks";
+import type {
+  LaunchProviderIconKey,
+  ProjectWorkingMethodProviderId,
+} from "../../lib/launch-provider-contract";
+import { PROJECT_WORKING_METHOD_UI_PROVIDERS } from "../../lib/ui-launch-registry";
 
 // =============================================================================
 // Types & Constants
@@ -24,67 +29,25 @@ export interface WorkingMethodOption {
 }
 
 /** Valid working method values */
-export type WorkingMethod =
-  | "auto"
-  | "claude-code"
-  | "vscode"
-  | "opencode"
-  | "cursor"
-  | "cursor-agent"
-  | "copilot-cli"
-  | "codex";
+export type WorkingMethod = ProjectWorkingMethodProviderId;
+
+const ICONS_BY_KEY: Record<LaunchProviderIconKey, typeof Wand2> = {
+  sparkles: Sparkles,
+  bot: Wand2,
+  code: Code2,
+  terminal: Terminal,
+  monitor: Monitor,
+  github: Github,
+};
 
 /** All available working method options */
-export const WORKING_METHOD_OPTIONS: WorkingMethodOption[] = [
-  {
-    value: "auto",
-    label: "Auto-detect",
-    icon: Wand2,
-    description: "Detect from environment",
-  },
-  {
-    value: "claude-code",
-    label: "Claude Code",
-    icon: Sparkles,
-    description: "Anthropic CLI",
-  },
-  {
-    value: "vscode",
-    label: "VS Code",
-    icon: Code2,
-    description: "VS Code + MCP",
-  },
-  {
-    value: "opencode",
-    label: "OpenCode",
-    icon: MousePointer2,
-    description: "Alternative client",
-  },
-  {
-    value: "cursor",
-    label: "Cursor",
-    icon: MousePointer2,
-    description: "AI-first editor",
-  },
-  {
-    value: "cursor-agent",
-    label: "Cursor Agent",
-    icon: Terminal,
-    description: "Terminal AI with multi-model access",
-  },
-  {
-    value: "copilot-cli",
-    label: "Copilot CLI",
-    icon: Github,
-    description: "GitHub terminal agent",
-  },
-  {
-    value: "codex",
-    label: "Codex",
-    icon: Terminal,
-    description: "OpenAI coding agent",
-  },
-];
+export const WORKING_METHOD_OPTIONS: WorkingMethodOption[] =
+  PROJECT_WORKING_METHOD_UI_PROVIDERS.map((provider) => ({
+    value: provider.id,
+    label: provider.display.label,
+    icon: ICONS_BY_KEY[provider.display.iconKey],
+    description: provider.display.description,
+  }));
 
 // =============================================================================
 // Component Types
@@ -111,7 +74,7 @@ export interface WorkingMethodSelectProps {
  * WorkingMethodSelect - Dropdown for selecting project working method preference.
  *
  * Features:
- * - **8 options**: Auto-detect, Claude Code, VS Code, OpenCode, Cursor, Cursor Agent, Copilot CLI, Codex
+ * - **9 options**: Auto-detect, Claude Code, VS Code, OpenCode, Cursor, Cursor Agent, Copilot CLI, Codex, Pi
  * - **Icon + name per option**: Visual differentiation
  * - **Description text**: Explains each option's purpose
  * - **Keyboard accessible**: Arrow keys, Enter, Escape

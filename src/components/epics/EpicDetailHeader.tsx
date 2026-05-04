@@ -10,30 +10,22 @@ import {
   GitPullRequest,
   ExternalLink,
   Copy,
-  Bot,
-  Terminal,
-  Code2,
-  Monitor,
-  Github,
   Search,
   MoreHorizontal,
 } from "lucide-react";
 import { useToast } from "../Toast";
 import { Modal } from "../ui/Modal";
+import { LaunchProviderMenu } from "../LaunchProviderMenu";
 import { useClickOutside } from "../../lib/hooks";
 import { getPrStatusIconColor, getPrStatusBadgeStyle } from "../../lib/constants";
 import type { EpicDetailResult } from "../../api/epics";
+import type { RalphAutonomousUiLaunchProvider } from "../../lib/launch-provider-contract";
 import {
-  launchClaudeInTerminal,
-  launchCodexInTerminal,
-  launchVSCodeInTerminal,
-  launchCursorInTerminal,
-  launchCursorAgentInTerminal,
-  launchCopilotInTerminal,
-  launchOpenCodeInTerminal,
-  launchPiInTerminal,
-} from "../../api/terminal";
-import { getTicketContext } from "../../api/context";
+  defaultRalphLaunchDependencies,
+  dispatchInteractiveUiLaunch,
+  dispatchRalphAutonomousUiLaunch,
+} from "../../lib/ui-launch-dispatcher";
+import type { INTERACTIVE_UI_LAUNCH_PROVIDERS } from "../../lib/ui-launch-registry";
 import { queryKeys } from "../../lib/query-keys";
 import { useLaunchRalphForEpic, useSettings } from "../../lib/hooks";
 
@@ -71,7 +63,9 @@ export function EpicDetailHeader({
   const [selectedReviewTicketIds, setSelectedReviewTicketIds] = useState<string[]>([]);
   const [reviewSteeringPrompt, setReviewSteeringPrompt] = useState("");
   const [reviewLaunchError, setReviewLaunchError] = useState<string | null>(null);
-  const [pendingReviewProvider, setPendingReviewProvider] = useState<string | null>(null);
+  const [pendingReviewProvider, setPendingReviewProvider] = useState<
+    RalphAutonomousUiLaunchProvider["id"] | null
+  >(null);
   const launchMenuRef = useRef<HTMLDivElement>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const { showToast } = useToast();
@@ -139,19 +133,7 @@ export function EpicDetailHeader({
   }, [workflowState, showToast]);
 
   const handleLaunchInteractive = useCallback(
-    async (
-      provider:
-        | "claude"
-        | "codex"
-        | "codex-cli"
-        | "codex-app"
-        | "vscode"
-        | "cursor"
-        | "cursor-agent"
-        | "copilot"
-        | "pi"
-        | "opencode"
-    ) => {
+    async (provider: (typeof INTERACTIVE_UI_LAUNCH_PROVIDERS)[number]) => {
       const launchableTicket = tickets.find((t) => t.status !== "done");
       if (!launchableTicket) {
         showToast("error", "No launchable tickets in this epic (all tickets are done).");
@@ -161,46 +143,12 @@ export function EpicDetailHeader({
       setShowLaunchMenu(false);
 
       try {
-        const contextResult = await getTicketContext({ data: launchableTicket.id });
-        if (!contextResult) {
-          showToast("error", "Failed to get ticket context");
-          return;
-        }
-
-        const payload = {
+        const launchResult = await dispatchInteractiveUiLaunch(provider, {
+          kind: "epic-next-ticket",
+          epicId: epic.id,
           ticketId: launchableTicket.id,
-          context: contextResult.context,
-          projectPath: contextResult.projectPath,
           preferredTerminal: settings?.settings?.terminalEmulator ?? null,
-          projectName: contextResult.projectName,
-          epicName: epic.title,
-          ticketTitle: contextResult.ticketTitle,
-        };
-
-        const launchResult = await (async () => {
-          switch (provider) {
-            case "claude":
-              return launchClaudeInTerminal({ data: payload });
-            case "codex":
-              return launchCodexInTerminal({ data: { ...payload, launchMode: "auto" } });
-            case "codex-cli":
-              return launchCodexInTerminal({ data: { ...payload, launchMode: "cli" } });
-            case "codex-app":
-              return launchCodexInTerminal({ data: { ...payload, launchMode: "app" } });
-            case "vscode":
-              return launchVSCodeInTerminal({ data: payload });
-            case "cursor":
-              return launchCursorInTerminal({ data: payload });
-            case "cursor-agent":
-              return launchCursorAgentInTerminal({ data: payload });
-            case "copilot":
-              return launchCopilotInTerminal({ data: payload });
-            case "pi":
-              return launchPiInTerminal({ data: payload });
-            case "opencode":
-              return launchOpenCodeInTerminal({ data: payload });
-          }
-        })();
+        });
 
         if (launchResult?.success) {
           showToast("success", `${launchResult.message} (Ticket: ${launchableTicket.title})`);
@@ -212,7 +160,7 @@ export function EpicDetailHeader({
         showToast("error", errorMessage);
       }
     },
-    [tickets, settings, epic.title, showToast]
+    [tickets, settings, epic.id, showToast]
   );
 
   const handleToggleReviewTicket = useCallback((ticketId: string) => {
@@ -225,11 +173,7 @@ export function EpicDetailHeader({
   }, []);
 
   const handleLaunchRalph = useCallback(
-    async (provider: {
-      aiBackend: "claude" | "opencode" | "codex" | "cursor-agent" | "pi";
-      workingMethodOverride?: "copilot-cli";
-      label: string;
-    }): Promise<void> => {
+    async (provider: RalphAutonomousUiLaunchProvider): Promise<void> => {
       setShowLaunchMenu(false);
 
       if (tickets.every((t) => t.status === "done")) {
@@ -238,15 +182,22 @@ export function EpicDetailHeader({
       }
 
       try {
-        const result = await launchRalphMutation.mutateAsync({
-          epicId: epic.id,
-          preferredTerminal: settings?.settings?.terminalEmulator ?? null,
-          useSandbox: false,
-          aiBackend: provider.aiBackend,
-          ...(provider.workingMethodOverride !== undefined
-            ? { workingMethodOverride: provider.workingMethodOverride }
-            : {}),
-        });
+        const result = await dispatchRalphAutonomousUiLaunch(
+          provider,
+          {
+            kind: "epic",
+            epicId: epic.id,
+            preferredTerminal: settings?.settings?.terminalEmulator ?? null,
+          },
+          {
+            ...defaultRalphLaunchDependencies,
+            launchTicketRalph: async () => ({
+              success: false,
+              message: "Ticket Ralph launch is not available from the epic header.",
+            }),
+            launchEpicRalph: (payload) => launchRalphMutation.mutateAsync(payload),
+          }
+        );
 
         if ("warnings" in result && result.warnings) {
           (result.warnings as string[]).forEach((warning) => showToast("info", warning));
@@ -271,40 +222,41 @@ export function EpicDetailHeader({
   );
 
   const handleLaunchFocusedReview = useCallback(
-    async (provider: {
-      aiBackend: "claude" | "opencode" | "codex" | "cursor-agent" | "pi";
-      workingMethodOverride?: "copilot-cli";
-      label: string;
-    }): Promise<void> => {
+    async (provider: RalphAutonomousUiLaunchProvider): Promise<void> => {
       if (selectedReviewTicketIds.length === 0) {
         setReviewLaunchError("Select at least one ticket to review.");
         return;
       }
 
       setReviewLaunchError(null);
-      setPendingReviewProvider(provider.label);
+      setPendingReviewProvider(provider.id);
 
       try {
-        const result = await launchRalphMutation.mutateAsync({
-          epicId: epic.id,
-          preferredTerminal: settings?.settings?.terminalEmulator ?? null,
-          useSandbox: false,
-          aiBackend: provider.aiBackend,
-          ...(provider.workingMethodOverride !== undefined
-            ? { workingMethodOverride: provider.workingMethodOverride }
-            : {}),
-          launchProfile: {
-            type: "review",
+        const result = await dispatchRalphAutonomousUiLaunch(
+          provider,
+          {
+            kind: "focused-review",
+            epicId: epic.id,
+            preferredTerminal: settings?.settings?.terminalEmulator ?? null,
             selectedTicketIds: selectedReviewTicketIds,
             steeringPrompt: reviewSteeringPrompt,
           },
-        });
+          {
+            ...defaultRalphLaunchDependencies,
+            launchTicketRalph: async () => ({
+              success: false,
+              message: "Ticket Ralph launch is not available from focused review.",
+            }),
+            launchEpicRalph: (payload) => launchRalphMutation.mutateAsync(payload),
+          }
+        );
 
         if ("warnings" in result && result.warnings) {
           (result.warnings as string[]).forEach((warning) => showToast("info", warning));
         }
 
         if (!result.success) {
+          setPendingReviewProvider(null);
           setReviewLaunchError(result.message);
           showToast("error", result.message);
           return;
@@ -497,190 +449,13 @@ export function EpicDetailHeader({
               </button>
 
               {showLaunchMenu && hasLaunchableTickets && (
-                <div style={dropdownMenuStyles}>
-                  <div style={dropdownGridStyles}>
-                    <div style={dropdownSectionStyles}>
-                      <div style={sectionHeaderStyles}>
-                        <Terminal size={14} color="var(--success)" />
-                        <span style={sectionTitleStyles}>Interactive</span>
-                      </div>
-                      <div style={buttonGridStyles}>
-                        <button
-                          type="button"
-                          onClick={() => void handleLaunchInteractive("claude")}
-                          style={launchOptionButtonStyles}
-                        >
-                          <Terminal size={14} color="var(--success)" />
-                          <span style={optionTextStyles}>Claude</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleLaunchInteractive("codex")}
-                          style={launchOptionButtonStyles}
-                        >
-                          <Terminal size={14} color="var(--success)" />
-                          <span style={optionTextStyles}>Codex Auto</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleLaunchInteractive("codex-cli")}
-                          style={launchOptionButtonStyles}
-                        >
-                          <Terminal size={14} color="var(--success)" />
-                          <span style={optionTextStyles}>Codex CLI</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleLaunchInteractive("codex-app")}
-                          style={launchOptionButtonStyles}
-                        >
-                          <Code2 size={14} color="var(--success)" />
-                          <span style={optionTextStyles}>Codex App</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleLaunchInteractive("vscode")}
-                          style={launchOptionButtonStyles}
-                        >
-                          <Code2 size={14} color="var(--accent-primary)" />
-                          <span style={optionTextStyles}>VS Code</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleLaunchInteractive("cursor")}
-                          style={launchOptionButtonStyles}
-                        >
-                          <Monitor size={14} color="var(--warning)" />
-                          <span style={optionTextStyles}>Cursor Editor</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleLaunchInteractive("cursor-agent")}
-                          style={launchOptionButtonStyles}
-                        >
-                          <Terminal size={14} color="var(--warning)" />
-                          <span style={optionTextStyles}>Cursor Agent</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleLaunchInteractive("copilot")}
-                          style={launchOptionButtonStyles}
-                        >
-                          <Github size={14} color="var(--text-secondary)" />
-                          <span style={optionTextStyles}>Copilot CLI</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleLaunchInteractive("opencode")}
-                          style={launchOptionButtonStyles}
-                        >
-                          <Code2 size={14} color="var(--info)" />
-                          <span style={optionTextStyles}>OpenCode</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleLaunchInteractive("pi")}
-                          style={launchOptionButtonStyles}
-                        >
-                          <Terminal size={14} color="var(--info)" />
-                          <span style={optionTextStyles}>Pi</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    <div
-                      style={{
-                        ...dropdownSectionStyles,
-                        borderLeft: "1px solid var(--border-primary)",
-                      }}
-                    >
-                      <div style={sectionHeaderStyles}>
-                        <Bot size={14} color="var(--accent-ai)" />
-                        <span style={sectionTitleStyles}>Ralph</span>
-                      </div>
-                      <div style={buttonGridStyles}>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void handleLaunchRalph({
-                              aiBackend: "claude",
-                              label: "Claude",
-                            })
-                          }
-                          style={launchOptionButtonStyles}
-                        >
-                          <Bot size={14} color="var(--accent-ai)" />
-                          <span style={optionTextStyles}>Claude</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void handleLaunchRalph({
-                              aiBackend: "codex",
-                              label: "Codex",
-                            })
-                          }
-                          style={launchOptionButtonStyles}
-                        >
-                          <Terminal size={14} color="var(--success)" />
-                          <span style={optionTextStyles}>Codex</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void handleLaunchRalph({
-                              aiBackend: "cursor-agent",
-                              label: "Cursor Agent",
-                            })
-                          }
-                          style={launchOptionButtonStyles}
-                        >
-                          <Terminal size={14} color="var(--warning)" />
-                          <span style={optionTextStyles}>Cursor Agent</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void handleLaunchRalph({
-                              aiBackend: "claude",
-                              workingMethodOverride: "copilot-cli",
-                              label: "Copilot CLI",
-                            })
-                          }
-                          style={launchOptionButtonStyles}
-                        >
-                          <Github size={14} color="var(--text-secondary)" />
-                          <span style={optionTextStyles}>Copilot CLI</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void handleLaunchRalph({
-                              aiBackend: "opencode",
-                              label: "OpenCode",
-                            })
-                          }
-                          style={launchOptionButtonStyles}
-                        >
-                          <Code2 size={14} color="var(--accent-ai)" />
-                          <span style={optionTextStyles}>OpenCode</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void handleLaunchRalph({
-                              aiBackend: "pi",
-                              label: "Pi",
-                            })
-                          }
-                          style={launchOptionButtonStyles}
-                        >
-                          <Terminal size={14} color="var(--info)" />
-                          <span style={optionTextStyles}>Pi</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+                <div style={dropdownMenuStyles} className="overflow-hidden">
+                  <LaunchProviderMenu
+                    interactiveContext="epic-next-ticket"
+                    ralphContext="epic"
+                    onInteractiveLaunch={(provider) => void handleLaunchInteractive(provider)}
+                    onRalphLaunch={(provider) => void handleLaunchRalph(provider)}
+                  />
                 </div>
               )}
             </div>
@@ -897,66 +672,16 @@ export function EpicDetailHeader({
                     above is injected into every session.
                   </span>
                 </div>
-                <div style={reviewProviderGridStyles}>
-                  {[
-                    {
-                      label: "Claude",
-                      aiBackend: "claude" as const,
-                      icon: <Bot size={14} className="text-[var(--accent-ai)] flex-shrink-0" />,
-                    },
-                    {
-                      label: "Codex",
-                      aiBackend: "codex" as const,
-                      icon: <Terminal size={14} className="text-[var(--success)] flex-shrink-0" />,
-                    },
-                    {
-                      label: "Cursor Agent",
-                      aiBackend: "cursor-agent" as const,
-                      icon: <Terminal size={14} className="text-[var(--warning)] flex-shrink-0" />,
-                    },
-                    {
-                      label: "Copilot CLI",
-                      aiBackend: "claude" as const,
-                      workingMethodOverride: "copilot-cli" as const,
-                      icon: (
-                        <Github size={14} className="text-[var(--text-secondary)] flex-shrink-0" />
-                      ),
-                    },
-                    {
-                      label: "OpenCode",
-                      aiBackend: "opencode" as const,
-                      icon: <Code2 size={14} className="text-[var(--accent-ai)] flex-shrink-0" />,
-                    },
-                    {
-                      label: "Pi",
-                      aiBackend: "pi" as const,
-                      icon: <Terminal size={14} className="text-[var(--info)] flex-shrink-0" />,
-                    },
-                  ].map((p) => {
-                    const isThisOne = pendingReviewProvider === p.label;
-                    const isDisabled =
-                      launchRalphMutation.isPending || selectedReviewTicketIds.length === 0;
-                    return (
-                      <button
-                        key={p.label}
-                        type="button"
-                        onClick={() => void handleLaunchFocusedReview(p)}
-                        disabled={isDisabled}
-                        style={{
-                          ...reviewProviderButtonStyles,
-                          opacity: isDisabled ? 0.6 : 1,
-                          cursor: isDisabled ? "not-allowed" : "pointer",
-                        }}
-                      >
-                        {isThisOne ? (
-                          <LoaderCircle size={14} className="animate-spin flex-shrink-0" />
-                        ) : (
-                          p.icon
-                        )}
-                        <span className="text-sm text-[var(--text-primary)]">{p.label}</span>
-                      </button>
-                    );
-                  })}
+                <div className="overflow-hidden rounded-lg border border-[var(--border-primary)] bg-[var(--bg-tertiary)]">
+                  <LaunchProviderMenu
+                    interactiveContext="focused-review"
+                    ralphContext="focused-review"
+                    onInteractiveLaunch={() => undefined}
+                    onRalphLaunch={(provider) => void handleLaunchFocusedReview(provider)}
+                    disabled={launchRalphMutation.isPending || selectedReviewTicketIds.length === 0}
+                    loadingProviderId={pendingReviewProvider}
+                    showInteractive={false}
+                  />
                 </div>
               </div>
             </div>
@@ -1247,52 +972,6 @@ const dropdownMenuStyles: React.CSSProperties = {
   minWidth: "400px",
 };
 
-const dropdownGridStyles: React.CSSProperties = {
-  display: "flex",
-};
-
-const dropdownSectionStyles: React.CSSProperties = {
-  flex: 1,
-  padding: "var(--spacing-3)",
-};
-
-const sectionHeaderStyles: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: "var(--spacing-2)",
-  marginBottom: "var(--spacing-2)",
-};
-
-const sectionTitleStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-xs)",
-  fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
-  textTransform: "uppercase",
-  letterSpacing: "0.5px",
-};
-
-const buttonGridStyles: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(2, 1fr)",
-  gap: "var(--spacing-2)",
-};
-
-const launchOptionButtonStyles: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: "var(--spacing-2)",
-  padding: "var(--spacing-2) var(--spacing-3)",
-  background: "var(--bg-card)",
-  border: "1px solid var(--border-primary)",
-  borderRadius: "var(--radius-xl)",
-  cursor: "pointer",
-  transition: "all var(--transition-fast)",
-};
-
-const optionTextStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-sm)",
-  color: "var(--text-primary)",
-};
-
 const badgeRowStyles: React.CSSProperties = {
   display: "flex",
   flexWrap: "wrap",
@@ -1569,24 +1248,6 @@ const reviewErrorStyles: React.CSSProperties = {
   background: "color-mix(in srgb, var(--accent-danger) 12%, transparent)",
   color: "var(--accent-danger)",
   lineHeight: 1.5,
-};
-
-const reviewProviderGridStyles: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(2, 1fr)",
-  gap: "var(--spacing-2)",
-};
-
-const reviewProviderButtonStyles: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: "var(--spacing-2)",
-  borderRadius: "var(--radius-md)",
-  border: "1px solid var(--border-primary)",
-  padding: "var(--spacing-2) var(--spacing-3)",
-  textAlign: "left",
-  background: "var(--bg-tertiary)",
-  transition: "background-color 0.15s",
 };
 
 const findingStatusStyles: React.CSSProperties = {

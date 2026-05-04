@@ -17,12 +17,8 @@ import {
   ChevronUp,
   Loader2,
   Clipboard,
-  Bot,
   Terminal,
   ExternalLink,
-  Code2,
-  Monitor,
-  Github,
   GitBranch,
   GitPullRequest,
   Copy,
@@ -48,18 +44,18 @@ import {
   getPrStatusIconColor,
   getPrStatusBadgeStyle,
 } from "../lib/constants";
-import { getTicketContext } from "../api/context";
+import type { UiLaunchProviderId } from "../lib/launch-provider-contract";
 import {
-  launchClaudeInTerminal,
-  launchCodexInTerminal,
-  launchVSCodeInTerminal,
-  launchCursorInTerminal,
-  launchCursorAgentInTerminal,
-  launchCopilotInTerminal,
-  launchOpenCodeInTerminal,
-  launchPiInTerminal,
-} from "../api/terminal";
+  dispatchInteractiveUiLaunch,
+  dispatchRalphAutonomousUiLaunch,
+  defaultRalphLaunchDependencies,
+} from "../lib/ui-launch-dispatcher";
+import {
+  getInteractiveUiLaunchProvider,
+  getRalphAutonomousUiLaunchProvider,
+} from "../lib/ui-launch-registry";
 import { safeJsonParse } from "../lib/utils";
+import { LaunchProviderMenu } from "./LaunchProviderMenu";
 import { ticketFormOpts } from "./tickets/ticket-form-opts";
 import { RemovableCopyableTagPill } from "./tickets/TagInput";
 import {
@@ -104,6 +100,15 @@ interface TicketModalProps {
 
 // Stable empty state for tag suggestions to prevent recreation on every render
 const EMPTY_TAG_STATE = { tagSuggestions: [] as string[], showCreateHelper: false };
+
+function isClipboardLaunchResult(result: unknown): boolean {
+  return (
+    typeof result === "object" &&
+    result !== null &&
+    "method" in result &&
+    result.method === "clipboard"
+  );
+}
 
 /**
  * Convert legacy subtasks to acceptance criteria format.
@@ -279,496 +284,89 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
   }, []);
   useClickOutside(tagDropdownRef, closeTagDropdown, isTagDropdownOpen, tagInputRef);
 
-  // Handle Start Work - launch Claude in terminal with context
-  const handleStartWork = useCallback(async () => {
-    setIsStartingWork(true);
-    setStartWorkNotification(null);
-
-    try {
-      // Get ticket context
-      const contextResult = await getTicketContext({ data: ticket.id });
-
-      // Try to launch Claude in terminal with preferred terminal from settings
-      // Window title format: [Project][Epic][Ticket] or [Project][Ticket]
-      const launchResult = await launchClaudeInTerminal({
-        data: {
-          ticketId: ticket.id,
-          context: contextResult.context,
-          projectPath: contextResult.projectPath,
-          preferredTerminal: settings?.terminalEmulator ?? null,
-          projectName: contextResult.projectName,
-          epicName: contextResult.epicName,
-          ticketTitle: contextResult.ticketTitle,
-        },
-      });
-
-      // Show any warnings (e.g., preferred terminal not available)
-      if (launchResult.warnings) {
-        launchResult.warnings.forEach((warning) => showToast("info", warning));
-      }
-
-      if (launchResult.success && launchResult.method !== "clipboard") {
-        // Update form status to in_progress
-        form.setFieldValue("status", "in_progress");
-
-        setStartWorkNotification({
-          type: "success",
-          message: launchResult.terminalUsed
-            ? `Claude launched in ${launchResult.terminalUsed}! Ticket moved to In Progress.`
-            : "Claude launched. Ticket moved to In Progress.",
-        });
-
-        // Trigger parent update to refresh ticket list
-        setTimeout(() => onUpdate(), 500);
-      } else if (!launchResult.success) {
-        // Terminal launch failed - show error toast
-        showToast("error", launchResult.message);
-
-        // Fallback: copy to clipboard
-        await navigator.clipboard.writeText(contextResult.context);
-
-        setStartWorkNotification({
-          type: "success",
-          message: `Context copied to clipboard. Run: cd "${contextResult.projectPath}" && claude`,
-        });
-      } else {
-        // Clipboard fallback (success but not terminal method)
-        await navigator.clipboard.writeText(contextResult.context);
-
-        setStartWorkNotification({
-          type: "success",
-          message: launchResult.message,
-        });
-      }
-      // Auto-hide is handled by useAutoClearState hook
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "An unexpected error occurred";
-      showToast("error", `Failed to start work: ${message}`);
-
-      // Ultimate fallback: try clipboard only
-      try {
-        const contextResult = await getTicketContext({ data: ticket.id });
-        await navigator.clipboard.writeText(contextResult.context);
-        setStartWorkNotification({
-          type: "success",
-          message: `Context copied! Run: cd "${contextResult.projectPath}" && claude`,
-        });
-      } catch (fallbackError) {
-        const errorMessage =
-          fallbackError instanceof Error ? fallbackError.message : "Could not copy context";
-        setStartWorkNotification({
-          type: "error",
-          message: `Failed to start work: ${errorMessage}`,
-        });
-      }
-    } finally {
-      setIsStartingWork(false);
-    }
-  }, [ticket.id, onUpdate, settings?.terminalEmulator, showToast, setStartWorkNotification, form]);
-
-  // Handle Start Codex - supports auto, CLI-only, or App-only launch modes
-  const handleStartCodex = useCallback(
-    async (launchMode: "auto" | "cli" | "app" = "auto") => {
+  const handleTicketLaunch = useCallback(
+    async (providerId: UiLaunchProviderId) => {
       setIsStartingWork(true);
       setStartWorkNotification(null);
       setShowStartWorkMenu(false);
 
       try {
-        const contextResult = await getTicketContext({ data: ticket.id });
-        const codexLabel =
-          launchMode === "cli" ? "Codex CLI" : launchMode === "app" ? "Codex App" : "Codex";
-        let clipboardHint = `Context copied to clipboard. Open Codex App for "${contextResult.projectPath}" or run: cd "${contextResult.projectPath}" && codex`;
-        if (launchMode === "app") {
-          clipboardHint = `Context copied to clipboard. Open Codex App for "${contextResult.projectPath}" and paste the task context.`;
-        } else if (launchMode === "cli") {
-          clipboardHint = `Context copied to clipboard. Run: cd "${contextResult.projectPath}" && codex`;
-        }
+        const interactiveProvider = getInteractiveUiLaunchProvider(providerId);
+        const ralphProvider = getRalphAutonomousUiLaunchProvider(providerId);
 
-        const launchResult = await launchCodexInTerminal({
-          data: {
+        if (interactiveProvider) {
+          const launchResult = await dispatchInteractiveUiLaunch(interactiveProvider, {
+            kind: "ticket",
             ticketId: ticket.id,
-            context: contextResult.context,
-            projectPath: contextResult.projectPath,
-            launchMode,
             preferredTerminal: settings?.terminalEmulator ?? null,
-            projectName: contextResult.projectName,
-            epicName: contextResult.epicName,
-            ticketTitle: contextResult.ticketTitle,
-          },
-        });
-
-        if (launchResult.warnings) {
-          launchResult.warnings.forEach((warning) => showToast("info", warning));
-        }
-
-        if (launchResult.success && launchResult.method !== "clipboard") {
-          form.setFieldValue("status", "in_progress");
-          setStartWorkNotification({
-            type: "success",
-            message: launchResult.terminalUsed
-              ? `${codexLabel} launched in ${launchResult.terminalUsed}! Ticket moved to In Progress.`
-              : `${codexLabel} launched. Ticket moved to In Progress.`,
           });
-          setTimeout(() => onUpdate(), 500);
-        } else if (!launchResult.success) {
-          showToast("error", launchResult.message);
-          await navigator.clipboard.writeText(contextResult.context);
-          setStartWorkNotification({
-            type: "success",
-            message: clipboardHint,
-          });
-        } else {
-          await navigator.clipboard.writeText(contextResult.context);
-          setStartWorkNotification({
-            type: "success",
-            message: launchResult.message,
-          });
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "An unexpected error occurred";
-        showToast(
-          "error",
-          `Failed to launch ${launchMode === "cli" ? "Codex CLI" : launchMode === "app" ? "Codex App" : "Codex"}: ${message}`
-        );
 
-        try {
-          const contextResult = await getTicketContext({ data: ticket.id });
-          await navigator.clipboard.writeText(contextResult.context);
-          let fallbackMessage = `Context copied! Open Codex App for "${contextResult.projectPath}" or run: cd "${contextResult.projectPath}" && codex`;
-          if (launchMode === "app") {
-            fallbackMessage = `Context copied! Open Codex App for "${contextResult.projectPath}" and paste the task context.`;
-          } else if (launchMode === "cli") {
-            fallbackMessage = `Context copied! Run: cd "${contextResult.projectPath}" && codex`;
+          if (launchResult.warnings) {
+            launchResult.warnings.forEach((warning) => showToast("info", warning));
           }
-          setStartWorkNotification({
-            type: "success",
-            message: fallbackMessage,
-          });
-        } catch (fallbackError) {
-          setStartWorkNotification({
-            type: "error",
-            message: `Failed to start ${launchMode === "cli" ? "Codex CLI" : launchMode === "app" ? "Codex App" : "Codex"}: ${fallbackError instanceof Error ? fallbackError.message : "Could not copy context to clipboard"}`,
-          });
-        }
-      } finally {
-        setIsStartingWork(false);
-      }
-    },
-    [ticket.id, onUpdate, settings?.terminalEmulator, showToast, setStartWorkNotification, form]
-  );
 
-  // Handle Start VS Code - open VS Code with project + context
-  const handleStartVSCode = useCallback(async () => {
-    setIsStartingWork(true);
-    setStartWorkNotification(null);
-    setShowStartWorkMenu(false);
+          if (launchResult.success) {
+            setStartWorkNotification({ type: "success", message: launchResult.message });
 
-    try {
-      const contextResult = await getTicketContext({ data: ticket.id });
-
-      const launchResult = await launchVSCodeInTerminal({
-        data: {
-          ticketId: ticket.id,
-          context: contextResult.context,
-          projectPath: contextResult.projectPath,
-          preferredTerminal: settings?.terminalEmulator ?? null,
-          projectName: contextResult.projectName,
-          epicName: contextResult.epicName,
-          ticketTitle: contextResult.ticketTitle,
-        },
-      });
-
-      if (launchResult.warnings) {
-        launchResult.warnings.forEach((warning) => showToast("info", warning));
-      }
-
-      if (launchResult.success && launchResult.method !== "clipboard") {
-        form.setFieldValue("status", "in_progress");
-        setStartWorkNotification({
-          type: "success",
-          message: launchResult.message,
-        });
-        setTimeout(() => onUpdate(), 500);
-      } else if (!launchResult.success) {
-        showToast("error", launchResult.message);
-        await navigator.clipboard.writeText(contextResult.context);
-        setStartWorkNotification({
-          type: "success",
-          message: `Context copied to clipboard. Open VS Code for "${contextResult.projectPath}" and paste the task context.`,
-        });
-      } else {
-        await navigator.clipboard.writeText(contextResult.context);
-        setStartWorkNotification({
-          type: "success",
-          message: launchResult.message,
-        });
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "An unexpected error occurred";
-      showToast("error", `Failed to launch VS Code: ${message}`);
-
-      try {
-        const contextResult = await getTicketContext({ data: ticket.id });
-        await navigator.clipboard.writeText(contextResult.context);
-        setStartWorkNotification({
-          type: "success",
-          message: `Context copied! Open VS Code for "${contextResult.projectPath}" and paste the task context.`,
-        });
-      } catch (fallbackError) {
-        setStartWorkNotification({
-          type: "error",
-          message: `Failed to start VS Code: ${fallbackError instanceof Error ? fallbackError.message : "Could not copy context to clipboard"}`,
-        });
-      }
-    } finally {
-      setIsStartingWork(false);
-    }
-  }, [ticket.id, onUpdate, settings?.terminalEmulator, showToast, setStartWorkNotification, form]);
-
-  // Handle Start Cursor - open Cursor with project + context
-  const handleStartCursor = useCallback(async () => {
-    setIsStartingWork(true);
-    setStartWorkNotification(null);
-    setShowStartWorkMenu(false);
-
-    try {
-      const contextResult = await getTicketContext({ data: ticket.id });
-
-      const launchResult = await launchCursorInTerminal({
-        data: {
-          ticketId: ticket.id,
-          context: contextResult.context,
-          projectPath: contextResult.projectPath,
-          preferredTerminal: settings?.terminalEmulator ?? null,
-          projectName: contextResult.projectName,
-          epicName: contextResult.epicName,
-          ticketTitle: contextResult.ticketTitle,
-        },
-      });
-
-      if (launchResult.warnings) {
-        launchResult.warnings.forEach((warning) => showToast("info", warning));
-      }
-
-      if (launchResult.success && launchResult.method !== "clipboard") {
-        form.setFieldValue("status", "in_progress");
-        setStartWorkNotification({
-          type: "success",
-          message: launchResult.message,
-        });
-        setTimeout(() => onUpdate(), 500);
-      } else if (!launchResult.success) {
-        showToast("error", launchResult.message);
-        await navigator.clipboard.writeText(contextResult.context);
-        setStartWorkNotification({
-          type: "success",
-          message: `Context copied to clipboard. Open Cursor for "${contextResult.projectPath}" and paste the task context.`,
-        });
-      } else {
-        await navigator.clipboard.writeText(contextResult.context);
-        setStartWorkNotification({
-          type: "success",
-          message: launchResult.message,
-        });
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "An unexpected error occurred";
-      showToast("error", `Failed to launch Cursor: ${message}`);
-
-      try {
-        const contextResult = await getTicketContext({ data: ticket.id });
-        await navigator.clipboard.writeText(contextResult.context);
-        setStartWorkNotification({
-          type: "success",
-          message: `Context copied! Open Cursor for "${contextResult.projectPath}" and paste the task context.`,
-        });
-      } catch (fallbackError) {
-        setStartWorkNotification({
-          type: "error",
-          message: `Failed to start Cursor: ${fallbackError instanceof Error ? fallbackError.message : "Could not copy context to clipboard"}`,
-        });
-      }
-    } finally {
-      setIsStartingWork(false);
-    }
-  }, [ticket.id, onUpdate, settings?.terminalEmulator, showToast, setStartWorkNotification, form]);
-
-  // Handle Start Cursor Agent - launch Cursor Agent CLI in terminal
-  const handleStartCursorAgent = useCallback(async () => {
-    setIsStartingWork(true);
-    setStartWorkNotification(null);
-    setShowStartWorkMenu(false);
-
-    try {
-      const contextResult = await getTicketContext({ data: ticket.id });
-
-      const launchResult = await launchCursorAgentInTerminal({
-        data: {
-          ticketId: ticket.id,
-          context: contextResult.context,
-          projectPath: contextResult.projectPath,
-          preferredTerminal: settings?.terminalEmulator ?? null,
-          projectName: contextResult.projectName,
-          epicName: contextResult.epicName,
-          ticketTitle: contextResult.ticketTitle,
-        },
-      });
-
-      if (launchResult.warnings) {
-        launchResult.warnings.forEach((warning) => showToast("info", warning));
-      }
-
-      if (launchResult.success) {
-        form.setFieldValue("status", "in_progress");
-        setStartWorkNotification({
-          type: "success",
-          message: launchResult.message,
-        });
-        setTimeout(() => onUpdate(), 500);
-      } else {
-        showToast("error", launchResult.message);
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "An unexpected error occurred";
-      showToast("error", `Failed to launch Cursor Agent: ${message}`);
-    } finally {
-      setIsStartingWork(false);
-    }
-  }, [ticket.id, onUpdate, settings?.terminalEmulator, showToast, setStartWorkNotification, form]);
-
-  // Handle Start Copilot CLI
-  const handleStartCopilot = useCallback(async () => {
-    setIsStartingWork(true);
-    setStartWorkNotification(null);
-    setShowStartWorkMenu(false);
-
-    try {
-      const contextResult = await getTicketContext({ data: ticket.id });
-
-      const launchResult = await launchCopilotInTerminal({
-        data: {
-          ticketId: ticket.id,
-          context: contextResult.context,
-          projectPath: contextResult.projectPath,
-          preferredTerminal: settings?.terminalEmulator ?? null,
-          projectName: contextResult.projectName,
-          epicName: contextResult.epicName,
-          ticketTitle: contextResult.ticketTitle,
-        },
-      });
-
-      if (launchResult.warnings) {
-        launchResult.warnings.forEach((warning) => showToast("info", warning));
-      }
-
-      if (launchResult.success && launchResult.method !== "clipboard") {
-        form.setFieldValue("status", "in_progress");
-        setStartWorkNotification({
-          type: "success",
-          message: launchResult.terminalUsed
-            ? `Copilot CLI launched in ${launchResult.terminalUsed}! Ticket moved to In Progress.`
-            : "Copilot CLI launched. Ticket moved to In Progress.",
-        });
-        setTimeout(() => onUpdate(), 500);
-      } else if (!launchResult.success) {
-        showToast("error", launchResult.message);
-        await navigator.clipboard.writeText(contextResult.context);
-        setStartWorkNotification({
-          type: "success",
-          message: `Context copied to clipboard. Run: cd "${contextResult.projectPath}" && copilot`,
-        });
-      } else {
-        await navigator.clipboard.writeText(contextResult.context);
-        setStartWorkNotification({
-          type: "success",
-          message: launchResult.message,
-        });
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "An unexpected error occurred";
-      showToast("error", `Failed to launch Copilot CLI: ${message}`);
-
-      try {
-        const contextResult = await getTicketContext({ data: ticket.id });
-        await navigator.clipboard.writeText(contextResult.context);
-        setStartWorkNotification({
-          type: "success",
-          message: `Context copied! Run: cd "${contextResult.projectPath}" && copilot`,
-        });
-      } catch (fallbackError) {
-        setStartWorkNotification({
-          type: "error",
-          message: `Failed to start Copilot CLI: ${fallbackError instanceof Error ? fallbackError.message : "Could not copy context to clipboard"}`,
-        });
-      }
-    } finally {
-      setIsStartingWork(false);
-    }
-  }, [ticket.id, onUpdate, settings?.terminalEmulator, showToast, setStartWorkNotification, form]);
-
-  // Handle Start Ralph - autonomous mode
-  // useSandbox param allows explicit choice at launch time, overriding settings default
-  // aiBackend param allows choosing between Claude, Codex, and OpenCode
-  const handleStartRalph = useCallback(
-    async ({
-      useSandbox,
-      aiBackend,
-      workingMethodOverride,
-    }: {
-      useSandbox: boolean;
-      aiBackend: "claude" | "opencode" | "codex" | "cursor-agent" | "pi";
-      workingMethodOverride?:
-        | "auto"
-        | "claude-code"
-        | "vscode"
-        | "opencode"
-        | "cursor"
-        | "cursor-agent"
-        | "copilot-cli"
-        | "codex"
-        | "pi";
-    }) => {
-      setIsStartingWork(true);
-      setStartWorkNotification(null);
-      setShowStartWorkMenu(false);
-
-      try {
-        const result = await launchRalphMutation.mutateAsync({
-          ticketId: ticket.id,
-          // maxIterations now uses global setting from Settings
-          preferredTerminal: settings?.terminalEmulator ?? null,
-          useSandbox,
-          aiBackend,
-          ...(workingMethodOverride !== undefined ? { workingMethodOverride } : {}),
-        });
-
-        // Show any warnings (e.g., preferred terminal not available)
-        if ("warnings" in result && result.warnings) {
-          (result.warnings as string[]).forEach((warning: string) => showToast("info", warning));
+            if (!isClipboardLaunchResult(launchResult)) {
+              form.setFieldValue("status", "in_progress");
+              setTimeout(() => onUpdate(), 500);
+            }
+          } else {
+            showToast("error", launchResult.message);
+            setStartWorkNotification({ type: "error", message: launchResult.message });
+          }
+          return;
         }
 
-        if (result.success) {
-          form.setFieldValue("status", "in_progress");
-          setStartWorkNotification({
-            type: "success",
-            message: result.message,
-          });
-          setTimeout(() => onUpdate(), 500);
-        } else {
-          showToast("error", result.message);
-          setStartWorkNotification({
-            type: "error",
-            message: result.message,
-          });
+        if (ralphProvider) {
+          const result = await dispatchRalphAutonomousUiLaunch(
+            ralphProvider,
+            {
+              kind: "ticket",
+              ticketId: ticket.id,
+              preferredTerminal: settings?.terminalEmulator ?? null,
+            },
+            {
+              ...defaultRalphLaunchDependencies,
+              launchTicketRalph: async (payload) => {
+                const launchResult = await launchRalphMutation.mutateAsync(payload);
+                return {
+                  success: launchResult.success,
+                  message: launchResult.message,
+                  ...(launchResult.warnings ? { warnings: launchResult.warnings } : {}),
+                  ...("terminalUsed" in launchResult && launchResult.terminalUsed
+                    ? { terminalUsed: launchResult.terminalUsed }
+                    : {}),
+                };
+              },
+              launchEpicRalph: async () => ({
+                success: false,
+                message: "Epic Ralph launch is not available from the ticket modal.",
+              }),
+            }
+          );
+
+          if (result.warnings) {
+            result.warnings.forEach((warning) => showToast("info", warning));
+          }
+
+          if (result.success) {
+            form.setFieldValue("status", "in_progress");
+            setStartWorkNotification({ type: "success", message: result.message });
+            setTimeout(() => onUpdate(), 500);
+          } else {
+            showToast("error", result.message);
+            setStartWorkNotification({ type: "error", message: result.message });
+          }
+          return;
         }
-        // Auto-hide is handled by useAutoClearState hook
+
+        showToast("error", `Unknown launch provider: ${providerId}`);
       } catch (error) {
         const message = error instanceof Error ? error.message : "An unexpected error occurred";
-        showToast("error", `Failed to launch Ralph: ${message}`);
-        setStartWorkNotification({
-          type: "error",
-          message: "Failed to launch Ralph",
-        });
+        showToast("error", `Failed to launch: ${message}`);
+        setStartWorkNotification({ type: "error", message: "Failed to launch provider" });
       } finally {
         setIsStartingWork(false);
       }
@@ -777,148 +375,12 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
       ticket.id,
       onUpdate,
       settings?.terminalEmulator,
-      launchRalphMutation,
       showToast,
       setStartWorkNotification,
       form,
+      launchRalphMutation,
     ]
   );
-
-  // Handle Start OpenCode - open-source AI assistant
-  const handleStartOpenCode = useCallback(async () => {
-    setIsStartingWork(true);
-    setStartWorkNotification(null);
-    setShowStartWorkMenu(false);
-
-    try {
-      // Get ticket context
-      const contextResult = await getTicketContext({ data: ticket.id });
-
-      // Launch OpenCode in terminal
-      const launchResult = await launchOpenCodeInTerminal({
-        data: {
-          ticketId: ticket.id,
-          context: contextResult.context,
-          projectPath: contextResult.projectPath,
-          preferredTerminal: settings?.terminalEmulator ?? null,
-          projectName: contextResult.projectName,
-          epicName: contextResult.epicName,
-          ticketTitle: contextResult.ticketTitle,
-        },
-      });
-
-      // Show any warnings
-      if (launchResult.warnings) {
-        launchResult.warnings.forEach((warning) => showToast("info", warning));
-      }
-
-      if (launchResult.success && launchResult.method !== "clipboard") {
-        form.setFieldValue("status", "in_progress");
-        setStartWorkNotification({
-          type: "success",
-          message: launchResult.terminalUsed
-            ? `OpenCode launched in ${launchResult.terminalUsed}! Ticket moved to In Progress.`
-            : "OpenCode launched. Ticket moved to In Progress.",
-        });
-        setTimeout(() => onUpdate(), 500);
-      } else if (!launchResult.success) {
-        showToast("error", launchResult.message);
-
-        // Fallback: copy to clipboard
-        await navigator.clipboard.writeText(contextResult.context);
-
-        setStartWorkNotification({
-          type: "success",
-          message: `Context copied to clipboard. Run: cd "${contextResult.projectPath}" && opencode`,
-        });
-      } else {
-        // Clipboard fallback
-        await navigator.clipboard.writeText(contextResult.context);
-        setStartWorkNotification({
-          type: "success",
-          message: launchResult.message,
-        });
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "An unexpected error occurred";
-      showToast("error", `Failed to launch OpenCode: ${message}`);
-
-      // Ultimate fallback: try clipboard only
-      try {
-        const contextResult = await getTicketContext({ data: ticket.id });
-        await navigator.clipboard.writeText(contextResult.context);
-        setStartWorkNotification({
-          type: "success",
-          message: `Context copied! Run: cd "${contextResult.projectPath}" && opencode`,
-        });
-      } catch (fallbackError) {
-        setStartWorkNotification({
-          type: "error",
-          message: `Failed to start OpenCode: ${fallbackError instanceof Error ? fallbackError.message : "Could not copy context to clipboard"}`,
-        });
-      }
-    } finally {
-      setIsStartingWork(false);
-    }
-  }, [ticket.id, onUpdate, settings?.terminalEmulator, showToast, setStartWorkNotification, form]);
-
-  const handleStartPi = useCallback(async () => {
-    setIsStartingWork(true);
-    setStartWorkNotification(null);
-    setShowStartWorkMenu(false);
-
-    try {
-      const contextResult = await getTicketContext({ data: ticket.id });
-      const launchResult = await launchPiInTerminal({
-        data: {
-          ticketId: ticket.id,
-          context: contextResult.context,
-          projectPath: contextResult.projectPath,
-          preferredTerminal: settings?.terminalEmulator ?? null,
-          projectName: contextResult.projectName,
-          epicName: contextResult.epicName,
-          ticketTitle: contextResult.ticketTitle,
-        },
-      });
-
-      if (launchResult.warnings) {
-        launchResult.warnings.forEach((warning) => showToast("info", warning));
-      }
-
-      if (launchResult.success && launchResult.method !== "clipboard") {
-        form.setFieldValue("status", "in_progress");
-        setStartWorkNotification({
-          type: "success",
-          message: launchResult.terminalUsed
-            ? `Pi launched in ${launchResult.terminalUsed}! Ticket moved to In Progress.`
-            : "Pi launched. Ticket moved to In Progress.",
-        });
-        setTimeout(() => onUpdate(), 500);
-      } else if (!launchResult.success) {
-        showToast("error", launchResult.message);
-        await navigator.clipboard.writeText(contextResult.context);
-        setStartWorkNotification({
-          type: "success",
-          message: `Context copied to clipboard. Run: cd "${contextResult.projectPath}" && pi`,
-        });
-      } else {
-        await navigator.clipboard.writeText(contextResult.context);
-        setStartWorkNotification({
-          type: "success",
-          message: launchResult.message,
-        });
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "An unexpected error occurred";
-      showToast("error", `Failed to launch Pi: ${message}`);
-      setStartWorkNotification({
-        type: "error",
-        message: "Failed to launch Pi",
-      });
-    } finally {
-      setIsStartingWork(false);
-    }
-  }, [ticket.id, onUpdate, settings?.terminalEmulator, showToast, setStartWorkNotification, form]);
 
   // Handle delete ticket confirmation
   const handleDeleteConfirm = useCallback(() => {
@@ -1709,7 +1171,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
           <div className="relative" ref={startWorkMenuRef}>
             <div className="flex">
               <button
-                onClick={() => void handleStartWork()}
+                onClick={() => void handleTicketLaunch("claude")}
                 disabled={isStartingWork}
                 className="flex items-center gap-2 px-4 py-2 bg-[var(--success)] hover:bg-[var(--success)]/80 disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-muted)] rounded-l-lg font-medium transition-colors"
               >
@@ -1733,164 +1195,13 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
             {/* Dropdown Menu */}
             {showStartWorkMenu && (
               <div className="absolute left-0 bottom-full mb-2 w-[46rem] max-w-[95vw] bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg shadow-xl z-[80] overflow-hidden">
-                <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[var(--border-primary)]">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 px-3 py-2 bg-[var(--bg-secondary)]/50 border-b border-[var(--border-primary)]">
-                      <Terminal size={14} className="text-[var(--success)]" />
-                      <span className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">
-                        Interactive
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 p-3">
-                      <button
-                        onClick={() => {
-                          setShowStartWorkMenu(false);
-                          void handleStartWork();
-                        }}
-                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
-                      >
-                        <Terminal size={14} className="text-[var(--success)] flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">Claude</span>
-                      </button>
-                      <button
-                        onClick={() => void handleStartCodex("auto")}
-                        title="Try Codex CLI first, then Codex App if CLI is unavailable."
-                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
-                      >
-                        <Terminal size={14} className="text-[var(--success)] flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">Codex Auto</span>
-                      </button>
-                      <button
-                        onClick={() => void handleStartCodex("cli")}
-                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
-                      >
-                        <Terminal size={14} className="text-[var(--success)] flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">Codex CLI</span>
-                      </button>
-                      <button
-                        onClick={() => void handleStartCodex("app")}
-                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
-                      >
-                        <Code2 size={14} className="text-[var(--success)] flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">Codex App</span>
-                      </button>
-                      <button
-                        onClick={() => void handleStartVSCode()}
-                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
-                      >
-                        <Code2 size={14} className="text-[var(--accent-primary)] flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">VS Code</span>
-                      </button>
-                      <button
-                        onClick={() => void handleStartCursor()}
-                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
-                      >
-                        <Monitor size={14} className="text-[var(--warning)] flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">Cursor Editor</span>
-                      </button>
-                      <button
-                        onClick={() => void handleStartCursorAgent()}
-                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
-                      >
-                        <Terminal size={14} className="text-[var(--warning)] flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">Cursor Agent</span>
-                      </button>
-                      <button
-                        onClick={() => void handleStartCopilot()}
-                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
-                      >
-                        <Github size={14} className="text-[var(--text-secondary)] flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">Copilot CLI</span>
-                      </button>
-                      <button
-                        onClick={() => void handleStartPi()}
-                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
-                      >
-                        <Terminal size={14} className="text-pink-500 flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">Pi</span>
-                      </button>
-                      <button
-                        onClick={() => void handleStartOpenCode()}
-                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
-                      >
-                        <Code2 size={14} className="text-[var(--info)] flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">OpenCode</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 px-3 py-2 bg-[var(--bg-secondary)]/50 border-b border-[var(--border-primary)]">
-                      <Bot size={14} className="text-[var(--accent-ai)]" />
-                      <span className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">
-                        Autonomous (Ralph)
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 p-3">
-                      <button
-                        onClick={() =>
-                          void handleStartRalph({ useSandbox: false, aiBackend: "claude" })
-                        }
-                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
-                      >
-                        <Bot size={14} className="text-[var(--accent-ai)] flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">Claude</span>
-                      </button>
-                      <button
-                        onClick={() =>
-                          void handleStartRalph({ useSandbox: false, aiBackend: "codex" })
-                        }
-                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
-                      >
-                        <Terminal size={14} className="text-[var(--success)] flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">Codex</span>
-                      </button>
-                      <button
-                        onClick={() =>
-                          void handleStartRalph({
-                            useSandbox: false,
-                            aiBackend: "cursor-agent",
-                          })
-                        }
-                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
-                      >
-                        <Terminal size={14} className="text-[var(--warning)] flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">Cursor Agent</span>
-                      </button>
-                      <button
-                        onClick={() =>
-                          void handleStartRalph({
-                            useSandbox: false,
-                            aiBackend: "claude",
-                            workingMethodOverride: "copilot-cli",
-                          })
-                        }
-                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
-                      >
-                        <Github size={14} className="text-[var(--text-secondary)] flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">Copilot CLI</span>
-                      </button>
-                      <button
-                        onClick={() =>
-                          void handleStartRalph({ useSandbox: false, aiBackend: "pi" })
-                        }
-                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
-                      >
-                        <Bot size={14} className="text-pink-500 flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">Pi</span>
-                      </button>
-                      <button
-                        onClick={() =>
-                          void handleStartRalph({ useSandbox: false, aiBackend: "opencode" })
-                        }
-                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
-                      >
-                        <Code2 size={14} className="text-[var(--info)] flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">OpenCode</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                <LaunchProviderMenu
+                  interactiveContext="ticket"
+                  ralphContext="ticket"
+                  onInteractiveLaunch={(provider) => void handleTicketLaunch(provider.id)}
+                  onRalphLaunch={(provider) => void handleTicketLaunch(provider.id)}
+                  disabled={isStartingWork}
+                />
               </div>
             )}
           </div>

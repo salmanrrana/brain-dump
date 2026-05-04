@@ -1,41 +1,9 @@
-import { type FC, useState, useCallback } from "react";
-import { Sparkles, Bot, Code2, Terminal, Loader2, Monitor, Github } from "lucide-react";
+import { type FC, useCallback, useState } from "react";
 import type { TicketStatus } from "../../api/tickets";
+import type { UiLaunchProviderId } from "../../lib/launch-provider-contract";
+import { LaunchProviderMenu } from "../LaunchProviderMenu";
 
-// =============================================================================
-// Types
-// =============================================================================
-
-/** Launch option type identifier */
-export type LaunchType =
-  | "claude"
-  | "codex"
-  | "codex-cli"
-  | "codex-app"
-  | "vscode"
-  | "cursor"
-  | "cursor-agent"
-  | "copilot"
-  | "pi"
-  | "ralph-native"
-  | "ralph-codex"
-  | "ralph-cursor-agent"
-  | "ralph-copilot"
-  | "ralph-pi"
-  | "opencode"
-  | "ralph-opencode";
-
-/** Individual launch option configuration */
-export interface LaunchOption {
-  id: LaunchType;
-  name: string;
-  description: string;
-  icon: typeof Sparkles;
-  iconColor: string;
-  recommended?: boolean;
-  disabled?: boolean;
-  disabledReason?: string;
-}
+export type LaunchType = UiLaunchProviderId;
 
 export interface LaunchActionsProps {
   /** Current ticket status - used to determine if launch actions should be shown */
@@ -50,11 +18,6 @@ export interface LaunchActionsProps {
   disabled?: boolean;
 }
 
-// =============================================================================
-// Constants
-// =============================================================================
-
-/** Statuses where the ticket is in a "workable" state and launch actions should show */
 const WORKABLE_STATUSES: TicketStatus[] = [
   "backlog",
   "ready",
@@ -63,249 +26,6 @@ const WORKABLE_STATUSES: TicketStatus[] = [
   "human_review",
 ];
 
-/** Configuration for all launch options */
-const LAUNCH_OPTIONS: LaunchOption[] = [
-  {
-    id: "claude",
-    name: "Claude",
-    description: "Interactive AI assistance",
-    icon: Sparkles,
-    iconColor: "#a855f7", // purple
-    recommended: true,
-  },
-  {
-    id: "codex",
-    name: "Codex Auto",
-    description: "CLI first, app fallback",
-    icon: Terminal,
-    iconColor: "#22c55e", // green
-  },
-  {
-    id: "codex-cli",
-    name: "Codex CLI",
-    description: "Terminal-based Codex session",
-    icon: Terminal,
-    iconColor: "#22c55e", // green
-  },
-  {
-    id: "codex-app",
-    name: "Codex App",
-    description: "Open Codex desktop app",
-    icon: Monitor,
-    iconColor: "#22c55e", // green
-  },
-  {
-    id: "vscode",
-    name: "VS Code",
-    description: "Open editor with task context",
-    icon: Code2,
-    iconColor: "#3b82f6", // blue
-  },
-  {
-    id: "cursor",
-    name: "Cursor Editor",
-    description: "Open editor with task context",
-    icon: Monitor,
-    iconColor: "#f59e0b", // amber
-  },
-  {
-    id: "cursor-agent",
-    name: "Cursor Agent",
-    description: "Terminal AI with multi-model",
-    icon: Terminal,
-    iconColor: "#f59e0b", // amber
-  },
-  {
-    id: "copilot",
-    name: "Copilot CLI",
-    description: "Interactive AI assistance",
-    icon: Github,
-    iconColor: "#94a3b8", // slate
-  },
-  {
-    id: "pi",
-    name: "Pi",
-    description: "Interactive AI assistance",
-    icon: Terminal,
-    iconColor: "#ec4899", // pink
-  },
-  {
-    id: "ralph-native",
-    name: "Ralph (Claude)",
-    description: "Autonomous agent",
-    icon: Bot,
-    iconColor: "#06b6d4", // cyan
-  },
-  {
-    id: "ralph-codex",
-    name: "Ralph (Codex)",
-    description: "Autonomous agent",
-    icon: Bot,
-    iconColor: "#22c55e", // green
-  },
-  {
-    id: "ralph-cursor-agent",
-    name: "Ralph (Cursor Agent)",
-    description: "Autonomous multi-model agent",
-    icon: Bot,
-    iconColor: "#f59e0b", // amber
-  },
-  {
-    id: "ralph-copilot",
-    name: "Ralph (Copilot CLI)",
-    description: "Autonomous context in Copilot CLI",
-    icon: Github,
-    iconColor: "#94a3b8", // slate
-  },
-  {
-    id: "ralph-pi",
-    name: "Ralph (Pi)",
-    description: "Autonomous agent",
-    icon: Bot,
-    iconColor: "#ec4899", // pink
-  },
-  {
-    id: "opencode",
-    name: "OpenCode",
-    description: "Interactive client",
-    icon: Code2,
-    iconColor: "#3b82f6", // blue
-  },
-  {
-    id: "ralph-opencode",
-    name: "Ralph (OpenCode)",
-    description: "Autonomous agent",
-    icon: Bot,
-    iconColor: "#3b82f6", // blue
-  },
-];
-
-// =============================================================================
-// LaunchOptionCard Component
-// =============================================================================
-
-interface LaunchOptionCardProps {
-  option: LaunchOption;
-  onClick: () => void;
-  isLoading: boolean;
-  disabled: boolean;
-}
-
-const LaunchOptionCard: FC<LaunchOptionCardProps> = ({ option, onClick, isLoading, disabled }) => {
-  const Icon = option.icon;
-  const isCardDisabled = disabled || option.disabled;
-
-  const cardStyles: React.CSSProperties = {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    gap: "var(--spacing-2)",
-    padding: "var(--spacing-3)",
-    background: option.recommended ? "var(--accent-muted)" : "var(--bg-secondary)",
-    border: option.recommended
-      ? "1px solid color-mix(in srgb, var(--accent-primary) 25%, transparent)"
-      : "1px solid var(--border-primary)",
-    borderRadius: "var(--radius-xl)",
-    cursor: isCardDisabled ? "not-allowed" : "pointer",
-    opacity: isCardDisabled ? 0.5 : 1,
-    transition: "all var(--transition-fast)",
-    minWidth: 0,
-    position: "relative",
-  };
-
-  const iconContainerStyles: React.CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    width: "40px",
-    height: "40px",
-    borderRadius: "var(--radius-lg)",
-    background: `${option.iconColor}15`,
-  };
-
-  const nameStyles: React.CSSProperties = {
-    fontSize: "var(--font-size-sm)",
-    fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
-    color: "var(--text-primary)",
-    textAlign: "center",
-  };
-
-  const descriptionStyles: React.CSSProperties = {
-    fontSize: "var(--font-size-xs)",
-    color: "var(--text-muted)",
-    textAlign: "center",
-  };
-
-  const recommendedBadgeStyles: React.CSSProperties = {
-    position: "absolute",
-    top: "-8px",
-    right: "-8px",
-    padding: "2px 8px",
-    background: "var(--accent-primary)",
-    color: "var(--text-on-accent)",
-    borderRadius: "var(--radius-lg)",
-    fontSize: "10px",
-    fontFamily: "var(--font-mono)",
-    fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
-    textTransform: "uppercase",
-    letterSpacing: "0.5px",
-  };
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={isCardDisabled}
-      style={cardStyles}
-      className={
-        isCardDisabled
-          ? ""
-          : "hover:border-[var(--accent-primary)] hover:shadow-md hover:shadow-[var(--accent-primary)]/10"
-      }
-      aria-label={`Start work with ${option.name}${option.disabled ? ` - ${option.disabledReason}` : ""}`}
-    >
-      {option.recommended && <span style={recommendedBadgeStyles}>Recommended</span>}
-
-      <div style={iconContainerStyles}>
-        {isLoading ? (
-          <Loader2 size={20} color={option.iconColor} className="animate-spin" />
-        ) : (
-          <Icon size={20} color={option.iconColor} />
-        )}
-      </div>
-
-      <span style={nameStyles}>{option.name}</span>
-      <span style={descriptionStyles}>
-        {option.disabled ? option.disabledReason : option.description}
-      </span>
-    </button>
-  );
-};
-
-// =============================================================================
-// LaunchActions Component
-// =============================================================================
-
-/**
- * LaunchActions - A component displaying AI launch options for starting work on a ticket.
- *
- * Features:
- * - **Grid layout**: 2x2 grid of option cards
- * - **Recommended highlight**: Claude is highlighted as recommended
- * - **Loading states**: Shows spinner on the launching option
- * - **Disabled states**: Handles temporarily unavailable launch options
- * - **Workable state check**: Only shown when ticket is in a workable state
- *
- * @example
- * ```tsx
- * <LaunchActions
- *   ticketStatus="ready"
- *   onLaunch={(type) => handleLaunch(type)}
- *   isLaunching={isStartingWork}
- *   launchingType={currentLaunchType}
- * />
- * ```
- */
 export const LaunchActions: FC<LaunchActionsProps> = ({
   ticketStatus,
   onLaunch,
@@ -314,11 +34,8 @@ export const LaunchActions: FC<LaunchActionsProps> = ({
   disabled = false,
 }) => {
   const [clickedType, setClickedType] = useState<LaunchType | null>(null);
-
-  // Determine if ticket is in a workable state
   const isWorkable = WORKABLE_STATUSES.includes(ticketStatus);
 
-  // Handle option click
   const handleOptionClick = useCallback(
     (type: LaunchType) => {
       if (disabled || isLaunching) return;
@@ -328,51 +45,42 @@ export const LaunchActions: FC<LaunchActionsProps> = ({
     [disabled, isLaunching, onLaunch]
   );
 
-  // Don't render if ticket is not in a workable state (e.g., "done")
   if (!isWorkable) {
     return null;
   }
-
-  // Styles
-  const containerStyles: React.CSSProperties = {
-    display: "flex",
-    flexDirection: "column",
-    gap: "var(--spacing-3)",
-  };
-
-  const headerStyles: React.CSSProperties = {
-    fontSize: "var(--font-size-xs)",
-    fontFamily: "var(--font-mono)",
-    fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
-    letterSpacing: "var(--tracking-wider)",
-    textTransform: "uppercase",
-    color: "var(--text-muted)",
-    marginBottom: "var(--spacing-2)",
-  };
-
-  const gridStyles: React.CSSProperties = {
-    display: "grid",
-    gridTemplateColumns: "repeat(2, 1fr)",
-    gap: "var(--spacing-3)",
-  };
 
   return (
     <div style={containerStyles}>
       <h3 style={headerStyles}>Start Work With</h3>
 
-      <div style={gridStyles}>
-        {LAUNCH_OPTIONS.map((option) => (
-          <LaunchOptionCard
-            key={option.id}
-            option={option}
-            onClick={() => handleOptionClick(option.id)}
-            isLoading={isLaunching && (launchingType === option.id || clickedType === option.id)}
-            disabled={disabled || isLaunching}
-          />
-        ))}
+      <div className="overflow-hidden rounded-lg border border-[var(--border-primary)] bg-[var(--bg-tertiary)]">
+        <LaunchProviderMenu
+          interactiveContext="ticket"
+          ralphContext="ticket"
+          onInteractiveLaunch={(provider) => handleOptionClick(provider.id)}
+          onRalphLaunch={(provider) => handleOptionClick(provider.id)}
+          disabled={disabled || isLaunching}
+          loadingProviderId={isLaunching ? (launchingType ?? clickedType) : null}
+        />
       </div>
     </div>
   );
+};
+
+const containerStyles: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "var(--spacing-3)",
+};
+
+const headerStyles: React.CSSProperties = {
+  fontSize: "var(--font-size-xs)",
+  fontFamily: "var(--font-mono)",
+  fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
+  letterSpacing: "var(--tracking-wider)",
+  textTransform: "uppercase",
+  color: "var(--text-muted)",
+  marginBottom: "var(--spacing-2)",
 };
 
 export default LaunchActions;

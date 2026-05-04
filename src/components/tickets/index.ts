@@ -13,12 +13,7 @@ export {
   type SubtasksProgressProps,
   type Subtask as SubtasksProgressSubtask,
 } from "./SubtasksProgress";
-export {
-  LaunchActions,
-  type LaunchActionsProps,
-  type LaunchType,
-  type LaunchOption,
-} from "./LaunchActions";
+export { LaunchActions, type LaunchActionsProps, type LaunchType } from "./LaunchActions";
 export { TicketDescription, type TicketDescriptionProps } from "./TicketDescription";
 export { TicketDetailHeader, type TicketDetailHeaderProps } from "./TicketDetailHeader";
 export { ShipChangesModal, type ShipChangesModalProps } from "./ShipChangesModal";

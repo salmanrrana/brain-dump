@@ -21,19 +21,7 @@ import { useToast } from "../Toast";
 import DirectoryPicker from "../DirectoryPicker";
 import DeleteConfirmationModal from "../DeleteConfirmationModal";
 import { ColorPicker } from "../ui/ColorPicker";
-
-/** Working method options for environment detection */
-const WORKING_METHOD_OPTIONS = [
-  { value: "auto", label: "Auto-detect" },
-  { value: "claude-code", label: "Claude Code" },
-  { value: "vscode", label: "VS Code" },
-  { value: "opencode", label: "OpenCode" },
-  { value: "cursor", label: "Cursor" },
-  { value: "copilot-cli", label: "Copilot CLI" },
-  { value: "codex", label: "Codex" },
-] as const;
-
-type WorkingMethod = (typeof WORKING_METHOD_OPTIONS)[number]["value"];
+import { WorkingMethodSelect, type WorkingMethod } from "./WorkingMethodSelect";
 
 export interface EditProjectModalProps {
   /** Whether the modal is open */
@@ -317,18 +305,6 @@ export const EditProjectModal: FC<EditProjectModalProps> = ({
     color: "var(--text-secondary)",
     cursor: "pointer",
     transition: "all var(--transition-fast)",
-  };
-
-  const selectStyles: React.CSSProperties = {
-    width: "100%",
-    padding: "var(--spacing-2) var(--spacing-3)",
-    background: "var(--bg-primary)",
-    border: "1px solid var(--border-primary)",
-    borderRadius: "var(--radius-md)",
-    color: "var(--text-primary)",
-    fontSize: "var(--font-size-base)",
-    outline: "none",
-    cursor: "pointer",
   };
 
   const previewStyles: React.CSSProperties = {
@@ -618,19 +594,12 @@ export const EditProjectModal: FC<EditProjectModalProps> = ({
             <label style={labelStyles} htmlFor="edit-project-working-method">
               Working Method
             </label>
-            <select
+            <WorkingMethodSelect
               id="edit-project-working-method"
               value={workingMethod}
-              onChange={(e) => setWorkingMethod(e.target.value as WorkingMethod)}
-              style={selectStyles}
-              className="focus:border-[var(--accent-primary)]"
-            >
-              {WORKING_METHOD_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              onChange={setWorkingMethod}
+              disabled={isSaving}
+            />
             <p style={hintStyles}>Controls environment detection for AI assistants</p>
           </div>
         </div>

@@ -1,8 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { AnchorHTMLAttributes } from "react";
 import { ProjectsPanel } from "./ProjectsPanel";
 import type { ProjectWithAIActivity } from "../../lib/hooks";
+
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({ children, ...props }: AnchorHTMLAttributes<HTMLAnchorElement>) => (
+    <a href="#" {...props}>
+      {children}
+    </a>
+  ),
+}));
 
 // Sample test data with AI activity fields
 const mockProjects: ProjectWithAIActivity[] = [
@@ -43,6 +52,20 @@ const mockProjects: ProjectWithAIActivity[] = [
     epics: [],
   },
 ];
+
+const projectWithEpics: ProjectWithAIActivity = {
+  ...mockProjects[0]!,
+  epics: Array.from({ length: 6 }, (_, index) => ({
+    id: `epic-${index + 1}`,
+    projectId: "1",
+    title: `Epic ${index + 1}`,
+    description: null,
+    color: "#8b5cf6",
+    position: index,
+    createdAt: `2026-01-0${index + 1}T00:00:00Z`,
+    updatedAt: `2026-01-0${index + 1}T00:00:00Z`,
+  })),
+};
 
 describe("ProjectsPanel", () => {
   describe("Rendering", () => {
@@ -255,6 +278,47 @@ describe("ProjectsPanel", () => {
       await user.click(screen.getByText("Add Project"));
 
       expect(handleAddProject).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("Epic Ralph quick launch", () => {
+    it("launches Ralph directly from a recent inline epic list item", async () => {
+      const user = userEvent.setup({ pointerEventsCheck: 0 });
+      const handleLaunchRalph = vi.fn();
+      render(
+        <ProjectsPanel
+          isOpen={true}
+          onClose={vi.fn()}
+          projects={[projectWithEpics]}
+          onLaunchRalphForEpic={handleLaunchRalph}
+        />
+      );
+
+      await user.click(screen.getByLabelText("Expand epics"));
+      await user.hover(screen.getByTestId("epic-list-item-epic-6"));
+      await user.click(screen.getByLabelText("Launch Ralph for Epic 6"));
+
+      expect(handleLaunchRalph).toHaveBeenCalledWith("epic-6");
+    });
+
+    it("launches Ralph directly from the full epic drill-in view", async () => {
+      const user = userEvent.setup({ pointerEventsCheck: 0 });
+      const handleLaunchRalph = vi.fn();
+      render(
+        <ProjectsPanel
+          isOpen={true}
+          onClose={vi.fn()}
+          projects={[projectWithEpics]}
+          onLaunchRalphForEpic={handleLaunchRalph}
+        />
+      );
+
+      await user.click(screen.getByLabelText("Expand epics"));
+      await user.click(screen.getByText("View all 6 epics →"));
+      await user.hover(screen.getByTestId("epic-list-item-epic-1"));
+      await user.click(screen.getByLabelText("Launch Ralph for Epic 1"));
+
+      expect(handleLaunchRalph).toHaveBeenCalledWith("epic-1");
     });
   });
 
