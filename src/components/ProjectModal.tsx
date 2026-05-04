@@ -28,14 +28,13 @@ import { useToast } from "./Toast";
 import ErrorAlert from "./ErrorAlert";
 import { COLOR_OPTIONS } from "../lib/constants";
 import type { ConflictResolution, ManifestPreview } from "../../core/index.ts";
-import { PROJECT_WORKING_METHOD_UI_PROVIDERS } from "../lib/ui-launch-registry";
+import {
+  WorkingMethodSelect,
+  WORKING_METHOD_OPTIONS,
+  type WorkingMethod,
+} from "./projects/WorkingMethodSelect";
 
-const WORKING_METHOD_OPTIONS = PROJECT_WORKING_METHOD_UI_PROVIDERS.map((provider) => ({
-  value: provider.id,
-  label: provider.display.label,
-}));
-
-type ProjectWorkingMethod = (typeof PROJECT_WORKING_METHOD_UI_PROVIDERS)[number]["id"];
+type ProjectWorkingMethod = WorkingMethod;
 
 function isProjectWorkingMethod(value: string): value is ProjectWorkingMethod {
   return WORKING_METHOD_OPTIONS.some((option) => option.value === value);
@@ -58,7 +57,10 @@ export default function ProjectModal({ project, onClose, onSave }: ProjectModalP
   const [name, setName] = useState(project?.name ?? "");
   const [path, setPath] = useState(project?.path ?? "");
   const [color, setColor] = useState(project?.color ?? "");
-  const [workingMethod, setWorkingMethod] = useState(project?.workingMethod ?? "auto");
+  const initialWorkingMethod = project?.workingMethod ?? "auto";
+  const [workingMethod, setWorkingMethod] = useState<ProjectWorkingMethod>(
+    isProjectWorkingMethod(initialWorkingMethod) ? initialWorkingMethod : "auto"
+  );
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDirectoryPickerOpen, setIsDirectoryPickerOpen] = useState(false);
@@ -607,26 +609,17 @@ export default function ProjectModal({ project, onClose, onSave }: ProjectModalP
           {/* Working Method (only show for editing) */}
           {isEditing && (
             <div>
-              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+              <label
+                htmlFor="project-working-method"
+                className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
+              >
                 Working Method
               </label>
-              <div className="relative">
-                <select
-                  value={workingMethod}
-                  onChange={(e) => setWorkingMethod(e.target.value)}
-                  className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] appearance-none "
-                >
-                  {WORKING_METHOD_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown
-                  size={16}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] pointer-events-none"
-                />
-              </div>
+              <WorkingMethodSelect
+                id="project-working-method"
+                value={workingMethod}
+                onChange={setWorkingMethod}
+              />
               <p className="mt-1 text-xs text-[var(--text-tertiary)]">
                 Controls environment detection for AI assistants
               </p>
