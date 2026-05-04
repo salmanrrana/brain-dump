@@ -10,7 +10,7 @@ Brain Dump supports Pi as a CLI-only ticket execution environment. Pi launches r
 ./install.sh --pi
 ```
 
-This installs Brain Dump-managed Pi workflow files into `~/.pi/` and keeps a project-local source copy in `.pi/`:
+This installs Brain Dump-managed prompts and skills into Pi’s global agent directory (default **`~/.pi/agent/prompts/`** and **`~/.pi/agent/skills/`**; override with **`PI_CODING_AGENT_DIR`**), and preserves a repo-local source copy under **`.pi/`**:
 
 - `.pi/prompts/` contains prompt templates for starting, reviewing, completing, and demoing tickets.
 - `.pi/skills/` contains Brain Dump workflow, ticket selection, and review guidance for Pi sessions.

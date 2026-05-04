@@ -678,18 +678,26 @@ try {
 uninstall_pi() {
   echo -e "${BLUE}Uninstalling Pi configuration...${NC}"
 
-  PI_DIR="$HOME/.pi"
+  PI_AGENT_DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
+  LEGACY_PROMPTS_DIR="$HOME/.pi/prompts"
+  LEGACY_SKILLS_DIR="$HOME/.pi/skills"
   local removed=0
 
   for prompt in start-ticket.md complete-ticket.md next-ticket.md review-ticket.md demo-ticket.md; do
-    if [ -f "$PI_DIR/prompts/$prompt" ]; then
-      rm "$PI_DIR/prompts/$prompt" 2>/dev/null && removed=$((removed + 1))
+    if [ -f "$PI_AGENT_DIR/prompts/$prompt" ]; then
+      rm "$PI_AGENT_DIR/prompts/$prompt" 2>/dev/null && removed=$((removed + 1))
+    fi
+    if [ -f "$LEGACY_PROMPTS_DIR/$prompt" ]; then
+      rm "$LEGACY_PROMPTS_DIR/$prompt" 2>/dev/null && removed=$((removed + 1))
     fi
   done
 
   for skill in brain-dump-workflow brain-dump-ticket-selection brain-dump-review; do
-    if [ -d "$PI_DIR/skills/$skill" ]; then
-      rm -rf "$PI_DIR/skills/$skill" 2>/dev/null && removed=$((removed + 1))
+    if [ -d "$PI_AGENT_DIR/skills/$skill" ]; then
+      rm -rf "$PI_AGENT_DIR/skills/$skill" 2>/dev/null && removed=$((removed + 1))
+    fi
+    if [ -d "$LEGACY_SKILLS_DIR/$skill" ]; then
+      rm -rf "$LEGACY_SKILLS_DIR/$skill" 2>/dev/null && removed=$((removed + 1))
     fi
   done
 

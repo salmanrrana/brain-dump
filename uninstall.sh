@@ -803,19 +803,29 @@ remove_codex() {
 remove_pi() {
     print_step "Removing Pi integration"
 
-    PI_DIR="$HOME/.pi"
+    PI_AGENT_DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
+    LEGACY_PROMPTS_DIR="$HOME/.pi/prompts"
+    LEGACY_SKILLS_DIR="$HOME/.pi/skills"
     local removed=0
 
     for prompt in start-ticket.md complete-ticket.md next-ticket.md review-ticket.md demo-ticket.md; do
-        if [ -f "$PI_DIR/prompts/$prompt" ]; then
-            rm -f "$PI_DIR/prompts/$prompt"
+        if [ -f "$PI_AGENT_DIR/prompts/$prompt" ]; then
+            rm -f "$PI_AGENT_DIR/prompts/$prompt"
+            removed=$((removed + 1))
+        fi
+        if [ -f "$LEGACY_PROMPTS_DIR/$prompt" ]; then
+            rm -f "$LEGACY_PROMPTS_DIR/$prompt"
             removed=$((removed + 1))
         fi
     done
 
     for skill in brain-dump-workflow brain-dump-ticket-selection brain-dump-review; do
-        if [ -d "$PI_DIR/skills/$skill" ]; then
-            rm -rf "$PI_DIR/skills/$skill"
+        if [ -d "$PI_AGENT_DIR/skills/$skill" ]; then
+            rm -rf "$PI_AGENT_DIR/skills/$skill"
+            removed=$((removed + 1))
+        fi
+        if [ -d "$LEGACY_SKILLS_DIR/$skill" ]; then
+            rm -rf "$LEGACY_SKILLS_DIR/$skill"
             removed=$((removed + 1))
         fi
     done
@@ -1218,7 +1228,7 @@ show_help() {
     echo "  OpenCode:      MCP config, agents, skill, plugins in ~/.config/opencode/"
     echo "  Copilot CLI:   MCP config, agents, skills, hooks in ~/.copilot/"
     echo "  Codex:         MCP config in ~/.codex/config.toml"
-    echo "  Pi:            Brain Dump-managed prompts and skills in ~/.pi/ (no MCP)"
+    echo "  Pi:            Brain Dump-managed prompts/skills under ~/.pi/agent/ (legacy ~/.pi/ cleaned too; no MCP)"
     echo "  Sandbox:       Sandbox config in ~/.claude/settings.json"
     echo "  Devcontainer:  Docker volumes (pnpm store, bash history, claude config)"
     echo "                 Does NOT remove your Brain Dump data (bind-mounted)"
