@@ -17,6 +17,7 @@ import type {
   RalphAutonomousUiLaunchProvider,
 } from "./launch-provider-contract";
 import type { LaunchEpicInput, LaunchTicketInput } from "./ralph-launch/types";
+import { RALPH_AUTONOMOUS_UI_LAUNCH_PROVIDERS } from "./ui-launch-registry";
 
 export interface TicketLaunchContextResult {
   context: string;
@@ -117,6 +118,24 @@ export const defaultRalphLaunchDependencies: Pick<
     };
   },
 };
+
+export function getDefaultRalphAutonomousProviderForWorkingMethod(
+  workingMethod?: string | null
+): RalphAutonomousUiLaunchProvider {
+  const providerIdByWorkingMethod: Record<string, RalphAutonomousUiLaunchProvider["id"]> = {
+    codex: "ralph-codex",
+    "cursor-agent": "ralph-cursor-agent",
+    "copilot-cli": "ralph-copilot",
+    opencode: "ralph-opencode",
+    pi: "ralph-pi",
+  };
+  const providerId = workingMethod ? providerIdByWorkingMethod[workingMethod] : undefined;
+
+  return (
+    RALPH_AUTONOMOUS_UI_LAUNCH_PROVIDERS.find((provider) => provider.id === providerId) ??
+    RALPH_AUTONOMOUS_UI_LAUNCH_PROVIDERS[0]!
+  );
+}
 
 export async function dispatchInteractiveUiLaunch(
   provider: InteractiveUiLaunchProvider,

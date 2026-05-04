@@ -58,8 +58,8 @@ import type { RalphAutonomousUiLaunchProvider } from "../lib/launch-provider-con
 import {
   defaultRalphLaunchDependencies,
   dispatchRalphAutonomousUiLaunch,
+  getDefaultRalphAutonomousProviderForWorkingMethod,
 } from "../lib/ui-launch-dispatcher";
-import { RALPH_AUTONOMOUS_UI_LAUNCH_PROVIDERS } from "../lib/ui-launch-registry";
 
 const ContainerLogsModal = lazy(() => import("./ContainerLogsModal"));
 const DeleteConfirmationModal = lazy(() => import("./DeleteConfirmationModal"));
@@ -87,12 +87,7 @@ function getEpicRalphProvider(
   epicId: string
 ): RalphAutonomousUiLaunchProvider {
   const project = projects.find((candidate) => candidate.epics?.some((epic) => epic.id === epicId));
-  const aiBackend = project?.workingMethod === "pi" ? "pi" : "claude";
-
-  return (
-    RALPH_AUTONOMOUS_UI_LAUNCH_PROVIDERS.find((provider) => provider.aiBackend === aiBackend) ??
-    RALPH_AUTONOMOUS_UI_LAUNCH_PROVIDERS[0]!
-  );
+  return getDefaultRalphAutonomousProviderForWorkingMethod(project?.workingMethod);
 }
 
 interface AppLayoutProps {

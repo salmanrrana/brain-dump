@@ -9,6 +9,7 @@ import {
 import {
   dispatchInteractiveUiLaunch,
   dispatchRalphAutonomousUiLaunch,
+  getDefaultRalphAutonomousProviderForWorkingMethod,
   type InteractiveLaunchDependencies,
   type RalphLaunchDependencies,
 } from "./ui-launch-dispatcher";
@@ -190,6 +191,23 @@ describe("shared UI launch dispatcher", () => {
         aiBackend,
         ...(workingMethodOverride ? { workingMethodOverride } : {}),
       });
+    }
+  );
+
+  it.each([
+    ["auto", "ralph-native"],
+    ["claude-code", "ralph-native"],
+    ["vscode", "ralph-native"],
+    ["cursor", "ralph-native"],
+    ["codex", "ralph-codex"],
+    ["cursor-agent", "ralph-cursor-agent"],
+    ["copilot-cli", "ralph-copilot"],
+    ["opencode", "ralph-opencode"],
+    ["pi", "ralph-pi"],
+  ] as const)(
+    "resolves %s as the default Ralph quick-launch provider",
+    (workingMethod, providerId) => {
+      expect(getDefaultRalphAutonomousProviderForWorkingMethod(workingMethod).id).toBe(providerId);
     }
   );
 
