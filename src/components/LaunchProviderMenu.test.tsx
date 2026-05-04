@@ -44,4 +44,24 @@ describe("LaunchProviderMenu", () => {
 
     expect(screen.queryByRole("button", { name: "Export Epic" })).not.toBeInTheDocument();
   });
+
+  it("can render focused review Ralph providers without an empty interactive section", () => {
+    render(
+      <LaunchProviderMenu
+        interactiveContext="focused-review"
+        ralphContext="focused-review"
+        onInteractiveLaunch={vi.fn()}
+        onRalphLaunch={vi.fn()}
+        showInteractive={false}
+      />
+    );
+
+    expect(screen.queryByText("Interactive")).not.toBeInTheDocument();
+    expect(screen.getByText("Ralph")).toBeInTheDocument();
+
+    for (const provider of getRalphAutonomousUiLaunchProvidersForContext("focused-review")) {
+      const label = provider.display.label.replace("Ralph (", "").replace(")", "");
+      expect(screen.getAllByRole("button", { name: label }).length).toBeGreaterThan(0);
+    }
+  });
 });

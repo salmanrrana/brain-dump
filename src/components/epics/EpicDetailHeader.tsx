@@ -10,52 +10,24 @@ import {
   GitPullRequest,
   ExternalLink,
   Copy,
-  Bot,
-  Terminal,
-  Code2,
-  Monitor,
-  Github,
   Search,
   MoreHorizontal,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import { useToast } from "../Toast";
 import { Modal } from "../ui/Modal";
+import { LaunchProviderMenu } from "../LaunchProviderMenu";
 import { useClickOutside } from "../../lib/hooks";
 import { getPrStatusIconColor, getPrStatusBadgeStyle } from "../../lib/constants";
 import type { EpicDetailResult } from "../../api/epics";
-import type {
-  LaunchProviderIconKey,
-  RalphAutonomousUiLaunchProvider,
-} from "../../lib/launch-provider-contract";
+import type { RalphAutonomousUiLaunchProvider } from "../../lib/launch-provider-contract";
 import {
   defaultRalphLaunchDependencies,
   dispatchInteractiveUiLaunch,
   dispatchRalphAutonomousUiLaunch,
 } from "../../lib/ui-launch-dispatcher";
-import {
-  INTERACTIVE_UI_LAUNCH_PROVIDERS,
-  getInteractiveUiLaunchProvidersForContext,
-  getRalphAutonomousUiLaunchProvidersForContext,
-} from "../../lib/ui-launch-registry";
+import type { INTERACTIVE_UI_LAUNCH_PROVIDERS } from "../../lib/ui-launch-registry";
 import { queryKeys } from "../../lib/query-keys";
 import { useLaunchRalphForEpic, useSettings } from "../../lib/hooks";
-
-const ICONS_BY_KEY: Record<LaunchProviderIconKey, LucideIcon> = {
-  sparkles: Terminal,
-  bot: Bot,
-  code: Code2,
-  terminal: Terminal,
-  monitor: Monitor,
-  github: Github,
-};
-
-const EPIC_NEXT_TICKET_PROVIDERS = getInteractiveUiLaunchProvidersForContext("epic-next-ticket");
-
-const EPIC_RALPH_PROVIDERS = getRalphAutonomousUiLaunchProvidersForContext("epic");
-
-const FOCUSED_REVIEW_RALPH_PROVIDERS =
-  getRalphAutonomousUiLaunchProvidersForContext("focused-review");
 
 export interface EpicDetailHeaderProps {
   epic: EpicDetailResult["epic"];
@@ -91,7 +63,9 @@ export function EpicDetailHeader({
   const [selectedReviewTicketIds, setSelectedReviewTicketIds] = useState<string[]>([]);
   const [reviewSteeringPrompt, setReviewSteeringPrompt] = useState("");
   const [reviewLaunchError, setReviewLaunchError] = useState<string | null>(null);
-  const [pendingReviewProvider, setPendingReviewProvider] = useState<string | null>(null);
+  const [pendingReviewProvider, setPendingReviewProvider] = useState<
+    RalphAutonomousUiLaunchProvider["id"] | null
+  >(null);
   const launchMenuRef = useRef<HTMLDivElement>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const { showToast } = useToast();
@@ -255,7 +229,7 @@ export function EpicDetailHeader({
       }
 
       setReviewLaunchError(null);
-      setPendingReviewProvider(provider.display.label);
+      setPendingReviewProvider(provider.id);
 
       try {
         const result = await dispatchRalphAutonomousUiLaunch(
@@ -474,65 +448,13 @@ export function EpicDetailHeader({
               </button>
 
               {showLaunchMenu && hasLaunchableTickets && (
-                <div style={dropdownMenuStyles}>
-                  <div style={dropdownGridStyles}>
-                    <div style={dropdownSectionStyles}>
-                      <div style={sectionHeaderStyles}>
-                        <Terminal size={14} color="var(--success)" />
-                        <span style={sectionTitleStyles}>Interactive</span>
-                      </div>
-                      <div style={buttonGridStyles}>
-                        {EPIC_NEXT_TICKET_PROVIDERS.map((provider) => {
-                          const Icon = ICONS_BY_KEY[provider.display.iconKey];
-
-                          return (
-                            <button
-                              key={provider.id}
-                              type="button"
-                              onClick={() => void handleLaunchInteractive(provider)}
-                              title={provider.display.description}
-                              style={launchOptionButtonStyles}
-                            >
-                              <Icon size={14} color={provider.display.iconColor} />
-                              <span style={optionTextStyles}>{provider.display.label}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div
-                      style={{
-                        ...dropdownSectionStyles,
-                        borderLeft: "1px solid var(--border-primary)",
-                      }}
-                    >
-                      <div style={sectionHeaderStyles}>
-                        <Bot size={14} color="var(--accent-ai)" />
-                        <span style={sectionTitleStyles}>Ralph</span>
-                      </div>
-                      <div style={buttonGridStyles}>
-                        {EPIC_RALPH_PROVIDERS.map((provider) => {
-                          const Icon = ICONS_BY_KEY[provider.display.iconKey];
-
-                          return (
-                            <button
-                              key={provider.id}
-                              type="button"
-                              onClick={() => void handleLaunchRalph(provider)}
-                              title={provider.display.description}
-                              style={launchOptionButtonStyles}
-                            >
-                              <Icon size={14} color={provider.display.iconColor} />
-                              <span style={optionTextStyles}>
-                                {provider.display.label.replace("Ralph (", "").replace(")", "")}
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
+                <div style={dropdownMenuStyles} className="overflow-hidden">
+                  <LaunchProviderMenu
+                    interactiveContext="epic-next-ticket"
+                    ralphContext="epic"
+                    onInteractiveLaunch={(provider) => void handleLaunchInteractive(provider)}
+                    onRalphLaunch={(provider) => void handleLaunchRalph(provider)}
+                  />
                 </div>
               )}
             </div>
@@ -749,40 +671,16 @@ export function EpicDetailHeader({
                     above is injected into every session.
                   </span>
                 </div>
-                <div style={reviewProviderGridStyles}>
-                  {FOCUSED_REVIEW_RALPH_PROVIDERS.map((provider) => {
-                    const Icon = ICONS_BY_KEY[provider.display.iconKey];
-                    const label = provider.display.label.replace("Ralph (", "").replace(")", "");
-                    const isThisOne = pendingReviewProvider === provider.display.label;
-                    const isDisabled =
-                      launchRalphMutation.isPending || selectedReviewTicketIds.length === 0;
-
-                    return (
-                      <button
-                        key={provider.id}
-                        type="button"
-                        onClick={() => void handleLaunchFocusedReview(provider)}
-                        disabled={isDisabled}
-                        title={provider.display.description}
-                        style={{
-                          ...reviewProviderButtonStyles,
-                          opacity: isDisabled ? 0.6 : 1,
-                          cursor: isDisabled ? "not-allowed" : "pointer",
-                        }}
-                      >
-                        {isThisOne ? (
-                          <LoaderCircle size={14} className="animate-spin flex-shrink-0" />
-                        ) : (
-                          <Icon
-                            size={14}
-                            color={provider.display.iconColor}
-                            className="flex-shrink-0"
-                          />
-                        )}
-                        <span className="text-sm text-[var(--text-primary)]">{label}</span>
-                      </button>
-                    );
-                  })}
+                <div className="overflow-hidden rounded-lg border border-[var(--border-primary)] bg-[var(--bg-tertiary)]">
+                  <LaunchProviderMenu
+                    interactiveContext="focused-review"
+                    ralphContext="focused-review"
+                    onInteractiveLaunch={() => undefined}
+                    onRalphLaunch={(provider) => void handleLaunchFocusedReview(provider)}
+                    disabled={launchRalphMutation.isPending || selectedReviewTicketIds.length === 0}
+                    loadingProviderId={pendingReviewProvider}
+                    showInteractive={false}
+                  />
                 </div>
               </div>
             </div>
@@ -1073,52 +971,6 @@ const dropdownMenuStyles: React.CSSProperties = {
   minWidth: "400px",
 };
 
-const dropdownGridStyles: React.CSSProperties = {
-  display: "flex",
-};
-
-const dropdownSectionStyles: React.CSSProperties = {
-  flex: 1,
-  padding: "var(--spacing-3)",
-};
-
-const sectionHeaderStyles: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: "var(--spacing-2)",
-  marginBottom: "var(--spacing-2)",
-};
-
-const sectionTitleStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-xs)",
-  fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
-  textTransform: "uppercase",
-  letterSpacing: "0.5px",
-};
-
-const buttonGridStyles: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(2, 1fr)",
-  gap: "var(--spacing-2)",
-};
-
-const launchOptionButtonStyles: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: "var(--spacing-2)",
-  padding: "var(--spacing-2) var(--spacing-3)",
-  background: "var(--bg-card)",
-  border: "1px solid var(--border-primary)",
-  borderRadius: "var(--radius-xl)",
-  cursor: "pointer",
-  transition: "all var(--transition-fast)",
-};
-
-const optionTextStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-sm)",
-  color: "var(--text-primary)",
-};
-
 const badgeRowStyles: React.CSSProperties = {
   display: "flex",
   flexWrap: "wrap",
@@ -1395,24 +1247,6 @@ const reviewErrorStyles: React.CSSProperties = {
   background: "color-mix(in srgb, var(--accent-danger) 12%, transparent)",
   color: "var(--accent-danger)",
   lineHeight: 1.5,
-};
-
-const reviewProviderGridStyles: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(2, 1fr)",
-  gap: "var(--spacing-2)",
-};
-
-const reviewProviderButtonStyles: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: "var(--spacing-2)",
-  borderRadius: "var(--radius-md)",
-  border: "1px solid var(--border-primary)",
-  padding: "var(--spacing-2) var(--spacing-3)",
-  textAlign: "left",
-  background: "var(--bg-tertiary)",
-  transition: "background-color 0.15s",
 };
 
 const findingStatusStyles: React.CSSProperties = {
