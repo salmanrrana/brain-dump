@@ -124,6 +124,15 @@ const TICKET_MODAL_ICON_BY_KEY: Record<LaunchProviderIconKey, typeof Terminal> =
   github: Github,
 };
 
+function isClipboardLaunchResult(result: unknown): boolean {
+  return (
+    typeof result === "object" &&
+    result !== null &&
+    "method" in result &&
+    result.method === "clipboard"
+  );
+}
+
 /**
  * Convert legacy subtasks to acceptance criteria format.
  * Handles both old {id, text, completed} and new AcceptanceCriterion formats.
@@ -320,9 +329,12 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
           }
 
           if (launchResult.success) {
-            form.setFieldValue("status", "in_progress");
             setStartWorkNotification({ type: "success", message: launchResult.message });
-            setTimeout(() => onUpdate(), 500);
+
+            if (!isClipboardLaunchResult(launchResult)) {
+              form.setFieldValue("status", "in_progress");
+              setTimeout(() => onUpdate(), 500);
+            }
           } else {
             showToast("error", launchResult.message);
             setStartWorkNotification({ type: "error", message: launchResult.message });
