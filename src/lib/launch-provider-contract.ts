@@ -107,6 +107,7 @@ export interface TicketUiLaunchDispatchContext extends BaseUiLaunchDispatchConte
 export interface EpicNextTicketUiLaunchDispatchContext extends BaseUiLaunchDispatchContext {
   kind: "epic-next-ticket";
   epicId: string;
+  ticketId: string;
 }
 
 export interface EpicUiLaunchDispatchContext extends BaseUiLaunchDispatchContext {
