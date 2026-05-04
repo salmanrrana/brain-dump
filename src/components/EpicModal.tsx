@@ -1,17 +1,5 @@
 import { useState, useRef, useCallback } from "react";
-import {
-  X,
-  ChevronDown,
-  Bot,
-  Loader2,
-  Save,
-  Code2,
-  Terminal,
-  Monitor,
-  Github,
-  Download,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { X, ChevronDown, Bot, Loader2, Save, Download } from "lucide-react";
 import { useForm } from "@tanstack/react-form-start";
 import {
   useCreateEpic,
@@ -32,19 +20,13 @@ import { epicFormOpts } from "./epics/epic-form-opts";
 import { epicFormSchema } from "./epics/epic-form-schema";
 import { startEpicWorkflowFn } from "../api/workflow-server-fns";
 import { getEpicContext } from "../api/context";
-import type {
-  LaunchProviderIconKey,
-  RalphAutonomousUiLaunchProvider,
-} from "../lib/launch-provider-contract";
+import type { RalphAutonomousUiLaunchProvider } from "../lib/launch-provider-contract";
 import {
   dispatchInteractiveUiLaunch,
   dispatchRalphAutonomousUiLaunch,
 } from "../lib/ui-launch-dispatcher";
-import {
-  INTERACTIVE_UI_LAUNCH_PROVIDERS,
-  getInteractiveUiLaunchProvidersForContext,
-  getRalphAutonomousUiLaunchProvidersForContext,
-} from "../lib/ui-launch-registry";
+import type { INTERACTIVE_UI_LAUNCH_PROVIDERS } from "../lib/ui-launch-registry";
+import { LaunchProviderMenu } from "./LaunchProviderMenu";
 
 interface Epic {
   id: string;
@@ -60,19 +42,6 @@ interface EpicModalProps {
   onClose: () => void;
   onSave: () => void;
 }
-
-const ICONS_BY_KEY: Record<LaunchProviderIconKey, LucideIcon> = {
-  sparkles: Terminal,
-  bot: Bot,
-  code: Code2,
-  terminal: Terminal,
-  monitor: Monitor,
-  github: Github,
-};
-
-const EPIC_NEXT_TICKET_PROVIDERS = getInteractiveUiLaunchProvidersForContext("epic-next-ticket");
-
-const EPIC_RALPH_PROVIDERS = getRalphAutonomousUiLaunchProvidersForContext("epic");
 
 export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
@@ -634,85 +603,24 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
             {/* Dropdown Menu */}
             {showActionMenu && isEditing && (
               <div className="absolute right-0 bottom-full mb-2 w-[46rem] max-w-[95vw] bg-[var(--bg-secondary)] border border-[var(--border-secondary)] rounded-xl shadow-xl z-[80] overflow-hidden">
-                <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[var(--border-primary)]">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 px-3 py-2 bg-[var(--bg-primary)] border-b border-[var(--border-primary)]">
-                      <Terminal size={14} className="text-[var(--success)]" />
-                      <span className="text-xs font-semibold text-[var(--success)] uppercase tracking-wider">
-                        Interactive
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 p-3">
-                      {EPIC_NEXT_TICKET_PROVIDERS.map((provider) => {
-                        const Icon = ICONS_BY_KEY[provider.display.iconKey];
-
-                        return (
-                          <button
-                            key={provider.id}
-                            onClick={() => void handleStartInteractive(provider)}
-                            title={provider.display.description}
-                            className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
-                          >
-                            <Icon
-                              size={14}
-                              color={provider.display.iconColor}
-                              className="flex-shrink-0"
-                            />
-                            <span className="text-sm text-[var(--text-primary)]">
-                              {provider.display.label}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 px-3 py-2 bg-[var(--bg-primary)] border-b border-[var(--border-primary)]">
-                      <Bot size={14} className="text-[var(--accent-ai)]" />
-                      <span className="text-xs font-semibold text-[var(--accent-ai)] uppercase tracking-wider">
-                        Ralph
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 p-3">
-                      {EPIC_RALPH_PROVIDERS.map((provider) => {
-                        const Icon = ICONS_BY_KEY[provider.display.iconKey];
-
-                        return (
-                          <button
-                            key={provider.id}
-                            onClick={() => void handleStartRalph(provider)}
-                            title={provider.display.description}
-                            className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
-                          >
-                            <Icon
-                              size={14}
-                              color={provider.display.iconColor}
-                              className="flex-shrink-0"
-                            />
-                            <span className="text-sm text-[var(--text-primary)]">
-                              {provider.display.label.replace("Ralph (", "").replace(")", "")}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Export section */}
-                <div className="border-t border-[var(--border-primary)] p-3">
-                  <button
-                    onClick={() => {
-                      setShowActionMenu(false);
-                      setShowExportModal(true);
-                    }}
-                    className="flex items-center gap-2 w-full rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
-                  >
-                    <Download size={14} className="text-[var(--text-secondary)] flex-shrink-0" />
-                    <span className="text-sm text-[var(--text-primary)]">Export Epic</span>
-                  </button>
-                </div>
+                <LaunchProviderMenu
+                  interactiveContext="epic-next-ticket"
+                  ralphContext="epic"
+                  onInteractiveLaunch={(provider) => void handleStartInteractive(provider)}
+                  onRalphLaunch={(provider) => void handleStartRalph(provider)}
+                  exportAction={
+                    <button
+                      onClick={() => {
+                        setShowActionMenu(false);
+                        setShowExportModal(true);
+                      }}
+                      className="flex items-center gap-2 w-full rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                    >
+                      <Download size={14} className="text-[var(--text-secondary)] flex-shrink-0" />
+                      <span className="text-sm text-[var(--text-primary)]">Export Epic</span>
+                    </button>
+                  }
+                />
               </div>
             )}
           </div>
