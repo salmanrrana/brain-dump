@@ -18,10 +18,9 @@ import ExportModal from "./transfer/ExportModal";
 import { COLOR_OPTIONS } from "../lib/constants";
 import { epicFormOpts } from "./epics/epic-form-opts";
 import { epicFormSchema } from "./epics/epic-form-schema";
-import { startEpicWorkflowFn } from "../api/workflow-server-fns";
-import { getEpicContext } from "../api/context";
 import type { RalphAutonomousUiLaunchProvider } from "../lib/launch-provider-contract";
 import {
+  defaultRalphLaunchDependencies,
   dispatchInteractiveUiLaunch,
   dispatchRalphAutonomousUiLaunch,
 } from "../lib/ui-launch-dispatcher";
@@ -200,31 +199,6 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
       setShowActionMenu(false);
 
       try {
-        // Get epic context (including project path for workflow initialization)
-        const contextResult = await getEpicContext({ data: epic.id });
-
-        // Initialize epic workflow first (git branch, workflow state, audit comment)
-        const workflowResult = await startEpicWorkflowFn({
-          data: {
-            epicId: epic.id,
-            projectPath: contextResult.projectPath,
-          },
-        });
-
-        if (!workflowResult.success) {
-          // Git checkout failed — warn but continue on current branch
-          setRalphNotification({
-            type: "info",
-            message: `Branch setup skipped: ${workflowResult.error || "Unknown error"}. Launching on the current branch.`,
-          });
-        } else if (workflowResult.warnings?.length) {
-          setRalphNotification({
-            type: "info",
-            message: workflowResult.warnings.join(". "),
-          });
-        }
-
-        // Launch Ralph
         const result = await dispatchRalphAutonomousUiLaunch(
           provider,
           {
@@ -233,10 +207,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
             preferredTerminal: settings?.terminalEmulator ?? null,
           },
           {
-            startTicketWorkflow: async () => ({
-              success: true,
-              message: "Ticket workflow initialization skipped for epic launch.",
-            }),
+            ...defaultRalphLaunchDependencies,
             launchTicketRalph: async () => ({
               success: false,
               message: "Ticket Ralph launch is not available from the epic modal.",
@@ -244,6 +215,8 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
             launchEpicRalph: (payload) => launchRalphMutation.mutateAsync(payload),
           }
         );
+
+        const warningMessage = result.warnings?.join(". ");
 
         if (result.success) {
           // Check if VS Code launch path was used
@@ -258,7 +231,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
             contextFile?: string;
           } = {
             type: "success",
-            message: result.message,
+            message: warningMessage ? `${warningMessage}. ${result.message}` : result.message,
           };
           if (launchMethod) notification.launchMethod = launchMethod;
           if (contextFile) notification.contextFile = contextFile;

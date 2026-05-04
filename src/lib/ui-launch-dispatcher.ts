@@ -8,8 +8,8 @@ import {
   launchPiInTerminal,
   launchVSCodeInTerminal,
 } from "../api/terminal";
-import { startTicketWorkflowFn } from "../api/workflow-server-fns";
-import { getTicketContext } from "../api/context";
+import { startEpicWorkflowFn, startTicketWorkflowFn } from "../api/workflow-server-fns";
+import { getEpicContext, getTicketContext } from "../api/context";
 import type {
   InteractiveUiLaunchDispatchContext,
   InteractiveUiLaunchProvider,
@@ -54,6 +54,10 @@ export interface RalphLaunchDependencies {
     ticketId: string;
     projectPath?: string | null;
   }) => Promise<UiLaunchResult>;
+  startEpicWorkflow: (payload: {
+    epicId: string;
+    projectPath?: string | null;
+  }) => Promise<UiLaunchResult>;
   launchTicketRalph: (payload: LaunchTicketInput) => Promise<UiLaunchResult>;
   launchEpicRalph: (payload: LaunchEpicInput) => Promise<UiLaunchResult>;
 }
@@ -80,22 +84,39 @@ export const defaultInteractiveLaunchDependencies: InteractiveLaunchDependencies
   launchPi: async (payload) => launchPiInTerminal({ data: payload }),
 };
 
-export const defaultRalphLaunchDependencies: Pick<RalphLaunchDependencies, "startTicketWorkflow"> =
-  {
-    startTicketWorkflow: async (payload) => {
-      const result = await startTicketWorkflowFn({
-        data: { ticketId: payload.ticketId, projectPath: payload.projectPath ?? "" },
-      });
+export const defaultRalphLaunchDependencies: Pick<
+  RalphLaunchDependencies,
+  "startTicketWorkflow" | "startEpicWorkflow"
+> = {
+  startTicketWorkflow: async (payload) => {
+    const result = await startTicketWorkflowFn({
+      data: { ticketId: payload.ticketId, projectPath: payload.projectPath ?? "" },
+    });
 
-      return {
-        success: result.success,
-        message: result.success
-          ? "Ticket workflow initialized for launch."
-          : (result.error ?? "Ticket workflow initialization failed."),
-        warnings: result.warnings,
-      };
-    },
-  };
+    return {
+      success: result.success,
+      message: result.success
+        ? "Ticket workflow initialized for launch."
+        : (result.error ?? "Ticket workflow initialization failed."),
+      warnings: result.warnings,
+    };
+  },
+  startEpicWorkflow: async (payload) => {
+    const projectPath =
+      payload.projectPath ?? (await getEpicContext({ data: payload.epicId })).projectPath;
+    const result = await startEpicWorkflowFn({
+      data: { epicId: payload.epicId, projectPath },
+    });
+
+    return {
+      success: result.success,
+      message: result.success
+        ? "Epic workflow initialized for launch."
+        : (result.error ?? "Epic workflow initialization failed."),
+      warnings: result.warnings,
+    };
+  },
+};
 
 export async function dispatchInteractiveUiLaunch(
   provider: InteractiveUiLaunchProvider,
@@ -159,6 +180,22 @@ export async function dispatchRalphAutonomousUiLaunch(
     });
   }
 
+  const workflowResult =
+    context.kind === "epic"
+      ? await dependencies.startEpicWorkflow({
+          epicId: context.epicId,
+          projectPath: context.projectPath ?? null,
+        })
+      : undefined;
+  const workflowWarnings = workflowResult
+    ? [
+        ...(!workflowResult.success
+          ? [`Branch setup skipped: ${workflowResult.message}. Launching on the current branch.`]
+          : []),
+        ...(workflowResult.warnings ?? []),
+      ]
+    : [];
+
   const launchProfile =
     context.kind === "focused-review"
       ? {
@@ -168,7 +205,7 @@ export async function dispatchRalphAutonomousUiLaunch(
         }
       : undefined;
 
-  return dependencies.launchEpicRalph({
+  const launchResult = await dependencies.launchEpicRalph({
     epicId: context.epicId,
     preferredTerminal: context.preferredTerminal ?? null,
     useSandbox: false,
@@ -178,4 +215,9 @@ export async function dispatchRalphAutonomousUiLaunch(
       : {}),
     ...(launchProfile ? { launchProfile } : {}),
   });
+
+  return {
+    ...launchResult,
+    warnings: [...workflowWarnings, ...(launchResult.warnings ?? [])],
+  };
 }

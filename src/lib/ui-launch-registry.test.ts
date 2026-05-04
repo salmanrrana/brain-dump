@@ -162,6 +162,7 @@ describe("shared UI launch dispatcher", () => {
       );
       const dependencies: RalphLaunchDependencies = {
         startTicketWorkflow: vi.fn().mockResolvedValue({ success: true, message: "workflow" }),
+        startEpicWorkflow: vi.fn().mockResolvedValue({ success: true, message: "epic workflow" }),
         launchTicketRalph: vi.fn().mockResolvedValue({ success: true, message: "ralph" }),
         launchEpicRalph: vi.fn().mockResolvedValue({ success: true, message: "epic" }),
       };
@@ -198,6 +199,7 @@ describe("shared UI launch dispatcher", () => {
     );
     const dependencies: RalphLaunchDependencies = {
       startTicketWorkflow: vi.fn().mockResolvedValue({ success: true, message: "workflow" }),
+      startEpicWorkflow: vi.fn().mockResolvedValue({ success: true, message: "epic workflow" }),
       launchTicketRalph: vi.fn().mockResolvedValue({ success: true, message: "ralph" }),
       launchEpicRalph: vi.fn().mockResolvedValue({ success: true, message: "epic" }),
     };
@@ -225,5 +227,74 @@ describe("shared UI launch dispatcher", () => {
         steeringPrompt: "Check launch parity",
       },
     });
+    expect(dependencies.startEpicWorkflow).not.toHaveBeenCalled();
+  });
+
+  it("initializes epic workflow before launching Ralph for an epic", async () => {
+    const provider = RALPH_AUTONOMOUS_UI_LAUNCH_PROVIDERS.find(
+      (candidate) => candidate.id === "ralph-pi"
+    );
+    const dependencies: RalphLaunchDependencies = {
+      startTicketWorkflow: vi.fn().mockResolvedValue({ success: true, message: "workflow" }),
+      startEpicWorkflow: vi.fn().mockResolvedValue({
+        success: true,
+        message: "epic workflow",
+        warnings: ["Existing branch reused"],
+      }),
+      launchTicketRalph: vi.fn().mockResolvedValue({ success: true, message: "ralph" }),
+      launchEpicRalph: vi.fn().mockResolvedValue({ success: true, message: "epic launched" }),
+    };
+
+    expect(provider).toBeDefined();
+    const result = await dispatchRalphAutonomousUiLaunch(
+      provider!,
+      {
+        kind: "epic",
+        epicId: "epic-1",
+        projectPath: "/repo",
+        preferredTerminal: "ghostty",
+      },
+      dependencies
+    );
+
+    expect(dependencies.startEpicWorkflow).toHaveBeenCalledWith({
+      epicId: "epic-1",
+      projectPath: "/repo",
+    });
+    expect(dependencies.launchEpicRalph).toHaveBeenCalledWith({
+      epicId: "epic-1",
+      preferredTerminal: "ghostty",
+      useSandbox: false,
+      aiBackend: "pi",
+    });
+    expect(result).toEqual({
+      success: true,
+      message: "epic launched",
+      warnings: ["Existing branch reused"],
+    });
+  });
+
+  it("continues epic Ralph launch when workflow bootstrap warns or fails", async () => {
+    const provider = RALPH_AUTONOMOUS_UI_LAUNCH_PROVIDERS.find(
+      (candidate) => candidate.id === "ralph-native"
+    );
+    const dependencies: RalphLaunchDependencies = {
+      startTicketWorkflow: vi.fn().mockResolvedValue({ success: true, message: "workflow" }),
+      startEpicWorkflow: vi.fn().mockResolvedValue({ success: false, message: "dirty worktree" }),
+      launchTicketRalph: vi.fn().mockResolvedValue({ success: true, message: "ralph" }),
+      launchEpicRalph: vi.fn().mockResolvedValue({ success: true, message: "epic launched" }),
+    };
+
+    expect(provider).toBeDefined();
+    const result = await dispatchRalphAutonomousUiLaunch(
+      provider!,
+      { kind: "epic", epicId: "epic-1" },
+      dependencies
+    );
+
+    expect(dependencies.launchEpicRalph).toHaveBeenCalled();
+    expect(result.warnings).toEqual([
+      "Branch setup skipped: dirty worktree. Launching on the current branch.",
+    ]);
   });
 });

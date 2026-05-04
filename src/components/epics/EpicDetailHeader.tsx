@@ -29,6 +29,7 @@ import type {
   RalphAutonomousUiLaunchProvider,
 } from "../../lib/launch-provider-contract";
 import {
+  defaultRalphLaunchDependencies,
   dispatchInteractiveUiLaunch,
   dispatchRalphAutonomousUiLaunch,
 } from "../../lib/ui-launch-dispatcher";
@@ -215,10 +216,7 @@ export function EpicDetailHeader({
             preferredTerminal: settings?.settings?.terminalEmulator ?? null,
           },
           {
-            startTicketWorkflow: async () => ({
-              success: true,
-              message: "Ticket workflow initialization skipped for epic launch.",
-            }),
+            ...defaultRalphLaunchDependencies,
             launchTicketRalph: async () => ({
               success: false,
               message: "Ticket Ralph launch is not available from the epic header.",
@@ -270,10 +268,7 @@ export function EpicDetailHeader({
             steeringPrompt: reviewSteeringPrompt,
           },
           {
-            startTicketWorkflow: async () => ({
-              success: true,
-              message: "Ticket workflow initialization skipped for focused review.",
-            }),
+            ...defaultRalphLaunchDependencies,
             launchTicketRalph: async () => ({
               success: false,
               message: "Ticket Ralph launch is not available from focused review.",

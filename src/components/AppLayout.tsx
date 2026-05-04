@@ -54,8 +54,12 @@ import {
 } from "./AppLayoutContext";
 import { deleteEpic as deleteEpicFn } from "../api/epics";
 import { useKeyboardShortcuts } from "../lib/keyboard-shortcuts";
-import { getEpicContext } from "../api/context";
-import { startEpicWorkflowFn } from "../api/workflow-server-fns";
+import type { RalphAutonomousUiLaunchProvider } from "../lib/launch-provider-contract";
+import {
+  defaultRalphLaunchDependencies,
+  dispatchRalphAutonomousUiLaunch,
+} from "../lib/ui-launch-dispatcher";
+import { RALPH_AUTONOMOUS_UI_LAUNCH_PROVIDERS } from "../lib/ui-launch-registry";
 
 const ContainerLogsModal = lazy(() => import("./ContainerLogsModal"));
 const DeleteConfirmationModal = lazy(() => import("./DeleteConfirmationModal"));
@@ -78,13 +82,17 @@ function ModalFallback() {
   );
 }
 
-function getEpicRalphBackend(
+function getEpicRalphProvider(
   projects: Array<ProjectBase & { epics?: Epic[] }>,
   epicId: string
-): "claude" | "pi" {
+): RalphAutonomousUiLaunchProvider {
   const project = projects.find((candidate) => candidate.epics?.some((epic) => epic.id === epicId));
+  const aiBackend = project?.workingMethod === "pi" ? "pi" : "claude";
 
-  return project?.workingMethod === "pi" ? "pi" : "claude";
+  return (
+    RALPH_AUTONOMOUS_UI_LAUNCH_PROVIDERS.find((provider) => provider.aiBackend === aiBackend) ??
+    RALPH_AUTONOMOUS_UI_LAUNCH_PROVIDERS[0]!
+  );
 }
 
 interface AppLayoutProps {
@@ -478,34 +486,25 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const handleLaunchRalphForEpic = useCallback(
     async (epicId: string) => {
       try {
-        // Get epic context (including project path for workflow initialization)
-        const contextResult = await getEpicContext({ data: epicId });
-
-        // Initialize epic workflow first (git branch, workflow state)
-        const workflowResult = await startEpicWorkflowFn({
-          data: {
+        const result = await dispatchRalphAutonomousUiLaunch(
+          getEpicRalphProvider(projects, epicId),
+          {
+            kind: "epic",
             epicId,
-            projectPath: contextResult.projectPath,
+            preferredTerminal: settings?.terminalEmulator ?? null,
           },
-        });
+          {
+            ...defaultRalphLaunchDependencies,
+            launchTicketRalph: async () => ({
+              success: false,
+              message: "Ticket Ralph launch is not available from the projects panel.",
+            }),
+            launchEpicRalph: (payload) => launchRalphMutation.mutateAsync(payload),
+          }
+        );
 
-        if (!workflowResult.success) {
-          // Git checkout failed — warn but still launch Ralph on current branch
-          showToast(
-            "info",
-            `Branch setup skipped: ${workflowResult.error || "Unknown error"}. Launching Ralph on the current branch.`
-          );
-        } else if (workflowResult.warnings?.length) {
-          workflowResult.warnings.forEach((w) => showToast("info", w));
-        }
-
-        // Launch Ralph regardless — it handles git in its own session
-        launchRalphMutation.mutate({
-          epicId,
-          preferredTerminal: settings?.terminalEmulator ?? null,
-          useSandbox: settings?.ralphSandbox ?? false,
-          aiBackend: getEpicRalphBackend(projects, epicId),
-        });
+        result.warnings?.forEach((warning) => showToast("info", warning));
+        showToast(result.success ? "success" : "error", result.message);
         closeProjectsPanel();
       } catch (err) {
         showToast(
@@ -927,34 +926,25 @@ function Sidebar({ onItemClick, activeSessions }: SidebarProps) {
   const handleLaunchRalphForEpic = useCallback(
     async (epicId: string) => {
       try {
-        // Get epic context (including project path for workflow initialization)
-        const contextResult = await getEpicContext({ data: epicId });
-
-        // Initialize epic workflow first (git branch, workflow state)
-        const workflowResult = await startEpicWorkflowFn({
-          data: {
+        const result = await dispatchRalphAutonomousUiLaunch(
+          getEpicRalphProvider(projects, epicId),
+          {
+            kind: "epic",
             epicId,
-            projectPath: contextResult.projectPath,
+            preferredTerminal: settings?.terminalEmulator ?? null,
           },
-        });
+          {
+            ...defaultRalphLaunchDependencies,
+            launchTicketRalph: async () => ({
+              success: false,
+              message: "Ticket Ralph launch is not available from the sidebar.",
+            }),
+            launchEpicRalph: (payload) => launchRalphMutation.mutateAsync(payload),
+          }
+        );
 
-        if (!workflowResult.success) {
-          // Git checkout failed — warn but still launch Ralph on current branch
-          showToast(
-            "info",
-            `Branch setup skipped: ${workflowResult.error || "Unknown error"}. Launching Ralph on the current branch.`
-          );
-        } else if (workflowResult.warnings?.length) {
-          workflowResult.warnings.forEach((w) => showToast("info", w));
-        }
-
-        // Launch Ralph regardless — it handles git in its own session
-        launchRalphMutation.mutate({
-          epicId,
-          preferredTerminal: settings?.terminalEmulator ?? null,
-          useSandbox: settings?.ralphSandbox ?? false,
-          aiBackend: getEpicRalphBackend(projects, epicId),
-        });
+        result.warnings?.forEach((warning) => showToast("info", warning));
+        showToast(result.success ? "success" : "error", result.message);
         onItemClick?.();
       } catch (err) {
         showToast(

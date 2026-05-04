@@ -11,6 +11,8 @@ const mockLaunchRalphForEpic = vi.hoisted(() => vi.fn());
 const mockLaunchPiInTerminal = vi.hoisted(() => vi.fn());
 const mockLaunchCodexInTerminal = vi.hoisted(() => vi.fn());
 const mockGetTicketContext = vi.hoisted(() => vi.fn());
+const mockGetEpicContext = vi.hoisted(() => vi.fn());
+const mockStartEpicWorkflowFn = vi.hoisted(() => vi.fn());
 
 let epicDetailState: ReturnType<typeof createEpicDetail>;
 let mockRefetch: ReturnType<typeof vi.fn>;
@@ -69,7 +71,12 @@ vi.mock("../components/Toast", () => ({
 }));
 
 vi.mock("../api/context", () => ({
+  getEpicContext: mockGetEpicContext,
   getTicketContext: mockGetTicketContext,
+}));
+
+vi.mock("../api/workflow-server-fns", () => ({
+  startEpicWorkflowFn: mockStartEpicWorkflowFn,
 }));
 
 vi.mock("../api/terminal", () => ({
@@ -211,6 +218,16 @@ describe("EpicDetailPage ship entry points", () => {
       projectName: "Brain Dump",
       epicName: "Launch Epic",
       ticketTitle: "Ship modal",
+    });
+    mockGetEpicContext.mockResolvedValue({
+      context: "Epic context",
+      projectPath: "/tmp/brain-dump",
+      projectName: "Brain Dump",
+      epicTitle: "Ship Changes",
+    });
+    mockStartEpicWorkflowFn.mockResolvedValue({
+      success: true,
+      warnings: [],
     });
     mockPushBranchServerFn.mockResolvedValue({
       success: true,
