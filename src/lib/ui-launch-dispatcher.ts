@@ -29,8 +29,10 @@ export interface TicketLaunchContextResult {
 export interface UiLaunchResult {
   success: boolean;
   message: string;
-  warnings?: string[];
-  terminalUsed?: string;
+  warnings?: string[] | undefined;
+  terminalUsed?: string | undefined;
+  launchMethod?: "vscode" | "cursor" | "copilot-cli" | "terminal" | undefined;
+  contextFile?: string | undefined;
 }
 
 export interface InteractiveLaunchDependencies {

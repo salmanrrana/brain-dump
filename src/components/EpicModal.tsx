@@ -11,6 +11,7 @@ import {
   Github,
   Download,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useForm } from "@tanstack/react-form-start";
 import {
   useCreateEpic,
@@ -30,17 +31,19 @@ import { COLOR_OPTIONS } from "../lib/constants";
 import { epicFormOpts } from "./epics/epic-form-opts";
 import { epicFormSchema } from "./epics/epic-form-schema";
 import { startEpicWorkflowFn } from "../api/workflow-server-fns";
-import { getEpicContext, getTicketContext } from "../api/context";
+import { getEpicContext } from "../api/context";
+import type {
+  LaunchProviderIconKey,
+  RalphAutonomousUiLaunchProvider,
+} from "../lib/launch-provider-contract";
 import {
-  launchClaudeInTerminal,
-  launchCodexInTerminal,
-  launchVSCodeInTerminal,
-  launchCursorInTerminal,
-  launchCursorAgentInTerminal,
-  launchCopilotInTerminal,
-  launchOpenCodeInTerminal,
-  launchPiInTerminal,
-} from "../api/terminal";
+  dispatchInteractiveUiLaunch,
+  dispatchRalphAutonomousUiLaunch,
+} from "../lib/ui-launch-dispatcher";
+import {
+  INTERACTIVE_UI_LAUNCH_PROVIDERS,
+  RALPH_AUTONOMOUS_UI_LAUNCH_PROVIDERS,
+} from "../lib/ui-launch-registry";
 
 interface Epic {
   id: string;
@@ -56,6 +59,23 @@ interface EpicModalProps {
   onClose: () => void;
   onSave: () => void;
 }
+
+const ICONS_BY_KEY: Record<LaunchProviderIconKey, LucideIcon> = {
+  sparkles: Terminal,
+  bot: Bot,
+  code: Code2,
+  terminal: Terminal,
+  monitor: Monitor,
+  github: Github,
+};
+
+const EPIC_NEXT_TICKET_PROVIDERS = INTERACTIVE_UI_LAUNCH_PROVIDERS.filter((provider) =>
+  provider.availability.supportedContexts.includes("epic-next-ticket")
+);
+
+const EPIC_RALPH_PROVIDERS = RALPH_AUTONOMOUS_UI_LAUNCH_PROVIDERS.filter((provider) =>
+  provider.availability.supportedContexts.includes("epic")
+);
 
 export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
@@ -206,23 +226,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
   // useSandbox param allows explicit choice at launch time, overriding settings default
   // aiBackend param allows choosing between supported Ralph CLI providers.
   const handleStartRalph = useCallback(
-    async ({
-      useSandbox,
-      aiBackend,
-      workingMethodOverride,
-    }: {
-      useSandbox: boolean;
-      aiBackend: "claude" | "opencode" | "codex" | "cursor-agent" | "pi";
-      workingMethodOverride?:
-        | "auto"
-        | "claude-code"
-        | "vscode"
-        | "opencode"
-        | "cursor"
-        | "cursor-agent"
-        | "copilot-cli"
-        | "codex";
-    }) => {
+    async (provider: RalphAutonomousUiLaunchProvider) => {
       if (!epic) return;
 
       setIsStartingRalph(true);
@@ -255,14 +259,25 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
         }
 
         // Launch Ralph
-        const result = await launchRalphMutation.mutateAsync({
-          epicId: epic.id,
-          // maxIterations now uses global setting from Settings
-          preferredTerminal: settings?.terminalEmulator ?? null,
-          useSandbox,
-          aiBackend,
-          ...(workingMethodOverride !== undefined ? { workingMethodOverride } : {}),
-        });
+        const result = await dispatchRalphAutonomousUiLaunch(
+          provider,
+          {
+            kind: "epic",
+            epicId: epic.id,
+            preferredTerminal: settings?.terminalEmulator ?? null,
+          },
+          {
+            startTicketWorkflow: async () => ({
+              success: true,
+              message: "Ticket workflow initialization skipped for epic launch.",
+            }),
+            launchTicketRalph: async () => ({
+              success: false,
+              message: "Ticket Ralph launch is not available from the epic modal.",
+            }),
+            launchEpicRalph: (payload) => launchRalphMutation.mutateAsync(payload),
+          }
+        );
 
         if (result.success) {
           // Check if VS Code launch path was used
@@ -307,19 +322,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
 
   // Handle interactive launch for the next non-done ticket in this epic.
   const handleStartInteractive = useCallback(
-    async (
-      provider:
-        | "claude"
-        | "codex"
-        | "codex-cli"
-        | "codex-app"
-        | "vscode"
-        | "cursor"
-        | "cursor-agent"
-        | "copilot"
-        | "pi"
-        | "opencode"
-    ) => {
+    async (provider: (typeof INTERACTIVE_UI_LAUNCH_PROVIDERS)[number]) => {
       if (!epic) return;
 
       const launchableTicket = tickets.find((ticket) => ticket.status !== "done");
@@ -336,41 +339,12 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
       setShowActionMenu(false);
 
       try {
-        const contextResult = await getTicketContext({ data: launchableTicket.id });
-        const payload = {
+        const launchResult = await dispatchInteractiveUiLaunch(provider, {
+          kind: "epic-next-ticket",
+          epicId: epic.id,
           ticketId: launchableTicket.id,
-          context: contextResult.context,
-          projectPath: contextResult.projectPath,
           preferredTerminal: settings?.terminalEmulator ?? null,
-          projectName: contextResult.projectName,
-          epicName: contextResult.epicName,
-          ticketTitle: contextResult.ticketTitle,
-        };
-
-        const launchResult = await (async () => {
-          switch (provider) {
-            case "claude":
-              return launchClaudeInTerminal({ data: payload });
-            case "codex":
-              return launchCodexInTerminal({ data: { ...payload, launchMode: "auto" } });
-            case "codex-cli":
-              return launchCodexInTerminal({ data: { ...payload, launchMode: "cli" } });
-            case "codex-app":
-              return launchCodexInTerminal({ data: { ...payload, launchMode: "app" } });
-            case "vscode":
-              return launchVSCodeInTerminal({ data: payload });
-            case "cursor":
-              return launchCursorInTerminal({ data: payload });
-            case "cursor-agent":
-              return launchCursorAgentInTerminal({ data: payload });
-            case "copilot":
-              return launchCopilotInTerminal({ data: payload });
-            case "pi":
-              return launchPiInTerminal({ data: payload });
-            case "opencode":
-              return launchOpenCodeInTerminal({ data: payload });
-          }
-        })();
+        });
 
         if (launchResult.warnings?.length) {
           setRalphNotification({
@@ -672,77 +646,27 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
                       </span>
                     </div>
                     <div className="grid grid-cols-2 gap-2 p-3">
-                      <button
-                        onClick={() => void handleStartInteractive("claude")}
-                        className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
-                      >
-                        <Terminal size={14} className="text-[var(--success)] flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">Claude</span>
-                      </button>
-                      <button
-                        onClick={() => void handleStartInteractive("codex")}
-                        title="Try Codex CLI first, then Codex App if CLI is unavailable."
-                        className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
-                      >
-                        <Terminal size={14} className="text-[var(--success)] flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">Codex Auto</span>
-                      </button>
-                      <button
-                        onClick={() => void handleStartInteractive("codex-cli")}
-                        className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
-                      >
-                        <Terminal size={14} className="text-[var(--success)] flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">Codex CLI</span>
-                      </button>
-                      <button
-                        onClick={() => void handleStartInteractive("codex-app")}
-                        className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
-                      >
-                        <Code2 size={14} className="text-[var(--success)] flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">Codex App</span>
-                      </button>
-                      <button
-                        onClick={() => void handleStartInteractive("vscode")}
-                        className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
-                      >
-                        <Code2 size={14} className="text-[var(--accent-primary)] flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">VS Code</span>
-                      </button>
-                      <button
-                        onClick={() => void handleStartInteractive("cursor")}
-                        className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
-                      >
-                        <Monitor size={14} className="text-[var(--warning)] flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">Cursor Editor</span>
-                      </button>
-                      <button
-                        onClick={() => void handleStartInteractive("cursor-agent")}
-                        className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
-                      >
-                        <Terminal size={14} className="text-[var(--warning)] flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">Cursor Agent</span>
-                      </button>
-                      <button
-                        onClick={() => void handleStartInteractive("copilot")}
-                        className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
-                      >
-                        <Github size={14} className="text-[var(--text-secondary)] flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">Copilot CLI</span>
-                      </button>
-                      <button
-                        onClick={() => void handleStartInteractive("opencode")}
-                        className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
-                      >
-                        <Code2 size={14} className="text-[var(--info)] flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">OpenCode</span>
-                      </button>
-                      <button
-                        onClick={() => void handleStartInteractive("pi")}
-                        className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
-                      >
-                        <Terminal size={14} className="text-[var(--info)] flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">Pi</span>
-                      </button>
+                      {EPIC_NEXT_TICKET_PROVIDERS.map((provider) => {
+                        const Icon = ICONS_BY_KEY[provider.display.iconKey];
+
+                        return (
+                          <button
+                            key={provider.id}
+                            onClick={() => void handleStartInteractive(provider)}
+                            title={provider.display.description}
+                            className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
+                          >
+                            <Icon
+                              size={14}
+                              color={provider.display.iconColor}
+                              className="flex-shrink-0"
+                            />
+                            <span className="text-sm text-[var(--text-primary)]">
+                              {provider.display.label}
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
@@ -754,67 +678,27 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
                       </span>
                     </div>
                     <div className="grid grid-cols-2 gap-2 p-3">
-                      <button
-                        onClick={() =>
-                          void handleStartRalph({ useSandbox: false, aiBackend: "claude" })
-                        }
-                        className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
-                      >
-                        <Bot size={14} className="text-[var(--accent-ai)] flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">Claude</span>
-                      </button>
-                      <button
-                        onClick={() =>
-                          void handleStartRalph({ useSandbox: false, aiBackend: "codex" })
-                        }
-                        className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
-                      >
-                        <Terminal size={14} className="text-[var(--success)] flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">Codex</span>
-                      </button>
-                      <button
-                        onClick={() =>
-                          void handleStartRalph({
-                            useSandbox: false,
-                            aiBackend: "cursor-agent",
-                          })
-                        }
-                        className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
-                      >
-                        <Terminal size={14} className="text-[var(--warning)] flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">Cursor Agent</span>
-                      </button>
-                      <button
-                        onClick={() =>
-                          void handleStartRalph({
-                            useSandbox: false,
-                            aiBackend: "claude",
-                            workingMethodOverride: "copilot-cli",
-                          })
-                        }
-                        className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
-                      >
-                        <Github size={14} className="text-[var(--text-secondary)] flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">Copilot CLI</span>
-                      </button>
-                      <button
-                        onClick={() =>
-                          void handleStartRalph({ useSandbox: false, aiBackend: "opencode" })
-                        }
-                        className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
-                      >
-                        <Code2 size={14} className="text-[var(--accent-ai)] flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">OpenCode</span>
-                      </button>
-                      <button
-                        onClick={() =>
-                          void handleStartRalph({ useSandbox: false, aiBackend: "pi" })
-                        }
-                        className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
-                      >
-                        <Terminal size={14} className="text-[var(--info)] flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">Pi</span>
-                      </button>
+                      {EPIC_RALPH_PROVIDERS.map((provider) => {
+                        const Icon = ICONS_BY_KEY[provider.display.iconKey];
+
+                        return (
+                          <button
+                            key={provider.id}
+                            onClick={() => void handleStartRalph(provider)}
+                            title={provider.display.description}
+                            className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
+                          >
+                            <Icon
+                              size={14}
+                              color={provider.display.iconColor}
+                              className="flex-shrink-0"
+                            />
+                            <span className="text-sm text-[var(--text-primary)]">
+                              {provider.display.label.replace("Ralph (", "").replace(")", "")}
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>

@@ -9,6 +9,8 @@ const mockPushBranchServerFn = vi.hoisted(() => vi.fn());
 const mockInvalidateQueries = vi.hoisted(() => vi.fn());
 const mockLaunchRalphForEpic = vi.hoisted(() => vi.fn());
 const mockLaunchPiInTerminal = vi.hoisted(() => vi.fn());
+const mockLaunchCodexInTerminal = vi.hoisted(() => vi.fn());
+const mockGetTicketContext = vi.hoisted(() => vi.fn());
 
 let epicDetailState: ReturnType<typeof createEpicDetail>;
 let mockRefetch: ReturnType<typeof vi.fn>;
@@ -67,12 +69,12 @@ vi.mock("../components/Toast", () => ({
 }));
 
 vi.mock("../api/context", () => ({
-  getTicketContext: vi.fn(),
+  getTicketContext: mockGetTicketContext,
 }));
 
 vi.mock("../api/terminal", () => ({
   launchClaudeInTerminal: vi.fn(),
-  launchCodexInTerminal: vi.fn(),
+  launchCodexInTerminal: mockLaunchCodexInTerminal,
   launchVSCodeInTerminal: vi.fn(),
   launchCursorInTerminal: vi.fn(),
   launchCursorAgentInTerminal: vi.fn(),
@@ -198,6 +200,17 @@ describe("EpicDetailPage ship entry points", () => {
     mockLaunchPiInTerminal.mockResolvedValue({
       success: true,
       message: "Launched Pi in terminal",
+    });
+    mockLaunchCodexInTerminal.mockResolvedValue({
+      success: true,
+      message: "Launched Codex in terminal",
+    });
+    mockGetTicketContext.mockResolvedValue({
+      context: "Ticket context",
+      projectPath: "/tmp/brain-dump",
+      projectName: "Brain Dump",
+      epicName: "Launch Epic",
+      ticketTitle: "Ship modal",
     });
     mockPushBranchServerFn.mockResolvedValue({
       success: true,
@@ -429,6 +442,31 @@ describe("EpicDetailPage ship entry points", () => {
     });
 
     expect(mockShowToast).toHaveBeenCalledWith("success", "Focused review launched for 2 tickets");
+  });
+
+  it("launches an epic's next ticket with a shared interactive provider", async () => {
+    const user = userEvent.setup();
+
+    render(<EpicDetailPage />);
+
+    await user.click(screen.getByRole("button", { name: /launch options/i }));
+    await user.click(screen.getByRole("button", { name: /^codex auto$/i }));
+
+    await waitFor(() => {
+      expect(mockGetTicketContext).toHaveBeenCalledWith({ data: "ticket-1" });
+      expect(mockLaunchCodexInTerminal).toHaveBeenCalledWith({
+        data: {
+          ticketId: "ticket-1",
+          context: "Ticket context",
+          projectPath: "/tmp/brain-dump",
+          preferredTerminal: null,
+          projectName: "Brain Dump",
+          epicName: "Launch Epic",
+          ticketTitle: "Ship modal",
+          launchMode: "auto",
+        },
+      });
+    });
   });
 
   it("shows Pi in epic launch menus and launches Ralph with the Pi backend", async () => {
