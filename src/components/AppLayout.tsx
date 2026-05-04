@@ -492,6 +492,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
             kind: "epic",
             epicId,
             preferredTerminal: settings?.terminalEmulator ?? null,
+            useSandbox: settings?.ralphSandbox ?? false,
           },
           {
             ...defaultRalphLaunchDependencies,
@@ -932,6 +933,7 @@ function Sidebar({ onItemClick, activeSessions }: SidebarProps) {
             kind: "epic",
             epicId,
             preferredTerminal: settings?.terminalEmulator ?? null,
+            useSandbox: settings?.ralphSandbox ?? false,
           },
           {
             ...defaultRalphLaunchDependencies,

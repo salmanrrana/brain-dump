@@ -97,6 +97,7 @@ export type UiLaunchProvider = InteractiveUiLaunchProvider | RalphAutonomousUiLa
 export interface BaseUiLaunchDispatchContext {
   projectPath?: string | null;
   preferredTerminal?: string | null;
+  useSandbox?: boolean;
 }
 
 export interface TicketUiLaunchDispatchContext extends BaseUiLaunchDispatchContext {

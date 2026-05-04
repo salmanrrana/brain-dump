@@ -253,6 +253,7 @@ describe("shared UI launch dispatcher", () => {
         epicId: "epic-1",
         projectPath: "/repo",
         preferredTerminal: "ghostty",
+        useSandbox: true,
       },
       dependencies
     );
@@ -264,7 +265,7 @@ describe("shared UI launch dispatcher", () => {
     expect(dependencies.launchEpicRalph).toHaveBeenCalledWith({
       epicId: "epic-1",
       preferredTerminal: "ghostty",
-      useSandbox: false,
+      useSandbox: true,
       aiBackend: "pi",
     });
     expect(result).toEqual({

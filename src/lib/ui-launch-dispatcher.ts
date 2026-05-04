@@ -208,7 +208,7 @@ export async function dispatchRalphAutonomousUiLaunch(
   const launchResult = await dependencies.launchEpicRalph({
     epicId: context.epicId,
     preferredTerminal: context.preferredTerminal ?? null,
-    useSandbox: false,
+    useSandbox: context.useSandbox ?? false,
     aiBackend: provider.aiBackend,
     ...(provider.workingMethodOverride
       ? { workingMethodOverride: provider.workingMethodOverride }
