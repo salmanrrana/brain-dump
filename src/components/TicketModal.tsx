@@ -17,13 +17,8 @@ import {
   ChevronUp,
   Loader2,
   Clipboard,
-  Sparkles,
-  Bot,
   Terminal,
   ExternalLink,
-  Code2,
-  Monitor,
-  Github,
   GitBranch,
   GitPullRequest,
   Copy,
@@ -49,7 +44,7 @@ import {
   getPrStatusIconColor,
   getPrStatusBadgeStyle,
 } from "../lib/constants";
-import type { LaunchProviderIconKey, UiLaunchProviderId } from "../lib/launch-provider-contract";
+import type { UiLaunchProviderId } from "../lib/launch-provider-contract";
 import {
   dispatchInteractiveUiLaunch,
   dispatchRalphAutonomousUiLaunch,
@@ -57,11 +52,10 @@ import {
 } from "../lib/ui-launch-dispatcher";
 import {
   getInteractiveUiLaunchProvider,
-  getInteractiveUiLaunchProvidersForContext,
   getRalphAutonomousUiLaunchProvider,
-  getRalphAutonomousUiLaunchProvidersForContext,
 } from "../lib/ui-launch-registry";
 import { safeJsonParse } from "../lib/utils";
+import { LaunchProviderMenu } from "./LaunchProviderMenu";
 import { ticketFormOpts } from "./tickets/ticket-form-opts";
 import { RemovableCopyableTagPill } from "./tickets/TagInput";
 import {
@@ -106,23 +100,6 @@ interface TicketModalProps {
 
 // Stable empty state for tag suggestions to prevent recreation on every render
 const EMPTY_TAG_STATE = { tagSuggestions: [] as string[], showCreateHelper: false };
-
-const TICKET_INTERACTIVE_LAUNCH_PROVIDERS = [
-  ...getInteractiveUiLaunchProvidersForContext("ticket"),
-].sort((left, right) => left.display.order - right.display.order);
-
-const TICKET_RALPH_LAUNCH_PROVIDERS = [
-  ...getRalphAutonomousUiLaunchProvidersForContext("ticket"),
-].sort((left, right) => left.display.order - right.display.order);
-
-const TICKET_MODAL_ICON_BY_KEY: Record<LaunchProviderIconKey, typeof Terminal> = {
-  sparkles: Sparkles,
-  bot: Bot,
-  code: Code2,
-  terminal: Terminal,
-  monitor: Monitor,
-  github: Github,
-};
 
 function isClipboardLaunchResult(result: unknown): boolean {
   return (
@@ -1218,71 +1195,13 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
             {/* Dropdown Menu */}
             {showStartWorkMenu && (
               <div className="absolute left-0 bottom-full mb-2 w-[46rem] max-w-[95vw] bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg shadow-xl z-[80] overflow-hidden">
-                <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[var(--border-primary)]">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 px-3 py-2 bg-[var(--bg-secondary)]/50 border-b border-[var(--border-primary)]">
-                      <Terminal size={14} className="text-[var(--success)]" />
-                      <span className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">
-                        Interactive
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 p-3">
-                      {TICKET_INTERACTIVE_LAUNCH_PROVIDERS.map((provider) => {
-                        const Icon = TICKET_MODAL_ICON_BY_KEY[provider.display.iconKey];
-
-                        return (
-                          <button
-                            key={provider.id}
-                            onClick={() => void handleTicketLaunch(provider.id)}
-                            title={provider.display.description}
-                            className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
-                          >
-                            <Icon
-                              size={14}
-                              className="flex-shrink-0"
-                              style={{ color: provider.display.iconColor }}
-                            />
-                            <span className="text-sm text-[var(--text-primary)]">
-                              {provider.display.label}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 px-3 py-2 bg-[var(--bg-secondary)]/50 border-b border-[var(--border-primary)]">
-                      <Bot size={14} className="text-[var(--accent-ai)]" />
-                      <span className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">
-                        Autonomous (Ralph)
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 p-3">
-                      {TICKET_RALPH_LAUNCH_PROVIDERS.map((provider) => {
-                        const Icon = TICKET_MODAL_ICON_BY_KEY[provider.display.iconKey];
-
-                        return (
-                          <button
-                            key={provider.id}
-                            onClick={() => void handleTicketLaunch(provider.id)}
-                            title={provider.display.description}
-                            className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
-                          >
-                            <Icon
-                              size={14}
-                              className="flex-shrink-0"
-                              style={{ color: provider.display.iconColor }}
-                            />
-                            <span className="text-sm text-[var(--text-primary)]">
-                              {provider.display.label.replace("Ralph (", "").replace(")", "")}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
+                <LaunchProviderMenu
+                  interactiveContext="ticket"
+                  ralphContext="ticket"
+                  onInteractiveLaunch={(provider) => void handleTicketLaunch(provider.id)}
+                  onRalphLaunch={(provider) => void handleTicketLaunch(provider.id)}
+                  disabled={isStartingWork}
+                />
               </div>
             )}
           </div>

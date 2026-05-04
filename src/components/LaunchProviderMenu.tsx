@@ -1,4 +1,4 @@
-import { Bot, Code2, Github, Monitor, Terminal } from "lucide-react";
+import { Bot, Code2, Github, Loader2, Monitor, Terminal } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import type {
@@ -6,6 +6,7 @@ import type {
   LaunchProviderIconKey,
   RalphAutonomousUiLaunchProvider,
   UiLaunchContextKind,
+  UiLaunchProviderId,
 } from "../lib/launch-provider-contract";
 import {
   getInteractiveUiLaunchProvidersForContext,
@@ -27,6 +28,8 @@ interface LaunchProviderMenuProps {
   onInteractiveLaunch: (provider: InteractiveUiLaunchProvider) => void;
   onRalphLaunch: (provider: RalphAutonomousUiLaunchProvider) => void;
   exportAction?: ReactNode;
+  disabled?: boolean;
+  loadingProviderId?: UiLaunchProviderId | null;
 }
 
 function getRalphDisplayLabel(label: string): string {
@@ -39,6 +42,8 @@ export function LaunchProviderMenu({
   onInteractiveLaunch,
   onRalphLaunch,
   exportAction,
+  disabled = false,
+  loadingProviderId = null,
 }: LaunchProviderMenuProps) {
   const interactiveProviders = getInteractiveUiLaunchProvidersForContext(interactiveContext);
   const ralphProviders = getRalphAutonomousUiLaunchProvidersForContext(ralphContext);
@@ -61,10 +66,19 @@ export function LaunchProviderMenu({
                 <button
                   key={provider.id}
                   onClick={() => onInteractiveLaunch(provider)}
+                  disabled={disabled}
                   title={provider.display.description}
-                  className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
+                  className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <Icon size={14} color={provider.display.iconColor} className="flex-shrink-0" />
+                  {loadingProviderId === provider.id ? (
+                    <Loader2
+                      size={14}
+                      color={provider.display.iconColor}
+                      className="flex-shrink-0 animate-spin"
+                    />
+                  ) : (
+                    <Icon size={14} color={provider.display.iconColor} className="flex-shrink-0" />
+                  )}
                   <span className="text-sm text-[var(--text-primary)]">
                     {provider.display.label}
                   </span>
@@ -89,10 +103,19 @@ export function LaunchProviderMenu({
                 <button
                   key={provider.id}
                   onClick={() => onRalphLaunch(provider)}
+                  disabled={disabled}
                   title={provider.display.description}
-                  className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
+                  className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <Icon size={14} color={provider.display.iconColor} className="flex-shrink-0" />
+                  {loadingProviderId === provider.id ? (
+                    <Loader2
+                      size={14}
+                      color={provider.display.iconColor}
+                      className="flex-shrink-0 animate-spin"
+                    />
+                  ) : (
+                    <Icon size={14} color={provider.display.iconColor} className="flex-shrink-0" />
+                  )}
                   <span className="text-sm text-[var(--text-primary)]">
                     {getRalphDisplayLabel(provider.display.label)}
                   </span>
