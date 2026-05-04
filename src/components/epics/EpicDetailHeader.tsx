@@ -256,6 +256,7 @@ export function EpicDetailHeader({
         }
 
         if (!result.success) {
+          setPendingReviewProvider(null);
           setReviewLaunchError(result.message);
           showToast("error", result.message);
           return;
