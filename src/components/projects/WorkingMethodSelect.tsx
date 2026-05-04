@@ -10,6 +10,7 @@ import {
   Check,
 } from "lucide-react";
 import { useClickOutside } from "../../lib/hooks";
+import type { ProjectWorkingMethodProviderId } from "../../lib/launch-provider-contract";
 
 // =============================================================================
 // Types & Constants
@@ -24,15 +25,7 @@ export interface WorkingMethodOption {
 }
 
 /** Valid working method values */
-export type WorkingMethod =
-  | "auto"
-  | "claude-code"
-  | "vscode"
-  | "opencode"
-  | "cursor"
-  | "cursor-agent"
-  | "copilot-cli"
-  | "codex";
+export type WorkingMethod = ProjectWorkingMethodProviderId;
 
 /** All available working method options */
 export const WORKING_METHOD_OPTIONS: WorkingMethodOption[] = [
@@ -84,6 +77,12 @@ export const WORKING_METHOD_OPTIONS: WorkingMethodOption[] = [
     icon: Terminal,
     description: "OpenAI coding agent",
   },
+  {
+    value: "pi",
+    label: "Pi",
+    icon: Terminal,
+    description: "Pi coding agent",
+  },
 ];
 
 // =============================================================================
@@ -111,7 +110,7 @@ export interface WorkingMethodSelectProps {
  * WorkingMethodSelect - Dropdown for selecting project working method preference.
  *
  * Features:
- * - **8 options**: Auto-detect, Claude Code, VS Code, OpenCode, Cursor, Cursor Agent, Copilot CLI, Codex
+ * - **9 options**: Auto-detect, Claude Code, VS Code, OpenCode, Cursor, Cursor Agent, Copilot CLI, Codex, Pi
  * - **Icon + name per option**: Visual differentiation
  * - **Description text**: Explains each option's purpose
  * - **Keyboard accessible**: Arrow keys, Enter, Escape
