@@ -16,6 +16,7 @@ import type {
   RalphAutonomousUiLaunchDispatchContext,
   RalphAutonomousUiLaunchProvider,
 } from "./launch-provider-contract";
+import type { ConcreteLaunchModelSelection, LaunchModelSelection } from "./launch-model-catalog";
 import type { LaunchEpicInput, LaunchTicketInput } from "./ralph-launch/types";
 import { RALPH_AUTONOMOUS_UI_LAUNCH_PROVIDERS } from "./ui-launch-registry";
 
@@ -71,6 +72,7 @@ export interface InteractiveTerminalPayload {
   projectName: string;
   epicName: string | null;
   ticketTitle: string;
+  modelSelection?: ConcreteLaunchModelSelection;
 }
 
 export const defaultInteractiveLaunchDependencies: InteractiveLaunchDependencies = {
@@ -119,6 +121,12 @@ export const defaultRalphLaunchDependencies: Pick<
   },
 };
 
+function concreteModelSelection(
+  modelSelection: LaunchModelSelection | undefined
+): ConcreteLaunchModelSelection | undefined {
+  return modelSelection?.kind === "concrete" ? modelSelection : undefined;
+}
+
 export function getDefaultRalphAutonomousProviderForWorkingMethod(
   workingMethod?: string | null
 ): RalphAutonomousUiLaunchProvider {
@@ -143,6 +151,7 @@ export async function dispatchInteractiveUiLaunch(
   dependencies: InteractiveLaunchDependencies = defaultInteractiveLaunchDependencies
 ): Promise<UiLaunchResult> {
   const ticketContext = await dependencies.getTicketContext(context.ticketId);
+  const modelSelection = concreteModelSelection(context.modelSelection);
   const payload: InteractiveTerminalPayload = {
     ticketId: context.ticketId,
     context: ticketContext.context,
@@ -151,6 +160,7 @@ export async function dispatchInteractiveUiLaunch(
     projectName: ticketContext.projectName,
     epicName: ticketContext.epicName,
     ticketTitle: ticketContext.ticketTitle,
+    ...(modelSelection ? { modelSelection } : {}),
   };
 
   switch (provider.launchMode) {
@@ -182,6 +192,8 @@ export async function dispatchRalphAutonomousUiLaunch(
   context: RalphAutonomousUiLaunchDispatchContext,
   dependencies: RalphLaunchDependencies
 ): Promise<UiLaunchResult> {
+  const modelSelection = concreteModelSelection(context.modelSelection);
+
   if (context.kind === "ticket") {
     await dependencies.startTicketWorkflow({
       ticketId: context.ticketId,
@@ -193,6 +205,7 @@ export async function dispatchRalphAutonomousUiLaunch(
       preferredTerminal: context.preferredTerminal ?? null,
       useSandbox: false,
       aiBackend: provider.aiBackend,
+      ...(modelSelection ? { modelSelection } : {}),
       ...(provider.workingMethodOverride
         ? { workingMethodOverride: provider.workingMethodOverride }
         : {}),
@@ -229,6 +242,7 @@ export async function dispatchRalphAutonomousUiLaunch(
     preferredTerminal: context.preferredTerminal ?? null,
     useSandbox: context.useSandbox ?? false,
     aiBackend: provider.aiBackend,
+    ...(modelSelection ? { modelSelection } : {}),
     ...(provider.workingMethodOverride
       ? { workingMethodOverride: provider.workingMethodOverride }
       : {}),

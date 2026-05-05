@@ -24,6 +24,7 @@ import {
 import type { RalphEventType, RalphEventData } from "../schema";
 import type { ContainerStats, ContainerStatsResult } from "../../api/docker-utils";
 import { queryKeys } from "../query-keys";
+import type { ConcreteLaunchModelSelection } from "../launch-model-catalog";
 
 // Re-export types for components
 export type { ActiveRalphSession, ContainerStats, ContainerStatsResult };
@@ -43,6 +44,7 @@ export function useLaunchRalphForTicket() {
       preferredTerminal?: string | null;
       useSandbox?: boolean;
       aiBackend?: "claude" | "opencode" | "codex" | "cursor-agent" | "pi";
+      modelSelection?: ConcreteLaunchModelSelection;
       workingMethodOverride?:
         | "auto"
         | "claude-code"
@@ -73,6 +75,7 @@ export function useLaunchRalphForEpic() {
       preferredTerminal?: string | null;
       useSandbox?: boolean;
       aiBackend?: "claude" | "opencode" | "codex" | "cursor-agent" | "pi";
+      modelSelection?: ConcreteLaunchModelSelection;
       workingMethodOverride?:
         | "auto"
         | "claude-code"

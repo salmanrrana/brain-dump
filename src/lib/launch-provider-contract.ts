@@ -1,4 +1,5 @@
 import type { RalphAiBackend } from "../api/ralph-script";
+import type { LaunchModelSelection } from "./launch-model-catalog";
 import type { RalphWorkingMethod } from "./ralph-launch/types";
 
 /**
@@ -98,6 +99,7 @@ export interface BaseUiLaunchDispatchContext {
   projectPath?: string | null;
   preferredTerminal?: string | null;
   useSandbox?: boolean;
+  modelSelection?: LaunchModelSelection;
 }
 
 export interface TicketUiLaunchDispatchContext extends BaseUiLaunchDispatchContext {

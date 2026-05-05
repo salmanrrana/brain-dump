@@ -1,4 +1,5 @@
 import { getRalphPrompt, type RalphPromptProfile } from "./ralph-prompts";
+import type { ConcreteLaunchModelSelection } from "../lib/launch-model-catalog";
 
 // ============================================================================
 // TYPES
@@ -32,6 +33,26 @@ export const DEFAULT_RESOURCE_LIMITS: DockerResourceLimits = {
 };
 
 const RALPH_ENV_EXPORTS = `export RALPH_SESSION=1`;
+
+function escapeForBashDoubleQuote(value: string): string {
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/\$/g, "\\$")
+    .replace(/`/g, "\\`")
+    .replace(/"/g, '\\"')
+    .replace(/!/g, "\\!");
+}
+
+function buildLaunchModelEnvExports(
+  modelSelection: ConcreteLaunchModelSelection | undefined
+): string {
+  if (!modelSelection) {
+    return "";
+  }
+
+  return `export BRAIN_DUMP_LAUNCH_MODEL_PROVIDER="${escapeForBashDoubleQuote(modelSelection.provider)}"
+export BRAIN_DUMP_LAUNCH_MODEL="${escapeForBashDoubleQuote(modelSelection.modelName)}"`;
+}
 
 // Configuration for each AI backend's CLI integration.
 // Add new backends here instead of extending ternary chains throughout the file.
@@ -200,7 +221,8 @@ export function generateRalphScript(
   dockerHostEnv: string | null = null,
   projectOrigin?: ProjectOriginInfo | undefined,
   aiBackend: RalphAiBackend = "claude",
-  promptProfile: RalphPromptProfile = { type: "implementation" }
+  promptProfile: RalphPromptProfile = { type: "implementation" },
+  modelSelection?: ConcreteLaunchModelSelection
 ): string {
   const imageName = "brain-dump-ralph-sandbox:latest";
   const sandboxHeader = useSandbox ? " (Docker Sandbox)" : "";
@@ -256,6 +278,7 @@ fi
 
   // Validate required local AI CLI is installed for native mode.
   const aiPreflightCheck = useSandbox ? "" : AI_BACKEND_CONFIGS[aiBackend].preflightCheck;
+  const launchModelEnvExports = buildLaunchModelEnvExports(modelSelection);
 
   // SSH setup for Docker sandbox mode
   // This allows git push from inside container using host's SSH keys
@@ -532,6 +555,7 @@ MAX_NO_PROGRESS=3
 
 cd "$PROJECT_PATH"
 ${RALPH_ENV_EXPORTS}
+${launchModelEnvExports}
 ${dockerHostSetup}${dockerImageCheck}${sshAgentSetup}${aiPreflightCheck}
 # Ensure plans directory exists
 mkdir -p "$PROJECT_PATH/plans"

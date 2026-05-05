@@ -26,6 +26,7 @@ import { TelemetryPanel } from "../components/TelemetryPanel";
 import { TicketCostPanel } from "../components/tickets/TicketCostPanel";
 import type { Subtask } from "../components/tickets/SubtasksProgress";
 import { type LaunchType } from "../components/tickets/LaunchActions";
+import type { LaunchModelSelection } from "../lib/launch-model-catalog";
 import { POLLING_INTERVALS } from "../lib/constants";
 import { queryKeys } from "../lib/query-keys";
 import {
@@ -402,7 +403,7 @@ function TicketDetailPage() {
 
   // Handle launch action through the shared ticket launch dispatcher.
   const handleLaunch = useCallback(
-    async (type: LaunchType) => {
+    async (type: LaunchType, modelSelection: LaunchModelSelection) => {
       if (!ticket) return;
 
       setIsLaunching(true);
@@ -417,6 +418,7 @@ function TicketDetailPage() {
             kind: "ticket",
             ticketId: ticket.id,
             preferredTerminal: settings?.terminalEmulator ?? null,
+            modelSelection,
           });
 
           if (launchResult.warnings) {
@@ -439,6 +441,7 @@ function TicketDetailPage() {
               kind: "ticket",
               ticketId: ticket.id,
               preferredTerminal: settings?.terminalEmulator ?? null,
+              modelSelection,
             },
             {
               ...defaultRalphLaunchDependencies,

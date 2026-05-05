@@ -19,6 +19,7 @@ import { COLOR_OPTIONS } from "../lib/constants";
 import { epicFormOpts } from "./epics/epic-form-opts";
 import { epicFormSchema } from "./epics/epic-form-schema";
 import type { RalphAutonomousUiLaunchProvider } from "../lib/launch-provider-contract";
+import type { LaunchModelSelection } from "../lib/launch-model-catalog";
 import {
   defaultRalphLaunchDependencies,
   dispatchInteractiveUiLaunch,
@@ -191,7 +192,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
   // useSandbox param allows explicit choice at launch time, overriding settings default
   // aiBackend param allows choosing between supported Ralph CLI providers.
   const handleStartRalph = useCallback(
-    async (provider: RalphAutonomousUiLaunchProvider) => {
+    async (provider: RalphAutonomousUiLaunchProvider, modelSelection: LaunchModelSelection) => {
       if (!epic) return;
 
       setIsStartingRalph(true);
@@ -205,6 +206,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
             kind: "epic",
             epicId: epic.id,
             preferredTerminal: settings?.terminalEmulator ?? null,
+            modelSelection,
           },
           {
             ...defaultRalphLaunchDependencies,
@@ -261,7 +263,10 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
 
   // Handle interactive launch for the next non-done ticket in this epic.
   const handleStartInteractive = useCallback(
-    async (provider: (typeof INTERACTIVE_UI_LAUNCH_PROVIDERS)[number]) => {
+    async (
+      provider: (typeof INTERACTIVE_UI_LAUNCH_PROVIDERS)[number],
+      modelSelection: LaunchModelSelection
+    ) => {
       if (!epic) return;
 
       const launchableTicket = tickets.find((ticket) => ticket.status !== "done");
@@ -283,6 +288,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
           epicId: epic.id,
           ticketId: launchableTicket.id,
           preferredTerminal: settings?.terminalEmulator ?? null,
+          modelSelection,
         });
 
         if (launchResult.warnings?.length) {
@@ -579,8 +585,12 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
                 <LaunchProviderMenu
                   interactiveContext="epic-next-ticket"
                   ralphContext="epic"
-                  onInteractiveLaunch={(provider) => void handleStartInteractive(provider)}
-                  onRalphLaunch={(provider) => void handleStartRalph(provider)}
+                  onInteractiveLaunch={(provider, modelSelection) =>
+                    void handleStartInteractive(provider, modelSelection)
+                  }
+                  onRalphLaunch={(provider, modelSelection) =>
+                    void handleStartRalph(provider, modelSelection)
+                  }
                   exportAction={
                     <button
                       onClick={() => {

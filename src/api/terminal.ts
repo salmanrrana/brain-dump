@@ -2,6 +2,22 @@ import { createServerFn } from "@tanstack/react-start";
 import { detectTerminal, isTerminalAvailable, buildTerminalCommand } from "./terminal-utils";
 import { buildCodexAppLaunchPlan } from "./codex-launch";
 import { sqlite } from "../lib/db";
+import type { ConcreteLaunchModelSelection } from "../lib/launch-model-catalog";
+
+interface InteractiveTerminalLaunchInput {
+  ticketId: string;
+  context: string;
+  projectPath: string;
+  preferredTerminal?: string | null;
+  projectName: string;
+  epicName: string | null;
+  ticketTitle: string;
+  modelSelection?: ConcreteLaunchModelSelection;
+}
+
+interface CodexTerminalLaunchInput extends InteractiveTerminalLaunchInput {
+  launchMode?: "auto" | "cli" | "app";
+}
 
 async function startWorkflowForLaunch(ticketId: string) {
   const [{ createRealGitOperations }, { startWork }] = await Promise.all([
@@ -550,17 +566,7 @@ function buildWindowTitle(
 
 // Launch Claude in terminal with ticket context
 export const launchClaudeInTerminal = createServerFn({ method: "POST" })
-  .inputValidator(
-    (data: {
-      ticketId: string;
-      context: string;
-      projectPath: string;
-      preferredTerminal?: string | null;
-      projectName: string;
-      epicName: string | null;
-      ticketTitle: string;
-    }) => data
-  )
+  .inputValidator((data: InteractiveTerminalLaunchInput) => data)
   .handler(async ({ data }): Promise<LaunchClaudeResult> => {
     const {
       ticketId,
@@ -760,17 +766,7 @@ exec bash
 // Note: Uses exec() for terminal launching (same as launchClaudeInTerminal) because
 // terminal commands require shell interpretation. Input is validated by validateProjectPath.
 export const launchOpenCodeInTerminal = createServerFn({ method: "POST" })
-  .inputValidator(
-    (data: {
-      ticketId: string;
-      context: string;
-      projectPath: string;
-      preferredTerminal?: string | null;
-      projectName: string;
-      epicName: string | null;
-      ticketTitle: string;
-    }) => data
-  )
+  .inputValidator((data: InteractiveTerminalLaunchInput) => data)
   .handler(async ({ data }): Promise<LaunchResult> => {
     const {
       ticketId,
@@ -1200,17 +1196,7 @@ exec bash
 }
 
 export const launchPiInTerminal = createServerFn({ method: "POST" })
-  .inputValidator(
-    (data: {
-      ticketId: string;
-      context: string;
-      projectPath: string;
-      preferredTerminal?: string | null;
-      projectName: string;
-      epicName: string | null;
-      ticketTitle: string;
-    }) => data
-  )
+  .inputValidator((data: InteractiveTerminalLaunchInput) => data)
   .handler(async ({ data }): Promise<LaunchResult> => {
     const {
       ticketId,
@@ -1332,17 +1318,7 @@ export const launchPiInTerminal = createServerFn({ method: "POST" })
 // Note: exec() is used intentionally here for fire-and-forget terminal launches.
 // The terminal command is built from validated internal paths via buildTerminalCommand().
 export const launchCursorAgentInTerminal = createServerFn({ method: "POST" })
-  .inputValidator(
-    (data: {
-      ticketId: string;
-      context: string;
-      projectPath: string;
-      preferredTerminal?: string | null;
-      projectName: string;
-      epicName: string | null;
-      ticketTitle: string;
-    }) => data
-  )
+  .inputValidator((data: InteractiveTerminalLaunchInput) => data)
   .handler(async ({ data }): Promise<LaunchResult> => {
     const {
       ticketId,
@@ -1480,18 +1456,7 @@ export const launchCursorAgentInTerminal = createServerFn({ method: "POST" })
 
 // Launch Codex (CLI in terminal, or Codex App fallback on macOS)
 export const launchCodexInTerminal = createServerFn({ method: "POST" })
-  .inputValidator(
-    (data: {
-      ticketId: string;
-      context: string;
-      projectPath: string;
-      launchMode?: "auto" | "cli" | "app";
-      preferredTerminal?: string | null;
-      projectName: string;
-      epicName: string | null;
-      ticketTitle: string;
-    }) => data
-  )
+  .inputValidator((data: CodexTerminalLaunchInput) => data)
   .handler(async ({ data }): Promise<LaunchResult> => {
     const {
       ticketId,
@@ -1657,17 +1622,7 @@ export const launchCodexInTerminal = createServerFn({ method: "POST" })
 
 // Launch Copilot CLI in terminal with ticket context
 export const launchCopilotInTerminal = createServerFn({ method: "POST" })
-  .inputValidator(
-    (data: {
-      ticketId: string;
-      context: string;
-      projectPath: string;
-      preferredTerminal?: string | null;
-      projectName: string;
-      epicName: string | null;
-      ticketTitle: string;
-    }) => data
-  )
+  .inputValidator((data: InteractiveTerminalLaunchInput) => data)
   .handler(async ({ data }): Promise<LaunchResult> => {
     const {
       ticketId,
@@ -1789,17 +1744,7 @@ export const launchCopilotInTerminal = createServerFn({ method: "POST" })
 
 // Launch Cursor app/CLI for a ticket context.
 export const launchCursorInTerminal = createServerFn({ method: "POST" })
-  .inputValidator(
-    (data: {
-      ticketId: string;
-      context: string;
-      projectPath: string;
-      preferredTerminal?: string | null;
-      projectName: string;
-      epicName: string | null;
-      ticketTitle: string;
-    }) => data
-  )
+  .inputValidator((data: InteractiveTerminalLaunchInput) => data)
   .handler(async ({ data }): Promise<LaunchResult> => {
     const { ticketId, context, projectPath } = data;
     const { exec } = await import("child_process");
@@ -1890,17 +1835,7 @@ export const launchCursorInTerminal = createServerFn({ method: "POST" })
 
 // Launch VS Code app/CLI for a ticket context.
 export const launchVSCodeInTerminal = createServerFn({ method: "POST" })
-  .inputValidator(
-    (data: {
-      ticketId: string;
-      context: string;
-      projectPath: string;
-      preferredTerminal?: string | null;
-      projectName: string;
-      epicName: string | null;
-      ticketTitle: string;
-    }) => data
-  )
+  .inputValidator((data: InteractiveTerminalLaunchInput) => data)
   .handler(async ({ data }): Promise<LaunchResult> => {
     const { ticketId, context, projectPath } = data;
     const { exec } = await import("child_process");

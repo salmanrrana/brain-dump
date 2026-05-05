@@ -1,5 +1,6 @@
 import type { RalphPromptProfile, RalphReviewPromptProfile } from "../../api/ralph-prompts";
 import type { RalphAiBackend } from "../../api/ralph-script";
+import type { ConcreteLaunchModelSelection } from "../launch-model-catalog";
 
 export type RalphLaunchDb = typeof import("../db").db;
 export type RalphLaunchSqlite = typeof import("../db").sqlite;
@@ -49,6 +50,7 @@ export interface LaunchTicketInput {
   useSandbox?: boolean;
   aiBackend?: RalphAiBackend;
   workingMethodOverride?: RalphWorkingMethod;
+  modelSelection?: ConcreteLaunchModelSelection;
 }
 
 export interface LaunchEpicInput {
@@ -58,6 +60,7 @@ export interface LaunchEpicInput {
   useSandbox?: boolean;
   aiBackend?: RalphAiBackend;
   workingMethodOverride?: RalphWorkingMethod;
+  modelSelection?: ConcreteLaunchModelSelection;
   launchProfile?: RalphEpicLaunchProfile;
 }
 

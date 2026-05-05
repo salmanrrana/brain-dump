@@ -27,6 +27,8 @@ export type LaunchModelSelection =
   | { kind: "default" }
   | { kind: "concrete"; provider: string; modelName: string };
 
+export type ConcreteLaunchModelSelection = Extract<LaunchModelSelection, { kind: "concrete" }>;
+
 export const DEFAULT_LAUNCH_MODEL_SELECTION: LaunchModelSelection = { kind: "default" };
 
 export const DEFAULT_LAUNCH_MODEL_LABEL = "Default";

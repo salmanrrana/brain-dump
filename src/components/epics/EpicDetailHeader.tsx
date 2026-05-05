@@ -20,6 +20,7 @@ import { useClickOutside } from "../../lib/hooks";
 import { getPrStatusIconColor, getPrStatusBadgeStyle } from "../../lib/constants";
 import type { EpicDetailResult } from "../../api/epics";
 import type { RalphAutonomousUiLaunchProvider } from "../../lib/launch-provider-contract";
+import type { LaunchModelSelection } from "../../lib/launch-model-catalog";
 import {
   defaultRalphLaunchDependencies,
   dispatchInteractiveUiLaunch,
@@ -138,7 +139,10 @@ export function EpicDetailHeader({
   }, [workflowState, showToast]);
 
   const handleLaunchInteractive = useCallback(
-    async (provider: (typeof INTERACTIVE_UI_LAUNCH_PROVIDERS)[number]) => {
+    async (
+      provider: (typeof INTERACTIVE_UI_LAUNCH_PROVIDERS)[number],
+      modelSelection: LaunchModelSelection
+    ) => {
       const launchableTicket = tickets.find((t) => t.status !== "done");
       if (!launchableTicket) {
         showToast("error", "No launchable tickets in this epic (all tickets are done).");
@@ -153,6 +157,7 @@ export function EpicDetailHeader({
           epicId: epic.id,
           ticketId: launchableTicket.id,
           preferredTerminal: settings?.settings?.terminalEmulator ?? null,
+          modelSelection,
         });
 
         if (launchResult?.success) {
@@ -178,7 +183,10 @@ export function EpicDetailHeader({
   }, []);
 
   const handleLaunchRalph = useCallback(
-    async (provider: RalphAutonomousUiLaunchProvider): Promise<void> => {
+    async (
+      provider: RalphAutonomousUiLaunchProvider,
+      modelSelection: LaunchModelSelection
+    ): Promise<void> => {
       setShowLaunchMenu(false);
 
       if (tickets.every((t) => t.status === "done")) {
@@ -193,6 +201,7 @@ export function EpicDetailHeader({
             kind: "epic",
             epicId: epic.id,
             preferredTerminal: settings?.settings?.terminalEmulator ?? null,
+            modelSelection,
           },
           {
             ...defaultRalphLaunchDependencies,
@@ -227,7 +236,10 @@ export function EpicDetailHeader({
   );
 
   const handleLaunchFocusedReview = useCallback(
-    async (provider: RalphAutonomousUiLaunchProvider): Promise<void> => {
+    async (
+      provider: RalphAutonomousUiLaunchProvider,
+      modelSelection: LaunchModelSelection
+    ): Promise<void> => {
       if (selectedReviewTicketIds.length === 0) {
         setReviewLaunchError("Select at least one ticket to review.");
         return;
@@ -245,6 +257,7 @@ export function EpicDetailHeader({
             preferredTerminal: settings?.settings?.terminalEmulator ?? null,
             selectedTicketIds: selectedReviewTicketIds,
             steeringPrompt: reviewSteeringPrompt,
+            modelSelection,
           },
           {
             ...defaultRalphLaunchDependencies,
@@ -458,8 +471,12 @@ export function EpicDetailHeader({
                   <LaunchProviderMenu
                     interactiveContext="epic-next-ticket"
                     ralphContext="epic"
-                    onInteractiveLaunch={(provider) => void handleLaunchInteractive(provider)}
-                    onRalphLaunch={(provider) => void handleLaunchRalph(provider)}
+                    onInteractiveLaunch={(provider, modelSelection) =>
+                      void handleLaunchInteractive(provider, modelSelection)
+                    }
+                    onRalphLaunch={(provider, modelSelection) =>
+                      void handleLaunchRalph(provider, modelSelection)
+                    }
                     costModels={costModels ?? []}
                     modelCatalogLoading={modelCatalogLoading}
                     modelCatalogError={modelCatalogError}
@@ -685,7 +702,9 @@ export function EpicDetailHeader({
                     interactiveContext="focused-review"
                     ralphContext="focused-review"
                     onInteractiveLaunch={() => undefined}
-                    onRalphLaunch={(provider) => void handleLaunchFocusedReview(provider)}
+                    onRalphLaunch={(provider, modelSelection) =>
+                      void handleLaunchFocusedReview(provider, modelSelection)
+                    }
                     disabled={launchRalphMutation.isPending || selectedReviewTicketIds.length === 0}
                     loadingProviderId={pendingReviewProvider}
                     showInteractive={false}
