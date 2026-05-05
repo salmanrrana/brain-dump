@@ -399,6 +399,19 @@ fi
 
   // AI backend display name
   const aiName = AI_BACKEND_CONFIGS[aiBackend].displayName;
+  const claudeNativeModelArgument =
+    aiBackend === "claude" && modelSelection ? ` --model "$BRAIN_DUMP_LAUNCH_MODEL"` : "";
+  const claudeDockerModelArgument =
+    aiBackend === "claude" && modelSelection
+      ? ` \\
+    --model "${escapeForBashDoubleQuote(modelSelection.modelName)}"`
+      : "";
+  const nativeAiInvocation =
+    aiBackend === "claude"
+      ? `  # Run Claude in print mode (-p) so it exits after completion
+  # This allows the bash loop to continue to the next iteration
+  claude --dangerously-skip-permissions${claudeNativeModelArgument} --output-format text -p "$(cat "$PROMPT_FILE")"`
+      : AI_BACKEND_CONFIGS[aiBackend].invocation;
 
   // Generate the AI invocation command based on backend choice.
   // Sandbox mode always uses the Docker wrapper; native mode uses the backend config.
@@ -445,8 +458,8 @@ fi
     $ANTHROPIC_API_KEY_ARG \\
     -w /workspace \\
     "${imageName}" \\
-    claude --dangerously-skip-permissions /workspace/.ralph-prompt.md`
-    : AI_BACKEND_CONFIGS[aiBackend].invocation;
+    claude --dangerously-skip-permissions${claudeDockerModelArgument} /workspace/.ralph-prompt.md`
+    : nativeAiInvocation;
 
   const iterationLabel = useSandbox ? "(Docker)" : "";
   const endMessage = useSandbox ? "" : `echo "Run again with: $0 <max_iterations>"`;

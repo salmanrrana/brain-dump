@@ -479,8 +479,29 @@ async function runFirstSuccessfulCommand(
   return { success: false, error: lastError };
 }
 
+function buildClaudeModelArgument(
+  modelSelection: ConcreteLaunchModelSelection | undefined
+): string {
+  if (!modelSelection) {
+    return "";
+  }
+
+  const safeModelName = escapeForBashDoubleQuote(modelSelection.modelName);
+  return ` --model "${safeModelName}"`;
+}
+
+export function buildClaudeInteractiveCommand(
+  modelSelection?: ConcreteLaunchModelSelection
+): string {
+  return `claude${buildClaudeModelArgument(modelSelection)} "$CONTEXT_FILE"`;
+}
+
 // Create a temp script to launch Claude - avoids complex escaping issues
-async function createLaunchScript(projectPath: string, context: string): Promise<string> {
+async function createLaunchScript(
+  projectPath: string,
+  context: string,
+  modelSelection?: ConcreteLaunchModelSelection
+): Promise<string> {
   const { writeFileSync, mkdirSync, chmodSync } = await import("fs");
   const { join } = await import("path");
   const { homedir } = await import("os");
@@ -504,6 +525,7 @@ async function createLaunchScript(projectPath: string, context: string): Promise
   // Safely escape all user-provided content
   const safeProjectPath = escapeForBashDoubleQuote(projectPath);
   const safeTicketTitle = escapeForBashDoubleQuote(ticketTitle);
+  const claudeCommand = buildClaudeInteractiveCommand(modelSelection);
 
   // Create a script that:
   // 1. Changes to the project directory
@@ -535,7 +557,8 @@ echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━
 echo ""
 
 # Launch Claude with the context file - runs like normal terminal
-claude "$CONTEXT_FILE"
+${modelSelection ? "# Claude uses a one-shot model override for this launch only." : "# Claude uses the user's configured/default model."}
+${claudeCommand}
 
 # Cleanup context file
 rm -f "$CONTEXT_FILE"
@@ -576,6 +599,7 @@ export const launchClaudeInTerminal = createServerFn({ method: "POST" })
       projectName,
       epicName,
       ticketTitle,
+      modelSelection,
     } = data;
     const { exec } = await import("child_process");
     const { existsSync } = await import("fs");
@@ -655,7 +679,7 @@ export const launchClaudeInTerminal = createServerFn({ method: "POST" })
     }
 
     // Create launch script and build terminal command with window title
-    const scriptPath = await createLaunchScript(projectPath, context);
+    const scriptPath = await createLaunchScript(projectPath, context, modelSelection);
     const windowTitle = buildWindowTitle(projectName, epicName, ticketTitle);
     const terminalCommand = buildTerminalCommand(terminal, projectPath, scriptPath, windowTitle);
 

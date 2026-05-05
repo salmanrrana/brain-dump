@@ -54,4 +54,50 @@ describe("generateRalphScript model selection", () => {
     );
     expect(script).toContain('opencode run "${OPENCODE_MODEL_ARGS[@]}" "$(cat "$PROMPT_FILE")"');
   });
+
+  it("passes concrete Claude selections as --model modelName", () => {
+    const script = generateRalphScript(
+      "/tmp/project",
+      3,
+      false,
+      undefined,
+      undefined,
+      null,
+      undefined,
+      "claude",
+      { type: "implementation" },
+      {
+        kind: "concrete",
+        provider: "anthropic",
+        modelName: "claude-sonnet-4-6",
+      }
+    );
+
+    expect(script).toContain(
+      'claude --dangerously-skip-permissions --model "$BRAIN_DUMP_LAUNCH_MODEL" --output-format text -p "$(cat "$PROMPT_FILE")"'
+    );
+  });
+
+  it("passes concrete Claude selections into Docker Ralph invocations", () => {
+    const script = generateRalphScript(
+      "/tmp/project",
+      3,
+      true,
+      undefined,
+      undefined,
+      null,
+      undefined,
+      "claude",
+      { type: "implementation" },
+      {
+        kind: "concrete",
+        provider: "anthropic",
+        modelName: "claude-sonnet-4-6",
+      }
+    );
+
+    expect(script).toContain(
+      'claude --dangerously-skip-permissions \\\n    --model "claude-sonnet-4-6" /workspace/.ralph-prompt.md'
+    );
+  });
 });
