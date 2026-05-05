@@ -162,7 +162,7 @@ describe("shared UI launch dispatcher", () => {
       );
 
       expect(provider).toBeDefined();
-      await dispatchInteractiveUiLaunch(
+      const result = await dispatchInteractiveUiLaunch(
         provider!,
         {
           kind: "ticket",
@@ -179,6 +179,9 @@ describe("shared UI launch dispatcher", () => {
       expect(dependencies.calls[launcherName]!.mock.calls[0]?.[0]).not.toHaveProperty(
         "modelSelection"
       );
+      expect(result.warnings).toEqual([
+        `${provider!.display.label} does not have pricing-backed model choices yet. Launching with the provider's default model.`,
+      ]);
     }
   );
 
@@ -379,7 +382,7 @@ describe("shared UI launch dispatcher", () => {
       };
 
       expect(provider).toBeDefined();
-      await dispatchRalphAutonomousUiLaunch(
+      const result = await dispatchRalphAutonomousUiLaunch(
         provider!,
         {
           kind: "ticket",
@@ -396,6 +399,9 @@ describe("shared UI launch dispatcher", () => {
       expect(
         (dependencies.launchTicketRalph as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]
       ).not.toHaveProperty("modelSelection");
+      expect(result.warnings).toEqual([
+        `${provider!.display.label} does not have pricing-backed model choices yet. Launching with the provider's default model.`,
+      ]);
     }
   );
 

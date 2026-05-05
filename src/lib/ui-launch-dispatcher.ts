@@ -15,6 +15,7 @@ import type {
   InteractiveUiLaunchProvider,
   RalphAutonomousUiLaunchDispatchContext,
   RalphAutonomousUiLaunchProvider,
+  UiLaunchProvider,
 } from "./launch-provider-contract";
 import {
   isDefaultOnlyLaunchProvider,
@@ -131,15 +132,43 @@ function concreteModelSelection(
   return modelSelection?.kind === "concrete" ? modelSelection : undefined;
 }
 
-function concreteModelSelectionForProvider(
-  providerId: InteractiveUiLaunchProvider["id"] | RalphAutonomousUiLaunchProvider["id"],
+interface ModelSelectionResolution {
+  modelSelection?: ConcreteLaunchModelSelection;
+  warnings: string[];
+}
+
+function resolveConcreteModelSelection(
+  provider: UiLaunchProvider,
   modelSelection: LaunchModelSelection | undefined
-): ConcreteLaunchModelSelection | undefined {
-  if (isDefaultOnlyLaunchProvider(providerId)) {
-    return undefined;
+): ModelSelectionResolution {
+  const concreteSelection = concreteModelSelection(modelSelection);
+  if (!concreteSelection) {
+    return { warnings: [] };
   }
 
-  return concreteModelSelection(modelSelection);
+  if (isDefaultOnlyLaunchProvider(provider.id)) {
+    return {
+      warnings: [
+        `${provider.display.label} does not have pricing-backed model choices yet. Launching with the provider's default model.`,
+      ],
+    };
+  }
+
+  return { modelSelection: concreteSelection, warnings: [] };
+}
+
+function withAdditionalWarnings(
+  result: UiLaunchResult,
+  warnings: readonly string[]
+): UiLaunchResult {
+  if (warnings.length === 0) {
+    return result;
+  }
+
+  return {
+    ...result,
+    warnings: [...warnings, ...(result.warnings ?? [])],
+  };
 }
 
 export function getDefaultRalphAutonomousProviderForWorkingMethod(
@@ -166,7 +195,7 @@ export async function dispatchInteractiveUiLaunch(
   dependencies: InteractiveLaunchDependencies = defaultInteractiveLaunchDependencies
 ): Promise<UiLaunchResult> {
   const ticketContext = await dependencies.getTicketContext(context.ticketId);
-  const modelSelection = concreteModelSelectionForProvider(provider.id, context.modelSelection);
+  const modelSelectionResolution = resolveConcreteModelSelection(provider, context.modelSelection);
   const payload: InteractiveTerminalPayload = {
     ticketId: context.ticketId,
     context: ticketContext.context,
@@ -175,31 +204,46 @@ export async function dispatchInteractiveUiLaunch(
     projectName: ticketContext.projectName,
     epicName: ticketContext.epicName,
     ticketTitle: ticketContext.ticketTitle,
-    ...(modelSelection ? { modelSelection } : {}),
+    ...(modelSelectionResolution.modelSelection
+      ? { modelSelection: modelSelectionResolution.modelSelection }
+      : {}),
   };
 
+  let result: UiLaunchResult;
   switch (provider.launchMode) {
     case "claude-terminal":
-      return dependencies.launchClaude(payload);
+      result = await dependencies.launchClaude(payload);
+      break;
     case "codex-auto":
-      return dependencies.launchCodex({ ...payload, launchMode: "auto" });
+      result = await dependencies.launchCodex({ ...payload, launchMode: "auto" });
+      break;
     case "codex-cli":
-      return dependencies.launchCodex({ ...payload, launchMode: "cli" });
+      result = await dependencies.launchCodex({ ...payload, launchMode: "cli" });
+      break;
     case "codex-app":
-      return dependencies.launchCodex({ ...payload, launchMode: "app" });
+      result = await dependencies.launchCodex({ ...payload, launchMode: "app" });
+      break;
     case "vscode-editor":
-      return dependencies.launchVSCode(payload);
+      result = await dependencies.launchVSCode(payload);
+      break;
     case "cursor-editor":
-      return dependencies.launchCursor(payload);
+      result = await dependencies.launchCursor(payload);
+      break;
     case "cursor-agent-terminal":
-      return dependencies.launchCursorAgent(payload);
+      result = await dependencies.launchCursorAgent(payload);
+      break;
     case "copilot-cli":
-      return dependencies.launchCopilot(payload);
+      result = await dependencies.launchCopilot(payload);
+      break;
     case "opencode-terminal":
-      return dependencies.launchOpenCode(payload);
+      result = await dependencies.launchOpenCode(payload);
+      break;
     case "pi-terminal":
-      return dependencies.launchPi(payload);
+      result = await dependencies.launchPi(payload);
+      break;
   }
+
+  return withAdditionalWarnings(result, modelSelectionResolution.warnings);
 }
 
 export async function dispatchRalphAutonomousUiLaunch(
@@ -207,7 +251,7 @@ export async function dispatchRalphAutonomousUiLaunch(
   context: RalphAutonomousUiLaunchDispatchContext,
   dependencies: RalphLaunchDependencies
 ): Promise<UiLaunchResult> {
-  const modelSelection = concreteModelSelectionForProvider(provider.id, context.modelSelection);
+  const modelSelectionResolution = resolveConcreteModelSelection(provider, context.modelSelection);
 
   if (context.kind === "ticket") {
     await dependencies.startTicketWorkflow({
@@ -215,16 +259,20 @@ export async function dispatchRalphAutonomousUiLaunch(
       projectPath: context.projectPath ?? null,
     });
 
-    return dependencies.launchTicketRalph({
+    const launchResult = await dependencies.launchTicketRalph({
       ticketId: context.ticketId,
       preferredTerminal: context.preferredTerminal ?? null,
       useSandbox: false,
       aiBackend: provider.aiBackend,
-      ...(modelSelection ? { modelSelection } : {}),
+      ...(modelSelectionResolution.modelSelection
+        ? { modelSelection: modelSelectionResolution.modelSelection }
+        : {}),
       ...(provider.workingMethodOverride
         ? { workingMethodOverride: provider.workingMethodOverride }
         : {}),
     });
+
+    return withAdditionalWarnings(launchResult, modelSelectionResolution.warnings);
   }
 
   const workflowResult =
@@ -257,7 +305,9 @@ export async function dispatchRalphAutonomousUiLaunch(
     preferredTerminal: context.preferredTerminal ?? null,
     useSandbox: context.useSandbox ?? false,
     aiBackend: provider.aiBackend,
-    ...(modelSelection ? { modelSelection } : {}),
+    ...(modelSelectionResolution.modelSelection
+      ? { modelSelection: modelSelectionResolution.modelSelection }
+      : {}),
     ...(provider.workingMethodOverride
       ? { workingMethodOverride: provider.workingMethodOverride }
       : {}),
@@ -266,6 +316,10 @@ export async function dispatchRalphAutonomousUiLaunch(
 
   return {
     ...launchResult,
-    warnings: [...workflowWarnings, ...(launchResult.warnings ?? [])],
+    warnings: [
+      ...modelSelectionResolution.warnings,
+      ...workflowWarnings,
+      ...(launchResult.warnings ?? []),
+    ],
   };
 }
