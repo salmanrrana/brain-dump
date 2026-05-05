@@ -116,24 +116,33 @@ describe("getLaunchModelCatalog", () => {
     for (const providerId of defaultOnlyProviders) {
       const catalog = getLaunchModelCatalog(providerId, CATALOG_FIXTURE);
       expect(catalog.defaultOnly).toBe(true);
+      expect(catalog.defaultOnlyReason).toBe("no-mapping");
       expect(catalog.choices).toHaveLength(1);
       expect(catalog.choices[0]?.selection).toEqual(DEFAULT_LAUNCH_MODEL_SELECTION);
     }
   });
 
-  it("falls back to Default-only when the pricing table is empty", () => {
+  it("falls back to Default-only with reason 'no-rows' when the pricing table is empty", () => {
     const catalog = getLaunchModelCatalog("claude", []);
     expect(catalog.defaultOnly).toBe(true);
+    expect(catalog.defaultOnlyReason).toBe("no-rows");
     expect(catalog.choices).toEqual([
       expect.objectContaining({ selection: DEFAULT_LAUNCH_MODEL_SELECTION }),
     ]);
   });
 
-  it("falls back to Default-only when pricing table has no rows for the mapped provider", () => {
+  it("falls back to Default-only with reason 'no-rows' when the mapped provider has no rows", () => {
     const fixture: CostModel[] = [makeCostModel("google", "gemini-2.5-pro")];
     const catalog = getLaunchModelCatalog("claude", fixture);
     expect(catalog.defaultOnly).toBe(true);
+    expect(catalog.defaultOnlyReason).toBe("no-rows");
     expect(catalog.choices).toHaveLength(1);
+  });
+
+  it("does not set defaultOnlyReason when the catalog has concrete choices", () => {
+    const catalog = getLaunchModelCatalog("claude", CATALOG_FIXTURE);
+    expect(catalog.defaultOnly).toBe(false);
+    expect(catalog.defaultOnlyReason).toBeUndefined();
   });
 
   it("does not leak unrelated pricing providers into single-provider catalogs", () => {

@@ -50,13 +50,27 @@ export interface LaunchModelChoice {
   cliValue?: string;
 }
 
+/**
+ * Why a catalog ended up offering only `Default`. Lets the picker show different
+ * copy for "this provider doesn't support model picking yet" vs. "your pricing
+ * table doesn't have rows for this provider".
+ */
+export type LaunchModelDefaultOnlyReason = "no-mapping" | "no-rows";
+
 export interface LaunchModelCatalog {
   providerId: UiLaunchProviderId;
   /**
-   * True when no concrete pricing rows mapped to this provider; the picker
-   * only offers `Default` and should explain why no concrete choices exist.
+   * True when the catalog only offers `Default`. Pair with `defaultOnlyReason`
+   * to explain to the user why no concrete choices exist.
    */
   defaultOnly: boolean;
+  /**
+   * Set when `defaultOnly` is true. `"no-mapping"` means the launch provider
+   * has no pricing-backed catalog entry at all (e.g. vscode, copilot). `"no-rows"`
+   * means the provider does map to pricing rows, but none are currently in the
+   * pricing table — typically a misconfiguration the user can fix.
+   */
+  defaultOnlyReason?: LaunchModelDefaultOnlyReason;
   choices: LaunchModelChoice[];
 }
 
@@ -84,9 +98,22 @@ const DEFAULT_ONLY_MAPPING: ProviderMapping = {
 
 /**
  * Single source of truth for "which pricing rows belong to which launch provider".
- * Providers omitted from this map are default-only.
+ *
+ * Typed as a full `Record` so adding a new id to `UiLaunchProviderId` becomes a
+ * compile error here until an entry is added — preventing a new provider from
+ * silently rendering an empty model picker. Default-only providers (vscode,
+ * cursor editor, copilot, codex-app, pi, ralph variants of those) get an
+ * explicit `DEFAULT_ONLY_MAPPING` entry rather than being omitted.
  */
-const PROVIDER_MODEL_MAPPINGS: Partial<Record<UiLaunchProviderId, ProviderMapping>> = {
+const OPENCODE_PRICING_PROVIDERS = [
+  "anthropic",
+  "openai",
+  "google",
+  "opensource",
+  "cursor",
+] as const satisfies readonly PricingProviderId[];
+
+const PROVIDER_MODEL_MAPPINGS: Record<UiLaunchProviderId, ProviderMapping> = {
   // Claude family — Anthropic only.
   claude: { pricingProviders: ["anthropic"], prefixWithProvider: false },
   "ralph-native": { pricingProviders: ["anthropic"], prefixWithProvider: false },
@@ -96,22 +123,25 @@ const PROVIDER_MODEL_MAPPINGS: Partial<Record<UiLaunchProviderId, ProviderMappin
   // dedicated Codex ticket will revisit if a launch-time mechanism appears.
   codex: { pricingProviders: ["openai"], prefixWithProvider: false },
   "codex-cli": { pricingProviders: ["openai"], prefixWithProvider: false },
+  "codex-app": DEFAULT_ONLY_MAPPING,
   "ralph-codex": { pricingProviders: ["openai"], prefixWithProvider: false },
 
   // Cursor Agent CLI — pricing rows under the `cursor` provider.
   "cursor-agent": { pricingProviders: ["cursor"], prefixWithProvider: false },
   "ralph-cursor-agent": { pricingProviders: ["cursor"], prefixWithProvider: false },
 
-  // OpenCode addresses any configured provider as `provider/model`. Include the
-  // pricing providers OpenCode is known to route to in practice.
-  opencode: {
-    pricingProviders: ["anthropic", "openai", "google", "opensource", "cursor"],
-    prefixWithProvider: true,
-  },
-  "ralph-opencode": {
-    pricingProviders: ["anthropic", "openai", "google", "opensource", "cursor"],
-    prefixWithProvider: true,
-  },
+  // OpenCode addresses any configured provider as `provider/model`.
+  opencode: { pricingProviders: OPENCODE_PRICING_PROVIDERS, prefixWithProvider: true },
+  "ralph-opencode": { pricingProviders: OPENCODE_PRICING_PROVIDERS, prefixWithProvider: true },
+
+  // Default-only: providers with no reliable pricing-backed mapping yet.
+  // Their dedicated tickets in this epic will revisit if a CLI mechanism exists.
+  vscode: DEFAULT_ONLY_MAPPING,
+  cursor: DEFAULT_ONLY_MAPPING,
+  copilot: DEFAULT_ONLY_MAPPING,
+  pi: DEFAULT_ONLY_MAPPING,
+  "ralph-copilot": DEFAULT_ONLY_MAPPING,
+  "ralph-pi": DEFAULT_ONLY_MAPPING,
 };
 
 function defaultChoice(): LaunchModelChoice {
@@ -156,11 +186,16 @@ export function getLaunchModelCatalog(
   providerId: UiLaunchProviderId,
   costModels: readonly CostModel[]
 ): LaunchModelCatalog {
-  const mapping = PROVIDER_MODEL_MAPPINGS[providerId] ?? DEFAULT_ONLY_MAPPING;
+  const mapping = PROVIDER_MODEL_MAPPINGS[providerId];
   const defaultEntry = defaultChoice();
 
   if (mapping.pricingProviders.length === 0) {
-    return { providerId, defaultOnly: true, choices: [defaultEntry] };
+    return {
+      providerId,
+      defaultOnly: true,
+      defaultOnlyReason: "no-mapping",
+      choices: [defaultEntry],
+    };
   }
 
   const allowedProviders = new Set<string>(mapping.pricingProviders);
@@ -171,8 +206,14 @@ export function getLaunchModelCatalog(
     .map((model) => concreteChoice(model, mapping.prefixWithProvider));
 
   if (concreteChoices.length === 0) {
-    // Pricing table is empty or holds nothing for this provider's mapping.
-    return { providerId, defaultOnly: true, choices: [defaultEntry] };
+    // Mapping exists but no rows currently match — typically a pricing-table gap
+    // the user can fix by adding a model row.
+    return {
+      providerId,
+      defaultOnly: true,
+      defaultOnlyReason: "no-rows",
+      choices: [defaultEntry],
+    };
   }
 
   return {
@@ -185,11 +226,10 @@ export function getLaunchModelCatalog(
 /**
  * True if this launch provider has no concrete catalog mapping at all,
  * regardless of the current pricing table contents. Useful for the picker
- * to show a "no models available for this provider" hint up front.
+ * to short-circuit "no models available for this provider" hints up front.
  */
 export function isDefaultOnlyLaunchProvider(providerId: UiLaunchProviderId): boolean {
-  const mapping = PROVIDER_MODEL_MAPPINGS[providerId];
-  return !mapping || mapping.pricingProviders.length === 0;
+  return PROVIDER_MODEL_MAPPINGS[providerId].pricingProviders.length === 0;
 }
 
 /**
