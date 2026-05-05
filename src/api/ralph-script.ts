@@ -106,7 +106,11 @@ fi
   # letting the outer bash loop advance to the next ticket in the same
   # terminal window. This mirrors the 'claude -p' / 'cursor-agent -p' /
   # 'codex exec' pattern used for the other backends.
-  opencode run "$(cat "$PROMPT_FILE")"`,
+  OPENCODE_MODEL_ARGS=()
+  if [ -n "\${BRAIN_DUMP_LAUNCH_MODEL_PROVIDER:-}" ] && [ -n "\${BRAIN_DUMP_LAUNCH_MODEL:-}" ]; then
+    OPENCODE_MODEL_ARGS+=(--model "\${BRAIN_DUMP_LAUNCH_MODEL_PROVIDER}/\${BRAIN_DUMP_LAUNCH_MODEL}")
+  fi
+  opencode run "\${OPENCODE_MODEL_ARGS[@]}" "$(cat "$PROMPT_FILE")"`,
   },
   codex: {
     displayName: "Codex",

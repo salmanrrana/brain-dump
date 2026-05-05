@@ -30,4 +30,28 @@ describe("generateRalphScript model selection", () => {
     expect(script).toContain('export BRAIN_DUMP_LAUNCH_MODEL_PROVIDER="openai"');
     expect(script).toContain('export BRAIN_DUMP_LAUNCH_MODEL="gpt-5.4"');
   });
+
+  it("passes concrete OpenCode selections as --model provider/model", () => {
+    const script = generateRalphScript(
+      "/tmp/project",
+      3,
+      false,
+      undefined,
+      undefined,
+      null,
+      undefined,
+      "opencode",
+      { type: "implementation" },
+      {
+        kind: "concrete",
+        provider: "openai",
+        modelName: "gpt-5.4",
+      }
+    );
+
+    expect(script).toContain(
+      'OPENCODE_MODEL_ARGS+=(--model "${BRAIN_DUMP_LAUNCH_MODEL_PROVIDER}/${BRAIN_DUMP_LAUNCH_MODEL}")'
+    );
+    expect(script).toContain('opencode run "${OPENCODE_MODEL_ARGS[@]}" "$(cat "$PROMPT_FILE")"');
+  });
 });

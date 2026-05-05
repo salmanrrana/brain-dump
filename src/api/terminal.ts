@@ -684,8 +684,37 @@ export const launchClaudeInTerminal = createServerFn({ method: "POST" })
     }
   });
 
+export function formatOpenCodeLaunchModelValue(
+  modelSelection: ConcreteLaunchModelSelection
+): string {
+  return `${modelSelection.provider}/${modelSelection.modelName}`;
+}
+
+function buildOpenCodeModelArgument(
+  modelSelection: ConcreteLaunchModelSelection | undefined
+): string {
+  if (!modelSelection) {
+    return "";
+  }
+
+  const safeModelValue = escapeForBashDoubleQuote(formatOpenCodeLaunchModelValue(modelSelection));
+  return ` --model "${safeModelValue}"`;
+}
+
+export function buildOpenCodeInteractiveCommand(
+  projectPath: string,
+  modelSelection?: ConcreteLaunchModelSelection
+): string {
+  const safeProjectPath = escapeForBashDoubleQuote(projectPath);
+  return `opencode "${safeProjectPath}"${buildOpenCodeModelArgument(modelSelection)} --prompt "$(cat "$CONTEXT_FILE")"`;
+}
+
 // Create a temp script to launch OpenCode - similar to createLaunchScript but for OpenCode
-async function createOpenCodeLaunchScript(projectPath: string, context: string): Promise<string> {
+async function createOpenCodeLaunchScript(
+  projectPath: string,
+  context: string,
+  modelSelection?: ConcreteLaunchModelSelection
+): Promise<string> {
   const { writeFileSync, mkdirSync, chmodSync } = await import("fs");
   const { join } = await import("path");
   const { homedir } = await import("os");
@@ -715,6 +744,7 @@ async function createOpenCodeLaunchScript(projectPath: string, context: string):
   // Safely escape all user-provided content
   const safeProjectPath = escapeForBashDoubleQuote(projectPath);
   const safeTicketTitle = escapeForBashDoubleQuote(ticketTitle);
+  const openCodeCommand = buildOpenCodeInteractiveCommand(projectPath, modelSelection);
 
   // Create a script that:
   // 1. Changes to the project directory
@@ -744,8 +774,8 @@ echo -e "\\033[0;34m━━━━━━━━━━━━━━━━━━━━
 echo ""
 
 # Launch OpenCode with the project path and initial prompt
-# OpenCode uses the user's default/last-used model preference
-opencode "${safeProjectPath}" --prompt "$(cat "$CONTEXT_FILE")"
+${modelSelection ? "# OpenCode expects one-shot model overrides as provider/model." : "# OpenCode uses the user's default/last-used model preference."}
+${openCodeCommand}
 
 # Cleanup context file
 rm -f "$CONTEXT_FILE"
@@ -776,6 +806,7 @@ export const launchOpenCodeInTerminal = createServerFn({ method: "POST" })
       projectName,
       epicName,
       ticketTitle,
+      modelSelection,
     } = data;
     const { exec } = await import("child_process");
     const { existsSync } = await import("fs");
@@ -865,7 +896,7 @@ export const launchOpenCodeInTerminal = createServerFn({ method: "POST" })
     }
 
     // Create launch script and build terminal command with window title
-    const scriptPath = await createOpenCodeLaunchScript(projectPath, context);
+    const scriptPath = await createOpenCodeLaunchScript(projectPath, context, modelSelection);
     const windowTitle = buildWindowTitle(projectName, epicName, ticketTitle);
     const terminalCommand = buildTerminalCommand(terminal, projectPath, scriptPath, windowTitle);
 
