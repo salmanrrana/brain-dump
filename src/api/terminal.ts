@@ -950,8 +950,27 @@ export const launchOpenCodeInTerminal = createServerFn({ method: "POST" })
     }
   });
 
+function buildCodexModelArgument(modelSelection: ConcreteLaunchModelSelection | undefined): string {
+  if (!modelSelection) {
+    return "";
+  }
+
+  const safeModelName = escapeForBashDoubleQuote(modelSelection.modelName);
+  return ` --model "${safeModelName}"`;
+}
+
+export function buildCodexInteractiveCommand(
+  modelSelection?: ConcreteLaunchModelSelection
+): string {
+  return `codex${buildCodexModelArgument(modelSelection)} "$(cat "$CONTEXT_FILE")"`;
+}
+
 // Create a temp script to launch Codex - similar to OpenCode/Claude launch scripts
-async function createCodexLaunchScript(projectPath: string, context: string): Promise<string> {
+async function createCodexLaunchScript(
+  projectPath: string,
+  context: string,
+  modelSelection?: ConcreteLaunchModelSelection
+): Promise<string> {
   const { writeFileSync, mkdirSync, chmodSync } = await import("fs");
   const { join } = await import("path");
   const { homedir } = await import("os");
@@ -975,6 +994,7 @@ async function createCodexLaunchScript(projectPath: string, context: string): Pr
 
   const safeProjectPath = escapeForBashDoubleQuote(projectPath);
   const safeTicketTitle = escapeForBashDoubleQuote(ticketTitle);
+  const codexCommand = buildCodexInteractiveCommand(modelSelection);
 
   const script = `#!/bin/bash
 set -e  # Exit on error
@@ -998,7 +1018,8 @@ echo -e "\\033[0;32m━━━━━━━━━━━━━━━━━━━━
 echo ""
 
 # Launch Codex with the prompt content
-codex "$(cat "$CONTEXT_FILE")"
+${modelSelection ? "# Codex uses a one-shot model override for this launch only." : "# Codex uses the user's configured/default model."}
+${codexCommand}
 
 # Cleanup context file
 rm -f "$CONTEXT_FILE"
@@ -1522,6 +1543,7 @@ export const launchCodexInTerminal = createServerFn({ method: "POST" })
       projectName,
       epicName,
       ticketTitle,
+      modelSelection,
     } = data;
     const { exec } = await import("child_process");
     const { existsSync } = await import("fs");
@@ -1613,7 +1635,7 @@ export const launchCodexInTerminal = createServerFn({ method: "POST" })
         };
       }
 
-      const scriptPath = await createCodexLaunchScript(projectPath, context);
+      const scriptPath = await createCodexLaunchScript(projectPath, context, modelSelection);
       const windowTitle = buildWindowTitle(projectName, epicName, ticketTitle);
       const terminalCommand = buildTerminalCommand(terminal, projectPath, scriptPath, windowTitle);
 
@@ -1642,6 +1664,12 @@ export const launchCodexInTerminal = createServerFn({ method: "POST" })
     }
 
     // Use Codex App launch and persist context in project.
+    if (modelSelection) {
+      warnings.push(
+        "Codex App does not support a documented one-shot model override. Launching with the app's default model."
+      );
+    }
+
     try {
       const contextFile = await writeProjectContextFile(projectPath, context);
       const launchPlan = buildCodexAppLaunchPlan(projectPath, contextFile);

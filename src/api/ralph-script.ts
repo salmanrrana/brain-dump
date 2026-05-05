@@ -154,7 +154,11 @@ fi
   # approval prompts AND Codex's filesystem sandbox (parity with Claude's
   # --dangerously-skip-permissions posture). We intentionally do NOT run
   # Codex under its sandbox during Ralph; see docs/environments/codex.md.
-  codex exec --dangerously-bypass-approvals-and-sandbox "$(cat "$PROMPT_FILE")"`,
+  CODEX_MODEL_ARGS=()
+  if [ -n "\${BRAIN_DUMP_LAUNCH_MODEL:-}" ]; then
+    CODEX_MODEL_ARGS+=(--model "\${BRAIN_DUMP_LAUNCH_MODEL}")
+  fi
+  codex exec "\${CODEX_MODEL_ARGS[@]}" --dangerously-bypass-approvals-and-sandbox "$(cat "$PROMPT_FILE")"`,
   },
   "cursor-agent": {
     displayName: "Cursor Agent",

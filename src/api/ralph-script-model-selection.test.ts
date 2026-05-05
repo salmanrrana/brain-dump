@@ -78,6 +78,30 @@ describe("generateRalphScript model selection", () => {
     );
   });
 
+  it("passes concrete Codex selections as --model modelName", () => {
+    const script = generateRalphScript(
+      "/tmp/project",
+      3,
+      false,
+      undefined,
+      undefined,
+      null,
+      undefined,
+      "codex",
+      { type: "implementation" },
+      {
+        kind: "concrete",
+        provider: "openai",
+        modelName: "gpt-5.4",
+      }
+    );
+
+    expect(script).toContain('CODEX_MODEL_ARGS+=(--model "${BRAIN_DUMP_LAUNCH_MODEL}")');
+    expect(script).toContain(
+      'codex exec "${CODEX_MODEL_ARGS[@]}" --dangerously-bypass-approvals-and-sandbox "$(cat "$PROMPT_FILE")"'
+    );
+  });
+
   it("passes concrete Claude selections into Docker Ralph invocations", () => {
     const script = generateRalphScript(
       "/tmp/project",
