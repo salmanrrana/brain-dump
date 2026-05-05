@@ -67,7 +67,7 @@ function getDefaultOnlyMessage(reason: string | undefined, providerLabel: string
     return `Only Default is available for ${providerLabel} because no matching pricing rows were found.`;
   }
 
-  return `Only Default is available for ${providerLabel} because this provider does not have pricing-backed model choices yet.`;
+  return `Only Default is available for ${providerLabel} because Brain Dump does not have pricing-backed model choices for this provider yet.`;
 }
 
 export function LaunchProviderMenu({

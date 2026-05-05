@@ -148,6 +148,41 @@ describe("shared UI launch dispatcher", () => {
   });
 
   it.each([
+    ["codex-app", "launchCodex"],
+    ["vscode", "launchVSCode"],
+    ["cursor", "launchCursor"],
+    ["copilot", "launchCopilot"],
+    ["pi", "launchPi"],
+  ] as const)(
+    "does not pass concrete model selections to default-only interactive provider %s",
+    async (providerId, launcherName) => {
+      const dependencies = makeInteractiveDependencies();
+      const provider = INTERACTIVE_UI_LAUNCH_PROVIDERS.find(
+        (candidate) => candidate.id === providerId
+      );
+
+      expect(provider).toBeDefined();
+      await dispatchInteractiveUiLaunch(
+        provider!,
+        {
+          kind: "ticket",
+          ticketId: "ticket-1",
+          modelSelection: {
+            kind: "concrete",
+            provider: "openai",
+            modelName: "gpt-5.4",
+          },
+        },
+        dependencies
+      );
+
+      expect(dependencies.calls[launcherName]!.mock.calls[0]?.[0]).not.toHaveProperty(
+        "modelSelection"
+      );
+    }
+  );
+
+  it.each([
     ["claude", "launchClaude", undefined],
     ["codex", "launchCodex", "auto"],
     ["codex-cli", "launchCodex", "cli"],
@@ -329,6 +364,40 @@ describe("shared UI launch dispatcher", () => {
       (dependencies.launchTicketRalph as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]
     ).not.toHaveProperty("modelSelection");
   });
+
+  it.each(["ralph-copilot", "ralph-pi"] as const)(
+    "does not pass concrete model selections to default-only Ralph provider %s",
+    async (providerId) => {
+      const provider = RALPH_AUTONOMOUS_UI_LAUNCH_PROVIDERS.find(
+        (candidate) => candidate.id === providerId
+      );
+      const dependencies: RalphLaunchDependencies = {
+        startTicketWorkflow: vi.fn().mockResolvedValue({ success: true, message: "workflow" }),
+        startEpicWorkflow: vi.fn().mockResolvedValue({ success: true, message: "epic workflow" }),
+        launchTicketRalph: vi.fn().mockResolvedValue({ success: true, message: "ralph" }),
+        launchEpicRalph: vi.fn().mockResolvedValue({ success: true, message: "epic" }),
+      };
+
+      expect(provider).toBeDefined();
+      await dispatchRalphAutonomousUiLaunch(
+        provider!,
+        {
+          kind: "ticket",
+          ticketId: "ticket-1",
+          modelSelection: {
+            kind: "concrete",
+            provider: "openai",
+            modelName: "gpt-5.4",
+          },
+        },
+        dependencies
+      );
+
+      expect(
+        (dependencies.launchTicketRalph as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]
+      ).not.toHaveProperty("modelSelection");
+    }
+  );
 
   it.each([
     ["auto", "ralph-native"],

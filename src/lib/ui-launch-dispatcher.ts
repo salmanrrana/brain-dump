@@ -16,7 +16,11 @@ import type {
   RalphAutonomousUiLaunchDispatchContext,
   RalphAutonomousUiLaunchProvider,
 } from "./launch-provider-contract";
-import type { ConcreteLaunchModelSelection, LaunchModelSelection } from "./launch-model-catalog";
+import {
+  isDefaultOnlyLaunchProvider,
+  type ConcreteLaunchModelSelection,
+  type LaunchModelSelection,
+} from "./launch-model-catalog";
 import type { LaunchEpicInput, LaunchTicketInput } from "./ralph-launch/types";
 import { RALPH_AUTONOMOUS_UI_LAUNCH_PROVIDERS } from "./ui-launch-registry";
 
@@ -127,6 +131,17 @@ function concreteModelSelection(
   return modelSelection?.kind === "concrete" ? modelSelection : undefined;
 }
 
+function concreteModelSelectionForProvider(
+  providerId: InteractiveUiLaunchProvider["id"] | RalphAutonomousUiLaunchProvider["id"],
+  modelSelection: LaunchModelSelection | undefined
+): ConcreteLaunchModelSelection | undefined {
+  if (isDefaultOnlyLaunchProvider(providerId)) {
+    return undefined;
+  }
+
+  return concreteModelSelection(modelSelection);
+}
+
 export function getDefaultRalphAutonomousProviderForWorkingMethod(
   workingMethod?: string | null
 ): RalphAutonomousUiLaunchProvider {
@@ -151,7 +166,7 @@ export async function dispatchInteractiveUiLaunch(
   dependencies: InteractiveLaunchDependencies = defaultInteractiveLaunchDependencies
 ): Promise<UiLaunchResult> {
   const ticketContext = await dependencies.getTicketContext(context.ticketId);
-  const modelSelection = concreteModelSelection(context.modelSelection);
+  const modelSelection = concreteModelSelectionForProvider(provider.id, context.modelSelection);
   const payload: InteractiveTerminalPayload = {
     ticketId: context.ticketId,
     context: ticketContext.context,
@@ -192,7 +207,7 @@ export async function dispatchRalphAutonomousUiLaunch(
   context: RalphAutonomousUiLaunchDispatchContext,
   dependencies: RalphLaunchDependencies
 ): Promise<UiLaunchResult> {
-  const modelSelection = concreteModelSelection(context.modelSelection);
+  const modelSelection = concreteModelSelectionForProvider(provider.id, context.modelSelection);
 
   if (context.kind === "ticket") {
     await dependencies.startTicketWorkflow({

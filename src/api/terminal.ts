@@ -982,6 +982,10 @@ export function buildCursorAgentInteractiveCommand(
   return `"$CURSOR_AGENT_BIN" --force --approve-mcps --trust${buildCursorAgentModelArgument(modelSelection)} -p "$AGENT_PROMPT"`;
 }
 
+function defaultOnlyModelWarning(providerLabel: string): string {
+  return `${providerLabel} does not have pricing-backed model choices yet. Launching with the provider's default model.`;
+}
+
 // Create a temp script to launch Codex - similar to OpenCode/Claude launch scripts
 async function createCodexLaunchScript(
   projectPath: string,
@@ -1303,6 +1307,7 @@ export const launchPiInTerminal = createServerFn({ method: "POST" })
       projectName,
       epicName,
       ticketTitle,
+      modelSelection,
     } = data;
     const { exec } = await import("child_process");
     const { existsSync } = await import("fs");
@@ -1324,8 +1329,12 @@ export const launchPiInTerminal = createServerFn({ method: "POST" })
       };
     }
 
-    let terminal: string | null = null;
     const warnings: string[] = [];
+    if (modelSelection) {
+      warnings.push(defaultOnlyModelWarning("Pi"));
+    }
+
+    let terminal: string | null = null;
 
     if (preferredTerminal) {
       const result = await isTerminalAvailable(preferredTerminal);
@@ -1738,6 +1747,7 @@ export const launchCopilotInTerminal = createServerFn({ method: "POST" })
       projectName,
       epicName,
       ticketTitle,
+      modelSelection,
     } = data;
     const { exec } = await import("child_process");
     const { existsSync } = await import("fs");
@@ -1761,8 +1771,12 @@ export const launchCopilotInTerminal = createServerFn({ method: "POST" })
       };
     }
 
-    let terminal: string | null = null;
     const warnings: string[] = [];
+    if (modelSelection) {
+      warnings.push(defaultOnlyModelWarning("Copilot CLI"));
+    }
+
+    let terminal: string | null = null;
 
     if (preferredTerminal) {
       const result = await isTerminalAvailable(preferredTerminal);
@@ -1852,7 +1866,7 @@ export const launchCopilotInTerminal = createServerFn({ method: "POST" })
 export const launchCursorInTerminal = createServerFn({ method: "POST" })
   .inputValidator((data: InteractiveTerminalLaunchInput) => data)
   .handler(async ({ data }): Promise<LaunchResult> => {
-    const { ticketId, context, projectPath } = data;
+    const { ticketId, context, projectPath, modelSelection } = data;
     const { exec } = await import("child_process");
     const { existsSync } = await import("fs");
 
@@ -1875,6 +1889,9 @@ export const launchCursorInTerminal = createServerFn({ method: "POST" })
     }
 
     const warnings: string[] = [];
+    if (modelSelection) {
+      warnings.push(defaultOnlyModelWarning("Cursor Editor"));
+    }
 
     try {
       const workflowResult = await startWorkflowForLaunch(ticketId);
@@ -1943,7 +1960,7 @@ export const launchCursorInTerminal = createServerFn({ method: "POST" })
 export const launchVSCodeInTerminal = createServerFn({ method: "POST" })
   .inputValidator((data: InteractiveTerminalLaunchInput) => data)
   .handler(async ({ data }): Promise<LaunchResult> => {
-    const { ticketId, context, projectPath } = data;
+    const { ticketId, context, projectPath, modelSelection } = data;
     const { exec } = await import("child_process");
     const { existsSync } = await import("fs");
 
@@ -1966,6 +1983,9 @@ export const launchVSCodeInTerminal = createServerFn({ method: "POST" })
     }
 
     const warnings: string[] = [];
+    if (modelSelection) {
+      warnings.push(defaultOnlyModelWarning("VS Code"));
+    }
 
     try {
       const workflowResult = await startWorkflowForLaunch(ticketId);

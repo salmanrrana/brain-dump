@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { CostModel } from "../../core/types";
@@ -185,24 +185,64 @@ describe("LaunchProviderMenu", () => {
     expect(screen.getByRole("option", { name: /google\/gemini-2.5-pro/i })).toBeInTheDocument();
   });
 
-  it("explains providers that only support Default", async () => {
-    const user = userEvent.setup();
+  it.each([
+    { buttonLabel: "Codex App", modelLabel: /model for codex app/i },
+    { buttonLabel: "VS Code", modelLabel: /model for vs code/i },
+    { buttonLabel: "Cursor Editor", modelLabel: /model for cursor editor/i },
+    { buttonLabel: "Copilot CLI", modelLabel: /model for copilot cli/i },
+    { buttonLabel: "Pi", modelLabel: /model for pi/i },
+  ])(
+    "shows only Default for interactive default-only provider $buttonLabel",
+    async ({ buttonLabel, modelLabel }) => {
+      const user = userEvent.setup();
 
-    render(
-      <LaunchProviderMenu
-        interactiveContext="ticket"
-        ralphContext="ticket"
-        onInteractiveLaunch={vi.fn()}
-        onRalphLaunch={vi.fn()}
-        costModels={COST_MODELS}
-        showRalph={false}
-      />
-    );
+      render(
+        <LaunchProviderMenu
+          interactiveContext="ticket"
+          ralphContext="ticket"
+          onInteractiveLaunch={vi.fn()}
+          onRalphLaunch={vi.fn()}
+          costModels={COST_MODELS}
+          showRalph={false}
+        />
+      );
 
-    await user.click(screen.getByRole("checkbox", { name: /pick your model/i }));
-    await user.hover(screen.getByRole("button", { name: "VS Code" }));
+      await user.click(screen.getByRole("checkbox", { name: /pick your model/i }));
+      await user.hover(screen.getByRole("button", { name: buttonLabel }));
 
-    expect(screen.getByLabelText(/model for vs code/i)).toHaveValue("default");
-    expect(screen.getByText(/does not have pricing-backed model choices yet/i)).toBeInTheDocument();
-  });
+      const selector = screen.getByRole("combobox", { name: modelLabel });
+      expect(selector).toHaveValue("default");
+      expect(within(selector).getAllByRole("option")).toHaveLength(1);
+      expect(screen.getByText(/does not have pricing-backed model choices/i)).toBeInTheDocument();
+    }
+  );
+
+  it.each([
+    { buttonLabel: "Copilot CLI", modelLabel: /model for copilot cli/i },
+    { buttonLabel: "Pi", modelLabel: /model for pi/i },
+  ])(
+    "shows only Default for Ralph default-only provider $buttonLabel",
+    async ({ buttonLabel, modelLabel }) => {
+      const user = userEvent.setup();
+
+      render(
+        <LaunchProviderMenu
+          interactiveContext="ticket"
+          ralphContext="ticket"
+          onInteractiveLaunch={vi.fn()}
+          onRalphLaunch={vi.fn()}
+          costModels={COST_MODELS}
+          showInteractive={false}
+        />
+      );
+
+      await user.click(screen.getByRole("checkbox", { name: /pick your model/i }));
+      await user.hover(screen.getByRole("button", { name: buttonLabel }));
+
+      const selector = screen.getByRole("combobox", { name: modelLabel });
+      expect(selector).toHaveValue("default");
+      expect(within(selector).getAllByRole("option")).toHaveLength(1);
+      expect(screen.getByText(/does not have pricing-backed model choices/i)).toBeInTheDocument();
+    }
+  );
 });
