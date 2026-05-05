@@ -20,7 +20,7 @@ import {
   getPrStatusIconColor,
   getPrStatusBadgeStyle,
 } from "../../lib/constants";
-import { LaunchActions, type LaunchType } from "./LaunchActions";
+import { LaunchActions, type LaunchActionsProps, type LaunchType } from "./LaunchActions";
 import { CopyableTag } from "../board/CopyableTag";
 import type { TicketStatus } from "../../api/tickets";
 
@@ -42,7 +42,7 @@ export interface TicketDetailHeaderProps {
   /** Handler when Edit button is clicked */
   onEdit: () => void;
   /** Handler when a launch option is selected */
-  onLaunch: (type: LaunchType) => void | Promise<void>;
+  onLaunch: LaunchActionsProps["onLaunch"];
   /** Whether a launch is currently in progress */
   isLaunching?: boolean;
   /** Which launch type is currently in progress */
@@ -97,9 +97,9 @@ export const TicketDetailHeader: FC<TicketDetailHeaderProps> = ({
 
   // Handle launch option selection
   const handleLaunch = useCallback(
-    (type: LaunchType) => {
+    (...args: Parameters<LaunchActionsProps["onLaunch"]>) => {
       setShowLaunchMenu(false);
-      void onLaunch(type);
+      void onLaunch(...args);
     },
     [onLaunch]
   );

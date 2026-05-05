@@ -27,7 +27,7 @@ import {
 } from "../../lib/ui-launch-dispatcher";
 import type { INTERACTIVE_UI_LAUNCH_PROVIDERS } from "../../lib/ui-launch-registry";
 import { queryKeys } from "../../lib/query-keys";
-import { useLaunchRalphForEpic, useSettings } from "../../lib/hooks";
+import { useCostModels, useLaunchRalphForEpic, useSettings } from "../../lib/hooks";
 
 export interface EpicDetailHeaderProps {
   epic: EpicDetailResult["epic"];
@@ -70,6 +70,11 @@ export function EpicDetailHeader({
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const { showToast } = useToast();
   const settings = useSettings();
+  const {
+    data: costModels,
+    isLoading: modelCatalogLoading,
+    error: modelCatalogError,
+  } = useCostModels();
   const queryClient = useQueryClient();
   const launchRalphMutation = useLaunchRalphForEpic();
 
@@ -455,6 +460,9 @@ export function EpicDetailHeader({
                     ralphContext="epic"
                     onInteractiveLaunch={(provider) => void handleLaunchInteractive(provider)}
                     onRalphLaunch={(provider) => void handleLaunchRalph(provider)}
+                    costModels={costModels ?? []}
+                    modelCatalogLoading={modelCatalogLoading}
+                    modelCatalogError={modelCatalogError}
                   />
                 </div>
               )}
@@ -681,6 +689,9 @@ export function EpicDetailHeader({
                     disabled={launchRalphMutation.isPending || selectedReviewTicketIds.length === 0}
                     loadingProviderId={pendingReviewProvider}
                     showInteractive={false}
+                    costModels={costModels ?? []}
+                    modelCatalogLoading={modelCatalogLoading}
+                    modelCatalogError={modelCatalogError}
                   />
                 </div>
               </div>

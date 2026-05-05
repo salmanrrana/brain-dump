@@ -1,6 +1,8 @@
 import { type FC, useCallback, useState } from "react";
 import type { TicketStatus } from "../../api/tickets";
 import type { UiLaunchProviderId } from "../../lib/launch-provider-contract";
+import type { LaunchModelSelection } from "../../lib/launch-model-catalog";
+import { useCostModels } from "../../lib/hooks";
 import { LaunchProviderMenu } from "../LaunchProviderMenu";
 
 export type LaunchType = UiLaunchProviderId;
@@ -9,7 +11,7 @@ export interface LaunchActionsProps {
   /** Current ticket status - used to determine if launch actions should be shown */
   ticketStatus: TicketStatus;
   /** Handler called when a launch option is selected */
-  onLaunch: (type: LaunchType) => void | Promise<void>;
+  onLaunch: (type: LaunchType, modelSelection: LaunchModelSelection) => void | Promise<void>;
   /** Whether a launch is currently in progress */
   isLaunching?: boolean;
   /** Which launch type is currently in progress (for loading indicator) */
@@ -34,13 +36,18 @@ export const LaunchActions: FC<LaunchActionsProps> = ({
   disabled = false,
 }) => {
   const [clickedType, setClickedType] = useState<LaunchType | null>(null);
+  const {
+    data: costModels,
+    isLoading: modelCatalogLoading,
+    error: modelCatalogError,
+  } = useCostModels();
   const isWorkable = WORKABLE_STATUSES.includes(ticketStatus);
 
   const handleOptionClick = useCallback(
-    (type: LaunchType) => {
+    (type: LaunchType, modelSelection: LaunchModelSelection) => {
       if (disabled || isLaunching) return;
       setClickedType(type);
-      void onLaunch(type);
+      void onLaunch(type, modelSelection);
     },
     [disabled, isLaunching, onLaunch]
   );
@@ -57,10 +64,17 @@ export const LaunchActions: FC<LaunchActionsProps> = ({
         <LaunchProviderMenu
           interactiveContext="ticket"
           ralphContext="ticket"
-          onInteractiveLaunch={(provider) => handleOptionClick(provider.id)}
-          onRalphLaunch={(provider) => handleOptionClick(provider.id)}
+          onInteractiveLaunch={(provider, modelSelection) =>
+            handleOptionClick(provider.id, modelSelection)
+          }
+          onRalphLaunch={(provider, modelSelection) =>
+            handleOptionClick(provider.id, modelSelection)
+          }
           disabled={disabled || isLaunching}
           loadingProviderId={isLaunching ? (launchingType ?? clickedType) : null}
+          costModels={costModels ?? []}
+          modelCatalogLoading={modelCatalogLoading}
+          modelCatalogError={modelCatalogError}
         />
       </div>
     </div>
