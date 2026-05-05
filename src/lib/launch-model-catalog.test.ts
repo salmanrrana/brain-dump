@@ -69,6 +69,13 @@ describe("getLaunchModelCatalog", () => {
     expect(concrete.map((c) => c.label)).toEqual(["Composer 2"]);
   });
 
+  it("filters Ralph Cursor Agent launches to cursor pricing rows", () => {
+    const catalog = getLaunchModelCatalog("ralph-cursor-agent", CATALOG_FIXTURE);
+    const concrete = catalog.choices.filter((choice) => choice.selection.kind === "concrete");
+    expect(concrete.map((c) => c.label)).toEqual(["Composer 2"]);
+    expect(concrete.every((c) => c.provider === "cursor")).toBe(true);
+  });
+
   it("formats OpenCode choices as provider/model so the launcher can pass --model provider/model", () => {
     const catalog = getLaunchModelCatalog("opencode", CATALOG_FIXTURE);
     const concrete = catalog.choices.filter((choice) => choice.selection.kind === "concrete");

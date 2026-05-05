@@ -180,7 +180,11 @@ fi
 `,
     invocation: `  export CURSOR_AGENT=1
   # Run Cursor Agent in headless mode with prompt
-  "$CURSOR_AGENT_BIN" --force --approve-mcps --trust -p "$(cat "$PROMPT_FILE")"`,
+  CURSOR_AGENT_MODEL_ARGS=()
+  if [ -n "\${BRAIN_DUMP_LAUNCH_MODEL:-}" ]; then
+    CURSOR_AGENT_MODEL_ARGS+=(--model "\${BRAIN_DUMP_LAUNCH_MODEL}")
+  fi
+  "$CURSOR_AGENT_BIN" --force --approve-mcps --trust "\${CURSOR_AGENT_MODEL_ARGS[@]}" -p "$(cat "$PROMPT_FILE")"`,
   },
   pi: {
     displayName: "Pi",

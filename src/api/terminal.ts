@@ -965,6 +965,23 @@ export function buildCodexInteractiveCommand(
   return `codex${buildCodexModelArgument(modelSelection)} "$(cat "$CONTEXT_FILE")"`;
 }
 
+function buildCursorAgentModelArgument(
+  modelSelection: ConcreteLaunchModelSelection | undefined
+): string {
+  if (!modelSelection) {
+    return "";
+  }
+
+  const safeModelName = escapeForBashDoubleQuote(modelSelection.modelName);
+  return ` --model "${safeModelName}"`;
+}
+
+export function buildCursorAgentInteractiveCommand(
+  modelSelection?: ConcreteLaunchModelSelection
+): string {
+  return `"$CURSOR_AGENT_BIN" --force --approve-mcps --trust${buildCursorAgentModelArgument(modelSelection)} -p "$AGENT_PROMPT"`;
+}
+
 // Create a temp script to launch Codex - similar to OpenCode/Claude launch scripts
 async function createCodexLaunchScript(
   projectPath: string,
@@ -1130,9 +1147,10 @@ exec bash
 async function createCursorAgentLaunchScript(
   projectPath: string,
   context: string,
-  agentPath: string
+  agentPath: string,
+  modelSelection?: ConcreteLaunchModelSelection
 ): Promise<string> {
-  const { writeFileSync, mkdirSync } = await import("fs");
+  const { writeFileSync, mkdirSync, chmodSync } = await import("fs");
   const { join } = await import("path");
   const { homedir } = await import("os");
   const { randomUUID } = await import("crypto");
@@ -1150,6 +1168,7 @@ async function createCursorAgentLaunchScript(
   const safeProjectPath = escapeForBashDoubleQuote(projectPath);
   const safeTicketTitle = escapeForBashDoubleQuote(ticketTitle);
   const safeAgentPath = escapeForBashDoubleQuote(agentPath);
+  const cursorAgentCommand = buildCursorAgentInteractiveCommand(modelSelection);
 
   const script = `#!/bin/bash
 set -e  # Exit on error
@@ -1189,7 +1208,8 @@ fi
 
 AGENT_PROMPT="$(cat "$CONTEXT_FILE")"
 set +e
-"$CURSOR_AGENT_BIN" --force --approve-mcps --trust -p "$AGENT_PROMPT"
+${modelSelection ? "# Cursor Agent uses a one-shot model override for this launch only." : "# Cursor Agent uses the user's configured/default model."}
+${cursorAgentCommand}
 AGENT_EXIT=$?
 set -e
 
@@ -1210,6 +1230,7 @@ exec bash
 `;
 
   writeFileSync(scriptPath, script, { mode: 0o700 });
+  chmodSync(scriptPath, 0o700);
 
   return scriptPath;
 }
@@ -1404,6 +1425,7 @@ export const launchCursorAgentInTerminal = createServerFn({ method: "POST" })
       projectName,
       epicName,
       ticketTitle,
+      modelSelection,
     } = data;
     const { exec } = await import("child_process");
     const { existsSync } = await import("fs");
@@ -1491,7 +1513,8 @@ export const launchCursorAgentInTerminal = createServerFn({ method: "POST" })
       scriptPath = await createCursorAgentLaunchScript(
         projectPath,
         context,
-        agentCheck.binaryPath || "agent"
+        agentCheck.binaryPath || "agent",
+        modelSelection
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
