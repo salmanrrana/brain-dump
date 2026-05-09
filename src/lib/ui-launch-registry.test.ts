@@ -152,7 +152,6 @@ describe("shared UI launch dispatcher", () => {
     ["vscode", "launchVSCode"],
     ["cursor", "launchCursor"],
     ["copilot", "launchCopilot"],
-    ["pi", "launchPi"],
   ] as const)(
     "does not pass concrete model selections to default-only interactive provider %s",
     async (providerId, launcherName) => {
@@ -368,7 +367,7 @@ describe("shared UI launch dispatcher", () => {
     ).not.toHaveProperty("modelSelection");
   });
 
-  it.each(["ralph-copilot", "ralph-pi"] as const)(
+  it.each(["ralph-copilot"] as const)(
     "does not pass concrete model selections to default-only Ralph provider %s",
     async (providerId) => {
       const provider = RALPH_AUTONOMOUS_UI_LAUNCH_PROVIDERS.find(

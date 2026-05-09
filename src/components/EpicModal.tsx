@@ -11,6 +11,7 @@ import {
   useModalKeyboard,
   useClickOutside,
   useAutoClearState,
+  useCostModels,
 } from "../lib/hooks";
 import { useToast } from "./Toast";
 import ErrorAlert from "./ErrorAlert";
@@ -73,6 +74,11 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
   // Settings and Ralph hooks
   const { settings } = useSettings();
   const launchRalphMutation = useLaunchRalphForEpic();
+  const {
+    data: costModels,
+    isLoading: modelCatalogLoading,
+    error: modelCatalogError,
+  } = useCostModels();
   const { tickets } = useTicketSummaries(epic ? { projectId, epicId: epic.id } : {}, {
     enabled: Boolean(epic?.id),
   });
@@ -591,6 +597,9 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
                   onRalphLaunch={(provider, modelSelection) =>
                     void handleStartRalph(provider, modelSelection)
                   }
+                  costModels={costModels ?? []}
+                  modelCatalogLoading={modelCatalogLoading}
+                  modelCatalogError={modelCatalogError}
                   exportAction={
                     <button
                       onClick={() => {

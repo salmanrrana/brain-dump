@@ -102,6 +102,30 @@ describe("generateRalphScript model selection", () => {
     );
   });
 
+  it("passes concrete Pi selections as --model provider/model", () => {
+    const script = generateRalphScript(
+      "/tmp/project",
+      3,
+      false,
+      undefined,
+      undefined,
+      null,
+      undefined,
+      "pi",
+      { type: "implementation" },
+      {
+        kind: "concrete",
+        provider: "openai-codex",
+        modelName: "gpt-5.5",
+      }
+    );
+
+    expect(script).toContain(
+      'PI_MODEL_ARGS+=(--model "${BRAIN_DUMP_LAUNCH_MODEL_PROVIDER}/${BRAIN_DUMP_LAUNCH_MODEL}")'
+    );
+    expect(script).toContain('pi "${PI_MODEL_ARGS[@]}" -p "$(cat "$PROMPT_FILE")"');
+  });
+
   it("passes concrete Claude selections into Docker Ralph invocations", () => {
     const script = generateRalphScript(
       "/tmp/project",

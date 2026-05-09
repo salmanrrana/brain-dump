@@ -212,7 +212,11 @@ fi
   export BRAIN_DUMP_PROVIDER=pi
   export BRAIN_DUMP_RALPH_PROVIDER=pi
   # Run Pi non-interactively so the outer Ralph loop regains control after each iteration.
-  pi -p "$(cat "$PROMPT_FILE")"`,
+  PI_MODEL_ARGS=()
+  if [ -n "\${BRAIN_DUMP_LAUNCH_MODEL_PROVIDER:-}" ] && [ -n "\${BRAIN_DUMP_LAUNCH_MODEL:-}" ]; then
+    PI_MODEL_ARGS+=(--model "\${BRAIN_DUMP_LAUNCH_MODEL_PROVIDER}/\${BRAIN_DUMP_LAUNCH_MODEL}")
+  fi
+  pi "\${PI_MODEL_ARGS[@]}" -p "$(cat "$PROMPT_FILE")"`,
   },
 };
 

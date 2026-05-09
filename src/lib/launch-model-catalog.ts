@@ -81,11 +81,34 @@ export interface LaunchModelCatalog {
  * Stored as plain strings because cost models are user-editable, but the MVP
  * mapping uses these canonical ids.
  */
-type PricingProviderId = "anthropic" | "openai" | "cursor" | "google" | "opensource";
+type PricingProviderId =
+  | "anthropic"
+  | "openai"
+  | "openai-codex"
+  | "cursor"
+  | "google"
+  | "opensource"
+  | "opencode-go";
+
+/**
+ * User-facing brand override for pricing providers whose internal id leaks
+ * implementation detail. `opencode-go` is OpenCode's "Go" routing endpoint
+ * (`https://opencode.ai/zen/go/v1`); the CLI accepts `opencode-go/<model>`
+ * verbatim, but in the picker we present these rows under the plain "opencode"
+ * brand so users do not have to think about the routing variant.
+ */
+const PROVIDER_DISPLAY_BRAND: Partial<Record<PricingProviderId, string>> = {
+  "opencode-go": "opencode",
+};
 
 interface ProviderMapping {
   /** Pricing providers whose rows are eligible model choices for this launcher. */
   pricingProviders: readonly PricingProviderId[];
+  /**
+   * Optional per-provider allowlist for providers whose full pricing catalog is
+   * broader than the launcher's live model surface.
+   */
+  modelNamesByProvider?: Partial<Record<PricingProviderId, readonly string[]>>;
   /**
    * Whether to format `cliValue` as `provider/model` (true for OpenCode, which
    * routes by provider) or as the bare model name (every other CLI).
@@ -113,7 +136,42 @@ const OPENCODE_PRICING_PROVIDERS = [
   "google",
   "opensource",
   "cursor",
+  "opencode-go",
 ] as const satisfies readonly PricingProviderId[];
+
+const PI_PRICING_PROVIDERS = [
+  "openai-codex",
+  "opencode-go",
+] as const satisfies readonly PricingProviderId[];
+
+const PI_MODEL_NAMES_BY_PROVIDER = {
+  "openai-codex": [
+    "gpt-5.1",
+    "gpt-5.1-codex-max",
+    "gpt-5.1-codex-mini",
+    "gpt-5.2",
+    "gpt-5.2-codex",
+    "gpt-5.3-codex",
+    "gpt-5.3-codex-spark",
+    "gpt-5.4",
+    "gpt-5.4-mini",
+    "gpt-5.5",
+  ],
+  "opencode-go": [
+    "deepseek-v4-flash",
+    "deepseek-v4-pro",
+    "glm-5",
+    "glm-5.1",
+    "kimi-k2.5",
+    "kimi-k2.6",
+    "mimo-v2.5",
+    "mimo-v2.5-pro",
+    "minimax-m2.5",
+    "minimax-m2.7",
+    "qwen3.5-plus",
+    "qwen3.6-plus",
+  ],
+} as const satisfies Partial<Record<PricingProviderId, readonly string[]>>;
 
 const PROVIDER_MODEL_MAPPINGS: Record<UiLaunchProviderId, ProviderMapping> = {
   // Claude family — Anthropic only.
@@ -136,14 +194,25 @@ const PROVIDER_MODEL_MAPPINGS: Record<UiLaunchProviderId, ProviderMapping> = {
   opencode: { pricingProviders: OPENCODE_PRICING_PROVIDERS, prefixWithProvider: true },
   "ralph-opencode": { pricingProviders: OPENCODE_PRICING_PROVIDERS, prefixWithProvider: true },
 
+  // Pi exposes subscription-backed providers and accepts provider-prefixed
+  // model ids through `--model provider/model`.
+  pi: {
+    pricingProviders: PI_PRICING_PROVIDERS,
+    modelNamesByProvider: PI_MODEL_NAMES_BY_PROVIDER,
+    prefixWithProvider: true,
+  },
+  "ralph-pi": {
+    pricingProviders: PI_PRICING_PROVIDERS,
+    modelNamesByProvider: PI_MODEL_NAMES_BY_PROVIDER,
+    prefixWithProvider: true,
+  },
+
   // Default-only: providers with no reliable pricing-backed mapping yet.
   // Their dedicated tickets in this epic will revisit if a CLI mechanism exists.
   vscode: DEFAULT_ONLY_MAPPING,
   cursor: DEFAULT_ONLY_MAPPING,
   copilot: DEFAULT_ONLY_MAPPING,
-  pi: DEFAULT_ONLY_MAPPING,
   "ralph-copilot": DEFAULT_ONLY_MAPPING,
-  "ralph-pi": DEFAULT_ONLY_MAPPING,
 };
 
 function defaultChoice(): LaunchModelChoice {
@@ -157,6 +226,11 @@ function defaultChoice(): LaunchModelChoice {
 
 function concreteChoice(model: CostModel, prefixWithProvider: boolean): LaunchModelChoice {
   const cliValue = prefixWithProvider ? `${model.provider}/${model.modelName}` : model.modelName;
+  const displayProvider =
+    PROVIDER_DISPLAY_BRAND[model.provider as PricingProviderId] ?? model.provider;
+  const displayDetail = prefixWithProvider
+    ? `${displayProvider}/${model.modelName}`
+    : displayProvider;
   return {
     id: `${model.provider}:${model.modelName}`,
     selection: {
@@ -165,7 +239,7 @@ function concreteChoice(model: CostModel, prefixWithProvider: boolean): LaunchMo
       modelName: model.modelName,
     },
     label: model.modelName,
-    detail: prefixWithProvider ? cliValue : model.provider,
+    detail: displayDetail,
     provider: model.provider,
     cliValue,
   };
@@ -202,7 +276,13 @@ export function getLaunchModelCatalog(
 
   const allowedProviders = new Set<string>(mapping.pricingProviders);
   const concreteChoices = costModels
-    .filter((model) => allowedProviders.has(model.provider))
+    .filter((model) => {
+      if (!allowedProviders.has(model.provider)) {
+        return false;
+      }
+      const allowedModelNames = mapping.modelNamesByProvider?.[model.provider as PricingProviderId];
+      return !allowedModelNames || allowedModelNames.includes(model.modelName);
+    })
     .slice()
     .sort(compareModels)
     .map((model) => concreteChoice(model, mapping.prefixWithProvider));

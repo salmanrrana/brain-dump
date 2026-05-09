@@ -982,6 +982,23 @@ export function buildCursorAgentInteractiveCommand(
   return `"$CURSOR_AGENT_BIN" --force --approve-mcps --trust${buildCursorAgentModelArgument(modelSelection)} -p "$AGENT_PROMPT"`;
 }
 
+function formatProviderModelLaunchValue(modelSelection: ConcreteLaunchModelSelection): string {
+  return `${modelSelection.provider}/${modelSelection.modelName}`;
+}
+
+function buildPiModelArgument(modelSelection: ConcreteLaunchModelSelection | undefined): string {
+  if (!modelSelection) {
+    return "";
+  }
+
+  const safeModelValue = escapeForBashDoubleQuote(formatProviderModelLaunchValue(modelSelection));
+  return ` --model "${safeModelValue}"`;
+}
+
+export function buildPiInteractiveCommand(modelSelection?: ConcreteLaunchModelSelection): string {
+  return `pi${buildPiModelArgument(modelSelection)} "$PI_PROMPT"`;
+}
+
 function defaultOnlyModelWarning(providerLabel: string): string {
   return `${providerLabel} does not have pricing-backed model choices yet. Launching with the provider's default model.`;
 }
@@ -1239,7 +1256,11 @@ exec bash
   return scriptPath;
 }
 
-export async function createPiLaunchScript(projectPath: string, context: string): Promise<string> {
+export async function createPiLaunchScript(
+  projectPath: string,
+  context: string,
+  modelSelection?: ConcreteLaunchModelSelection
+): Promise<string> {
   const { writeFileSync, mkdirSync, chmodSync } = await import("fs");
   const { join } = await import("path");
   const { homedir } = await import("os");
@@ -1257,6 +1278,7 @@ export async function createPiLaunchScript(projectPath: string, context: string)
 
   const safeProjectPath = escapeForBashDoubleQuote(projectPath);
   const safeTicketTitle = escapeForBashDoubleQuote(ticketTitle);
+  const piCommand = buildPiInteractiveCommand(modelSelection);
 
   const script = `#!/bin/bash
 set -e  # Exit on error
@@ -1281,7 +1303,8 @@ export PI=1
 export BRAIN_DUMP_PROVIDER=pi
 
 PI_PROMPT="$(cat "$CONTEXT_FILE")"
-pi "$PI_PROMPT"
+${modelSelection ? "# Pi uses a one-shot model override for this launch only." : "# Pi uses the user's configured/default model."}
+${piCommand}
 
 rm -f "$CONTEXT_FILE"
 
@@ -1330,10 +1353,6 @@ export const launchPiInTerminal = createServerFn({ method: "POST" })
     }
 
     const warnings: string[] = [];
-    if (modelSelection) {
-      warnings.push(defaultOnlyModelWarning("Pi"));
-    }
-
     let terminal: string | null = null;
 
     if (preferredTerminal) {
@@ -1392,7 +1411,7 @@ export const launchPiInTerminal = createServerFn({ method: "POST" })
       );
     }
 
-    const scriptPath = await createPiLaunchScript(projectPath, context);
+    const scriptPath = await createPiLaunchScript(projectPath, context, modelSelection);
     const windowTitle = buildWindowTitle(projectName, epicName, ticketTitle);
     const terminalCommand = buildTerminalCommand(terminal, projectPath, scriptPath, windowTitle);
 

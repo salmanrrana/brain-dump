@@ -26,8 +26,10 @@ function makeCostModel(provider: string, modelName: string): CostModel {
 const COST_MODELS: CostModel[] = [
   makeCostModel("anthropic", "claude-sonnet-4-6"),
   makeCostModel("openai", "gpt-5.4"),
+  makeCostModel("openai-codex", "gpt-5.5"),
   makeCostModel("google", "gemini-2.5-pro"),
   makeCostModel("opensource", "Qwen3 Coder 480B"),
+  makeCostModel("opencode-go", "qwen3.6-plus"),
 ];
 
 describe("LaunchProviderMenu", () => {
@@ -190,7 +192,6 @@ describe("LaunchProviderMenu", () => {
     { buttonLabel: "VS Code", modelLabel: /model for vs code/i },
     { buttonLabel: "Cursor Editor", modelLabel: /model for cursor editor/i },
     { buttonLabel: "Copilot CLI", modelLabel: /model for copilot cli/i },
-    { buttonLabel: "Pi", modelLabel: /model for pi/i },
   ])(
     "shows only Default for interactive default-only provider $buttonLabel",
     async ({ buttonLabel, modelLabel }) => {
@@ -217,10 +218,30 @@ describe("LaunchProviderMenu", () => {
     }
   );
 
-  it.each([
-    { buttonLabel: "Copilot CLI", modelLabel: /model for copilot cli/i },
-    { buttonLabel: "Pi", modelLabel: /model for pi/i },
-  ])(
+  it("shows Pi subscription-backed model choices", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <LaunchProviderMenu
+        interactiveContext="ticket"
+        ralphContext="ticket"
+        onInteractiveLaunch={vi.fn()}
+        onRalphLaunch={vi.fn()}
+        costModels={COST_MODELS}
+        showRalph={false}
+      />
+    );
+
+    await user.click(screen.getByRole("checkbox", { name: /pick your model/i }));
+    await user.hover(screen.getByRole("button", { name: "Pi" }));
+
+    const selector = screen.getByRole("combobox", { name: /model for pi/i });
+    expect(within(selector).getAllByRole("option")).toHaveLength(3);
+    expect(screen.getByRole("option", { name: /openai-codex\/gpt-5.5/i })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /opencode\/qwen3.6-plus/i })).toBeInTheDocument();
+  });
+
+  it.each([{ buttonLabel: "Copilot CLI", modelLabel: /model for copilot cli/i }])(
     "shows only Default for Ralph default-only provider $buttonLabel",
     async ({ buttonLabel, modelLabel }) => {
       const user = userEvent.setup();

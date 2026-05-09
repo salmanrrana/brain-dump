@@ -34,9 +34,11 @@ const CATALOG_FIXTURE: CostModel[] = [
   makeCostModel("anthropic", "claude-sonnet-4-6"),
   makeCostModel("openai", "gpt-5.4"),
   makeCostModel("openai", "gpt-5.4-mini"),
+  makeCostModel("openai-codex", "gpt-5.5"),
   makeCostModel("cursor", "Composer 2"),
   makeCostModel("google", "gemini-2.5-pro"),
   makeCostModel("opensource", "Qwen3 Coder 480B"),
+  makeCostModel("opencode-go", "qwen3.6-plus"),
 ];
 
 describe("getLaunchModelCatalog", () => {
@@ -88,6 +90,19 @@ describe("getLaunchModelCatalog", () => {
     expect(concrete.map((c) => c.cliValue)).toContain("opensource/Qwen3 Coder 480B");
   });
 
+  it("OpenCode Go rows keep their cliValue routing prefix but display under the opencode brand", () => {
+    const fixture: CostModel[] = [makeCostModel("opencode-go", "qwen3.6-plus")];
+    const catalog = getLaunchModelCatalog("opencode", fixture);
+    const concrete = catalog.choices.filter((choice) => choice.selection.kind === "concrete");
+    expect(concrete).toHaveLength(1);
+    expect(concrete[0]).toMatchObject({
+      label: "qwen3.6-plus",
+      detail: "opencode/qwen3.6-plus",
+      cliValue: "opencode-go/qwen3.6-plus",
+      provider: "opencode-go",
+    });
+  });
+
   it("OpenCode catalog spans multiple pricing providers grouped together", () => {
     const catalog = getLaunchModelCatalog("opencode", CATALOG_FIXTURE);
     const providers = new Set(
@@ -98,6 +113,36 @@ describe("getLaunchModelCatalog", () => {
     expect(providers.size).toBeGreaterThan(1);
     expect(providers).toContain("anthropic");
     expect(providers).toContain("openai");
+  });
+
+  it("formats Pi choices as provider/model for subscription-backed providers", () => {
+    const catalog = getLaunchModelCatalog("pi", CATALOG_FIXTURE);
+    const concrete = catalog.choices.filter((choice) => choice.selection.kind === "concrete");
+
+    expect(catalog.defaultOnly).toBe(false);
+    expect(concrete.map((c) => c.cliValue)).toContain("openai-codex/gpt-5.5");
+    expect(concrete.map((c) => c.cliValue)).toContain("opencode-go/qwen3.6-plus");
+    expect(concrete.every((c) => c.cliValue?.includes("/"))).toBe(true);
+  });
+
+  it("filters Pi OpenCode Go choices to models reported by the Pi CLI", () => {
+    const fixture = [
+      makeCostModel("opencode-go", "mimo-v2-omni"),
+      makeCostModel("opencode-go", "mimo-v2.5"),
+    ];
+    const catalog = getLaunchModelCatalog("pi", fixture);
+    const concrete = catalog.choices.filter((choice) => choice.selection.kind === "concrete");
+
+    expect(concrete.map((c) => c.cliValue)).toEqual(["opencode-go/mimo-v2.5"]);
+  });
+
+  it("formats Ralph Pi choices the same way as interactive Pi choices", () => {
+    const catalog = getLaunchModelCatalog("ralph-pi", CATALOG_FIXTURE);
+    const concrete = catalog.choices.filter((choice) => choice.selection.kind === "concrete");
+
+    expect(catalog.defaultOnly).toBe(false);
+    expect(concrete.map((c) => c.cliValue)).toContain("openai-codex/gpt-5.5");
+    expect(concrete.map((c) => c.cliValue)).toContain("opencode-go/qwen3.6-plus");
   });
 
   it("OpenCode disambiguates duplicate model names across providers via the detail line", () => {
@@ -115,10 +160,8 @@ describe("getLaunchModelCatalog", () => {
       "vscode",
       "cursor",
       "copilot",
-      "pi",
       "codex-app",
       "ralph-copilot",
-      "ralph-pi",
     ];
     for (const providerId of defaultOnlyProviders) {
       const catalog = getLaunchModelCatalog(providerId, CATALOG_FIXTURE);
@@ -168,7 +211,6 @@ describe("isDefaultOnlyLaunchProvider", () => {
     expect(isDefaultOnlyLaunchProvider("vscode")).toBe(true);
     expect(isDefaultOnlyLaunchProvider("cursor")).toBe(true);
     expect(isDefaultOnlyLaunchProvider("copilot")).toBe(true);
-    expect(isDefaultOnlyLaunchProvider("pi")).toBe(true);
     expect(isDefaultOnlyLaunchProvider("codex-app")).toBe(true);
   });
 
@@ -178,6 +220,8 @@ describe("isDefaultOnlyLaunchProvider", () => {
     expect(isDefaultOnlyLaunchProvider("opencode")).toBe(false);
     expect(isDefaultOnlyLaunchProvider("cursor-agent")).toBe(false);
     expect(isDefaultOnlyLaunchProvider("ralph-native")).toBe(false);
+    expect(isDefaultOnlyLaunchProvider("pi")).toBe(false);
+    expect(isDefaultOnlyLaunchProvider("ralph-pi")).toBe(false);
   });
 });
 
