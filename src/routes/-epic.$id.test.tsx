@@ -61,6 +61,24 @@ vi.mock("../lib/hooks", () => ({
     mutateAsync: mockLaunchRalphForEpic,
     isPending: false,
   }),
+  useCostModels: () => ({
+    data: [
+      {
+        id: "anthropic-claude-sonnet-4-6",
+        provider: "anthropic",
+        modelName: "claude-sonnet-4-6",
+        inputCostPerMtok: 1,
+        outputCostPerMtok: 5,
+        cacheReadCostPerMtok: null,
+        cacheCreateCostPerMtok: null,
+        isDefault: true,
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    ],
+    isLoading: false,
+    error: null,
+  }),
   useClickOutside: vi.fn(),
 }));
 
@@ -484,6 +502,20 @@ describe("EpicDetailPage ship entry points", () => {
         },
       });
     });
+  });
+
+  it("shows optional model picking in the epic launch menu without changing default launch output", async () => {
+    const user = userEvent.setup();
+
+    render(<EpicDetailPage />);
+
+    await user.click(screen.getByRole("button", { name: /launch options/i }));
+    expect(screen.queryByLabelText(/model for claude code/i)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("checkbox", { name: /pick your model/i }));
+
+    expect(screen.getByLabelText(/model for claude code/i)).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /claude-sonnet-4-6/i })).toBeInTheDocument();
   });
 
   it("shows Pi in epic launch menus and launches Ralph with the Pi backend", async () => {

@@ -9,27 +9,230 @@
   ],
   "userStories": [
     {
-      "id": "d1900aeb-14e3-40c0-94ae-a0963060a292",
-      "title": "Document human review rework loop",
+      "id": "33f3720a-1234-41de-a2da-013db2bb4af1",
+      "title": "Create shared launch model catalog from pricing data",
+      "passes": false,
+      "overview": "The model picker MVP should use existing AI Pricing data instead of maintaining a separate static model list. Pricing rows are exposed by `getCostModels()` and backed by `cost_models` / `core/cost.ts` defaults.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "A shared type represents `Default` versus a concrete model selection.",
+        "A shared function returns model choices for each launch provider.",
+        "The catalog uses `getCostModels()` data and handles an empty/missing pricing table gracefully.",
+        "Tests cover provider filtering, `Default` inclusion, and OpenCode multi-provider formatting needs."
+      ],
+      "references": [
+        "src/api/cost.ts",
+        "src/lib/schema.ts",
+        "src/lib/launch-provider-contract.ts",
+        "src/lib/ui-launch-registry.ts"
+      ],
+      "description": "## Context\n\nThe model picker MVP should use existing AI Pricing data instead of maintaining a separate static model list. Pricing rows are exposed by `getCostModels()` and backed by `cost_models` / `core/cost.ts` defaults.\n\n## Scope\n\nCreate a shared launch-model catalog layer that maps launch providers to eligible pricing providers/models and always includes a `Default` option.\n\n## Implementation Notes\n\n- Use current cost model rows as the source of concrete model choices.\n- Map Claude to `anthropic`, Codex to `openai`, Cursor Agent to `cursor`, and OpenCode to the providers it can address via `provider/model`.\n- Treat providers with no reliable pricing-backed mapping as `Default` only until their provider ticket proves otherwise.\n- Keep `Default` as an explicit sentinel, not a fake `cost_models` row.\n\n## Acceptance Criteria\n\n- A shared type represents `Default` versus a concrete model selection.\n- A shared function returns model choices for each launch provider.\n- The catalog uses `getCostModels()` data and handles an empty/missing pricing table gracefully.\n- Tests cover provider filtering, `Default` inclusion, and OpenCode multi-provider formatting needs.\n\n## Relevant Files\n\n- `src/api/cost.ts`\n- `src/lib/schema.ts`\n- `core/cost.ts`\n- `src/lib/launch-provider-contract.ts`\n- `src/lib/ui-launch-registry.ts`",
+      "priority": "high",
+      "tags": [
+        "model-picker",
+        "pricing",
+        "launch"
+      ]
+    },
+    {
+      "id": "e0400d3f-32b7-4a9c-a5cb-e305d10d0178",
+      "title": "Add optional model picker to launch provider menus",
       "passes": true,
-      "humanRequestedChanges": "## Changes Requested\n\n### Overall Feedback\nChanges requested - see failed steps.\n\n### Failed Demo Steps\n- **Step 4: Search the three updated docs for stale rejection wording such as `stays in human_review` or `Ticket → in_progress` in the human rejection path.**\n  - Expected: No stale wording remains for the failed human review path; approval still moves tickets to `done`.\n  - Status: failed\n  - Reviewer notes: this is a test to see if this works\n\n### Full Demo Checklist Snapshot\n- Step 1: Open `docs/universal-quality-workflow-per-provider-diagrams.md` and inspect the Universal Ticket State Machine plus Review And Demo Gate Loop diagrams.\n  - Expected: Rejected human review paths point from `human_review` to `ready`, not back to `human_review`, and the docs mention preserving failed demo history through a highlighted `Changes Requested` activity comment.\n  - Status: passed\n  - Reviewer notes: None provided\n- Step 2: Open `docs/uqw-multi-environment.md` and read the Human Change-Request Side Loop section.\n  - Expected: The guide explains that `passed=false` returns the ticket to `ready`, preserves failed demo steps/notes/feedback, prioritizes human-requested changes on the next AI launch, and requires the full implementation/test/AI-review/demo cycle again.\n  - Status: passed\n  - Reviewer notes: None provided\n- Step 3: Open `docs/claude-flow-ticket-lifecycle.md` and inspect the ticket state machine, Human Review phase, Ralph autonomous flow, and lifecycle summary.\n  - Expected: All lifecycle references are consistent with rejected demos returning to `ready`, not `in_progress`, and the text says the latest generated demo remains the active checklist while failed attempts remain discoverable in activity history.\n  - Status: passed\n  - Reviewer notes: None provided\n- Step 4: Search the three updated docs for stale rejection wording such as `stays in human_review` or `Ticket → in_progress` in the human rejection path.\n  - Expected: No stale wording remains for the failed human review path; approval still moves tickets to `done`.\n  - Status: failed\n  - Reviewer notes: this is a test to see if this works",
+      "overview": "Users should not be forced through model selection every time. The provider window should default to provider behavior, then reveal provider-specific models only when the user selects a `Pick your model` checkbox/toggle.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Ticket launch and epic launch surfaces both support optional model selection.",
+        "The selected model is scoped to the launch action and does not persist globally.",
+        "Providers without concrete catalog models still present `Default` and explain why no concrete choices are available.",
+        "Tests cover checked/unchecked behavior and provider-specific model list changes."
+      ],
+      "references": [
+        "src/components/LaunchProviderMenu.tsx",
+        "src/components/LaunchProviderMenu.test.tsx",
+        "src/components/tickets/LaunchActions.tsx",
+        "src/components/tickets/LaunchActions.test.tsx",
+        "src/components/epics/EpicDetailHeader.tsx",
+        "src/routes/-epic.$id.test.tsx"
+      ],
+      "description": "## Context\n\nUsers should not be forced through model selection every time. The provider window should default to provider behavior, then reveal provider-specific models only when the user selects a `Pick your model` checkbox/toggle.\n\n## Scope\n\nUpdate the ticket and epic launch menus so users can opt into model selection before launching a provider.\n\n## UX Requirements\n\n- Add a `Pick your model` checkbox/toggle near provider selection.\n- When unchecked, launch actions use `Default` and do not show model selectors.\n- When checked, selecting/focusing a provider shows that provider's available model choices.\n- Every provider model list includes `Default` as the first safe option.\n- Loading/disabled states still work and remain accessible.\n\n## Acceptance Criteria\n\n- Ticket launch and epic launch surfaces both support optional model selection.\n- The selected model is scoped to the launch action and does not persist globally.\n- Providers without concrete catalog models still present `Default` and explain why no concrete choices are available.\n- Tests cover checked/unchecked behavior and provider-specific model list changes.\n\n## Relevant Files\n\n- `src/components/LaunchProviderMenu.tsx`\n- `src/components/LaunchProviderMenu.test.tsx`\n- `src/components/tickets/LaunchActions.tsx`\n- `src/components/tickets/LaunchActions.test.tsx`\n- `src/components/epics/EpicDetailHeader.tsx`\n- `src/routes/-epic.$id.test.tsx`",
+      "priority": "high",
+      "tags": [
+        "model-picker",
+        "ui",
+        "launch"
+      ]
+    },
+    {
+      "id": "ed98f7f3-b65b-45ae-8757-5245cd87a426",
+      "title": "Thread launch model selection through dispatch contracts",
+      "passes": true,
+      "overview": "The selected model must flow from UI to launch code for both interactive ticket launches and Ralph autonomous ticket/epic launches.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Interactive ticket launches can carry a selected concrete model to terminal launchers.",
+        "Ralph ticket and epic launches can carry a selected concrete model into launch script generation.",
+        "`Default` produces the same command/script output as current behavior.",
+        "Existing provider dispatch tests are updated to assert selected model propagation."
+      ],
+      "references": [
+        "src/lib/launch-provider-contract.ts",
+        "src/lib/ui-launch-dispatcher.ts",
+        "src/lib/ui-launch-registry.test.ts",
+        "src/lib/ralph-launch/types.ts",
+        "src/api/terminal.ts",
+        "src/api/ralph-script.ts"
+      ],
+      "description": "## Context\n\nThe selected model must flow from UI to launch code for both interactive ticket launches and Ralph autonomous ticket/epic launches.\n\n## Scope\n\nExtend launch dispatch types, payloads, and tests so model selection reaches each provider launcher without changing launch behavior when `Default` is selected.\n\n## Implementation Notes\n\n- Add optional model selection fields to UI dispatch context/payload types.\n- Extend `InteractiveTerminalPayload`, `LaunchTicketInput`, and `LaunchEpicInput` or equivalent types.\n- Ensure `Default` is omitted or normalized before invoking provider CLIs.\n- Keep backwards compatibility only where needed for current call sites.\n\n## Acceptance Criteria\n\n- Interactive ticket launches can carry a selected concrete model to terminal launchers.\n- Ralph ticket and epic launches can carry a selected concrete model into launch script generation.\n- `Default` produces the same command/script output as current behavior.\n- Existing provider dispatch tests are updated to assert selected model propagation.\n\n## Relevant Files\n\n- `src/lib/launch-provider-contract.ts`\n- `src/lib/ui-launch-dispatcher.ts`\n- `src/lib/ui-launch-registry.test.ts`\n- `src/lib/ralph-launch/types.ts`\n- `src/api/terminal.ts`\n- `src/api/ralph-script.ts`",
+      "priority": "high",
+      "tags": [
+        "model-picker",
+        "launch",
+        "types"
+      ]
+    },
+    {
+      "id": "ae6cdcbd-640f-4b3a-a375-8444170efcfa",
+      "title": "Implement Claude model override support",
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "`docs/universal-quality-workflow-per-provider-diagrams.md` shows rejection moving to `ready` rather than staying in `human_review`.",
-        "`docs/uqw-multi-environment.md` describes the change-request side loop.",
-        "`docs/claude-flow-ticket-lifecycle.md` is made consistent with the implemented behavior.",
-        "Docs explain that the AI must still run the full implementation, test, AI review, and demo cycle after rework.",
-        "Docs note that demo history is preserved via highlighted activity comments, while the active demo script remains the latest generated demo."
+        "Interactive Claude launch includes `--model <selected>` only for concrete selections.",
+        "Ralph Claude invocation includes `--model <selected>` only for concrete selections.",
+        "`Default` generated command/script remains equivalent to current behavior.",
+        "Tests cover both interactive and Ralph command generation."
       ],
-      "references": [],
-      "description": "## Goal\nUpdate the Universal Quality Workflow documentation so provider diagrams and lifecycle docs match the new failed-human-review behavior.\n\n## Scope\nDocument the side journey from `human_review` back to `ready` after `Request Changes`, including how human notes become top-priority AI context on the next launch.\n\n## Acceptance Criteria\n- `docs/universal-quality-workflow-per-provider-diagrams.md` shows rejection moving to `ready` rather than staying in `human_review`.\n- `docs/uqw-multi-environment.md` describes the change-request side loop.\n- `docs/claude-flow-ticket-lifecycle.md` is made consistent with the implemented behavior.\n- Docs explain that the AI must still run the full implementation, test, AI review, and demo cycle after rework.\n- Docs note that demo history is preserved via highlighted activity comments, while the active demo script remains the latest generated demo.",
+      "references": [
+        "src/api/terminal.ts",
+        "src/api/ralph-script.ts",
+        "src/api/ralph-script*.test.ts"
+      ],
+      "description": "## Research Already Captured\n\nClaude Code docs state startup model selection is supported with `claude --model <alias|name>`, and `default` clears model override / uses runtime default.\n\nDocs:\n\n- https://code.claude.com/docs/en/cli-reference\n- https://code.claude.com/docs/en/model-config\n\n## Scope\n\nAdd model override support for Claude interactive ticket launches and Ralph autonomous Claude launches.\n\n## Implementation Notes\n\n- For concrete Anthropic model choices, pass `--model <modelName>`.\n- For `Default`, do not pass a model flag.\n- Keep shell escaping safe for model names.\n- Do not persist the model to Claude settings.\n\n## Acceptance Criteria\n\n- Interactive Claude launch includes `--model <selected>` only for concrete selections.\n- Ralph Claude invocation includes `--model <selected>` only for concrete selections.\n- `Default` generated command/script remains equivalent to current behavior.\n- Tests cover both interactive and Ralph command generation.\n\n## Relevant Files\n\n- `src/api/terminal.ts`\n- `src/api/ralph-script.ts`\n- `src/api/ralph-script*.test.ts`",
       "priority": "medium",
       "tags": [
-        "docs",
-        "workflow"
+        "model-picker",
+        "claude",
+        "provider"
+      ]
+    },
+    {
+      "id": "12da724f-88cf-4da9-8a90-8cd503d721f0",
+      "title": "Implement Codex model override support",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Codex CLI ticket launch uses the selected model when concrete.",
+        "Ralph Codex invocation uses the selected model when concrete.",
+        "Codex App behavior is explicitly handled and tested as supported or default-only.",
+        "`Default` command/script output remains equivalent to current behavior."
+      ],
+      "references": [
+        "src/api/terminal.ts",
+        "src/api/codex-launch.ts",
+        "src/api/ralph-script.ts",
+        "src/lib/ui-launch-registry.ts"
+      ],
+      "description": "## Research Already Captured\n\nCodex CLI docs state `--model` / `-m` overrides the configured model for the invocation, while config fallback uses `model = \"...\"`.\n\nDocs:\n\n- https://developers.openai.com/codex/cli/reference\n- https://developers.openai.com/codex/config-basic\n\n## Scope\n\nAdd model override support for Codex CLI interactive ticket launches and Ralph autonomous Codex launches.\n\n## Implementation Notes\n\n- Map Codex model choices from pricing provider `openai`.\n- For concrete selections, pass `--model <modelName>` or `-m <modelName>` in the provider's documented position.\n- For `Default`, do not pass a model override.\n- Verify whether Codex App launch can accept a model at launch; if not, clearly leave Codex App on `Default` only or document the limitation in code/UI.\n\n## Acceptance Criteria\n\n- Codex CLI ticket launch uses the selected model when concrete.\n- Ralph Codex invocation uses the selected model when concrete.\n- Codex App behavior is explicitly handled and tested as supported or default-only.\n- `Default` command/script output remains equivalent to current behavior.\n\n## Relevant Files\n\n- `src/api/terminal.ts`\n- `src/api/codex-launch.ts`\n- `src/api/ralph-script.ts`\n- `src/lib/ui-launch-registry.ts`",
+      "priority": "medium",
+      "tags": [
+        "model-picker",
+        "codex",
+        "provider"
+      ]
+    },
+    {
+      "id": "c2259556-3ab6-4a0b-bb0f-16d323a695cc",
+      "title": "Implement OpenCode multi-provider model override support",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "OpenCode interactive ticket launcher passes `--model provider/model` for concrete selections.",
+        "Ralph OpenCode invocation passes `--model provider/model` for concrete selections.",
+        "OpenCode model list can include pricing rows from multiple providers and displays enough context to disambiguate duplicate names.",
+        "Tests cover formatting, `Default`, and multiple provider groups."
+      ],
+      "references": [
+        "src/api/terminal.ts",
+        "src/api/ralph-script.ts",
+        "src/lib/launch-provider-contract.ts",
+        "src/lib/ui-launch-registry.ts"
+      ],
+      "description": "## Research Already Captured\n\nOpenCode docs state TUI and `opencode run` accept `--model` / `-m` in `provider/model` format. OpenCode loads models by priority: CLI flag, config, last used model, internal priority. `opencode models [provider]` can list configured models, but MVP should use pricing rows.\n\nDocs:\n\n- https://opencode.ai/docs/cli/\n- https://opencode.ai/docs/models/\n\n## Scope\n\nAdd OpenCode model override support for interactive ticket launches and Ralph autonomous OpenCode launches.\n\n## Implementation Notes\n\n- OpenCode choices should support multiple pricing providers where useful, not just `opensource`.\n- Format concrete selections as `provider/model` for OpenCode.\n- Decide and document the MVP mapping between Brain Dump pricing provider names and OpenCode provider IDs.\n- For `Default`, do not pass `--model`.\n\n## Acceptance Criteria\n\n- OpenCode interactive ticket launcher passes `--model provider/model` for concrete selections.\n- Ralph OpenCode invocation passes `--model provider/model` for concrete selections.\n- OpenCode model list can include pricing rows from multiple providers and displays enough context to disambiguate duplicate names.\n- Tests cover formatting, `Default`, and multiple provider groups.\n\n## Relevant Files\n\n- `src/api/terminal.ts`\n- `src/api/ralph-script.ts`\n- `src/lib/launch-provider-contract.ts`\n- `src/lib/ui-launch-registry.ts`",
+      "priority": "high",
+      "tags": [
+        "model-picker",
+        "opencode",
+        "provider"
+      ]
+    },
+    {
+      "id": "4e4762e1-3681-4756-8462-8c92285fcb46",
+      "title": "Implement Cursor Agent model override support",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Cursor Agent ticket launcher passes selected concrete model.",
+        "Ralph Cursor Agent invocation passes selected concrete model.",
+        "Cursor editor behavior is tested as supported or intentionally default-only.",
+        "Model choices come from pricing provider `cursor` for MVP."
+      ],
+      "references": [
+        "src/api/terminal.ts",
+        "src/api/ralph-script.ts",
+        "src/lib/ui-launch-registry.ts"
+      ],
+      "description": "## Research Already Captured\n\nCursor Agent docs state `--model <model>` selects the model and `--list-models` / `agent models` can list available models. MVP should use pricing provider `cursor` rows.\n\nDocs:\n\n- https://cursor.com/docs/cli/reference/parameters\n\n## Scope\n\nAdd model override support for Cursor Agent interactive ticket launches and Ralph autonomous Cursor Agent launches. Explicitly decide what to do with the Cursor editor launch surface, which may not have a reliable one-shot CLI model override.\n\n## Implementation Notes\n\n- For Cursor Agent concrete selections, pass `--model <modelName>`.\n- For `Default`, do not pass a model override.\n- Cursor editor launch should be default-only unless implementation finds a documented launch-time model mechanism.\n\n## Acceptance Criteria\n\n- Cursor Agent ticket launcher passes selected concrete model.\n- Ralph Cursor Agent invocation passes selected concrete model.\n- Cursor editor behavior is tested as supported or intentionally default-only.\n- Model choices come from pricing provider `cursor` for MVP.\n\n## Relevant Files\n\n- `src/api/terminal.ts`\n- `src/api/ralph-script.ts`\n- `src/lib/ui-launch-registry.ts`",
+      "priority": "medium",
+      "tags": [
+        "model-picker",
+        "cursor",
+        "provider"
+      ]
+    },
+    {
+      "id": "5747469d-3355-45b1-8e37-bb5b9db6808c",
+      "title": "Implement Copilot and unsupported-provider model handling",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Copilot model handling is explicitly implemented as concrete-selection support or documented/tested default-only MVP behavior.",
+        "Pi, VS Code, Cursor editor, and other unsupported surfaces do not show misleading concrete model choices.",
+        "UI communicates default-only providers without blocking launches.",
+        "Tests cover all default-only provider paths."
+      ],
+      "references": [
+        "src/api/terminal.ts",
+        "src/api/ralph-script.ts",
+        "src/lib/ui-launch-registry.ts",
+        "src/components/LaunchProviderMenu.tsx"
+      ],
+      "description": "## Research Already Captured\n\nGitHub Copilot CLI docs state `--model=MODEL` selects the model and `auto` lets Copilot choose. It also supports `COPILOT_MODEL`. Existing Brain Dump pricing defaults do not currently include a dedicated `copilot` provider.\n\nDocs:\n\n- https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference\n\n## Scope\n\nAdd safe model handling for Copilot CLI and define MVP behavior for providers with no pricing-backed model list, including Pi, VS Code, and plain editor launches.\n\n## Implementation Notes\n\n- Use `Default` for Copilot until a pricing-backed mapping is chosen, or use clearly mapped pricing rows if verified during implementation.\n- If adding concrete Copilot choices, pass `--model=<model>` for one-shot launches and avoid persistent config mutation.\n- Pi currently has no pricing defaults and existing usage recording uses `BRAIN_DUMP_PI_MODEL`; keep Pi default-only unless a concrete CLI model mechanism is verified.\n- VS Code and editor-only launches should be default-only unless a launch-time model override exists.\n\n## Acceptance Criteria\n\n- Copilot model handling is explicitly implemented as concrete-selection support or documented/tested default-only MVP behavior.\n- Pi, VS Code, Cursor editor, and other unsupported surfaces do not show misleading concrete model choices.\n- UI communicates default-only providers without blocking launches.\n- Tests cover all default-only provider paths.\n\n## Relevant Files\n\n- `src/api/terminal.ts`\n- `src/api/ralph-script.ts`\n- `src/lib/ui-launch-registry.ts`\n- `src/components/LaunchProviderMenu.tsx`",
+      "priority": "medium",
+      "tags": [
+        "model-picker",
+        "copilot",
+        "pi",
+        "provider"
       ]
     }
   ],
@@ -176,5 +379,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-04-25T19:13:41.088Z"
+  "generatedAt": "2026-05-05T03:31:36.961Z",
+  "epicTitle": "Launch Model Picker",
+  "epicDescription": "# Launch Model Picker\n\n## Goal\n\nAllow users launching a ticket or epic to optionally choose the AI model for the selected provider. If the user does not opt into model selection, Brain Dump should launch the provider with its provider-default model. If the user enables model selection, the selected provider determines the available model list and Brain Dump passes the chosen model into that launch session.\n\n## MVP Scope\n\nUse existing AI Pricing / `cost_models` data as the model catalog. Include a `Default` choice for every launch provider. `Default` means Brain Dump does not pass a model override and lets the provider CLI/app use its normal default behavior.\n\n## Current Code Pointers\n\n- Provider picker UI: `src/components/LaunchProviderMenu.tsx`\n- Provider identity and dispatch contracts: `src/lib/launch-provider-contract.ts`\n- Provider registry: `src/lib/ui-launch-registry.ts`\n- Launch dispatching: `src/lib/ui-launch-dispatcher.ts`\n- Interactive launchers: `src/api/terminal.ts`\n- Ralph autonomous launch script generation: `src/api/ralph-script.ts`\n- Ralph launch input types: `src/lib/ralph-launch/types.ts`\n- Pricing model server API: `src/api/cost.ts`\n- Cost model defaults and sync: `core/cost.ts`\n- Cost model schema: `src/lib/schema.ts`\n\n## Research Notes\n\n- Claude Code supports `--model <alias|name>` and has a `default` option that clears model override.\n- OpenCode supports `--model` / `-m` for TUI and `opencode run`, in `provider/model` format; `opencode models [provider]` can list configured provider models.\n- Cursor Agent supports `--model <model>` and `--list-models` / `agent models`.\n- Codex CLI supports `--model` / `-m` and config fallback via `model = \"...\"`.\n- GitHub Copilot CLI supports `--model=MODEL` and `COPILOT_MODEL`; it also supports `auto` to let Copilot choose.\n- Existing pricing defaults currently include `anthropic`, `openai`, `google`, `opensource`, and `cursor`; no dedicated `copilot` or `pi` pricing provider exists yet.\n\n## Design Constraints\n\n- Keep the provider picker simple: checkbox/toggle for `Pick your model`, then provider-specific model selection only when enabled.\n- Keep the launch contract explicit: distinguish `Default` from a concrete model override.\n- Do not mutate persistent provider defaults when a model is selected for a single launch.\n- Handle provider-specific model ID formats; OpenCode should receive `provider/model`, Claude/Codex/Cursor/Copilot likely receive the model name expected by that CLI.\n- Include tests for ticket launch, epic launch, and Ralph autonomous launch paths.\n\n## Out of Scope For MVP\n\n- Live provider model discovery as the primary catalog.\n- Model capability metadata beyond existing pricing rows.\n- Persisted per-user favorite model selections unless implementation discovers an existing preference pattern that makes this trivial."
 }

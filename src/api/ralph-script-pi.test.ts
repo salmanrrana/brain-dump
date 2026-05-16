@@ -21,6 +21,6 @@ describe("generateRalphScript pi backend", () => {
     expect(script).toContain("export PI=1");
     expect(script).toContain("export BRAIN_DUMP_PROVIDER=pi");
     expect(script).toContain("export BRAIN_DUMP_RALPH_PROVIDER=pi");
-    expect(script).toContain('pi -p "$(cat "$PROMPT_FILE")"');
+    expect(script).toContain('pi "${PI_MODEL_ARGS[@]}" -p "$(cat "$PROMPT_FILE")"');
   });
 });

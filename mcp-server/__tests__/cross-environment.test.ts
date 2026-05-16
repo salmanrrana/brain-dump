@@ -533,6 +533,13 @@ describe("Copilot CLI Environment Detection (functional)", () => {
     delete process.env.OPENCODE_DEV_DEBUG;
     delete process.env.OPENCODE_SERVER_PASSWORD;
     delete process.env.OPENCODE_SERVER_USERNAME;
+    // Codex patterns
+    delete process.env.CODEX;
+    delete process.env.CODEX_HOME;
+    delete process.env.CODEX_SANDBOX_NETWORK_DISABLED;
+    delete process.env.CODEX_EXECUTOR;
+    delete process.env.CODEX_PROFILE;
+    delete process.env.CODEX_APPROVAL_POLICY;
     // Copilot CLI patterns
     delete process.env.COPILOT_CLI;
     delete process.env.COPILOT_TRACE_ID;
@@ -543,6 +550,7 @@ describe("Copilot CLI Environment Detection (functional)", () => {
     delete process.env.BRAIN_DUMP_PROVIDER;
     // Cursor patterns
     delete process.env.CURSOR;
+    delete process.env.CURSOR_AGENT;
     delete process.env.CURSOR_TRACE_ID;
     delete process.env.CURSOR_SESSION;
     delete process.env.CURSOR_PID;
@@ -558,9 +566,14 @@ describe("Copilot CLI Environment Detection (functional)", () => {
     delete process.env.VSCODE_NLS_CONFIG;
     delete process.env.VSCODE_IPC_HOOK;
     delete process.env.TERM_PROGRAM;
-    // Clear any OPENCODE_* or CURSOR_* prefixed vars that may exist
+    // Clear any provider-prefixed vars that may exist in the ambient test runner environment.
     for (const key of Object.keys(process.env)) {
-      if (key.startsWith("OPENCODE_") || key.startsWith("CURSOR_")) {
+      if (
+        key.startsWith("OPENCODE_") ||
+        key.startsWith("CURSOR_") ||
+        key.startsWith("CODEX_") ||
+        key.startsWith("BRAIN_DUMP_PROVIDER")
+      ) {
         delete process.env[key];
       }
     }

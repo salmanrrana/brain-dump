@@ -1,4 +1,5 @@
 import { getRalphPrompt, type RalphPromptProfile } from "./ralph-prompts";
+import type { ConcreteLaunchModelSelection } from "../lib/launch-model-catalog";
 
 // ============================================================================
 // TYPES
@@ -32,6 +33,26 @@ export const DEFAULT_RESOURCE_LIMITS: DockerResourceLimits = {
 };
 
 const RALPH_ENV_EXPORTS = `export RALPH_SESSION=1`;
+
+function escapeForBashDoubleQuote(value: string): string {
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/\$/g, "\\$")
+    .replace(/`/g, "\\`")
+    .replace(/"/g, '\\"')
+    .replace(/!/g, "\\!");
+}
+
+function buildLaunchModelEnvExports(
+  modelSelection: ConcreteLaunchModelSelection | undefined
+): string {
+  if (!modelSelection) {
+    return "";
+  }
+
+  return `export BRAIN_DUMP_LAUNCH_MODEL_PROVIDER="${escapeForBashDoubleQuote(modelSelection.provider)}"
+export BRAIN_DUMP_LAUNCH_MODEL="${escapeForBashDoubleQuote(modelSelection.modelName)}"`;
+}
 
 // Configuration for each AI backend's CLI integration.
 // Add new backends here instead of extending ternary chains throughout the file.
@@ -85,7 +106,11 @@ fi
   # letting the outer bash loop advance to the next ticket in the same
   # terminal window. This mirrors the 'claude -p' / 'cursor-agent -p' /
   # 'codex exec' pattern used for the other backends.
-  opencode run "$(cat "$PROMPT_FILE")"`,
+  OPENCODE_MODEL_ARGS=()
+  if [ -n "\${BRAIN_DUMP_LAUNCH_MODEL_PROVIDER:-}" ] && [ -n "\${BRAIN_DUMP_LAUNCH_MODEL:-}" ]; then
+    OPENCODE_MODEL_ARGS+=(--model "\${BRAIN_DUMP_LAUNCH_MODEL_PROVIDER}/\${BRAIN_DUMP_LAUNCH_MODEL}")
+  fi
+  opencode run "\${OPENCODE_MODEL_ARGS[@]}" "$(cat "$PROMPT_FILE")"`,
   },
   codex: {
     displayName: "Codex",
@@ -129,7 +154,11 @@ fi
   # approval prompts AND Codex's filesystem sandbox (parity with Claude's
   # --dangerously-skip-permissions posture). We intentionally do NOT run
   # Codex under its sandbox during Ralph; see docs/environments/codex.md.
-  codex exec --dangerously-bypass-approvals-and-sandbox "$(cat "$PROMPT_FILE")"`,
+  CODEX_MODEL_ARGS=()
+  if [ -n "\${BRAIN_DUMP_LAUNCH_MODEL:-}" ]; then
+    CODEX_MODEL_ARGS+=(--model "\${BRAIN_DUMP_LAUNCH_MODEL}")
+  fi
+  codex exec "\${CODEX_MODEL_ARGS[@]}" --dangerously-bypass-approvals-and-sandbox "$(cat "$PROMPT_FILE")"`,
   },
   "cursor-agent": {
     displayName: "Cursor Agent",
@@ -151,7 +180,11 @@ fi
 `,
     invocation: `  export CURSOR_AGENT=1
   # Run Cursor Agent in headless mode with prompt
-  "$CURSOR_AGENT_BIN" --force --approve-mcps --trust -p "$(cat "$PROMPT_FILE")"`,
+  CURSOR_AGENT_MODEL_ARGS=()
+  if [ -n "\${BRAIN_DUMP_LAUNCH_MODEL:-}" ]; then
+    CURSOR_AGENT_MODEL_ARGS+=(--model "\${BRAIN_DUMP_LAUNCH_MODEL}")
+  fi
+  "$CURSOR_AGENT_BIN" --force --approve-mcps --trust "\${CURSOR_AGENT_MODEL_ARGS[@]}" -p "$(cat "$PROMPT_FILE")"`,
   },
   pi: {
     displayName: "Pi",
@@ -179,7 +212,11 @@ fi
   export BRAIN_DUMP_PROVIDER=pi
   export BRAIN_DUMP_RALPH_PROVIDER=pi
   # Run Pi non-interactively so the outer Ralph loop regains control after each iteration.
-  pi -p "$(cat "$PROMPT_FILE")"`,
+  PI_MODEL_ARGS=()
+  if [ -n "\${BRAIN_DUMP_LAUNCH_MODEL_PROVIDER:-}" ] && [ -n "\${BRAIN_DUMP_LAUNCH_MODEL:-}" ]; then
+    PI_MODEL_ARGS+=(--model "\${BRAIN_DUMP_LAUNCH_MODEL_PROVIDER}/\${BRAIN_DUMP_LAUNCH_MODEL}")
+  fi
+  pi "\${PI_MODEL_ARGS[@]}" -p "$(cat "$PROMPT_FILE")"`,
   },
 };
 
@@ -200,7 +237,8 @@ export function generateRalphScript(
   dockerHostEnv: string | null = null,
   projectOrigin?: ProjectOriginInfo | undefined,
   aiBackend: RalphAiBackend = "claude",
-  promptProfile: RalphPromptProfile = { type: "implementation" }
+  promptProfile: RalphPromptProfile = { type: "implementation" },
+  modelSelection?: ConcreteLaunchModelSelection
 ): string {
   const imageName = "brain-dump-ralph-sandbox:latest";
   const sandboxHeader = useSandbox ? " (Docker Sandbox)" : "";
@@ -256,6 +294,7 @@ fi
 
   // Validate required local AI CLI is installed for native mode.
   const aiPreflightCheck = useSandbox ? "" : AI_BACKEND_CONFIGS[aiBackend].preflightCheck;
+  const launchModelEnvExports = buildLaunchModelEnvExports(modelSelection);
 
   // SSH setup for Docker sandbox mode
   // This allows git push from inside container using host's SSH keys
@@ -372,6 +411,19 @@ fi
 
   // AI backend display name
   const aiName = AI_BACKEND_CONFIGS[aiBackend].displayName;
+  const claudeNativeModelArgument =
+    aiBackend === "claude" && modelSelection ? ` --model "$BRAIN_DUMP_LAUNCH_MODEL"` : "";
+  const claudeDockerModelArgument =
+    aiBackend === "claude" && modelSelection
+      ? ` \\
+    --model "${escapeForBashDoubleQuote(modelSelection.modelName)}"`
+      : "";
+  const nativeAiInvocation =
+    aiBackend === "claude"
+      ? `  # Run Claude in print mode (-p) so it exits after completion
+  # This allows the bash loop to continue to the next iteration
+  claude --dangerously-skip-permissions${claudeNativeModelArgument} --output-format text -p "$(cat "$PROMPT_FILE")"`
+      : AI_BACKEND_CONFIGS[aiBackend].invocation;
 
   // Generate the AI invocation command based on backend choice.
   // Sandbox mode always uses the Docker wrapper; native mode uses the backend config.
@@ -418,8 +470,8 @@ fi
     $ANTHROPIC_API_KEY_ARG \\
     -w /workspace \\
     "${imageName}" \\
-    claude --dangerously-skip-permissions /workspace/.ralph-prompt.md`
-    : AI_BACKEND_CONFIGS[aiBackend].invocation;
+    claude --dangerously-skip-permissions${claudeDockerModelArgument} /workspace/.ralph-prompt.md`
+    : nativeAiInvocation;
 
   const iterationLabel = useSandbox ? "(Docker)" : "";
   const endMessage = useSandbox ? "" : `echo "Run again with: $0 <max_iterations>"`;
@@ -532,6 +584,7 @@ MAX_NO_PROGRESS=3
 
 cd "$PROJECT_PATH"
 ${RALPH_ENV_EXPORTS}
+${launchModelEnvExports}
 ${dockerHostSetup}${dockerImageCheck}${sshAgentSetup}${aiPreflightCheck}
 # Ensure plans directory exists
 mkdir -p "$PROJECT_PATH/plans"

@@ -18,6 +18,7 @@ import { TagInput } from "./TagInput";
 import { EpicSelect } from "./EpicSelect";
 import { SubtaskList } from "./SubtaskList";
 import { LaunchActions, type LaunchType } from "./LaunchActions";
+import type { LaunchModelSelection } from "../../lib/launch-model-catalog";
 import { CreateEpicModal } from "../epics/CreateEpicModal";
 import {
   dispatchInteractiveUiLaunch,
@@ -384,7 +385,7 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
 
   // Handle launch action through the shared ticket launch dispatcher.
   const handleLaunch = useCallback(
-    async (type: LaunchType) => {
+    async (type: LaunchType, modelSelection: LaunchModelSelection) => {
       setIsLaunching(true);
       setLaunchingType(type);
 
@@ -397,6 +398,7 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
             kind: "ticket",
             ticketId: ticket.id,
             preferredTerminal: settings?.terminalEmulator ?? null,
+            modelSelection,
           });
 
           if (launchResult.warnings) {
@@ -421,6 +423,7 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
               kind: "ticket",
               ticketId: ticket.id,
               preferredTerminal: settings?.terminalEmulator ?? null,
+              modelSelection,
             },
             {
               ...defaultRalphLaunchDependencies,

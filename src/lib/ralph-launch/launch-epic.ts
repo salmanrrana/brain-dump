@@ -183,6 +183,7 @@ export async function launchRalphForEpicCore(
     useSandbox = false,
     aiBackend = "claude",
     workingMethodOverride,
+    modelSelection,
     launchProfile,
   } = input;
 
@@ -403,7 +404,8 @@ export async function launchRalphForEpicCore(
             }
           : undefined,
         aiBackend,
-        reviewLaunch.promptProfile
+        reviewLaunch.promptProfile,
+        modelSelection
       );
       const reviewScriptPath = join(
         scriptDir,
@@ -532,7 +534,8 @@ export async function launchRalphForEpicCore(
         }
       : undefined,
     aiBackend,
-    promptProfile
+    promptProfile,
+    modelSelection
   );
   const scriptDir = join(homedir(), ".brain-dump", "scripts");
   mkdirSync(scriptDir, { recursive: true });

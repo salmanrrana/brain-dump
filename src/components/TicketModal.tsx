@@ -32,6 +32,7 @@ import {
   useTags,
   useAutoClearState,
   useActiveRalphSessions,
+  useCostModels,
 } from "../lib/hooks";
 import { RalphStatusBadge } from "./RalphStatusBadge";
 import { useToast } from "./Toast";
@@ -45,6 +46,7 @@ import {
   getPrStatusBadgeStyle,
 } from "../lib/constants";
 import type { UiLaunchProviderId } from "../lib/launch-provider-contract";
+import type { LaunchModelSelection } from "../lib/launch-model-catalog";
 import {
   dispatchInteractiveUiLaunch,
   dispatchRalphAutonomousUiLaunch,
@@ -202,6 +204,13 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
   // Ralph mutation hook
   const launchRalphMutation = useLaunchRalphForTicket();
 
+  // Cost models for the launch model picker
+  const {
+    data: costModels,
+    isLoading: modelCatalogLoading,
+    error: modelCatalogError,
+  } = useCostModels();
+
   // Delete mutation hook
   const deleteTicketMutation = useDeleteTicket();
 
@@ -285,7 +294,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
   useClickOutside(tagDropdownRef, closeTagDropdown, isTagDropdownOpen, tagInputRef);
 
   const handleTicketLaunch = useCallback(
-    async (providerId: UiLaunchProviderId) => {
+    async (providerId: UiLaunchProviderId, modelSelection?: LaunchModelSelection) => {
       setIsStartingWork(true);
       setStartWorkNotification(null);
       setShowStartWorkMenu(false);
@@ -299,6 +308,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
             kind: "ticket",
             ticketId: ticket.id,
             preferredTerminal: settings?.terminalEmulator ?? null,
+            ...(modelSelection ? { modelSelection } : {}),
           });
 
           if (launchResult.warnings) {
@@ -326,6 +336,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
               kind: "ticket",
               ticketId: ticket.id,
               preferredTerminal: settings?.terminalEmulator ?? null,
+              ...(modelSelection ? { modelSelection } : {}),
             },
             {
               ...defaultRalphLaunchDependencies,
@@ -1198,9 +1209,16 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                 <LaunchProviderMenu
                   interactiveContext="ticket"
                   ralphContext="ticket"
-                  onInteractiveLaunch={(provider) => void handleTicketLaunch(provider.id)}
-                  onRalphLaunch={(provider) => void handleTicketLaunch(provider.id)}
+                  onInteractiveLaunch={(provider, modelSelection) =>
+                    void handleTicketLaunch(provider.id, modelSelection)
+                  }
+                  onRalphLaunch={(provider, modelSelection) =>
+                    void handleTicketLaunch(provider.id, modelSelection)
+                  }
                   disabled={isStartingWork}
+                  costModels={costModels ?? []}
+                  modelCatalogLoading={modelCatalogLoading}
+                  modelCatalogError={modelCatalogError}
                 />
               </div>
             )}

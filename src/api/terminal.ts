@@ -2,6 +2,22 @@ import { createServerFn } from "@tanstack/react-start";
 import { detectTerminal, isTerminalAvailable, buildTerminalCommand } from "./terminal-utils";
 import { buildCodexAppLaunchPlan } from "./codex-launch";
 import { sqlite } from "../lib/db";
+import type { ConcreteLaunchModelSelection } from "../lib/launch-model-catalog";
+
+interface InteractiveTerminalLaunchInput {
+  ticketId: string;
+  context: string;
+  projectPath: string;
+  preferredTerminal?: string | null;
+  projectName: string;
+  epicName: string | null;
+  ticketTitle: string;
+  modelSelection?: ConcreteLaunchModelSelection;
+}
+
+interface CodexTerminalLaunchInput extends InteractiveTerminalLaunchInput {
+  launchMode?: "auto" | "cli" | "app";
+}
 
 async function startWorkflowForLaunch(ticketId: string) {
   const [{ createRealGitOperations }, { startWork }] = await Promise.all([
@@ -463,8 +479,29 @@ async function runFirstSuccessfulCommand(
   return { success: false, error: lastError };
 }
 
+function buildClaudeModelArgument(
+  modelSelection: ConcreteLaunchModelSelection | undefined
+): string {
+  if (!modelSelection) {
+    return "";
+  }
+
+  const safeModelName = escapeForBashDoubleQuote(modelSelection.modelName);
+  return ` --model "${safeModelName}"`;
+}
+
+export function buildClaudeInteractiveCommand(
+  modelSelection?: ConcreteLaunchModelSelection
+): string {
+  return `claude${buildClaudeModelArgument(modelSelection)} "$CONTEXT_FILE"`;
+}
+
 // Create a temp script to launch Claude - avoids complex escaping issues
-async function createLaunchScript(projectPath: string, context: string): Promise<string> {
+async function createLaunchScript(
+  projectPath: string,
+  context: string,
+  modelSelection?: ConcreteLaunchModelSelection
+): Promise<string> {
   const { writeFileSync, mkdirSync, chmodSync } = await import("fs");
   const { join } = await import("path");
   const { homedir } = await import("os");
@@ -488,6 +525,7 @@ async function createLaunchScript(projectPath: string, context: string): Promise
   // Safely escape all user-provided content
   const safeProjectPath = escapeForBashDoubleQuote(projectPath);
   const safeTicketTitle = escapeForBashDoubleQuote(ticketTitle);
+  const claudeCommand = buildClaudeInteractiveCommand(modelSelection);
 
   // Create a script that:
   // 1. Changes to the project directory
@@ -519,7 +557,8 @@ echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━
 echo ""
 
 # Launch Claude with the context file - runs like normal terminal
-claude "$CONTEXT_FILE"
+${modelSelection ? "# Claude uses a one-shot model override for this launch only." : "# Claude uses the user's configured/default model."}
+${claudeCommand}
 
 # Cleanup context file
 rm -f "$CONTEXT_FILE"
@@ -550,17 +589,7 @@ function buildWindowTitle(
 
 // Launch Claude in terminal with ticket context
 export const launchClaudeInTerminal = createServerFn({ method: "POST" })
-  .inputValidator(
-    (data: {
-      ticketId: string;
-      context: string;
-      projectPath: string;
-      preferredTerminal?: string | null;
-      projectName: string;
-      epicName: string | null;
-      ticketTitle: string;
-    }) => data
-  )
+  .inputValidator((data: InteractiveTerminalLaunchInput) => data)
   .handler(async ({ data }): Promise<LaunchClaudeResult> => {
     const {
       ticketId,
@@ -570,6 +599,7 @@ export const launchClaudeInTerminal = createServerFn({ method: "POST" })
       projectName,
       epicName,
       ticketTitle,
+      modelSelection,
     } = data;
     const { exec } = await import("child_process");
     const { existsSync } = await import("fs");
@@ -649,7 +679,7 @@ export const launchClaudeInTerminal = createServerFn({ method: "POST" })
     }
 
     // Create launch script and build terminal command with window title
-    const scriptPath = await createLaunchScript(projectPath, context);
+    const scriptPath = await createLaunchScript(projectPath, context, modelSelection);
     const windowTitle = buildWindowTitle(projectName, epicName, ticketTitle);
     const terminalCommand = buildTerminalCommand(terminal, projectPath, scriptPath, windowTitle);
 
@@ -678,8 +708,37 @@ export const launchClaudeInTerminal = createServerFn({ method: "POST" })
     }
   });
 
+export function formatOpenCodeLaunchModelValue(
+  modelSelection: ConcreteLaunchModelSelection
+): string {
+  return `${modelSelection.provider}/${modelSelection.modelName}`;
+}
+
+function buildOpenCodeModelArgument(
+  modelSelection: ConcreteLaunchModelSelection | undefined
+): string {
+  if (!modelSelection) {
+    return "";
+  }
+
+  const safeModelValue = escapeForBashDoubleQuote(formatOpenCodeLaunchModelValue(modelSelection));
+  return ` --model "${safeModelValue}"`;
+}
+
+export function buildOpenCodeInteractiveCommand(
+  projectPath: string,
+  modelSelection?: ConcreteLaunchModelSelection
+): string {
+  const safeProjectPath = escapeForBashDoubleQuote(projectPath);
+  return `opencode "${safeProjectPath}"${buildOpenCodeModelArgument(modelSelection)} --prompt "$(cat "$CONTEXT_FILE")"`;
+}
+
 // Create a temp script to launch OpenCode - similar to createLaunchScript but for OpenCode
-async function createOpenCodeLaunchScript(projectPath: string, context: string): Promise<string> {
+async function createOpenCodeLaunchScript(
+  projectPath: string,
+  context: string,
+  modelSelection?: ConcreteLaunchModelSelection
+): Promise<string> {
   const { writeFileSync, mkdirSync, chmodSync } = await import("fs");
   const { join } = await import("path");
   const { homedir } = await import("os");
@@ -709,6 +768,7 @@ async function createOpenCodeLaunchScript(projectPath: string, context: string):
   // Safely escape all user-provided content
   const safeProjectPath = escapeForBashDoubleQuote(projectPath);
   const safeTicketTitle = escapeForBashDoubleQuote(ticketTitle);
+  const openCodeCommand = buildOpenCodeInteractiveCommand(projectPath, modelSelection);
 
   // Create a script that:
   // 1. Changes to the project directory
@@ -738,8 +798,8 @@ echo -e "\\033[0;34m━━━━━━━━━━━━━━━━━━━━
 echo ""
 
 # Launch OpenCode with the project path and initial prompt
-# OpenCode uses the user's default/last-used model preference
-opencode "${safeProjectPath}" --prompt "$(cat "$CONTEXT_FILE")"
+${modelSelection ? "# OpenCode expects one-shot model overrides as provider/model." : "# OpenCode uses the user's default/last-used model preference."}
+${openCodeCommand}
 
 # Cleanup context file
 rm -f "$CONTEXT_FILE"
@@ -760,17 +820,7 @@ exec bash
 // Note: Uses exec() for terminal launching (same as launchClaudeInTerminal) because
 // terminal commands require shell interpretation. Input is validated by validateProjectPath.
 export const launchOpenCodeInTerminal = createServerFn({ method: "POST" })
-  .inputValidator(
-    (data: {
-      ticketId: string;
-      context: string;
-      projectPath: string;
-      preferredTerminal?: string | null;
-      projectName: string;
-      epicName: string | null;
-      ticketTitle: string;
-    }) => data
-  )
+  .inputValidator((data: InteractiveTerminalLaunchInput) => data)
   .handler(async ({ data }): Promise<LaunchResult> => {
     const {
       ticketId,
@@ -780,6 +830,7 @@ export const launchOpenCodeInTerminal = createServerFn({ method: "POST" })
       projectName,
       epicName,
       ticketTitle,
+      modelSelection,
     } = data;
     const { exec } = await import("child_process");
     const { existsSync } = await import("fs");
@@ -869,7 +920,7 @@ export const launchOpenCodeInTerminal = createServerFn({ method: "POST" })
     }
 
     // Create launch script and build terminal command with window title
-    const scriptPath = await createOpenCodeLaunchScript(projectPath, context);
+    const scriptPath = await createOpenCodeLaunchScript(projectPath, context, modelSelection);
     const windowTitle = buildWindowTitle(projectName, epicName, ticketTitle);
     const terminalCommand = buildTerminalCommand(terminal, projectPath, scriptPath, windowTitle);
 
@@ -899,8 +950,65 @@ export const launchOpenCodeInTerminal = createServerFn({ method: "POST" })
     }
   });
 
+function buildCodexModelArgument(modelSelection: ConcreteLaunchModelSelection | undefined): string {
+  if (!modelSelection) {
+    return "";
+  }
+
+  const safeModelName = escapeForBashDoubleQuote(modelSelection.modelName);
+  return ` --model "${safeModelName}"`;
+}
+
+export function buildCodexInteractiveCommand(
+  modelSelection?: ConcreteLaunchModelSelection
+): string {
+  return `codex${buildCodexModelArgument(modelSelection)} "$(cat "$CONTEXT_FILE")"`;
+}
+
+function buildCursorAgentModelArgument(
+  modelSelection: ConcreteLaunchModelSelection | undefined
+): string {
+  if (!modelSelection) {
+    return "";
+  }
+
+  const safeModelName = escapeForBashDoubleQuote(modelSelection.modelName);
+  return ` --model "${safeModelName}"`;
+}
+
+export function buildCursorAgentInteractiveCommand(
+  modelSelection?: ConcreteLaunchModelSelection
+): string {
+  return `"$CURSOR_AGENT_BIN" --force --approve-mcps --trust${buildCursorAgentModelArgument(modelSelection)} -p "$AGENT_PROMPT"`;
+}
+
+function formatProviderModelLaunchValue(modelSelection: ConcreteLaunchModelSelection): string {
+  return `${modelSelection.provider}/${modelSelection.modelName}`;
+}
+
+function buildPiModelArgument(modelSelection: ConcreteLaunchModelSelection | undefined): string {
+  if (!modelSelection) {
+    return "";
+  }
+
+  const safeModelValue = escapeForBashDoubleQuote(formatProviderModelLaunchValue(modelSelection));
+  return ` --model "${safeModelValue}"`;
+}
+
+export function buildPiInteractiveCommand(modelSelection?: ConcreteLaunchModelSelection): string {
+  return `pi${buildPiModelArgument(modelSelection)} "$PI_PROMPT"`;
+}
+
+function defaultOnlyModelWarning(providerLabel: string): string {
+  return `${providerLabel} does not have pricing-backed model choices yet. Launching with the provider's default model.`;
+}
+
 // Create a temp script to launch Codex - similar to OpenCode/Claude launch scripts
-async function createCodexLaunchScript(projectPath: string, context: string): Promise<string> {
+async function createCodexLaunchScript(
+  projectPath: string,
+  context: string,
+  modelSelection?: ConcreteLaunchModelSelection
+): Promise<string> {
   const { writeFileSync, mkdirSync, chmodSync } = await import("fs");
   const { join } = await import("path");
   const { homedir } = await import("os");
@@ -924,6 +1032,7 @@ async function createCodexLaunchScript(projectPath: string, context: string): Pr
 
   const safeProjectPath = escapeForBashDoubleQuote(projectPath);
   const safeTicketTitle = escapeForBashDoubleQuote(ticketTitle);
+  const codexCommand = buildCodexInteractiveCommand(modelSelection);
 
   const script = `#!/bin/bash
 set -e  # Exit on error
@@ -947,7 +1056,8 @@ echo -e "\\033[0;32m━━━━━━━━━━━━━━━━━━━━
 echo ""
 
 # Launch Codex with the prompt content
-codex "$(cat "$CONTEXT_FILE")"
+${modelSelection ? "# Codex uses a one-shot model override for this launch only." : "# Codex uses the user's configured/default model."}
+${codexCommand}
 
 # Cleanup context file
 rm -f "$CONTEXT_FILE"
@@ -1058,9 +1168,10 @@ exec bash
 async function createCursorAgentLaunchScript(
   projectPath: string,
   context: string,
-  agentPath: string
+  agentPath: string,
+  modelSelection?: ConcreteLaunchModelSelection
 ): Promise<string> {
-  const { writeFileSync, mkdirSync } = await import("fs");
+  const { writeFileSync, mkdirSync, chmodSync } = await import("fs");
   const { join } = await import("path");
   const { homedir } = await import("os");
   const { randomUUID } = await import("crypto");
@@ -1078,6 +1189,7 @@ async function createCursorAgentLaunchScript(
   const safeProjectPath = escapeForBashDoubleQuote(projectPath);
   const safeTicketTitle = escapeForBashDoubleQuote(ticketTitle);
   const safeAgentPath = escapeForBashDoubleQuote(agentPath);
+  const cursorAgentCommand = buildCursorAgentInteractiveCommand(modelSelection);
 
   const script = `#!/bin/bash
 set -e  # Exit on error
@@ -1117,7 +1229,8 @@ fi
 
 AGENT_PROMPT="$(cat "$CONTEXT_FILE")"
 set +e
-"$CURSOR_AGENT_BIN" --force --approve-mcps --trust -p "$AGENT_PROMPT"
+${modelSelection ? "# Cursor Agent uses a one-shot model override for this launch only." : "# Cursor Agent uses the user's configured/default model."}
+${cursorAgentCommand}
 AGENT_EXIT=$?
 set -e
 
@@ -1138,11 +1251,16 @@ exec bash
 `;
 
   writeFileSync(scriptPath, script, { mode: 0o700 });
+  chmodSync(scriptPath, 0o700);
 
   return scriptPath;
 }
 
-export async function createPiLaunchScript(projectPath: string, context: string): Promise<string> {
+export async function createPiLaunchScript(
+  projectPath: string,
+  context: string,
+  modelSelection?: ConcreteLaunchModelSelection
+): Promise<string> {
   const { writeFileSync, mkdirSync, chmodSync } = await import("fs");
   const { join } = await import("path");
   const { homedir } = await import("os");
@@ -1160,6 +1278,7 @@ export async function createPiLaunchScript(projectPath: string, context: string)
 
   const safeProjectPath = escapeForBashDoubleQuote(projectPath);
   const safeTicketTitle = escapeForBashDoubleQuote(ticketTitle);
+  const piCommand = buildPiInteractiveCommand(modelSelection);
 
   const script = `#!/bin/bash
 set -e  # Exit on error
@@ -1184,7 +1303,8 @@ export PI=1
 export BRAIN_DUMP_PROVIDER=pi
 
 PI_PROMPT="$(cat "$CONTEXT_FILE")"
-pi "$PI_PROMPT"
+${modelSelection ? "# Pi uses a one-shot model override for this launch only." : "# Pi uses the user's configured/default model."}
+${piCommand}
 
 rm -f "$CONTEXT_FILE"
 
@@ -1200,17 +1320,7 @@ exec bash
 }
 
 export const launchPiInTerminal = createServerFn({ method: "POST" })
-  .inputValidator(
-    (data: {
-      ticketId: string;
-      context: string;
-      projectPath: string;
-      preferredTerminal?: string | null;
-      projectName: string;
-      epicName: string | null;
-      ticketTitle: string;
-    }) => data
-  )
+  .inputValidator((data: InteractiveTerminalLaunchInput) => data)
   .handler(async ({ data }): Promise<LaunchResult> => {
     const {
       ticketId,
@@ -1220,6 +1330,7 @@ export const launchPiInTerminal = createServerFn({ method: "POST" })
       projectName,
       epicName,
       ticketTitle,
+      modelSelection,
     } = data;
     const { exec } = await import("child_process");
     const { existsSync } = await import("fs");
@@ -1241,8 +1352,8 @@ export const launchPiInTerminal = createServerFn({ method: "POST" })
       };
     }
 
-    let terminal: string | null = null;
     const warnings: string[] = [];
+    let terminal: string | null = null;
 
     if (preferredTerminal) {
       const result = await isTerminalAvailable(preferredTerminal);
@@ -1300,7 +1411,7 @@ export const launchPiInTerminal = createServerFn({ method: "POST" })
       );
     }
 
-    const scriptPath = await createPiLaunchScript(projectPath, context);
+    const scriptPath = await createPiLaunchScript(projectPath, context, modelSelection);
     const windowTitle = buildWindowTitle(projectName, epicName, ticketTitle);
     const terminalCommand = buildTerminalCommand(terminal, projectPath, scriptPath, windowTitle);
 
@@ -1332,17 +1443,7 @@ export const launchPiInTerminal = createServerFn({ method: "POST" })
 // Note: exec() is used intentionally here for fire-and-forget terminal launches.
 // The terminal command is built from validated internal paths via buildTerminalCommand().
 export const launchCursorAgentInTerminal = createServerFn({ method: "POST" })
-  .inputValidator(
-    (data: {
-      ticketId: string;
-      context: string;
-      projectPath: string;
-      preferredTerminal?: string | null;
-      projectName: string;
-      epicName: string | null;
-      ticketTitle: string;
-    }) => data
-  )
+  .inputValidator((data: InteractiveTerminalLaunchInput) => data)
   .handler(async ({ data }): Promise<LaunchResult> => {
     const {
       ticketId,
@@ -1352,6 +1453,7 @@ export const launchCursorAgentInTerminal = createServerFn({ method: "POST" })
       projectName,
       epicName,
       ticketTitle,
+      modelSelection,
     } = data;
     const { exec } = await import("child_process");
     const { existsSync } = await import("fs");
@@ -1439,7 +1541,8 @@ export const launchCursorAgentInTerminal = createServerFn({ method: "POST" })
       scriptPath = await createCursorAgentLaunchScript(
         projectPath,
         context,
-        agentCheck.binaryPath || "agent"
+        agentCheck.binaryPath || "agent",
+        modelSelection
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
@@ -1480,18 +1583,7 @@ export const launchCursorAgentInTerminal = createServerFn({ method: "POST" })
 
 // Launch Codex (CLI in terminal, or Codex App fallback on macOS)
 export const launchCodexInTerminal = createServerFn({ method: "POST" })
-  .inputValidator(
-    (data: {
-      ticketId: string;
-      context: string;
-      projectPath: string;
-      launchMode?: "auto" | "cli" | "app";
-      preferredTerminal?: string | null;
-      projectName: string;
-      epicName: string | null;
-      ticketTitle: string;
-    }) => data
-  )
+  .inputValidator((data: CodexTerminalLaunchInput) => data)
   .handler(async ({ data }): Promise<LaunchResult> => {
     const {
       ticketId,
@@ -1502,6 +1594,7 @@ export const launchCodexInTerminal = createServerFn({ method: "POST" })
       projectName,
       epicName,
       ticketTitle,
+      modelSelection,
     } = data;
     const { exec } = await import("child_process");
     const { existsSync } = await import("fs");
@@ -1593,7 +1686,7 @@ export const launchCodexInTerminal = createServerFn({ method: "POST" })
         };
       }
 
-      const scriptPath = await createCodexLaunchScript(projectPath, context);
+      const scriptPath = await createCodexLaunchScript(projectPath, context, modelSelection);
       const windowTitle = buildWindowTitle(projectName, epicName, ticketTitle);
       const terminalCommand = buildTerminalCommand(terminal, projectPath, scriptPath, windowTitle);
 
@@ -1622,6 +1715,12 @@ export const launchCodexInTerminal = createServerFn({ method: "POST" })
     }
 
     // Use Codex App launch and persist context in project.
+    if (modelSelection) {
+      warnings.push(
+        "Codex App does not support a documented one-shot model override. Launching with the app's default model."
+      );
+    }
+
     try {
       const contextFile = await writeProjectContextFile(projectPath, context);
       const launchPlan = buildCodexAppLaunchPlan(projectPath, contextFile);
@@ -1657,17 +1756,7 @@ export const launchCodexInTerminal = createServerFn({ method: "POST" })
 
 // Launch Copilot CLI in terminal with ticket context
 export const launchCopilotInTerminal = createServerFn({ method: "POST" })
-  .inputValidator(
-    (data: {
-      ticketId: string;
-      context: string;
-      projectPath: string;
-      preferredTerminal?: string | null;
-      projectName: string;
-      epicName: string | null;
-      ticketTitle: string;
-    }) => data
-  )
+  .inputValidator((data: InteractiveTerminalLaunchInput) => data)
   .handler(async ({ data }): Promise<LaunchResult> => {
     const {
       ticketId,
@@ -1677,6 +1766,7 @@ export const launchCopilotInTerminal = createServerFn({ method: "POST" })
       projectName,
       epicName,
       ticketTitle,
+      modelSelection,
     } = data;
     const { exec } = await import("child_process");
     const { existsSync } = await import("fs");
@@ -1700,8 +1790,12 @@ export const launchCopilotInTerminal = createServerFn({ method: "POST" })
       };
     }
 
-    let terminal: string | null = null;
     const warnings: string[] = [];
+    if (modelSelection) {
+      warnings.push(defaultOnlyModelWarning("Copilot CLI"));
+    }
+
+    let terminal: string | null = null;
 
     if (preferredTerminal) {
       const result = await isTerminalAvailable(preferredTerminal);
@@ -1789,19 +1883,9 @@ export const launchCopilotInTerminal = createServerFn({ method: "POST" })
 
 // Launch Cursor app/CLI for a ticket context.
 export const launchCursorInTerminal = createServerFn({ method: "POST" })
-  .inputValidator(
-    (data: {
-      ticketId: string;
-      context: string;
-      projectPath: string;
-      preferredTerminal?: string | null;
-      projectName: string;
-      epicName: string | null;
-      ticketTitle: string;
-    }) => data
-  )
+  .inputValidator((data: InteractiveTerminalLaunchInput) => data)
   .handler(async ({ data }): Promise<LaunchResult> => {
-    const { ticketId, context, projectPath } = data;
+    const { ticketId, context, projectPath, modelSelection } = data;
     const { exec } = await import("child_process");
     const { existsSync } = await import("fs");
 
@@ -1824,6 +1908,9 @@ export const launchCursorInTerminal = createServerFn({ method: "POST" })
     }
 
     const warnings: string[] = [];
+    if (modelSelection) {
+      warnings.push(defaultOnlyModelWarning("Cursor Editor"));
+    }
 
     try {
       const workflowResult = await startWorkflowForLaunch(ticketId);
@@ -1890,19 +1977,9 @@ export const launchCursorInTerminal = createServerFn({ method: "POST" })
 
 // Launch VS Code app/CLI for a ticket context.
 export const launchVSCodeInTerminal = createServerFn({ method: "POST" })
-  .inputValidator(
-    (data: {
-      ticketId: string;
-      context: string;
-      projectPath: string;
-      preferredTerminal?: string | null;
-      projectName: string;
-      epicName: string | null;
-      ticketTitle: string;
-    }) => data
-  )
+  .inputValidator((data: InteractiveTerminalLaunchInput) => data)
   .handler(async ({ data }): Promise<LaunchResult> => {
-    const { ticketId, context, projectPath } = data;
+    const { ticketId, context, projectPath, modelSelection } = data;
     const { exec } = await import("child_process");
     const { existsSync } = await import("fs");
 
@@ -1925,6 +2002,9 @@ export const launchVSCodeInTerminal = createServerFn({ method: "POST" })
     }
 
     const warnings: string[] = [];
+    if (modelSelection) {
+      warnings.push(defaultOnlyModelWarning("VS Code"));
+    }
 
     try {
       const workflowResult = await startWorkflowForLaunch(ticketId);

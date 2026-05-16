@@ -6,7 +6,18 @@ import prettier from "eslint-config-prettier";
 import globals from "globals";
 
 export default tseslint.config(
-  { ignores: ["**/dist", "node_modules", ".vinxi", ".output", "vendor", ".claude", ".opencode"] },
+  {
+    ignores: [
+      "**/dist",
+      "node_modules",
+      ".vinxi",
+      ".output",
+      "vendor",
+      ".claude",
+      ".opencode",
+      ".pi",
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

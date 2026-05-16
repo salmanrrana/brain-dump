@@ -60,6 +60,7 @@ export async function launchRalphForTicketCore(
     useSandbox = false,
     aiBackend = "claude",
     workingMethodOverride,
+    modelSelection,
   } = input;
 
   const appSettings = db.select().from(settings).where(eq(settings.id, "default")).get();
@@ -128,7 +129,9 @@ export async function launchRalphForTicketCore(
           projectName: project.name,
         }
       : undefined,
-    aiBackend
+    aiBackend,
+    { type: "implementation" },
+    modelSelection
   );
   const scriptDir = join(homedir(), ".brain-dump", "scripts");
   mkdirSync(scriptDir, { recursive: true });

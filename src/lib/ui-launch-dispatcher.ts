@@ -15,7 +15,13 @@ import type {
   InteractiveUiLaunchProvider,
   RalphAutonomousUiLaunchDispatchContext,
   RalphAutonomousUiLaunchProvider,
+  UiLaunchProvider,
 } from "./launch-provider-contract";
+import {
+  isDefaultOnlyLaunchProvider,
+  type ConcreteLaunchModelSelection,
+  type LaunchModelSelection,
+} from "./launch-model-catalog";
 import type { LaunchEpicInput, LaunchTicketInput } from "./ralph-launch/types";
 import { RALPH_AUTONOMOUS_UI_LAUNCH_PROVIDERS } from "./ui-launch-registry";
 
@@ -71,6 +77,7 @@ export interface InteractiveTerminalPayload {
   projectName: string;
   epicName: string | null;
   ticketTitle: string;
+  modelSelection?: ConcreteLaunchModelSelection;
 }
 
 export const defaultInteractiveLaunchDependencies: InteractiveLaunchDependencies = {
@@ -119,6 +126,51 @@ export const defaultRalphLaunchDependencies: Pick<
   },
 };
 
+function concreteModelSelection(
+  modelSelection: LaunchModelSelection | undefined
+): ConcreteLaunchModelSelection | undefined {
+  return modelSelection?.kind === "concrete" ? modelSelection : undefined;
+}
+
+interface ModelSelectionResolution {
+  modelSelection?: ConcreteLaunchModelSelection;
+  warnings: string[];
+}
+
+function resolveConcreteModelSelection(
+  provider: UiLaunchProvider,
+  modelSelection: LaunchModelSelection | undefined
+): ModelSelectionResolution {
+  const concreteSelection = concreteModelSelection(modelSelection);
+  if (!concreteSelection) {
+    return { warnings: [] };
+  }
+
+  if (isDefaultOnlyLaunchProvider(provider.id)) {
+    return {
+      warnings: [
+        `${provider.display.label} does not have pricing-backed model choices yet. Launching with the provider's default model.`,
+      ],
+    };
+  }
+
+  return { modelSelection: concreteSelection, warnings: [] };
+}
+
+function withAdditionalWarnings(
+  result: UiLaunchResult,
+  warnings: readonly string[]
+): UiLaunchResult {
+  if (warnings.length === 0) {
+    return result;
+  }
+
+  return {
+    ...result,
+    warnings: [...warnings, ...(result.warnings ?? [])],
+  };
+}
+
 export function getDefaultRalphAutonomousProviderForWorkingMethod(
   workingMethod?: string | null
 ): RalphAutonomousUiLaunchProvider {
@@ -143,6 +195,7 @@ export async function dispatchInteractiveUiLaunch(
   dependencies: InteractiveLaunchDependencies = defaultInteractiveLaunchDependencies
 ): Promise<UiLaunchResult> {
   const ticketContext = await dependencies.getTicketContext(context.ticketId);
+  const modelSelectionResolution = resolveConcreteModelSelection(provider, context.modelSelection);
   const payload: InteractiveTerminalPayload = {
     ticketId: context.ticketId,
     context: ticketContext.context,
@@ -151,30 +204,46 @@ export async function dispatchInteractiveUiLaunch(
     projectName: ticketContext.projectName,
     epicName: ticketContext.epicName,
     ticketTitle: ticketContext.ticketTitle,
+    ...(modelSelectionResolution.modelSelection
+      ? { modelSelection: modelSelectionResolution.modelSelection }
+      : {}),
   };
 
+  let result: UiLaunchResult;
   switch (provider.launchMode) {
     case "claude-terminal":
-      return dependencies.launchClaude(payload);
+      result = await dependencies.launchClaude(payload);
+      break;
     case "codex-auto":
-      return dependencies.launchCodex({ ...payload, launchMode: "auto" });
+      result = await dependencies.launchCodex({ ...payload, launchMode: "auto" });
+      break;
     case "codex-cli":
-      return dependencies.launchCodex({ ...payload, launchMode: "cli" });
+      result = await dependencies.launchCodex({ ...payload, launchMode: "cli" });
+      break;
     case "codex-app":
-      return dependencies.launchCodex({ ...payload, launchMode: "app" });
+      result = await dependencies.launchCodex({ ...payload, launchMode: "app" });
+      break;
     case "vscode-editor":
-      return dependencies.launchVSCode(payload);
+      result = await dependencies.launchVSCode(payload);
+      break;
     case "cursor-editor":
-      return dependencies.launchCursor(payload);
+      result = await dependencies.launchCursor(payload);
+      break;
     case "cursor-agent-terminal":
-      return dependencies.launchCursorAgent(payload);
+      result = await dependencies.launchCursorAgent(payload);
+      break;
     case "copilot-cli":
-      return dependencies.launchCopilot(payload);
+      result = await dependencies.launchCopilot(payload);
+      break;
     case "opencode-terminal":
-      return dependencies.launchOpenCode(payload);
+      result = await dependencies.launchOpenCode(payload);
+      break;
     case "pi-terminal":
-      return dependencies.launchPi(payload);
+      result = await dependencies.launchPi(payload);
+      break;
   }
+
+  return withAdditionalWarnings(result, modelSelectionResolution.warnings);
 }
 
 export async function dispatchRalphAutonomousUiLaunch(
@@ -182,21 +251,28 @@ export async function dispatchRalphAutonomousUiLaunch(
   context: RalphAutonomousUiLaunchDispatchContext,
   dependencies: RalphLaunchDependencies
 ): Promise<UiLaunchResult> {
+  const modelSelectionResolution = resolveConcreteModelSelection(provider, context.modelSelection);
+
   if (context.kind === "ticket") {
     await dependencies.startTicketWorkflow({
       ticketId: context.ticketId,
       projectPath: context.projectPath ?? null,
     });
 
-    return dependencies.launchTicketRalph({
+    const launchResult = await dependencies.launchTicketRalph({
       ticketId: context.ticketId,
       preferredTerminal: context.preferredTerminal ?? null,
       useSandbox: false,
       aiBackend: provider.aiBackend,
+      ...(modelSelectionResolution.modelSelection
+        ? { modelSelection: modelSelectionResolution.modelSelection }
+        : {}),
       ...(provider.workingMethodOverride
         ? { workingMethodOverride: provider.workingMethodOverride }
         : {}),
     });
+
+    return withAdditionalWarnings(launchResult, modelSelectionResolution.warnings);
   }
 
   const workflowResult =
@@ -229,6 +305,9 @@ export async function dispatchRalphAutonomousUiLaunch(
     preferredTerminal: context.preferredTerminal ?? null,
     useSandbox: context.useSandbox ?? false,
     aiBackend: provider.aiBackend,
+    ...(modelSelectionResolution.modelSelection
+      ? { modelSelection: modelSelectionResolution.modelSelection }
+      : {}),
     ...(provider.workingMethodOverride
       ? { workingMethodOverride: provider.workingMethodOverride }
       : {}),
@@ -237,6 +316,10 @@ export async function dispatchRalphAutonomousUiLaunch(
 
   return {
     ...launchResult,
-    warnings: [...workflowWarnings, ...(launchResult.warnings ?? [])],
+    warnings: [
+      ...modelSelectionResolution.warnings,
+      ...workflowWarnings,
+      ...(launchResult.warnings ?? []),
+    ],
   };
 }
