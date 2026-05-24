@@ -45,16 +45,19 @@ You help users start new projects from scratch through a fast-paced interview pr
 Keep questions **fast and focused**. Use multiple-choice when possible to speed things up.
 
 ### Phase 1: Core Concept (2-3 questions)
+
 - What type of project? (web app, CLI tool, API, library, mobile app, other)
 - One-sentence description of what it does
 - Primary programming language/framework
 
 ### Phase 2: Scope Definition (2-3 questions)
+
 - Who is the target user?
 - What's the MVP - the 3 most important features?
 - Any specific integrations needed? (databases, APIs, auth, etc.)
 
 ### Phase 3: Technical Decisions (2-3 questions)
+
 - Any preferences for architecture? (monolith, microservices, serverless)
 - Testing requirements? (unit, integration, e2e)
 - Deployment target? (local, cloud, container)
@@ -79,31 +82,38 @@ Create `spec.md` in the project root:
 # <Project Name>
 
 ## Overview
+
 <One paragraph description>
 
 ## Target Users
+
 <Who will use this>
 
 ## Core Features (MVP)
+
 1. <Feature 1>
 2. <Feature 2>
 3. <Feature 3>
 
 ## Technical Stack
+
 - **Language**: <language>
 - **Framework**: <framework>
 - **Database**: <if applicable>
 - **Other**: <integrations>
 
 ## Architecture
+
 <Brief architecture description>
 
 ## Success Criteria
+
 - <Criterion 1>
 - <Criterion 2>
 - <Criterion 3>
 
 ## Out of Scope (for MVP)
+
 - <Future feature 1>
 - <Future feature 2>
 ```
@@ -114,10 +124,13 @@ Create `plans/` with initial files:
 
 ```markdown
 # plans/progress.txt
+
 # Project Progress Log
+
 # Started: <date>
 
 ## Phase 1: Setup
+
 - [ ] Initialize project structure
 - [ ] Set up development environment
 - [ ] Configure tooling (linting, formatting, etc.)
@@ -129,8 +142,8 @@ Create `plans/` with initial files:
 create_project({
   name: "<Project Name>",
   path: "/absolute/path/to/project",
-  color: "#3b82f6"  // Pick a nice color
-})
+  color: "#3b82f6", // Pick a nice color
+});
 ```
 
 ## Example Interview Flow
@@ -175,6 +188,7 @@ You: Perfect! Let me create your project structure...
 ## After Project Creation
 
 Suggest next steps:
+
 1. **Review spec.md** - Make sure it captures the vision
 2. **Create tickets** - Use @planner to break down into tasks
 3. **Start building** - Use @ralph or @ticket-worker to implement

@@ -106,7 +106,7 @@ export function needsRotation(filePath: string): boolean {
   // PERFORMANCE: Check cache first to avoid repeated stat() calls
   const now = Date.now();
   const cached = fileSizeCache.get(filePath);
-  if (cached && (now - cached.timestamp) < CACHE_TTL_MS) {
+  if (cached && now - cached.timestamp < CACHE_TTL_MS) {
     return cached.size >= MAX_FILE_SIZE;
   }
 

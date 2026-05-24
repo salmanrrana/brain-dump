@@ -6,12 +6,12 @@ This document describes Docker configuration for Ralph sandbox mode, including p
 
 When running Ralph in Docker sandbox mode, the following port ranges are exposed to allow developers to access dev servers from their host browser:
 
-| Port Range | Purpose | Examples |
-|------------|---------|----------|
-| 8100-8110 | Frontend dev servers | Vite, Next.js, React, Create React App |
-| 8200-8210 | Backend APIs | Express, Fastify, NestJS, Django |
-| 8300-8310 | Documentation & Storybook | Storybook, Docusaurus, VitePress |
-| 8400-8410 | Databases (debugging) | PostgreSQL GUI, Redis Commander |
+| Port Range | Purpose                   | Examples                               |
+| ---------- | ------------------------- | -------------------------------------- |
+| 8100-8110  | Frontend dev servers      | Vite, Next.js, React, Create React App |
+| 8200-8210  | Backend APIs              | Express, Fastify, NestJS, Django       |
+| 8300-8310  | Documentation & Storybook | Storybook, Docusaurus, VitePress       |
+| 8400-8410  | Databases (debugging)     | PostgreSQL GUI, Redis Commander        |
 
 ### Accessing Dev Servers
 
@@ -30,6 +30,7 @@ open http://localhost:8100
 ### Port Convention in Practice
 
 When starting servers, use these port conventions:
+
 - First frontend project → 8100
 - Second frontend project → 8101
 - First backend API → 8200
@@ -169,12 +170,14 @@ Both work with the same mount syntax.
 ### SSH Agent Not Running
 
 **Symptom**: Pre-launch warning in terminal:
+
 ```
 ⚠ SSH agent not running - git push may not work
   Start with: eval $(ssh-agent) && ssh-add
 ```
 
 **Fix**: Start the SSH agent and add your key:
+
 ```bash
 eval $(ssh-agent)
 ssh-add ~/.ssh/id_ed25519
@@ -187,6 +190,7 @@ ssh-add ~/.ssh/id_ed25519
 **Cause**: GitHub is not in your known_hosts file
 
 **Fix**: Connect to GitHub once to add to known_hosts:
+
 ```bash
 ssh -T git@github.com
 ```
@@ -196,11 +200,13 @@ ssh -T git@github.com
 **Symptom**: `Permission denied (publickey)` when pushing
 
 **Possible causes**:
+
 1. SSH key not loaded in agent
 2. SSH key not associated with your GitHub account
 3. Repository access not granted
 
 **Fixes**:
+
 ```bash
 # Check if key is loaded
 ssh-add -l
@@ -220,6 +226,7 @@ ssh -T git@github.com
 **Symptom**: `gh: not logged in to any hosts` when creating PR
 
 **Fix**: Authenticate with GitHub CLI:
+
 ```bash
 gh auth login
 ```
@@ -233,15 +240,15 @@ gh auth login
 
 ## Test Cases
 
-| Scenario | Expected Behavior |
-|----------|------------------|
-| SSH agent running, key loaded | `git push` works, green checkmark at launch |
-| SSH agent not running | Warning at launch, `git push` fails with clear error |
-| known_hosts exists | No SSH prompts, push succeeds |
-| known_hosts missing | SSH prompt on first push, then succeeds |
-| gh authenticated | `gh pr create` works |
-| gh not authenticated | Clear error with login instructions |
-| No repo access | `git push` fails with permission error |
+| Scenario                      | Expected Behavior                                    |
+| ----------------------------- | ---------------------------------------------------- |
+| SSH agent running, key loaded | `git push` works, green checkmark at launch          |
+| SSH agent not running         | Warning at launch, `git push` fails with clear error |
+| known_hosts exists            | No SSH prompts, push succeeds                        |
+| known_hosts missing           | SSH prompt on first push, then succeeds              |
+| gh authenticated              | `gh pr create` works                                 |
+| gh not authenticated          | Clear error with login instructions                  |
+| No repo access                | `git push` fails with permission error               |
 
 ## Troubleshooting
 

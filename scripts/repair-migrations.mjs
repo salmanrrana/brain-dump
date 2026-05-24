@@ -86,8 +86,7 @@ function getDbPath() {
       "brain-dump.db"
     );
   }
-  const dataHome =
-    process.env.XDG_DATA_HOME || path.join(process.env.HOME, ".local", "share");
+  const dataHome = process.env.XDG_DATA_HOME || path.join(process.env.HOME, ".local", "share");
   return path.join(dataHome, "brain-dump", "brain-dump.db");
 }
 
@@ -122,11 +121,16 @@ function getMigrationState(db, migrationFiles) {
   if (hasJournalTable) {
     journalCount = db.prepare("SELECT COUNT(*) AS count FROM __drizzle_migrations").get().count;
     stampedHashes = new Set(
-      db.prepare("SELECT hash FROM __drizzle_migrations").all().map((row) => row.hash)
+      db
+        .prepare("SELECT hash FROM __drizzle_migrations")
+        .all()
+        .map((row) => row.hash)
     );
   }
 
-  const unstampedMigrationCount = migrationFiles.filter((file) => !stampedHashes.has(file.hash)).length;
+  const unstampedMigrationCount = migrationFiles.filter(
+    (file) => !stampedHashes.has(file.hash)
+  ).length;
 
   return {
     hasAppSchema,
@@ -155,10 +159,7 @@ function patchStatements(sql) {
         return stmt.replace(/^CREATE\s+TABLE\s+`/i, "CREATE TABLE IF NOT EXISTS `");
       }
       if (/^CREATE\s+UNIQUE\s+INDEX\s+`/i.test(stmt)) {
-        return stmt.replace(
-          /^CREATE\s+UNIQUE\s+INDEX\s+`/i,
-          "CREATE UNIQUE INDEX IF NOT EXISTS `"
-        );
+        return stmt.replace(/^CREATE\s+UNIQUE\s+INDEX\s+`/i, "CREATE UNIQUE INDEX IF NOT EXISTS `");
       }
       if (/^CREATE\s+INDEX\s+`/i.test(stmt)) {
         return stmt.replace(/^CREATE\s+INDEX\s+`/i, "CREATE INDEX IF NOT EXISTS `");
@@ -237,7 +238,10 @@ function main() {
   `);
 
   const stamped = new Set(
-    db.prepare("SELECT hash FROM __drizzle_migrations").all().map((r) => r.hash)
+    db
+      .prepare("SELECT hash FROM __drizzle_migrations")
+      .all()
+      .map((r) => r.hash)
   );
 
   const insertMigration = db.prepare(
@@ -264,8 +268,7 @@ function main() {
       } catch (err) {
         if (
           err.code === "SQLITE_ERROR" &&
-          (err.message.includes("already exists") ||
-            err.message.includes("duplicate column name"))
+          (err.message.includes("already exists") || err.message.includes("duplicate column name"))
         ) {
           // Object already exists — safe to skip
         } else {
@@ -288,9 +291,7 @@ function main() {
   if (applied === 0 && skipped > 0) {
     console.log(`✓ All ${skipped} migrations already stamped — nothing to do.`);
   } else {
-    console.log(
-      `✓ Repair complete: ${applied} migration(s) applied, ${skipped} already stamped.`
-    );
+    console.log(`✓ Repair complete: ${applied} migration(s) applied, ${skipped} already stamped.`);
   }
 }
 

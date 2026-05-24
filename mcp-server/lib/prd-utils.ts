@@ -47,10 +47,7 @@ interface ReadResult {
 /**
  * Update PRD file to set passes: true for a ticket.
  */
-export function updatePrdForTicket(
-  projectPath: string,
-  ticketId: string
-): UpdateResult {
+export function updatePrdForTicket(projectPath: string, ticketId: string): UpdateResult {
   const prdPath = join(projectPath, "plans", "prd.json");
 
   if (!existsSync(prdPath)) {

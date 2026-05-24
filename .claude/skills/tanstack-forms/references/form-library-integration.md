@@ -134,29 +134,35 @@ React to server changes while editing:
 
 ```typescript
 function EditTodoForm({ id }: { id: string }) {
-  const { data: serverData, dataUpdatedAt } = useQuery(todoQueries.detail(id))
+  const { data: serverData, dataUpdatedAt } = useQuery(todoQueries.detail(id));
 
-  const { reset, formState: { dirtyFields } } = useForm({
+  const {
+    reset,
+    formState: { dirtyFields },
+  } = useForm({
     defaultValues: serverData,
-  })
+  });
 
   // Track when user started editing
-  const [editStartedAt] = useState(Date.now())
+  const [editStartedAt] = useState(Date.now());
 
   // Detect server updates during editing
   useEffect(() => {
     if (dataUpdatedAt > editStartedAt && serverData) {
       // Only reset fields the user hasn't touched
-      const cleanFields = Object.keys(serverData).reduce((acc, key) => {
-        if (!dirtyFields[key as keyof typeof dirtyFields]) {
-          acc[key] = serverData[key as keyof typeof serverData]
-        }
-        return acc
-      }, {} as Partial<typeof serverData>)
+      const cleanFields = Object.keys(serverData).reduce(
+        (acc, key) => {
+          if (!dirtyFields[key as keyof typeof dirtyFields]) {
+            acc[key] = serverData[key as keyof typeof serverData];
+          }
+          return acc;
+        },
+        {} as Partial<typeof serverData>
+      );
 
-      reset((current) => ({ ...current, ...cleanFields }))
+      reset((current) => ({ ...current, ...cleanFields }));
     }
-  }, [dataUpdatedAt, serverData, dirtyFields, reset, editStartedAt])
+  }, [dataUpdatedAt, serverData, dirtyFields, reset, editStartedAt]);
 
   // ... form rendering
 }
@@ -367,9 +373,9 @@ function EditTodoForm({ todo }: { todo: Todo }) {
 
 ## Summary Table
 
-| Library | Pros | Cons | Best For |
-|---------|------|------|----------|
-| React Hook Form | Performance, small bundle | Learning curve | Complex forms |
-| Formik | Mature, well-documented | Larger bundle | Teams familiar with it |
-| TanStack Form | Type-safe, modern | Newer, less ecosystem | TypeScript-heavy projects |
-| Uncontrolled | Simple, no deps | Limited features | Very simple forms |
+| Library         | Pros                      | Cons                  | Best For                  |
+| --------------- | ------------------------- | --------------------- | ------------------------- |
+| React Hook Form | Performance, small bundle | Learning curve        | Complex forms             |
+| Formik          | Mature, well-documented   | Larger bundle         | Teams familiar with it    |
+| TanStack Form   | Type-safe, modern         | Newer, less ecosystem | TypeScript-heavy projects |
+| Uncontrolled    | Simple, no deps           | Limited features      | Very simple forms         |

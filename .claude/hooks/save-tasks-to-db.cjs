@@ -94,10 +94,10 @@ if (!ticket) {
 }
 
 // Get existing tasks to preserve history
-const existingTasks = db.prepare(
-  "SELECT id, status, status_history, created_at FROM claude_tasks WHERE ticket_id = ?"
-).all(ticketId);
-const existingTaskMap = new Map(existingTasks.map(t => [t.id, t]));
+const existingTasks = db
+  .prepare("SELECT id, status, status_history, created_at FROM claude_tasks WHERE ticket_id = ?")
+  .all(ticketId);
+const existingTaskMap = new Map(existingTasks.map((t) => [t.id, t]));
 
 // Delete existing tasks
 db.prepare("DELETE FROM claude_tasks WHERE ticket_id = ?").run(ticketId);
@@ -126,7 +126,8 @@ for (let i = 0; i < tasks.length; i++) {
   }
 
   // Add status entry if changed
-  const lastStatus = statusHistory.length > 0 ? statusHistory[statusHistory.length - 1].status : null;
+  const lastStatus =
+    statusHistory.length > 0 ? statusHistory[statusHistory.length - 1].status : null;
   if (task.status !== lastStatus) {
     statusHistory.push({ status: task.status, timestamp: now });
   }

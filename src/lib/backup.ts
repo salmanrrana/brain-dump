@@ -297,9 +297,8 @@ export function getDatabaseStats(dbPath: string): {
         count: number;
       }
     ).count;
-    const epics = (
-      db.prepare("SELECT COUNT(*) as count FROM epics").get() as { count: number }
-    ).count;
+    const epics = (db.prepare("SELECT COUNT(*) as count FROM epics").get() as { count: number })
+      .count;
     const tickets = (
       db.prepare("SELECT COUNT(*) as count FROM tickets").get() as {
         count: number;

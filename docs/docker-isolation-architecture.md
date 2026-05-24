@@ -49,24 +49,24 @@ When Ralph runs autonomously, it executes code and shell commands without human 
 
 ### Volume Mounts
 
-| Mount | Path in Container | Access | Purpose |
-|-------|-------------------|--------|---------|
-| Project directory | `/workspace` | Read/Write | Ralph needs to edit code |
-| Claude Code auth | `/home/ralph/.config/claude-code` | Read-only | API authentication |
-| Git config | `/home/ralph/.gitconfig` | Read-only | Git commits use your identity |
-| GitHub CLI config | `/home/ralph/.config/gh` | Read-only | PR creation, issue management |
-| SSH agent socket | `/ssh-agent` | Forward | Git push without copying keys |
-| SSH known_hosts | `/home/ralph/.ssh/known_hosts` | Read-only | Avoid host verification prompts |
+| Mount             | Path in Container                 | Access     | Purpose                         |
+| ----------------- | --------------------------------- | ---------- | ------------------------------- |
+| Project directory | `/workspace`                      | Read/Write | Ralph needs to edit code        |
+| Claude Code auth  | `/home/ralph/.config/claude-code` | Read-only  | API authentication              |
+| Git config        | `/home/ralph/.gitconfig`          | Read-only  | Git commits use your identity   |
+| GitHub CLI config | `/home/ralph/.config/gh`          | Read-only  | PR creation, issue management   |
+| SSH agent socket  | `/ssh-agent`                      | Forward    | Git push without copying keys   |
+| SSH known_hosts   | `/home/ralph/.ssh/known_hosts`    | Read-only  | Avoid host verification prompts |
 
 ### Resource Limits
 
-| Limit | Default | Purpose |
-|-------|---------|---------|
-| Memory | 2GB | Prevents OOM on host |
-| Memory Swap | 2GB (same as memory) | No swap, fail fast if OOM |
-| CPUs | 1.5 cores | Prevents CPU monopolization |
-| PIDs | 256 | Prevents fork bombs |
-| Stop timeout | 30s | Grace period before SIGKILL |
+| Limit        | Default              | Purpose                     |
+| ------------ | -------------------- | --------------------------- |
+| Memory       | 2GB                  | Prevents OOM on host        |
+| Memory Swap  | 2GB (same as memory) | No swap, fail fast if OOM   |
+| CPUs         | 1.5 cores            | Prevents CPU monopolization |
+| PIDs         | 256                  | Prevents fork bombs         |
+| Stop timeout | 30s                  | Grace period before SIGKILL |
 
 ### Security Options
 
@@ -105,23 +105,23 @@ When Ralph runs autonomously, it executes code and shell commands without human 
 
 ### Credentials Handling
 
-| Credential | How Accessed | Security |
-|------------|--------------|----------|
+| Credential        | How Accessed                   | Security                                 |
+| ----------------- | ------------------------------ | ---------------------------------------- |
 | Anthropic API key | Mounted config dir (read-only) | Cannot be modified or exfiltrated easily |
-| SSH keys | Agent forwarding only | Keys never enter container |
-| GitHub token | Mounted gh config (read-only) | Cannot be modified |
-| Git identity | Mounted gitconfig (read-only) | Commits attributed to you |
+| SSH keys          | Agent forwarding only          | Keys never enter container               |
+| GitHub token      | Mounted gh config (read-only)  | Cannot be modified                       |
+| Git identity      | Mounted gitconfig (read-only)  | Commits attributed to you                |
 
 ## Port Conventions
 
 When Ralph starts a dev server, it should use these port ranges:
 
-| Range | Purpose | Examples |
-|-------|---------|----------|
+| Range     | Purpose              | Examples                        |
+| --------- | -------------------- | ------------------------------- |
 | 8100-8110 | Frontend dev servers | Vite, Next.js, Create React App |
-| 8200-8210 | Backend servers | Express, Fastify, NestJS |
-| 8300-8310 | Documentation | Storybook, Docusaurus |
-| 8400-8410 | Databases | Exposed for debugging only |
+| 8200-8210 | Backend servers      | Express, Fastify, NestJS        |
+| 8300-8310 | Documentation        | Storybook, Docusaurus           |
+| 8400-8410 | Databases            | Exposed for debugging only      |
 
 Ralph writes running services to `.ralph-services.json` in the project root for the Brain Dump UI to discover.
 
@@ -144,14 +144,14 @@ Progress is logged to `plans/progress.txt` so the next session can continue wher
 
 ## Comparison: Sandbox vs Native Mode
 
-| Feature | Sandbox Mode | Native Mode |
-|---------|--------------|-------------|
-| Filesystem access | Project only | Full system |
-| Resource limits | Enforced | None |
-| SSH keys | Agent forwarding | Direct access |
-| Dev servers | Mapped ports | Any port |
-| Performance | ~5% overhead | Native |
-| Setup required | Docker installed | None |
+| Feature           | Sandbox Mode     | Native Mode   |
+| ----------------- | ---------------- | ------------- |
+| Filesystem access | Project only     | Full system   |
+| Resource limits   | Enforced         | None          |
+| SSH keys          | Agent forwarding | Direct access |
+| Dev servers       | Mapped ports     | Any port      |
+| Performance       | ~5% overhead     | Native        |
+| Setup required    | Docker installed | None          |
 
 ## Troubleshooting
 
@@ -160,6 +160,7 @@ See [docker-git-push.md](./docker-git-push.md) for SSH/git issues in sandbox mod
 Common issues:
 
 1. **"Permission denied" on git push** - SSH agent not running. Start with:
+
    ```bash
    eval $(ssh-agent) && ssh-add
    ```

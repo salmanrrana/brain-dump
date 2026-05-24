@@ -146,8 +146,7 @@ export default async (context: any) => {
      */
     "tool.execute.after": async (input: any, output: any) => {
       const toolName = input.tool || "";
-      const action =
-        input.params?.action || input.input?.action || input.arguments?.action || "";
+      const action = input.params?.action || input.input?.action || input.arguments?.action || "";
 
       // Support both consolidated and legacy review tool naming.
       const isConsolidatedCheckComplete =

@@ -106,7 +106,7 @@ export function verifyBackup(backupPath: string): boolean {
     const testDb = new Database(backupPath, { readonly: true });
     const result = testDb.pragma("integrity_check") as Array<{ integrity_check: string }>;
     testDb.close();
-    return result.length === 1 && (result[0]?.integrity_check === "ok");
+    return result.length === 1 && result[0]?.integrity_check === "ok";
   } catch {
     return false;
   }
@@ -141,7 +141,11 @@ export function createBackupIfNeeded(sourcePath: string): BackupResult {
       } catch {
         /* ignore */
       }
-      return { success: false, created: false, message: "Backup created but failed integrity check" };
+      return {
+        success: false,
+        created: false,
+        message: "Backup created but failed integrity check",
+      };
     }
 
     updateLastBackupMarker();

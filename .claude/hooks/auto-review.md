@@ -20,6 +20,7 @@ This hook automatically triggers code review agents after completing a coding ta
 This hook is configured in `.claude/settings.json` or `.claude/settings.local.json`.
 
 To enable:
+
 ```json
 {
   "hooks": {
@@ -44,16 +45,19 @@ To disable, remove the Stop hook from settings or set to empty array.
 The review pipeline runs these agents in sequence:
 
 ### 1. Code Reviewer (pr-review-toolkit:code-reviewer)
+
 - Reviews code against CLAUDE.md guidelines
 - Checks for style violations and best practices
 - Only reports high-confidence issues (confidence >= 80)
 
 ### 2. Silent Failure Hunter (pr-review-toolkit:silent-failure-hunter)
+
 - Identifies silent failures and error handling issues
 - Checks catch blocks for specificity
 - Validates error messages are user-actionable
 
 ### 3. Code Simplifier (code-simplifier:code-simplifier)
+
 - Simplifies and refines code for clarity
 - Removes redundancy and improves readability
 - Preserves all functionality

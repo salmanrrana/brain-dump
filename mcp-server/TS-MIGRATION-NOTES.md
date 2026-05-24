@@ -1,6 +1,7 @@
 # TypeScript Migration Progress Notes
 
 ## Current Status
+
 - **Lib Files**: 15/15 converted ✓
 - **Tool Files**: 3/16 converted (projects, comments, epics)
 - **Entry Point**: index.js → index.ts (pending)
@@ -13,6 +14,7 @@
 Each tool file follows this consistent pattern:
 
 #### 1. Imports
+
 ```typescript
 import { z } from "zod";
 import { randomUUID } from "crypto";
@@ -23,24 +25,28 @@ import type { DbProject, DbTicket, DbEpic, DbTicketComment } from "../types.js";
 ```
 
 #### 2. Function Signature
+
 ```typescript
 export function registerXxxTools(server: McpServer, db: Database.Database): void {
 ```
 
 #### 3. Tool Handler Async Functions
+
 ```typescript
 async ({ param1, param2 }: { param1: string; param2?: string }) => {
   // ... handler code
-}
+};
 ```
 
 #### 4. Database Query Type Assertions
+
 ```typescript
 const item = db.prepare("SELECT * FROM table WHERE id = ?").get(id) as DbType | undefined;
 const items = db.prepare("SELECT * FROM table").all() as DbType[];
 ```
 
 #### 5. Error Handling
+
 ```typescript
 } catch (error) {
   const errorMsg = error instanceof Error ? error.message : String(error);
@@ -49,11 +55,13 @@ const items = db.prepare("SELECT * FROM table").all() as DbType[];
 ```
 
 ## Converted Files (3/16)
+
 1. ✅ projects.ts - Uses DbProject type
 2. ✅ comments.ts - Uses DbTicket, DbTicketComment types
 3. ✅ epics.ts - Uses DbProject, DbEpic types
 
 ## Remaining Files (13)
+
 - files.ts (148 lines)
 - events.ts (234 lines)
 - health.ts (265 lines)
@@ -78,6 +86,7 @@ const items = db.prepare("SELECT * FROM table").all() as DbType[];
    - Error handling updates
 
 3. Run type-checking after each file or batch:
+
    ```bash
    cd mcp-server && pnpm type-check
    ```
@@ -87,6 +96,7 @@ const items = db.prepare("SELECT * FROM table").all() as DbType[];
 ## Key Type Mappings
 
 From types.ts:
+
 - `DbProject` - Projects with id, name, path, color
 - `DbTicket` - Tickets with full workflow state
 - `DbEpic` - Epics for grouping tickets
@@ -96,6 +106,7 @@ From types.ts:
 ## Testing
 
 All MCP tools must work identically after conversion. Key testing:
+
 1. Tool registration in index.ts
 2. Tool invocation from Claude Code
 3. Database operations still function

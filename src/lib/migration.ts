@@ -1,4 +1,13 @@
-import { existsSync, mkdirSync, readdirSync, statSync, copyFileSync, writeFileSync, readFileSync, constants } from "fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  statSync,
+  copyFileSync,
+  writeFileSync,
+  readFileSync,
+  constants,
+} from "fs";
 import { join } from "path";
 import { getLegacyDir, getDataDir, getStateDir, ensureDirectoriesSync } from "./xdg";
 import Database from "better-sqlite3";
@@ -150,11 +159,15 @@ function copyAttachments(legacyDir: string, xdgDataDir: string): number {
 
 function createMigrationMarker(legacyDir: string): void {
   const markerPath = join(legacyDir, MIGRATED_MARKER);
-  const content = JSON.stringify({
-    migratedAt: getTimestamp(),
-    migratedTo: getDataDir(),
-    note: "Data has been migrated to XDG directories. This directory is preserved for safety. You may delete it after verifying the migration.",
-  }, null, 2);
+  const content = JSON.stringify(
+    {
+      migratedAt: getTimestamp(),
+      migratedTo: getDataDir(),
+      note: "Data has been migrated to XDG directories. This directory is preserved for safety. You may delete it after verifying the migration.",
+    },
+    null,
+    2
+  );
 
   writeFileSync(markerPath, content, { mode: 0o600 });
 }
@@ -190,7 +203,7 @@ export async function migrateFromLegacy(): Promise<MigrationResult> {
     logMigration("XDG location already has data, skipping migration");
     console.warn(
       "[Migration] Both legacy (~/.brain-dump) and XDG (~/.local/share/brain-dump) locations have data. " +
-      "Using XDG location. You may want to manually merge or remove the legacy data."
+        "Using XDG location. You may want to manually merge or remove the legacy data."
     );
     return {
       success: true,
@@ -291,7 +304,7 @@ export function migrateFromLegacySync(): MigrationResult {
   if (hasXdgData()) {
     console.warn(
       "[Migration] Both legacy (~/.brain-dump) and XDG (~/.local/share/brain-dump) locations have data. " +
-      "Using XDG location."
+        "Using XDG location."
     );
     return {
       success: true,

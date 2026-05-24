@@ -204,7 +204,14 @@ export function isValidAttachmentPriority(priority: unknown): priority is Attach
 /**
  * Valid uploader types.
  */
-export const VALID_UPLOADERS: readonly Uploader[] = ["human", "claude", "ralph", "opencode", "cursor", "windsurf"];
+export const VALID_UPLOADERS: readonly Uploader[] = [
+  "human",
+  "claude",
+  "ralph",
+  "opencode",
+  "cursor",
+  "windsurf",
+];
 
 /**
  * Check if a value is a valid attachment uploader.

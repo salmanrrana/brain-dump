@@ -22,10 +22,7 @@
 
       // Arguments passed to the command
       // Update the path to your brain-dump installation
-      "args": [
-        "tsx",
-        "/home/xtra/code/personal_projects/brain-dump/mcp-server/index.ts"
-      ],
+      "args": ["tsx", "/home/xtra/code/personal_projects/brain-dump/mcp-server/index.ts"]
 
       // Environment variables (optional)
       // Uncomment if you need to set custom environment

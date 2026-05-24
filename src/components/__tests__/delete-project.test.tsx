@@ -42,9 +42,7 @@ function createTestWrapper() {
   });
 
   return function TestWrapper({ children }: { children: React.ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
+    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
   };
 }
 
@@ -102,7 +100,9 @@ describe("DeleteProjectModal", () => {
 
     it("should keep delete button disabled when wrong name is typed", async () => {
       const user = userEvent.setup();
-      const mockPreview = createMockPreview({ project: { id: "1", name: "Brain Dump", path: "/" } });
+      const mockPreview = createMockPreview({
+        project: { id: "1", name: "Brain Dump", path: "/" },
+      });
       mockDeleteProject.mockResolvedValue(mockPreview);
 
       render(
@@ -128,7 +128,9 @@ describe("DeleteProjectModal", () => {
 
     it("should enable delete button when correct name is typed", async () => {
       const user = userEvent.setup();
-      const mockPreview = createMockPreview({ project: { id: "1", name: "Brain Dump", path: "/" } });
+      const mockPreview = createMockPreview({
+        project: { id: "1", name: "Brain Dump", path: "/" },
+      });
       mockDeleteProject.mockResolvedValue(mockPreview);
 
       render(
@@ -154,7 +156,9 @@ describe("DeleteProjectModal", () => {
 
     it("should be case-sensitive for name confirmation", async () => {
       const user = userEvent.setup();
-      const mockPreview = createMockPreview({ project: { id: "1", name: "Brain Dump", path: "/" } });
+      const mockPreview = createMockPreview({
+        project: { id: "1", name: "Brain Dump", path: "/" },
+      });
       mockDeleteProject.mockResolvedValue(mockPreview);
 
       render(
@@ -267,9 +271,7 @@ describe("DeleteProjectModal", () => {
 
       // Wait for preview and verify empty state message
       await waitFor(() => {
-        expect(
-          screen.getByText(/this project has no epics or tickets/i)
-        ).toBeInTheDocument();
+        expect(screen.getByText(/this project has no epics or tickets/i)).toBeInTheDocument();
       });
     });
   });
@@ -277,7 +279,9 @@ describe("DeleteProjectModal", () => {
   describe("Deletion flow", () => {
     it("should call onConfirm when delete button is clicked", async () => {
       const user = userEvent.setup();
-      const mockPreview = createMockPreview({ project: { id: "1", name: "Test Project", path: "/" } });
+      const mockPreview = createMockPreview({
+        project: { id: "1", name: "Test Project", path: "/" },
+      });
       mockDeleteProject.mockResolvedValue(mockPreview);
       const onConfirm = vi.fn();
 
@@ -312,7 +316,9 @@ describe("DeleteProjectModal", () => {
 
     it("should allow confirmation via Enter key after typing name", async () => {
       const user = userEvent.setup();
-      const mockPreview = createMockPreview({ project: { id: "1", name: "Test Project", path: "/" } });
+      const mockPreview = createMockPreview({
+        project: { id: "1", name: "Test Project", path: "/" },
+      });
       mockDeleteProject.mockResolvedValue(mockPreview);
       const onConfirm = vi.fn();
 
@@ -390,7 +396,9 @@ describe("DeleteProjectModal", () => {
 
     it("should allow retry after error (button stays enabled)", async () => {
       const user = userEvent.setup();
-      const mockPreview = createMockPreview({ project: { id: "1", name: "Test Project", path: "/" } });
+      const mockPreview = createMockPreview({
+        project: { id: "1", name: "Test Project", path: "/" },
+      });
       mockDeleteProject.mockResolvedValue(mockPreview);
       const onConfirm = vi.fn();
 

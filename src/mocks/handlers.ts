@@ -13,10 +13,7 @@
  */
 
 import { http, HttpResponse } from "msw";
-import {
-  createMockProject,
-  createMockProjectWithData,
-} from "./factories";
+import { createMockProject, createMockProjectWithData } from "./factories";
 import type { Project, Epic, Ticket, TicketComment } from "../lib/schema";
 
 // In-memory data store for tests
@@ -125,9 +122,7 @@ export const handlers = [
     const projectEpics = mockDataStore.epics.filter((e) => e.projectId === projectId);
     const projectTickets = mockDataStore.tickets.filter((t) => t.projectId === projectId);
     const ticketIds = projectTickets.map((t) => t.id);
-    const projectComments = mockDataStore.comments.filter((c) =>
-      ticketIds.includes(c.ticketId)
-    );
+    const projectComments = mockDataStore.comments.filter((c) => ticketIds.includes(c.ticketId));
 
     if (!confirm) {
       // Dry-run: return preview
@@ -150,9 +145,7 @@ export const handlers = [
     mockDataStore.projects = mockDataStore.projects.filter((p) => p.id !== projectId);
     mockDataStore.epics = mockDataStore.epics.filter((e) => e.projectId !== projectId);
     mockDataStore.tickets = mockDataStore.tickets.filter((t) => t.projectId !== projectId);
-    mockDataStore.comments = mockDataStore.comments.filter(
-      (c) => !ticketIds.includes(c.ticketId)
-    );
+    mockDataStore.comments = mockDataStore.comments.filter((c) => !ticketIds.includes(c.ticketId));
 
     return HttpResponse.json({
       deleted: true,
@@ -169,9 +162,7 @@ export const handlers = [
 
   // List epics for a project
   http.get("*/api/projects/:projectId/epics", ({ params }) => {
-    const projectEpics = mockDataStore.epics.filter(
-      (e) => e.projectId === params.projectId
-    );
+    const projectEpics = mockDataStore.epics.filter((e) => e.projectId === params.projectId);
     return HttpResponse.json(projectEpics);
   }),
 
@@ -296,9 +287,7 @@ export const handlers = [
 
   // List comments for a ticket
   http.get("*/api/tickets/:ticketId/comments", ({ params }) => {
-    const ticketComments = mockDataStore.comments.filter(
-      (c) => c.ticketId === params.ticketId
-    );
+    const ticketComments = mockDataStore.comments.filter((c) => c.ticketId === params.ticketId);
     return HttpResponse.json(ticketComments);
   }),
 ];

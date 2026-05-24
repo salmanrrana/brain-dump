@@ -33,7 +33,11 @@ describe("buildCodexAppLaunchPlan", () => {
   });
 
   it("uses codex command fallback on non-macOS platforms", () => {
-    const plan = buildCodexAppLaunchPlan("/workspace/repo", "/workspace/repo/.brain-dump-context.md", "linux");
+    const plan = buildCodexAppLaunchPlan(
+      "/workspace/repo",
+      "/workspace/repo/.brain-dump-context.md",
+      "linux"
+    );
 
     expect(plan.projectCommands).toEqual(['codex "/workspace/repo"']);
     expect(plan.contextCommands).toEqual(['codex "/workspace/repo/.brain-dump-context.md"']);

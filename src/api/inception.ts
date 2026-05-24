@@ -282,9 +282,7 @@ Ready to start development with Claude or Ralph!
 
 // Launch Project Inception skill
 export const launchProjectInception = createServerFn({ method: "POST" })
-  .inputValidator(
-    (data: { preferredTerminal?: string | null }) => data
-  )
+  .inputValidator((data: { preferredTerminal?: string | null }) => data)
   .handler(async ({ data }): Promise<LaunchInceptionResult> => {
     const { preferredTerminal } = data;
     const { exec } = await import("child_process");
@@ -294,11 +292,7 @@ export const launchProjectInception = createServerFn({ method: "POST" })
     const { randomUUID } = await import("crypto");
 
     // Get settings for default projects directory
-    const currentSettings = db
-      .select()
-      .from(settings)
-      .where(eq(settings.id, "default"))
-      .get();
+    const currentSettings = db.select().from(settings).where(eq(settings.id, "default")).get();
 
     const defaultProjectsDir = currentSettings?.defaultProjectsDirectory ?? null;
 
@@ -313,7 +307,9 @@ export const launchProjectInception = createServerFn({ method: "POST" })
       } else {
         // Preferred terminal not available - add warning
         const reason = result.error || "not installed";
-        warnings.push(`Your preferred terminal "${preferredTerminal}" is not available (${reason}). Using auto-detected terminal instead.`);
+        warnings.push(
+          `Your preferred terminal "${preferredTerminal}" is not available (${reason}). Using auto-detected terminal instead.`
+        );
       }
     }
 
@@ -426,7 +422,9 @@ export const launchSpecBreakdown = createServerFn({ method: "POST" })
       } else {
         // Preferred terminal not available - add warning
         const reason = result.error || "not installed";
-        warnings.push(`Your preferred terminal "${preferredTerminal}" is not available (${reason}). Using auto-detected terminal instead.`);
+        warnings.push(
+          `Your preferred terminal "${preferredTerminal}" is not available (${reason}). Using auto-detected terminal instead.`
+        );
       }
     }
 

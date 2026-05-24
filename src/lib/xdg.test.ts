@@ -291,7 +291,13 @@ describe("Cross-Platform Path Utilities", () => {
 
       it("should return database path in data directory (macOS)", () => {
         _setPlatformOverride("darwin");
-        const expected = join(home, "Library", "Application Support", "brain-dump", "brain-dump.db");
+        const expected = join(
+          home,
+          "Library",
+          "Application Support",
+          "brain-dump",
+          "brain-dump.db"
+        );
         expect(getDatabasePath()).toBe(expected);
       });
 

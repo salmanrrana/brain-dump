@@ -123,9 +123,7 @@ describe("MSW Setup", () => {
       // Override the default project handler for this test
       server.use(
         http.get("*/api/projects", () => {
-          return HttpResponse.json([
-            { id: "override-1", name: "Override Project" },
-          ]);
+          return HttpResponse.json([{ id: "override-1", name: "Override Project" }]);
         })
       );
 
@@ -141,10 +139,7 @@ describe("MSW Setup", () => {
     it("should handle error responses", async () => {
       server.use(
         http.get("https://test-api.example.com/error", () => {
-          return HttpResponse.json(
-            { error: "Something went wrong" },
-            { status: 500 }
-          );
+          return HttpResponse.json({ error: "Something went wrong" }, { status: 500 });
         })
       );
 
@@ -162,9 +157,7 @@ describe("MSW Setup", () => {
         })
       );
 
-      await expect(
-        fetch("https://test-api.example.com/network-error")
-      ).rejects.toThrow();
+      await expect(fetch("https://test-api.example.com/network-error")).rejects.toThrow();
     });
   });
 });

@@ -45,9 +45,7 @@ function createTestWrapper() {
 /**
  * Create mock preview data for delete ticket
  */
-function createMockTicketPreview(
-  overrides: Partial<DeletePreview> = {}
-): DeletePreview {
+function createMockTicketPreview(overrides: Partial<DeletePreview> = {}): DeletePreview {
   return {
     commentCount: 3,
     ...overrides,
@@ -546,9 +544,7 @@ describe("DeleteConfirmationModal - Ticket Deletion", () => {
       expect(screen.getByText(/delete ticket\?/i)).toBeInTheDocument();
 
       // Button should say "Delete Ticket"
-      expect(
-        screen.getByRole("button", { name: /delete ticket/i })
-      ).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /delete ticket/i })).toBeInTheDocument();
     });
   });
 });

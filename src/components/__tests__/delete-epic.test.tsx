@@ -49,9 +49,7 @@ function createTestWrapper() {
 /**
  * Create mock preview data for delete epic
  */
-function createMockEpicPreview(
-  overrides: Partial<DeletePreview> = {}
-): DeletePreview {
+function createMockEpicPreview(overrides: Partial<DeletePreview> = {}): DeletePreview {
   return {
     ticketCount: 5,
     ...overrides,
@@ -603,9 +601,7 @@ describe("DeleteConfirmationModal - Epic Deletion", () => {
       expect(screen.getByText(/delete epic\?/i)).toBeInTheDocument();
 
       // Button should say "Delete Epic"
-      expect(
-        screen.getByRole("button", { name: /delete epic/i })
-      ).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /delete epic/i })).toBeInTheDocument();
     });
   });
 });

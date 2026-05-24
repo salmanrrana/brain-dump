@@ -62,15 +62,11 @@ export function createConversationSession(
     `
     ).run(id, projectId, ticketId, environment, now, now);
 
-    log.info(
-      `Auto-created conversation session ${id} for ticket ${ticketId}`
-    );
+    log.info(`Auto-created conversation session ${id} for ticket ${ticketId}`);
     return { success: true, sessionId: id };
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : String(err);
-    log.error(
-      `Failed to create conversation session for ticket ${ticketId}: ${errorMsg}`
-    );
+    log.error(`Failed to create conversation session for ticket ${ticketId}: ${errorMsg}`);
     return { success: false, error: errorMsg };
   }
 }
@@ -102,16 +98,17 @@ export function endConversationSessions(
 
     // Count total messages across sessions
     const sessionIds = activeSessions.map((s) => s.id);
-    const messageCount = (
-      db
-        .prepare(
-          `
+    const messageCount =
+      (
+        db
+          .prepare(
+            `
       SELECT COUNT(*) as count FROM conversation_messages
       WHERE session_id IN (${sessionIds.map(() => "?").join(",")})
     `
-        )
-        .get(...sessionIds) as CountResult | undefined
-    )?.count || 0;
+          )
+          .get(...sessionIds) as CountResult | undefined
+      )?.count || 0;
 
     // End all active sessions
     db.prepare(
@@ -132,9 +129,7 @@ export function endConversationSessions(
     };
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : String(err);
-    log.error(
-      `Failed to end conversation sessions for ticket ${ticketId}: ${errorMsg}`
-    );
+    log.error(`Failed to end conversation sessions for ticket ${ticketId}: ${errorMsg}`);
     return { success: false, sessionsEnded: 0, error: errorMsg };
   }
 }

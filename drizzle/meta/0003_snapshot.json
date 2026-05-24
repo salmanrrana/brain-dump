@@ -54,9 +54,7 @@
       "indexes": {
         "idx_epics_project": {
           "name": "idx_epics_project",
-          "columns": [
-            "project_id"
-          ],
+          "columns": ["project_id"],
           "isUnique": false
         }
       },
@@ -65,12 +63,8 @@
           "name": "epics_project_id_projects_id_fk",
           "tableFrom": "epics",
           "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -130,9 +124,7 @@
       "indexes": {
         "projects_path_unique": {
           "name": "projects_path_unique",
-          "columns": [
-            "path"
-          ],
+          "columns": ["path"],
           "isUnique": true
         }
       },
@@ -272,9 +264,7 @@
       "indexes": {
         "idx_comments_ticket": {
           "name": "idx_comments_ticket",
-          "columns": [
-            "ticket_id"
-          ],
+          "columns": ["ticket_id"],
           "isUnique": false
         }
       },
@@ -283,12 +273,8 @@
           "name": "ticket_comments_ticket_id_tickets_id_fk",
           "tableFrom": "ticket_comments",
           "tableTo": "tickets",
-          "columnsFrom": [
-            "ticket_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["ticket_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -427,23 +413,17 @@
       "indexes": {
         "idx_tickets_project": {
           "name": "idx_tickets_project",
-          "columns": [
-            "project_id"
-          ],
+          "columns": ["project_id"],
           "isUnique": false
         },
         "idx_tickets_epic": {
           "name": "idx_tickets_epic",
-          "columns": [
-            "epic_id"
-          ],
+          "columns": ["epic_id"],
           "isUnique": false
         },
         "idx_tickets_status": {
           "name": "idx_tickets_status",
-          "columns": [
-            "status"
-          ],
+          "columns": ["status"],
           "isUnique": false
         }
       },
@@ -452,12 +432,8 @@
           "name": "tickets_project_id_projects_id_fk",
           "tableFrom": "tickets",
           "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -465,12 +441,8 @@
           "name": "tickets_epic_id_epics_id_fk",
           "tableFrom": "tickets",
           "tableTo": "epics",
-          "columnsFrom": [
-            "epic_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["epic_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }

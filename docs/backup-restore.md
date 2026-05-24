@@ -23,6 +23,7 @@ Brain Dump automatically creates a backup once per day on first use:
 ### Backup Method
 
 Backups use SQLite's `VACUUM INTO` command, which:
+
 - Creates an atomic, consistent snapshot
 - Defragments the database for smaller file size
 - Works safely even with active connections
@@ -48,6 +49,7 @@ pnpm brain-dump backup --list
 ```
 
 Output:
+
 ```
 Available backups:
   brain-dump-2026-01-12.db  15.2 MB  (today)
@@ -81,6 +83,7 @@ pnpm brain-dump restore --latest
 When you run a restore command:
 
 1. **Confirmation prompt** - Shows current vs backup statistics
+
    ```
    Current database:
      Projects: 5, Epics: 12, Tickets: 150
@@ -102,6 +105,7 @@ When you run a restore command:
 ### After Restoring
 
 After a successful restore:
+
 - Restart Brain Dump (the web UI) to use the new database
 - MCP server will automatically use the restored database
 - CLI commands will use the restored database immediately
@@ -122,6 +126,7 @@ The `get_database_health` MCP tool provides backup status:
 ```
 
 Use this in Claude to check backup status:
+
 ```
 "Check Brain Dump database health"
 ```
@@ -131,6 +136,7 @@ Use this in Claude to check backup status:
 ### Before Major Changes
 
 Create a manual backup before:
+
 - Major refactoring or migrations
 - Bulk ticket operations
 - Upgrading Brain Dump
@@ -194,6 +200,7 @@ ls -la ~/.local/state/brain-dump/backups/pre-restore-*.db
 ```
 
 Restore it manually:
+
 ```bash
 cp ~/.local/state/brain-dump/backups/pre-restore-2026-01-12T10-30-00.db \
    ~/.local/share/brain-dump/brain-dump.db

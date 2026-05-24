@@ -13,6 +13,7 @@ Install Docker Desktop or Docker Engine:
 - **Windows**: [Docker Desktop for Windows](https://docs.docker.com/desktop/install/windows-install/)
 
 Verify Docker is running:
+
 ```bash
 docker info
 ```
@@ -31,6 +32,7 @@ ssh-add -l
 ```
 
 **Tip**: Add these lines to your `~/.bashrc` or `~/.zshrc` to start the agent automatically:
+
 ```bash
 if [ -z "$SSH_AUTH_SOCK" ]; then
     eval $(ssh-agent) > /dev/null
@@ -41,6 +43,7 @@ fi
 ### 3. Claude Code Authenticated
 
 Make sure you're logged into Claude Code:
+
 ```bash
 claude --version  # Should show version without error
 ```
@@ -53,6 +56,7 @@ claude --version  # Should show version without error
 4. Click **"Build Sandbox Image"** (first time only, takes ~1 minute)
 
 The settings panel will show:
+
 - ✓ Docker available
 - ✓ Docker running
 - ✓ Sandbox image built
@@ -76,11 +80,11 @@ The settings panel will show:
 
 When Ralph starts a dev server, it uses mapped port ranges:
 
-| Your Dev Server | Access URL |
-|-----------------|------------|
+| Your Dev Server          | Access URL            |
+| ------------------------ | --------------------- |
 | Frontend (Vite, Next.js) | http://localhost:8100 |
-| Backend (Express, etc.) | http://localhost:8200 |
-| Storybook | http://localhost:8300 |
+| Backend (Express, etc.)  | http://localhost:8200 |
+| Storybook                | http://localhost:8300 |
 
 ### Checking Running Services
 
@@ -97,6 +101,7 @@ Services are discovered from `.ralph-services.json` in your project root.
 ### Committing Changes
 
 Ralph commits changes automatically with messages like:
+
 ```
 feat(ticket-id): description of changes
 
@@ -106,6 +111,7 @@ Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 ### Pushing to Remote
 
 If SSH agent is forwarded correctly, Ralph can push:
+
 ```bash
 # This works because SSH_AUTH_SOCK is forwarded
 git push origin feature/ticket-id
@@ -114,6 +120,7 @@ git push origin feature/ticket-id
 ### Creating Pull Requests
 
 Ralph uses GitHub CLI (gh) to create PRs:
+
 ```bash
 gh pr create --title "..." --body "..."
 ```
@@ -127,6 +134,7 @@ Your `~/.config/gh` is mounted read-only so gh auth works.
 Sessions have a default 1-hour timeout. Configure in settings.
 
 When timeout is reached:
+
 1. Container stops gracefully (30s grace period)
 2. Progress is logged to `plans/progress.txt`
 3. You can restart Ralph to continue
@@ -148,6 +156,7 @@ Close the terminal window or press `Ctrl+C` to stop.
 **Symptom**: "Permission denied (publickey)" when pushing
 
 **Fix**:
+
 ```bash
 # On host machine, start SSH agent
 eval $(ssh-agent)
@@ -167,6 +176,7 @@ Then restart Ralph.
 **Symptom**: "Address already in use" when starting dev server
 
 **Fix**:
+
 ```bash
 # Find what's using the port
 lsof -i :8100
@@ -182,6 +192,7 @@ Or use a different port from the allocated range (8100-8110).
 **Symptom**: Container crashes or processes are killed
 
 **Fix**:
+
 1. Open Settings in Brain Dump
 2. Increase memory limit (requires editing docker run command currently)
 3. Or reduce parallel processes in your build
@@ -191,6 +202,7 @@ Or use a different port from the allocated range (8100-8110).
 **Symptom**: "Failed to build sandbox image"
 
 **Fix**:
+
 ```bash
 # Check Docker is running
 docker info
@@ -205,8 +217,10 @@ docker build -t brain-dump-ralph-sandbox:latest -f docker/ralph-sandbox.Dockerfi
 **Symptom**: localhost:8100 shows nothing
 
 **Fixes**:
+
 1. Check Ralph actually started the server (look at terminal output)
 2. Make sure server binds to `0.0.0.0`, not `127.0.0.1`:
+
    ```bash
    # Wrong - only accessible inside container
    npm run dev  # Usually binds to 127.0.0.1
@@ -214,6 +228,7 @@ docker build -t brain-dump-ralph-sandbox:latest -f docker/ralph-sandbox.Dockerfi
    # Right - accessible from host
    npm run dev -- --host 0.0.0.0
    ```
+
 3. Check `.ralph-services.json` was created with the correct port
 
 ### Host Key Verification Failed
@@ -221,6 +236,7 @@ docker build -t brain-dump-ralph-sandbox:latest -f docker/ralph-sandbox.Dockerfi
 **Symptom**: "Host key verification failed" on git operations
 
 **Fix**: The known_hosts file should be mounted. If not:
+
 ```bash
 # On host, add GitHub's key
 ssh-keyscan github.com >> ~/.ssh/known_hosts
@@ -233,6 +249,7 @@ Then restart Ralph.
 ### Watching Ralph Work
 
 The terminal shows everything Ralph does. Watch for:
+
 - "Starting iteration X of Y"
 - File edits and test runs
 - Commit messages
@@ -241,6 +258,7 @@ The terminal shows everything Ralph does. Watch for:
 ### Continuing Interrupted Work
 
 If Ralph times out or crashes:
+
 1. Ralph logs progress to `plans/progress.txt`
 2. Just restart Ralph - it reads progress.txt and continues
 3. Completed tickets are tracked in `plans/prd.json`
@@ -248,6 +266,7 @@ If Ralph times out or crashes:
 ### Cleaning Up
 
 Containers are auto-removed (`--rm` flag). If something gets stuck:
+
 ```bash
 # List all containers
 docker ps -a

@@ -80,14 +80,14 @@ Add invariant checks to context hooks for proper type narrowing:
 
 ```typescript
 function useUser() {
-  const context = useContext(UserContext)
+  const context = useContext(UserContext);
 
   // This throw enables TypeScript to narrow the type
   if (!context) {
-    throw new Error('useUser must be used within UserProvider')
+    throw new Error("useUser must be used within UserProvider");
   }
 
-  return context // TypeScript knows context is UserContextValue
+  return context; // TypeScript knows context is UserContextValue
 }
 ```
 
@@ -148,17 +148,17 @@ Important: Context isn't "state syncing." The query remains the authoritative so
 ```typescript
 // WRONG: Duplicating state
 function UserProvider({ children }) {
-  const { data } = useQuery(userQueries.current())
-  const [user, setUser] = useState(data) // Don't do this!
+  const { data } = useQuery(userQueries.current());
+  const [user, setUser] = useState(data); // Don't do this!
 
   useEffect(() => {
-    setUser(data) // Syncing state = bugs
-  }, [data])
+    setUser(data); // Syncing state = bugs
+  }, [data]);
 }
 
 // CORRECT: Query is the source of truth
 function UserProvider({ children }) {
-  const { data: user } = useQuery(userQueries.current())
+  const { data: user } = useQuery(userQueries.current());
   // Pass data directly, don't copy to separate state
 }
 ```
@@ -228,8 +228,8 @@ function OrgSettings() {
 
 ## Summary
 
-| Approach | Best For |
-|----------|----------|
-| Direct useQuery | Optional data, localized fetching |
+| Approach           | Best For                                     |
+| ------------------ | -------------------------------------------- |
+| Direct useQuery    | Optional data, localized fetching            |
 | Context + useQuery | Required data, many consumers, explicit deps |
-| useSuspenseQuery | Required data, simpler than context |
+| useSuspenseQuery   | Required data, simpler than context          |

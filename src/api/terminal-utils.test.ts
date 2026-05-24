@@ -192,21 +192,21 @@ describe("terminal-utils", () => {
 
     describe("security", () => {
       it("should throw error for non-allowed terminal", () => {
-        expect(() =>
-          buildTerminalCommand("malicious-terminal", testPath, testScript)
-        ).toThrow('Terminal "malicious-terminal" is not allowed');
+        expect(() => buildTerminalCommand("malicious-terminal", testPath, testScript)).toThrow(
+          'Terminal "malicious-terminal" is not allowed'
+        );
       });
 
       it("should throw error for empty terminal name", () => {
-        expect(() =>
-          buildTerminalCommand("", testPath, testScript)
-        ).toThrow('Terminal "" is not allowed');
+        expect(() => buildTerminalCommand("", testPath, testScript)).toThrow(
+          'Terminal "" is not allowed'
+        );
       });
 
       it("should throw error for command injection attempt", () => {
-        expect(() =>
-          buildTerminalCommand("; rm -rf /", testPath, testScript)
-        ).toThrow('Terminal "; rm -rf /" is not allowed');
+        expect(() => buildTerminalCommand("; rm -rf /", testPath, testScript)).toThrow(
+          'Terminal "; rm -rf /" is not allowed'
+        );
       });
     });
   });

@@ -23,20 +23,7 @@
     "documentationChanges": false
   },
   "filePatterns": {
-    "include": [
-      "**/*.ts",
-      "**/*.tsx",
-      "**/*.js",
-      "**/*.jsx",
-      "**/*.py",
-      "**/*.go",
-      "**/*.rs"
-    ],
-    "exclude": [
-      "**/node_modules/**",
-      "**/dist/**",
-      "**/build/**",
-      "**/*.d.ts"
-    ]
+    "include": ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx", "**/*.py", "**/*.go", "**/*.rs"],
+    "exclude": ["**/node_modules/**", "**/dist/**", "**/build/**", "**/*.d.ts"]
   }
 }

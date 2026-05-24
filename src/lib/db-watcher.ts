@@ -60,22 +60,16 @@ export function checkDatabaseFiles(dbPath: string): string | null {
   return null;
 }
 
-function handlePotentialDeletion(
-  filename: string | null,
-  dbPath: string
-): void {
+function handlePotentialDeletion(filename: string | null, dbPath: string): void {
   if (!filename) return;
 
   const dbBasename = basename(dbPath);
   const isDbFile =
-    filename === dbBasename ||
-    filename === `${dbBasename}-wal` ||
-    filename === `${dbBasename}-shm`;
+    filename === dbBasename || filename === `${dbBasename}-wal` || filename === `${dbBasename}-shm`;
 
   if (!isDbFile) return;
 
-  const filePath =
-    filename === dbBasename ? dbPath : join(dirname(dbPath), filename);
+  const filePath = filename === dbBasename ? dbPath : join(dirname(dbPath), filename);
 
   if (!existsSync(filePath)) {
     if (!state.deletionDetected) {
@@ -94,10 +88,7 @@ function handlePotentialDeletion(
   }
 }
 
-export function startWatching(
-  dbPath: string,
-  onDeletion?: DeletionCallback
-): boolean {
+export function startWatching(dbPath: string, onDeletion?: DeletionCallback): boolean {
   if (state.isWatching) {
     logInfo("Already watching database files");
     return true;

@@ -14,11 +14,11 @@ Mutations are functions with side effects that modify server state. Unlike queri
 
 ### Key Differences from Queries
 
-| Aspect | useQuery | useMutation |
-|--------|----------|-------------|
-| Execution | Automatic, declarative | Manual, imperative |
-| State Sharing | Cached and shared | Not shared between instances |
-| Lifecycle | Controlled by component mount | Controlled by mutate() calls |
+| Aspect        | useQuery                      | useMutation                  |
+| ------------- | ----------------------------- | ---------------------------- |
+| Execution     | Automatic, declarative        | Manual, imperative           |
+| State Sharing | Cached and shared             | Not shared between instances |
+| Lifecycle     | Controlled by component mount | Controlled by mutate() calls |
 
 ## Basic Mutation Setup
 
@@ -61,12 +61,13 @@ const deleteMutation = useMutation({
 
   onSuccess: () => {
     // Fuzzy matching - invalidates all queries starting with ['todos']
-    queryClient.invalidateQueries({ queryKey: ['todos'] })
+    queryClient.invalidateQueries({ queryKey: ["todos"] });
   },
-})
+});
 ```
 
 **Key behaviors:**
+
 - Fuzzy matching: `['todos']` invalidates `['todos', 'list']`, `['todos', 'detail', id]`, etc.
 - Only active queries refetch immediately
 - Inactive queries marked stale until reused
@@ -77,25 +78,22 @@ Update cache directly when mutation returns complete data:
 
 ```typescript
 const updateMutation = useMutation({
-  mutationFn: (updates: Partial<Todo>) =>
-    api.patch(`/todos/${todo.id}`, updates),
+  mutationFn: (updates: Partial<Todo>) => api.patch(`/todos/${todo.id}`, updates),
 
   onSuccess: (updatedTodo) => {
     // Update specific query cache directly
-    queryClient.setQueryData(
-      ['todos', 'detail', todo.id],
-      updatedTodo
-    )
+    queryClient.setQueryData(["todos", "detail", todo.id], updatedTodo);
 
     // Also update list caches if needed
-    queryClient.setQueryData(['todos', 'list'], (old: Todo[] | undefined) =>
-      old?.map(t => t.id === todo.id ? updatedTodo : t)
-    )
+    queryClient.setQueryData(["todos", "list"], (old: Todo[] | undefined) =>
+      old?.map((t) => (t.id === todo.id ? updatedTodo : t))
+    );
   },
-})
+});
 ```
 
 **When to use direct updates:**
+
 - Mutation returns complete updated entity
 - Need immediate UI update without network roundtrip
 - Simple transformations (no complex list filtering)
@@ -111,24 +109,24 @@ const mutation = useMutation({
 
   onSuccess: () => {
     // Always runs: cache invalidation, logging
-    queryClient.invalidateQueries({ queryKey: ['todos'] })
-    analytics.track('todo_created')
+    queryClient.invalidateQueries({ queryKey: ["todos"] });
+    analytics.track("todo_created");
   },
 
   onError: (error) => {
     // Always runs: error logging
-    logger.error('Failed to create todo', error)
+    logger.error("Failed to create todo", error);
   },
-})
+});
 
 // mutate callbacks: UI-specific, component-scoped
 mutation.mutate(newTodo, {
   onSuccess: () => {
     // Only runs if component still mounted
-    toast.success('Todo created!')
-    navigate('/todos')
+    toast.success("Todo created!");
+    navigate("/todos");
   },
-})
+});
 ```
 
 **Why this matters:** useMutation callbacks run even if component unmounts. mutate callbacks don't run if component unmounted—perfect for UI effects.
@@ -143,9 +141,9 @@ const mutation = useMutation({
 
   onSuccess: () => {
     // Return the promise to keep mutation pending
-    return queryClient.invalidateQueries({ queryKey: ['todos'] })
+    return queryClient.invalidateQueries({ queryKey: ["todos"] });
   },
-})
+});
 
 // mutation.isPending stays true until queries finish refetching
 ```
@@ -158,17 +156,17 @@ Prefer `mutate` over `mutateAsync` unless managing concurrent mutations:
 // PREFERRED: mutate handles errors internally
 mutation.mutate(data, {
   onError: (error) => {
-    toast.error(error.message)
+    toast.error(error.message);
   },
-})
+});
 
 // ONLY when needed: mutateAsync requires manual error handling
 try {
-  await mutation.mutateAsync(data)
+  await mutation.mutateAsync(data);
   // Do something after
 } catch (error) {
   // MUST handle error - not automatic
-  toast.error(error.message)
+  toast.error(error.message);
 }
 ```
 
@@ -178,16 +176,16 @@ Mutations only accept a single argument. Pass objects for multiple variables:
 
 ```typescript
 // WRONG: Multiple arguments
-mutate(title, body) // Doesn't work!
+mutate(title, body); // Doesn't work!
 
 // CORRECT: Object argument
-mutate({ title, body })
+mutate({ title, body });
 
 // In mutation definition
 const mutation = useMutation({
   mutationFn: ({ title, body }: { title: string; body: string }) =>
-    api.post('/todos', { title, body }),
-})
+    api.post("/todos", { title, body }),
+});
 ```
 
 ## Optimistic Updates
@@ -196,38 +194,37 @@ const mutation = useMutation({
 
 ```typescript
 const updateMutation = useMutation({
-  mutationFn: (newTodo: Partial<Todo>) =>
-    api.patch(`/todos/${todo.id}`, newTodo),
+  mutationFn: (newTodo: Partial<Todo>) => api.patch(`/todos/${todo.id}`, newTodo),
 
   onMutate: async (newTodo) => {
     // 1. Cancel outgoing refetches
-    await queryClient.cancelQueries({ queryKey: ['todos', todo.id] })
+    await queryClient.cancelQueries({ queryKey: ["todos", todo.id] });
 
     // 2. Snapshot previous value
-    const previousTodo = queryClient.getQueryData(['todos', todo.id])
+    const previousTodo = queryClient.getQueryData(["todos", todo.id]);
 
     // 3. Optimistically update
-    queryClient.setQueryData(['todos', todo.id], (old: Todo) => ({
+    queryClient.setQueryData(["todos", todo.id], (old: Todo) => ({
       ...old,
       ...newTodo,
-    }))
+    }));
 
     // 4. Return context for rollback
-    return { previousTodo }
+    return { previousTodo };
   },
 
   onError: (err, newTodo, context) => {
     // Rollback on error
     if (context?.previousTodo) {
-      queryClient.setQueryData(['todos', todo.id], context.previousTodo)
+      queryClient.setQueryData(["todos", todo.id], context.previousTodo);
     }
   },
 
   onSettled: () => {
     // Always refetch to ensure consistency
-    queryClient.invalidateQueries({ queryKey: ['todos', todo.id] })
+    queryClient.invalidateQueries({ queryKey: ["todos", todo.id] });
   },
-})
+});
 ```
 
 ### Concurrent Optimistic Updates
@@ -236,30 +233,30 @@ Prevent "windows of inconsistency" with concurrent mutations:
 
 ```typescript
 const toggleMutation = useMutation({
-  mutationKey: ['todos', 'toggle'], // Important for isMutating check
+  mutationKey: ["todos", "toggle"], // Important for isMutating check
 
   mutationFn: (id: string) => api.patch(`/todos/${id}/toggle`),
 
   onMutate: async (id) => {
     // Cancel queries to prevent overwriting optimistic update
-    await queryClient.cancelQueries({ queryKey: ['todos', id] })
+    await queryClient.cancelQueries({ queryKey: ["todos", id] });
 
-    const previousTodo = queryClient.getQueryData(['todos', id])
-    queryClient.setQueryData(['todos', id], (old: Todo) => ({
+    const previousTodo = queryClient.getQueryData(["todos", id]);
+    queryClient.setQueryData(["todos", id], (old: Todo) => ({
       ...old,
       completed: !old.completed,
-    }))
+    }));
 
-    return { previousTodo }
+    return { previousTodo };
   },
 
   onSettled: (data, error, id) => {
     // Only invalidate if this is the last mutation
-    if (queryClient.isMutating({ mutationKey: ['todos', 'toggle'] }) === 1) {
-      queryClient.invalidateQueries({ queryKey: ['todos', id] })
+    if (queryClient.isMutating({ mutationKey: ["todos", "toggle"] }) === 1) {
+      queryClient.invalidateQueries({ queryKey: ["todos", id] });
     }
   },
-})
+});
 ```
 
 **Why check isMutating:** Concurrent mutations without this pattern create "windows of inconsistency where state toggles back and forth."
@@ -274,10 +271,10 @@ Invalidate everything after every mutation:
 const queryClient = new QueryClient({
   mutationCache: new MutationCache({
     onSuccess: () => {
-      queryClient.invalidateQueries()
+      queryClient.invalidateQueries();
     },
   }),
-})
+});
 ```
 
 ### MutationKey-Based Filtering
@@ -292,20 +289,20 @@ const queryClient = new QueryClient({
         // Invalidate queries matching mutation key
         queryClient.invalidateQueries({
           queryKey: mutation.options.mutationKey,
-        })
+        });
       } else {
         // No key = invalidate everything
-        queryClient.invalidateQueries()
+        queryClient.invalidateQueries();
       }
     },
   }),
-})
+});
 
 // Usage
 useMutation({
-  mutationKey: ['todos'], // Only invalidates todo queries
+  mutationKey: ["todos"], // Only invalidates todo queries
   mutationFn: createTodo,
-})
+});
 ```
 
 ## Caution: Optimistic Updates Complexity
@@ -315,25 +312,27 @@ Use optimistic updates selectively:
 > "The code needed to make optimistic updates work is non-trivial"
 
 **Consider whether instant feedback is truly necessary:**
+
 - Simple toggles: Often worth it
 - Complex list updates: May require duplicating server logic
 - Forms: Usually better to show loading state
 
 ## Quick Reference
 
-| Pattern | Use When |
-|---------|----------|
-| Query invalidation | Most cases, simple and reliable |
-| Direct cache update | Mutation returns complete data, need instant UI |
-| Optimistic update | User expects instant feedback, can handle rollback |
-| mutate callbacks | UI effects (toast, navigation) |
-| useMutation callbacks | Logic (invalidation, logging) |
+| Pattern               | Use When                                           |
+| --------------------- | -------------------------------------------------- |
+| Query invalidation    | Most cases, simple and reliable                    |
+| Direct cache update   | Mutation returns complete data, need instant UI    |
+| Optimistic update     | User expects instant feedback, can handle rollback |
+| mutate callbacks      | UI effects (toast, navigation)                     |
+| useMutation callbacks | Logic (invalidation, logging)                      |
 
 ## Additional Resources
 
 ### Reference Files
 
 For detailed patterns and advanced techniques, consult:
+
 - **`references/optimistic-patterns.md`** - Advanced optimistic update scenarios
 - **`references/invalidation-strategies.md`** - Automatic invalidation patterns
 

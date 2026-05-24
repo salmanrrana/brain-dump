@@ -36,12 +36,12 @@ Break down a feature or requirement into actionable Brain Dump tickets.
 
 Created tickets for "User Authentication":
 
-| Priority | Title | Tags |
-|----------|-------|------|
-| High | Add auth database schema | backend, database |
-| High | Implement auth API endpoints | backend, api |
-| Medium | Create login form component | frontend, auth |
-| Medium | Add auth context and hooks | frontend, auth |
-| Low | Add password reset flow | frontend, backend |
+| Priority | Title                        | Tags              |
+| -------- | ---------------------------- | ----------------- |
+| High     | Add auth database schema     | backend, database |
+| High     | Implement auth API endpoints | backend, api      |
+| Medium   | Create login form component  | frontend, auth    |
+| Medium   | Add auth context and hooks   | frontend, auth    |
+| Low      | Add password reset flow      | frontend, backend |
 
 Would you like me to create these tickets?

@@ -57,14 +57,14 @@ To restrict internet access, you'd need to create a custom network configuration
 
 ### What credentials does Ralph have access to?
 
-| Credential | Access | How |
-|------------|--------|-----|
-| Anthropic API key | Yes | Mounted config (read-only) |
-| SSH keys | No* | Agent forwarding only |
-| GitHub token | Yes | Mounted gh config (read-only) |
-| Git identity | Yes | Mounted gitconfig (read-only) |
+| Credential        | Access | How                           |
+| ----------------- | ------ | ----------------------------- |
+| Anthropic API key | Yes    | Mounted config (read-only)    |
+| SSH keys          | No\*   | Agent forwarding only         |
+| GitHub token      | Yes    | Mounted gh config (read-only) |
+| Git identity      | Yes    | Mounted gitconfig (read-only) |
 
-*SSH agent forwarding means your keys never enter the container—only the SSH agent socket is shared.
+\*SSH agent forwarding means your keys never enter the container—only the SSH agent socket is shared.
 
 ### Can Ralph push to GitHub?
 
@@ -88,22 +88,22 @@ See [docker-git-push.md](./docker-git-push.md) for details.
 
 When Ralph starts a dev server, it uses mapped ports. Access them from your browser:
 
-| Dev Server | URL |
-|------------|-----|
+| Dev Server               | URL                   |
+| ------------------------ | --------------------- |
 | Frontend (Vite, Next.js) | http://localhost:8100 |
-| Backend (Express, etc.) | http://localhost:8200 |
-| Storybook | http://localhost:8300 |
+| Backend (Express, etc.)  | http://localhost:8200 |
+| Storybook                | http://localhost:8300 |
 
 The ticket modal shows a "Running Services" panel when servers are active.
 
 ### What ports are available?
 
-| Range | Purpose |
-|-------|---------|
-| 8100-8110 | Frontend dev servers |
-| 8200-8210 | Backend servers |
+| Range     | Purpose                         |
+| --------- | ------------------------------- |
+| 8100-8110 | Frontend dev servers            |
+| 8200-8210 | Backend servers                 |
 | 8300-8310 | Documentation (Storybook, etc.) |
-| 8400-8410 | Databases (debugging) |
+| 8400-8410 | Databases (debugging)           |
 
 Ralph should bind to `0.0.0.0` (not `127.0.0.1`) for the port mapping to work.
 

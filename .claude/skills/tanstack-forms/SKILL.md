@@ -11,6 +11,7 @@ This skill provides guidance for integrating TanStack Query with forms, covering
 ## The Core Challenge
 
 Form data exists in a hybrid zone:
+
 - **Initially**: Server State (fetched data)
 - **During editing**: Client State (user changes)
 - **After submit**: Server State again
@@ -69,11 +70,13 @@ function TodoForm({ initialData }: { initialData: Todo }) {
 ```
 
 **Pros:**
+
 - Simple to understand
 - Form is in full control
 - Works with any form library
 
 **Cons:**
+
 - Background updates won't reflect in form
 - Can lead to stale data submission in collaborative apps
 
@@ -127,11 +130,13 @@ function EditTodo({ id }: { id: string }) {
 ```
 
 **Pros:**
+
 - Background updates visible for untouched fields
 - Better for collaborative editing
 - Server is always source of truth
 
 **Cons:**
+
 - More complex state management
 - Requires controlled components
 - Must track changed fields
@@ -162,17 +167,17 @@ const mutation = useMutation({
 Reset form state to allow server state to show through:
 
 ```typescript
-const [formData, setFormData] = useState<Partial<Todo>>({})
+const [formData, setFormData] = useState<Partial<Todo>>({});
 
 const mutation = useMutation({
   mutationFn: (data: Partial<Todo>) => api.patch(`/todos/${id}`, data),
   onSuccess: () => {
     // 1. Invalidate to get fresh server data
-    queryClient.invalidateQueries({ queryKey: ['todos', id] })
+    queryClient.invalidateQueries({ queryKey: ["todos", id] });
     // 2. Clear form state so server state shows
-    setFormData({})
+    setFormData({});
   },
-})
+});
 ```
 
 ### Component Splitting for Initialization
@@ -246,7 +251,7 @@ const { data } = useQuery({
   ...todoQueries.detail(id),
   staleTime: Infinity, // Don't refetch while editing
   refetchOnWindowFocus: false, // Don't refetch on tab focus
-})
+});
 ```
 
 ### Option 2: Warn About Conflicts
@@ -280,13 +285,13 @@ function EditTodo({ id }: { id: string }) {
 
 ## Quick Reference
 
-| Scenario | Pattern |
-|----------|---------|
-| Simple edit form | Copy to state, staleTime: Infinity |
-| Collaborative editing | Derived state pattern |
-| Create form | Standard mutation, no query needed |
-| With form library | Split loading/form components |
-| Long-lived form | Conflict detection |
+| Scenario              | Pattern                            |
+| --------------------- | ---------------------------------- |
+| Simple edit form      | Copy to state, staleTime: Infinity |
+| Collaborative editing | Derived state pattern              |
+| Create form           | Standard mutation, no query needed |
+| With form library     | Split loading/form components      |
+| Long-lived form       | Conflict detection                 |
 
 ## Common Mistakes
 
@@ -327,15 +332,15 @@ function FormWrapper({ id }) {
 ```typescript
 // BAD: Old form data persists after save
 onSuccess: () => {
-  queryClient.invalidateQueries({ queryKey: ['todos'] })
+  queryClient.invalidateQueries({ queryKey: ["todos"] });
   // Form still shows old local state!
-}
+};
 
 // GOOD: Reset form state
 onSuccess: (newData) => {
-  queryClient.invalidateQueries({ queryKey: ['todos'] })
-  setFormState({}) // or reset(newData) with RHF
-}
+  queryClient.invalidateQueries({ queryKey: ["todos"] });
+  setFormState({}); // or reset(newData) with RHF
+};
 ```
 
 ## Additional Resources
@@ -343,6 +348,7 @@ onSuccess: (newData) => {
 ### Reference Files
 
 For detailed patterns and advanced techniques, consult:
+
 - **`references/form-library-integration.md`** - Patterns with React Hook Form, Formik
 
 ### Related Skills

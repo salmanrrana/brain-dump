@@ -185,7 +185,5 @@ export function inferTypeFromPort(port: number): ServiceType {
  * Derives from PORT_RANGES to maintain a single source of truth.
  */
 export function isValidServicePort(port: number): boolean {
-  return Object.values(PORT_RANGES).some(
-    (range) => port >= range.min && port <= range.max
-  );
+  return Object.values(PORT_RANGES).some((range) => port >= range.min && port <= range.max);
 }

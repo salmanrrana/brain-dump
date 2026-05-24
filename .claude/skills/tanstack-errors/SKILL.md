@@ -61,23 +61,23 @@ const queryClient = new QueryClient({
       // Global error handling
       if (query.state.data !== undefined) {
         // Only show toast if we already have data (background refetch failed)
-        toast.error(`Background update failed: ${error.message}`)
+        toast.error(`Background update failed: ${error.message}`);
       }
     },
   }),
-})
+});
 ```
 
 ## Choosing the Right Approach
 
-| Scenario | Recommended Approach |
-|----------|---------------------|
-| Critical page data | Error Boundary |
-| Background refetch failures | Global callbacks with toast |
-| Form validation errors | Local error state |
-| 404 errors | Local error state or boundary |
-| 5xx server errors | Error Boundary |
-| Network errors | Global callbacks |
+| Scenario                    | Recommended Approach          |
+| --------------------------- | ----------------------------- |
+| Critical page data          | Error Boundary                |
+| Background refetch failures | Global callbacks with toast   |
+| Form validation errors      | Local error state             |
+| 404 errors                  | Local error state or boundary |
+| 5xx server errors           | Error Boundary                |
+| Network errors              | Global callbacks              |
 
 ## Error Boundaries with throwOnError
 
@@ -85,10 +85,10 @@ const queryClient = new QueryClient({
 
 ```typescript
 const { data } = useQuery({
-  queryKey: ['todos'],
+  queryKey: ["todos"],
   queryFn: fetchTodos,
   throwOnError: true,
-})
+});
 ```
 
 ### Conditional Throwing
@@ -97,16 +97,17 @@ Only throw for specific error types:
 
 ```typescript
 const { data } = useQuery({
-  queryKey: ['todos'],
+  queryKey: ["todos"],
   queryFn: fetchTodos,
   throwOnError: (error) => {
     // Only throw for server errors (5xx)
-    return error.response?.status >= 500
+    return error.response?.status >= 500;
   },
-})
+});
 ```
 
 This pattern allows:
+
 - 5xx errors → Error Boundary (page-level error)
 - 4xx errors → Local handling (validation, not found)
 
@@ -147,12 +148,12 @@ function App() {
 ```typescript
 // BAD: onError fires per observer (per component using this query)
 const { data } = useQuery({
-  queryKey: ['todos'],
+  queryKey: ["todos"],
   queryFn: fetchTodos,
   onError: (error) => {
-    toast.error(error.message) // Shows multiple toasts!
+    toast.error(error.message); // Shows multiple toasts!
   },
-})
+});
 ```
 
 If three components use this query, you get three toast notifications.
@@ -164,10 +165,10 @@ const queryClient = new QueryClient({
   queryCache: new QueryCache({
     onError: (error, query) => {
       // Fires once per request, not per observer
-      toast.error(`Error: ${error.message}`)
+      toast.error(`Error: ${error.message}`);
     },
   }),
-})
+});
 ```
 
 ### Smarter Global Handling
@@ -181,7 +182,7 @@ const queryClient = new QueryClient({
       // Only toast on background refetch failures
       // (user already sees data, update silently failed)
       if (query.state.data !== undefined) {
-        toast.error(`Failed to refresh: ${error.message}`)
+        toast.error(`Failed to refresh: ${error.message}`);
       }
       // Initial load failures handled by component/boundary
     },
@@ -189,10 +190,10 @@ const queryClient = new QueryClient({
   mutationCache: new MutationCache({
     onError: (error) => {
       // Always toast mutation errors
-      toast.error(`Operation failed: ${error.message}`)
+      toast.error(`Operation failed: ${error.message}`);
     },
   }),
-})
+});
 ```
 
 ## Prerequisites: Making Errors Happen
@@ -202,20 +203,20 @@ const queryClient = new QueryClient({
 ```typescript
 // BAD: No error on 404 or 500
 const fetchTodo = async (id: string) => {
-  const response = await fetch(`/api/todos/${id}`)
-  return response.json() // Silently returns error body as "data"
-}
+  const response = await fetch(`/api/todos/${id}`);
+  return response.json(); // Silently returns error body as "data"
+};
 
 // GOOD: Check response.ok
 const fetchTodo = async (id: string) => {
-  const response = await fetch(`/api/todos/${id}`)
+  const response = await fetch(`/api/todos/${id}`);
 
   if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
   }
 
-  return response.json()
-}
+  return response.json();
+};
 ```
 
 ### Axios Throws by Default
@@ -223,9 +224,9 @@ const fetchTodo = async (id: string) => {
 ```typescript
 // Axios throws on non-2xx responses automatically
 const fetchTodo = async (id: string) => {
-  const { data } = await axios.get(`/api/todos/${id}`)
-  return data
-}
+  const { data } = await axios.get(`/api/todos/${id}`);
+  return data;
+};
 ```
 
 ### Don't Swallow Errors
@@ -234,24 +235,24 @@ const fetchTodo = async (id: string) => {
 // BAD: Error caught and swallowed
 const fetchTodo = async (id: string) => {
   try {
-    const response = await api.get(`/todos/${id}`)
-    return response.data
+    const response = await api.get(`/todos/${id}`);
+    return response.data;
   } catch (error) {
-    console.error(error) // Logged but not re-thrown!
+    console.error(error); // Logged but not re-thrown!
     // Returns undefined - query thinks it succeeded
   }
-}
+};
 
 // GOOD: Re-throw after logging
 const fetchTodo = async (id: string) => {
   try {
-    const response = await api.get(`/todos/${id}`)
-    return response.data
+    const response = await api.get(`/todos/${id}`);
+    return response.data;
   } catch (error) {
-    console.error(error)
-    throw error // Let React Query handle it
+    console.error(error);
+    throw error; // Let React Query handle it
   }
-}
+};
 ```
 
 ## Mutation Error Handling
@@ -261,14 +262,14 @@ const fetchTodo = async (id: string) => {
 ```typescript
 const mutation = useMutation({
   mutationFn: createTodo,
-})
+});
 
 mutation.mutate(newTodo, {
   onError: (error) => {
     // Show error in UI
-    setFormError(error.message)
+    setFormError(error.message);
   },
-})
+});
 ```
 
 ### Global Mutation Errors
@@ -278,21 +279,21 @@ const queryClient = new QueryClient({
   mutationCache: new MutationCache({
     onError: (error, variables, context, mutation) => {
       // Log all mutation errors
-      logger.error('Mutation failed', { error, variables })
+      logger.error("Mutation failed", { error, variables });
 
       // Show generic toast for unexpected errors
       if (!mutation.meta?.skipToast) {
-        toast.error('Operation failed. Please try again.')
+        toast.error("Operation failed. Please try again.");
       }
     },
   }),
-})
+});
 
 // Skip toast for specific mutations
 useMutation({
   mutationFn: saveForm,
   meta: { skipToast: true }, // Handle errors locally instead
-})
+});
 ```
 
 ## Pattern: Combining Approaches
@@ -339,21 +340,22 @@ function TodoList() {
 
 ## Quick Reference
 
-| Error Type | Strategy |
-|------------|----------|
-| Network failure | Global toast + retry |
-| 5xx server error | Error Boundary |
-| 404 Not Found | Local state |
-| 400 Validation | Local state (show form errors) |
-| 401 Unauthorized | Global redirect to login |
-| Background refetch fail | Global toast only |
-| Mutation fail | Local state or global toast |
+| Error Type              | Strategy                       |
+| ----------------------- | ------------------------------ |
+| Network failure         | Global toast + retry           |
+| 5xx server error        | Error Boundary                 |
+| 404 Not Found           | Local state                    |
+| 400 Validation          | Local state (show form errors) |
+| 401 Unauthorized        | Global redirect to login       |
+| Background refetch fail | Global toast only              |
+| Mutation fail           | Local state or global toast    |
 
 ## Additional Resources
 
 ### Reference Files
 
 For detailed patterns and advanced techniques, consult:
+
 - **`references/retry-patterns.md`** - Retry strategies and configuration
 
 ### Related Skills

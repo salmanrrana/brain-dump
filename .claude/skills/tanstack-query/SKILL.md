@@ -19,6 +19,7 @@ TanStack Query is an **async state manager**, not a data fetching library. Under
 ### Server State vs Client State
 
 Server state differs fundamentally from client state:
+
 - It's a snapshot in time that can become outdated
 - Multiple users may modify it simultaneously
 - It requires automatic synchronization to stay current
@@ -30,20 +31,21 @@ Server state differs fundamentally from client state:
 The recommended pattern for defining queries uses `queryOptions()` for type safety and reusability:
 
 ```typescript
-import { queryOptions, useQuery } from '@tanstack/react-query'
+import { queryOptions, useQuery } from "@tanstack/react-query";
 
 // Define query options - reusable across useQuery, prefetch, etc.
-const todoQueryOptions = (id: string) => queryOptions({
-  queryKey: ['todos', id],
-  queryFn: () => fetchTodo(id),
-  staleTime: 5 * 60 * 1000, // 5 minutes
-})
+const todoQueryOptions = (id: string) =>
+  queryOptions({
+    queryKey: ["todos", id],
+    queryFn: () => fetchTodo(id),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
 
 // Usage in component
-const { data } = useQuery(todoQueryOptions(id))
+const { data } = useQuery(todoQueryOptions(id));
 
 // Usage in prefetch
-await queryClient.prefetchQuery(todoQueryOptions(id))
+await queryClient.prefetchQuery(todoQueryOptions(id));
 ```
 
 ### Query Factories Pattern
@@ -52,26 +54,29 @@ Organize related queries using factory functions:
 
 ```typescript
 export const todoQueries = {
-  all: () => queryOptions({
-    queryKey: ['todos'],
-    queryFn: fetchAllTodos,
-  }),
+  all: () =>
+    queryOptions({
+      queryKey: ["todos"],
+      queryFn: fetchAllTodos,
+    }),
 
-  lists: () => queryOptions({
-    queryKey: ['todos', 'list'],
-    queryFn: fetchTodoLists,
-  }),
+  lists: () =>
+    queryOptions({
+      queryKey: ["todos", "list"],
+      queryFn: fetchTodoLists,
+    }),
 
-  detail: (id: string) => queryOptions({
-    queryKey: ['todos', 'detail', id],
-    queryFn: () => fetchTodo(id),
-    staleTime: 5 * 60 * 1000,
-  }),
-}
+  detail: (id: string) =>
+    queryOptions({
+      queryKey: ["todos", "detail", id],
+      queryFn: () => fetchTodo(id),
+      staleTime: 5 * 60 * 1000,
+    }),
+};
 
 // Usage
-const { data } = useQuery(todoQueries.detail(id))
-queryClient.invalidateQueries({ queryKey: ['todos'] }) // invalidates all
+const { data } = useQuery(todoQueries.detail(id));
+queryClient.invalidateQueries({ queryKey: ["todos"] }); // invalidates all
 ```
 
 ## Understanding staleTime
@@ -88,24 +93,24 @@ queryClient.invalidateQueries({ queryKey: ['todos'] }) // invalidates all
 ```typescript
 // For rarely changing data
 queryOptions({
-  queryKey: ['config'],
+  queryKey: ["config"],
   queryFn: fetchConfig,
   staleTime: Infinity, // Never refetch automatically
-})
+});
 
 // For frequently updated data
 queryOptions({
-  queryKey: ['notifications'],
+  queryKey: ["notifications"],
   queryFn: fetchNotifications,
   staleTime: 30 * 1000, // 30 seconds
-})
+});
 
 // Default for most cases
 queryOptions({
-  queryKey: ['todos'],
+  queryKey: ["todos"],
   queryFn: fetchTodos,
   staleTime: 5 * 60 * 1000, // 5 minutes - reasonable default
-})
+});
 ```
 
 ### Global Defaults
@@ -120,12 +125,13 @@ const queryClient = new QueryClient({
       gcTime: 5 * 60 * 1000, // 5 minutes garbage collection
     },
   },
-})
+});
 ```
 
 ## Query Keys as Dependencies
 
 Always include query parameters in the queryKey. This ensures:
+
 - Separate cache entries per input
 - Automatic refetches when parameters change
 - No stale closure bugs
@@ -133,16 +139,18 @@ Always include query parameters in the queryKey. This ensures:
 
 ```typescript
 // CORRECT: Parameters in queryKey
-const todoQuery = (id: string) => queryOptions({
-  queryKey: ['todos', id],
-  queryFn: () => fetchTodo(id),
-})
+const todoQuery = (id: string) =>
+  queryOptions({
+    queryKey: ["todos", id],
+    queryFn: () => fetchTodo(id),
+  });
 
 // INCORRECT: Parameter only in queryFn
-const todoQuery = (id: string) => queryOptions({
-  queryKey: ['todos'], // Missing id!
-  queryFn: () => fetchTodo(id),
-})
+const todoQuery = (id: string) =>
+  queryOptions({
+    queryKey: ["todos"], // Missing id!
+    queryFn: () => fetchTodo(id),
+  });
 ```
 
 ## Smart Refetch Triggers
@@ -153,12 +161,12 @@ Configure automatic refetching at strategic moments:
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      refetchOnMount: true,        // When component mounts
-      refetchOnWindowFocus: true,  // When tab gains focus (great for production)
-      refetchOnReconnect: true,    // When network reconnects
+      refetchOnMount: true, // When component mounts
+      refetchOnWindowFocus: true, // When tab gains focus (great for production)
+      refetchOnReconnect: true, // When network reconnects
     },
   },
-})
+});
 ```
 
 **Important**: Don't disable these mechanisms. Instead, adjust `staleTime` to control when refetches actually happen.
@@ -169,13 +177,13 @@ const queryClient = new QueryClient({
 
 ```typescript
 // WRONG: Trying to pass parameters
-const { refetch } = useQuery(todoQuery(id))
-refetch({ id: newId }) // This doesn't work!
+const { refetch } = useQuery(todoQuery(id));
+refetch({ id: newId }); // This doesn't work!
 
 // CORRECT: Use state to change the query
-const [todoId, setTodoId] = useState(id)
-const { data } = useQuery(todoQuery(todoId))
-setTodoId(newId) // This triggers a new query
+const [todoId, setTodoId] = useState(id);
+const { data } = useQuery(todoQuery(todoId));
+setTodoId(newId); // This triggers a new query
 ```
 
 ### 2. Using for Client State
@@ -203,16 +211,17 @@ function App() {
 Use `select` for fine-grained subscriptions:
 
 ```typescript
-const productQuery = (id: string) => queryOptions({
-  queryKey: ['products', id],
-  queryFn: () => fetchProduct(id),
-})
+const productQuery = (id: string) =>
+  queryOptions({
+    queryKey: ["products", id],
+    queryFn: () => fetchProduct(id),
+  });
 
 // Select specific fields - component only re-renders when title changes
 const { data: title } = useQuery({
   ...productQuery(id),
   select: (data) => data.title,
-})
+});
 ```
 
 For expensive transformations, stabilize with `useCallback`:
@@ -220,11 +229,8 @@ For expensive transformations, stabilize with `useCallback`:
 ```typescript
 const { data } = useQuery({
   ...productQuery(id),
-  select: useCallback(
-    (data: Product) => filterByRating(data, minRating),
-    [minRating]
-  ),
-})
+  select: useCallback((data: Product) => filterByRating(data, minRating), [minRating]),
+});
 ```
 
 ## Suspense Integration (v5+)
@@ -233,7 +239,7 @@ const { data } = useQuery({
 
 ```typescript
 // Data is guaranteed to exist (no undefined check needed)
-const { data } = useSuspenseQuery(todoQuery(id))
+const { data } = useSuspenseQuery(todoQuery(id));
 // data is Todo, not Todo | undefined
 ```
 
@@ -247,21 +253,22 @@ Wrap with Suspense boundary:
 
 ## Quick Reference Table
 
-| Concept | Recommendation |
-|---------|----------------|
-| Query definition | Use `queryOptions()` helper |
-| Query organization | Use query factories |
-| staleTime | Start with 60s, adjust per resource |
-| Parameters | Always include in queryKey |
-| Client state | Don't use RQ, use separate state |
-| Refetch control | Adjust staleTime, don't disable refetch |
-| Type safety | Let queryFn return type flow through |
+| Concept            | Recommendation                          |
+| ------------------ | --------------------------------------- |
+| Query definition   | Use `queryOptions()` helper             |
+| Query organization | Use query factories                     |
+| staleTime          | Start with 60s, adjust per resource     |
+| Parameters         | Always include in queryKey              |
+| Client state       | Don't use RQ, use separate state        |
+| Refetch control    | Adjust staleTime, don't disable refetch |
+| Type safety        | Let queryFn return type flow through    |
 
 ## Additional Resources
 
 ### Reference Files
 
 For detailed patterns and advanced techniques, consult:
+
 - **`references/gotchas.md`** - Common mistakes and FAQs from TKDodo
 - **`references/context-integration.md`** - Using React Query with React Context
 

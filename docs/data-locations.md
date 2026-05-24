@@ -29,31 +29,31 @@ Brain Dump follows the [XDG Base Directory Specification](https://specifications
 
 ### Linux Paths
 
-| Data Type | Default Path | Environment Override |
-|-----------|--------------|---------------------|
-| Database | `~/.local/share/brain-dump/brain-dump.db` | `XDG_DATA_HOME` |
-| Attachments | `~/.local/share/brain-dump/attachments/` | `XDG_DATA_HOME` |
-| Backups | `~/.local/state/brain-dump/backups/` | `XDG_STATE_HOME` |
-| Logs | `~/.local/state/brain-dump/logs/` | `XDG_STATE_HOME` |
-| Lock file | `~/.local/state/brain-dump/brain-dump.lock` | `XDG_STATE_HOME` |
+| Data Type   | Default Path                                | Environment Override |
+| ----------- | ------------------------------------------- | -------------------- |
+| Database    | `~/.local/share/brain-dump/brain-dump.db`   | `XDG_DATA_HOME`      |
+| Attachments | `~/.local/share/brain-dump/attachments/`    | `XDG_DATA_HOME`      |
+| Backups     | `~/.local/state/brain-dump/backups/`        | `XDG_STATE_HOME`     |
+| Logs        | `~/.local/state/brain-dump/logs/`           | `XDG_STATE_HOME`     |
+| Lock file   | `~/.local/state/brain-dump/brain-dump.lock` | `XDG_STATE_HOME`     |
 
 ### macOS Paths
 
-| Type | Path |
-|------|------|
-| Data | ~/Library/Application Support/brain-dump/ |
-| State | ~/Library/Application Support/brain-dump/ |
+| Type   | Path                                      |
+| ------ | ----------------------------------------- |
+| Data   | ~/Library/Application Support/brain-dump/ |
+| State  | ~/Library/Application Support/brain-dump/ |
 | Config | ~/Library/Application Support/brain-dump/ |
-| Cache | ~/Library/Caches/brain-dump/ |
+| Cache  | ~/Library/Caches/brain-dump/              |
 
 ### Windows Paths
 
-| Type | Path |
-|------|------|
-| Data | %APPDATA%\brain-dump\ |
-| State | %LOCALAPPDATA%\brain-dump\ |
-| Config | %APPDATA%\brain-dump\ |
-| Cache | %LOCALAPPDATA%\brain-dump\ |
+| Type   | Path                        |
+| ------ | --------------------------- |
+| Data   | %APPDATA%\brain-dump\       |
+| State  | %LOCALAPPDATA%\brain-dump\  |
+| Config | %APPDATA%\brain-dump\       |
+| Cache  | %LOCALAPPDATA%\brain-dump\  |
 
 ## Environment Variables
 
@@ -68,6 +68,7 @@ export XDG_STATE_HOME=/custom/path/state
 ```
 
 With these overrides, Brain Dump would use:
+
 - `/custom/path/share/brain-dump/brain-dump.db`
 - `/custom/path/state/brain-dump/backups/`
 
@@ -78,6 +79,7 @@ Prior to version 2.0, Brain Dump stored all data in `~/.brain-dump/`. This locat
 ### Automatic Migration
 
 On first launch after upgrading:
+
 1. Brain Dump checks if `~/.brain-dump/` exists
 2. If XDG location is empty, data is copied (not moved)
 3. A `.migrated` marker is created in the legacy directory
@@ -115,27 +117,27 @@ echo '{"migratedAt": "'$(date -Iseconds)'"}' > ~/.brain-dump/.migrated
 
 ### Database Files
 
-| File | Purpose |
-|------|---------|
-| `brain-dump.db` | Main SQLite database with all projects, epics, tickets |
+| File                | Purpose                                                 |
+| ------------------- | ------------------------------------------------------- |
+| `brain-dump.db`     | Main SQLite database with all projects, epics, tickets  |
 | `brain-dump.db-wal` | Write-ahead log for concurrent access (SQLite WAL mode) |
-| `brain-dump.db-shm` | Shared memory index for WAL mode |
+| `brain-dump.db-shm` | Shared memory index for WAL mode                        |
 
 ### State Files
 
-| File | Purpose |
-|------|---------|
-| `brain-dump.lock` | Prevents concurrent database corruption, contains PID info |
-| `current-ticket.json` | Tracks which ticket the CLI is currently working on |
-| `.last-backup` | Timestamp of last automatic backup (prevents duplicate daily backups) |
+| File                  | Purpose                                                               |
+| --------------------- | --------------------------------------------------------------------- |
+| `brain-dump.lock`     | Prevents concurrent database corruption, contains PID info            |
+| `current-ticket.json` | Tracks which ticket the CLI is currently working on                   |
+| `.last-backup`        | Timestamp of last automatic backup (prevents duplicate daily backups) |
 
 ### Log Files
 
-| File | Purpose |
-|------|---------|
-| `brain-dump.log` | Main application log with all operations |
+| File             | Purpose                                       |
+| ---------------- | --------------------------------------------- |
+| `brain-dump.log` | Main application log with all operations      |
 | `mcp-server.log` | MCP server-specific operations and tool calls |
-| `error.log` | Errors only, for quick debugging |
+| `error.log`      | Errors only, for quick debugging              |
 
 Logs are automatically rotated when they exceed 10MB. The last 5 rotated files are kept.
 

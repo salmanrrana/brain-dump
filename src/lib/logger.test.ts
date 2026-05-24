@@ -149,9 +149,7 @@ describe("Logger Module", () => {
           source: "test",
           message: "Test message",
         };
-        expect(formatLogEntry(entry)).toBe(
-          "2026-01-12T10:30:00.000Z [INFO] [test] Test message"
-        );
+        expect(formatLogEntry(entry)).toBe("2026-01-12T10:30:00.000Z [INFO] [test] Test message");
       });
 
       it("should include error message when present", () => {

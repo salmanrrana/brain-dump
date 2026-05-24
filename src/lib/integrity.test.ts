@@ -213,7 +213,9 @@ describe("Integrity Utilities", () => {
       const result = walCheck(dbPath);
 
       expect(result.success).toBe(true);
-      expect(result.details.some((d) => d.includes("delete") || d.includes("Journal mode"))).toBe(true);
+      expect(result.details.some((d) => d.includes("delete") || d.includes("Journal mode"))).toBe(
+        true
+      );
     });
 
     it("should detect orphaned WAL file", () => {

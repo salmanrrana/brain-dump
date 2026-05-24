@@ -21,7 +21,10 @@ describe("db-watcher", () => {
 
   beforeEach(() => {
     // Create a unique temp directory for each test
-    testDir = join(tmpdir(), `db-watcher-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    testDir = join(
+      tmpdir(),
+      `db-watcher-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    );
     mkdirSync(testDir, { recursive: true });
     testDbPath = join(testDir, "test.db");
 
@@ -252,7 +255,9 @@ describe("db-watcher", () => {
       // The callback should have been called
       // Note: This test may be flaky depending on OS and timing
       // The watcher behavior varies across platforms
-      expect(wasDeletionDetected() || callback.mock.calls.length > 0 || !existsSync(testDbPath)).toBe(true);
+      expect(
+        wasDeletionDetected() || callback.mock.calls.length > 0 || !existsSync(testDbPath)
+      ).toBe(true);
     });
 
     it("should not trigger on non-database files", async () => {

@@ -27,13 +27,14 @@ The sandbox is NOT designed to protect against:
 
 ### Filesystem Isolation
 
-| Boundary | How Enforced | Verification |
-|----------|--------------|--------------|
-| Project only | Single volume mount at `/workspace` | `docker inspect` shows only project mounted |
-| Read-only configs | `:ro` flag on credential mounts | Cannot modify ~/.config/* |
-| No host access | No mounts to /etc, /var, $HOME | `ls /` shows only container filesystem |
+| Boundary          | How Enforced                        | Verification                                |
+| ----------------- | ----------------------------------- | ------------------------------------------- |
+| Project only      | Single volume mount at `/workspace` | `docker inspect` shows only project mounted |
+| Read-only configs | `:ro` flag on credential mounts     | Cannot modify ~/.config/\*                  |
+| No host access    | No mounts to /etc, /var, $HOME      | `ls /` shows only container filesystem      |
 
 **Technical details**:
+
 - Project directory mounted at `/workspace` (read/write)
 - `~/.config/claude-code` mounted read-only (API auth)
 - `~/.gitconfig` mounted read-only (git identity)
@@ -42,14 +43,15 @@ The sandbox is NOT designed to protect against:
 
 ### Credential Handling
 
-| Credential | Method | Risk Mitigation |
-|------------|--------|-----------------|
-| SSH keys | Agent forwarding | Keys never enter container |
-| Anthropic API key | Mounted config (ro) | Cannot modify, harder to exfiltrate |
-| GitHub token | Mounted gh config (ro) | Cannot modify |
-| Git author | Mounted gitconfig (ro) | All commits attributed to user |
+| Credential        | Method                 | Risk Mitigation                     |
+| ----------------- | ---------------------- | ----------------------------------- |
+| SSH keys          | Agent forwarding       | Keys never enter container          |
+| Anthropic API key | Mounted config (ro)    | Cannot modify, harder to exfiltrate |
+| GitHub token      | Mounted gh config (ro) | Cannot modify                       |
+| Git author        | Mounted gitconfig (ro) | All commits attributed to user      |
 
 **SSH Agent Forwarding** (recommended approach):
+
 - Socket is forwarded via `SSH_AUTH_SOCK`
 - Private keys remain on host machine
 - Agent handles signing operations
@@ -57,13 +59,13 @@ The sandbox is NOT designed to protect against:
 
 ### Resource Limits
 
-| Resource | Default Limit | Purpose |
-|----------|---------------|---------|
-| Memory | 2 GB | Prevents OOM killer on host |
-| Swap | 2 GB (same) | No swap, fail fast on OOM |
-| CPUs | 1.5 cores | Prevents CPU monopolization |
-| PIDs | 256 | Prevents fork bombs |
-| Timeout | 1 hour | Prevents indefinite execution |
+| Resource | Default Limit | Purpose                       |
+| -------- | ------------- | ----------------------------- |
+| Memory   | 2 GB          | Prevents OOM killer on host   |
+| Swap     | 2 GB (same)   | No swap, fail fast on OOM     |
+| CPUs     | 1.5 cores     | Prevents CPU monopolization   |
+| PIDs     | 256           | Prevents fork bombs           |
+| Timeout  | 1 hour        | Prevents indefinite execution |
 
 ### Security Options
 
@@ -72,6 +74,7 @@ The sandbox is NOT designed to protect against:
 ```
 
 This prevents:
+
 - setuid/setgid binaries from escalating privileges
 - Processes from gaining new capabilities
 - Container escape via privilege escalation
@@ -79,6 +82,7 @@ This prevents:
 ### User Isolation
 
 Container runs as non-root user `ralph` (UID 1000):
+
 - Cannot install system packages
 - Cannot modify system configuration
 - Cannot access other users' files
@@ -87,38 +91,39 @@ Container runs as non-root user `ralph` (UID 1000):
 
 ### What the AI CAN Do
 
-| Action | How | Audit Trail |
-|--------|-----|-------------|
-| Read project files | `/workspace` mount | Git diff shows changes |
-| Write project files | `/workspace` mount | Git commits track all changes |
-| Run shell commands | bash in container | Terminal output logged |
-| Install packages | npm/pip in container | package.json/requirements.txt changes |
-| Run tests | Project test commands | Test output in terminal |
-| Commit to git | Mounted gitconfig | All commits in git log |
-| Push to remote | SSH agent forwarding | Push logs on remote |
-| Create PRs | GitHub CLI | PR visible on GitHub |
-| Start dev servers | Mapped ports 8100-8410 | Services tracked in .ralph-services.json |
+| Action              | How                    | Audit Trail                              |
+| ------------------- | ---------------------- | ---------------------------------------- |
+| Read project files  | `/workspace` mount     | Git diff shows changes                   |
+| Write project files | `/workspace` mount     | Git commits track all changes            |
+| Run shell commands  | bash in container      | Terminal output logged                   |
+| Install packages    | npm/pip in container   | package.json/requirements.txt changes    |
+| Run tests           | Project test commands  | Test output in terminal                  |
+| Commit to git       | Mounted gitconfig      | All commits in git log                   |
+| Push to remote      | SSH agent forwarding   | Push logs on remote                      |
+| Create PRs          | GitHub CLI             | PR visible on GitHub                     |
+| Start dev servers   | Mapped ports 8100-8410 | Services tracked in .ralph-services.json |
 
 ### What the AI CANNOT Do
 
-| Action | Why Not | Enforcement |
-|--------|---------|-------------|
-| Access other projects | Single mount | Docker volume isolation |
-| Read SSH keys | Agent forwarding only | Keys not mounted |
-| Modify credentials | Read-only mounts | `:ro` flag |
-| Run as root | USER directive | Dockerfile sets non-root user |
-| Escape container | no-new-privileges | Security option |
-| Run indefinitely | Timeout | Shell script enforces |
-| Consume all RAM | Memory limit | Docker cgroup |
-| Fork bomb | PID limit | Docker cgroup |
-| Access host network | Bridge network | Default Docker networking |
-| Persist after exit | --rm flag | Container auto-removed |
+| Action                | Why Not               | Enforcement                   |
+| --------------------- | --------------------- | ----------------------------- |
+| Access other projects | Single mount          | Docker volume isolation       |
+| Read SSH keys         | Agent forwarding only | Keys not mounted              |
+| Modify credentials    | Read-only mounts      | `:ro` flag                    |
+| Run as root           | USER directive        | Dockerfile sets non-root user |
+| Escape container      | no-new-privileges     | Security option               |
+| Run indefinitely      | Timeout               | Shell script enforces         |
+| Consume all RAM       | Memory limit          | Docker cgroup                 |
+| Fork bomb             | PID limit             | Docker cgroup                 |
+| Access host network   | Bridge network        | Default Docker networking     |
+| Persist after exit    | --rm flag             | Container auto-removed        |
 
 ## Audit Trail
 
 ### Git History
 
 All file changes are tracked in git:
+
 ```bash
 git log --oneline --all    # See all commits
 git diff HEAD~5            # See recent changes
@@ -126,6 +131,7 @@ git blame <file>           # See who changed what
 ```
 
 Ralph commits include:
+
 ```
 feat(ticket-id): description
 
@@ -213,12 +219,12 @@ Enable Docker audit logging:
 
 ## Comparison with Alternatives
 
-| Approach | Isolation Level | Usability | Overhead |
-|----------|----------------|-----------|----------|
-| No sandbox (native) | None | Best | None |
-| Docker sandbox | Container-level | Good | ~5% |
-| VM sandbox | Hardware-level | Lower | ~20% |
-| Remote execution | Network-level | Lowest | Variable |
+| Approach            | Isolation Level | Usability | Overhead |
+| ------------------- | --------------- | --------- | -------- |
+| No sandbox (native) | None            | Best      | None     |
+| Docker sandbox      | Container-level | Good      | ~5%      |
+| VM sandbox          | Hardware-level  | Lower     | ~20%     |
+| Remote execution    | Network-level   | Lowest    | Variable |
 
 Brain Dump chose Docker sandbox as the best balance of security and usability for autonomous AI coding.
 
