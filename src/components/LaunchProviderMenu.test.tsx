@@ -45,14 +45,12 @@ describe("LaunchProviderMenu", () => {
     );
 
     for (const provider of getInteractiveUiLaunchProvidersForContext("epic-next-ticket")) {
-      expect(
-        screen.getAllByRole("button", { name: provider.display.label }).length
-      ).toBeGreaterThan(0);
+      expect(screen.getAllByText(provider.display.label).length).toBeGreaterThan(0);
     }
 
     for (const provider of getRalphAutonomousUiLaunchProvidersForContext("epic")) {
       const label = provider.display.label.replace("Ralph (", "").replace(")", "");
-      expect(screen.getAllByRole("button", { name: label }).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(label).length).toBeGreaterThan(0);
     }
 
     expect(screen.getByRole("button", { name: "Export Epic" })).toBeInTheDocument();

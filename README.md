@@ -84,16 +84,19 @@ pnpm brain-dump status --pretty
 
 ### Development Commands
 
-| Command           | Description                                |
-| ----------------- | ------------------------------------------ |
-| `pnpm dev`        | Start app (current UI) on `localhost:4242` |
-| `pnpm dev:v2`     | Start UI v2 branch app on `localhost:4243` |
-| `pnpm check`      | Type-check + lint + tests (required gate)  |
-| `pnpm test`       | Run unit/integration tests                 |
-| `pnpm test:e2e`   | Run Playwright tests                       |
-| `pnpm db:migrate` | Run database migrations                    |
-| `pnpm db:studio`  | Open Drizzle Studio                        |
-| `pnpm build`      | Build for production                       |
+| Command                | Description                                   |
+| ---------------------- | --------------------------------------------- |
+| `pnpm dev`             | Start app (current UI) on `localhost:4242`    |
+| `pnpm dev:v2`          | Start UI v2 branch app on `localhost:4243`    |
+| `pnpm check`           | Type-check + lint + fast node tests           |
+| `pnpm test`            | Run fast node tests for the feature loop      |
+| `pnpm test:ui`         | Run active React/jsdom user-flow tests        |
+| `pnpm test:all`        | Run active node and UI Vitest projects        |
+| `pnpm test:quarantine` | Run slow, host-dependent, or stale-flow tests |
+| `pnpm test:e2e`        | Run Playwright tests                          |
+| `pnpm db:migrate`      | Run database migrations                       |
+| `pnpm db:studio`       | Open Drizzle Studio                           |
+| `pnpm build`           | Build for production                          |
 
 ### CLI Tool
 
