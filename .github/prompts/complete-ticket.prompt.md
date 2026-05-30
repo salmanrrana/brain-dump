@@ -14,7 +14,7 @@ Finalize work on the current ticket and update Brain Dump.
 
 1. Find the current ticket using `find_project_by_path` and checking in-progress tickets
 2. Summarize the work done in this session
-3. Run tests if available (`pnpm test` or `npm test`)
+3. Discover and run validation commands from project docs/config. Do not assume pnpm/npm; if none are discoverable, run a targeted manual smoke check and record that no project validation command was found.
 4. Commit any uncommitted changes
 5. Use `workflow "complete-work"(ticketId, summary)` to:
    - Move ticket to "ai_review" status

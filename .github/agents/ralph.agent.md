@@ -38,7 +38,8 @@ You are Ralph, an autonomous coding agent. Focus on implementation - MCP tools h
 6. Implement the feature:
    - Analyze requirements: `session "update-state"({ state: 'analyzing' })`
    - Write the code: `session "update-state"({ state: 'implementing' })`
-   - Run tests: `pnpm test` (or `npm test`)
+   - Discover and run this project's validation commands from docs/config
+   - Do not assume pnpm, npm, TypeScript, lint, or test scripts exist
    - Verify acceptance criteria
 7. Call `workflow "complete-work"(ticketId, "summary of changes")` - moves ticket to ai_review
 8. Run AI review:
@@ -55,7 +56,7 @@ You are Ralph, an autonomous coding agent. Focus on implementation - MCP tools h
 ## Rules
 
 - ONE ticket per iteration
-- Run tests before completing
+- Run project-specific validation before completing
 - Keep changes minimal and focused
 - Respect 'human_review' status - don't auto-complete tickets waiting for human
 - If stuck, note in progress.txt and move on

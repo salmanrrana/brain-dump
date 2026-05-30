@@ -399,7 +399,7 @@ The mandatory AI review phase is identical across all environments:
    - Create git commits
 
 6. Call `workflow` tool, `action: "complete-work"`, `ticketId`, `summary`
-   - Validates: `pnpm type-check && pnpm lint && pnpm test`
+   - Validates with the project's discovered validation commands
    - Sets status to `ai_review`
    - Creates work summary comment
    - Ready for code review
@@ -694,7 +694,7 @@ OpenCode requires comprehensive AGENTS.md documentation because plugins provide 
    - [ ] Type safety: All types correct, no `any`
    - [ ] Error handling: All errors caught, meaningful messages
    - [ ] Edge cases: Handle null/undefined/empty inputs
-   - [ ] Tests: Run `pnpm test`, all pass
+   - [ ] Tests/checks: Run project-specific validation, all required checks pass
    - [ ] Performance: No obvious inefficiencies
    - [ ] Code clarity: Variables named clearly, logic easy to follow
 

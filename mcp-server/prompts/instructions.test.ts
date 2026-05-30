@@ -45,5 +45,12 @@ describe("registerInstructionPrompts", () => {
       expect(result.messages[0]?.content.type).toBe("text");
       expect(result.messages[0]?.content.text.length).toBeGreaterThan(40);
     }
+
+    const workflowPrompt = registeredPrompts
+      .find((prompt) => prompt.name === "brain-dump-workflow")
+      ?.callback().messages[0]?.content.text;
+
+    expect(workflowPrompt).toContain("Discover and run this project's validation commands");
+    expect(workflowPrompt).not.toContain("pnpm type-check");
   });
 });

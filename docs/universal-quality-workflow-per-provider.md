@@ -38,7 +38,7 @@ The provider differences are about how the LLM gets told to do those steps, and 
 The shared workflow instructions come from `src/api/ralph-prompts.ts`.
 
 - `WORKFLOW_PHASES` defines the phase order: implementation -> AI review -> demo -> stop.
-- `VERIFICATION_CHECKLIST` requires `pnpm type-check`, `pnpm lint`, `pnpm test`, plus a `comment.add` test report before `complete-work`.
+- `VERIFICATION_CHECKLIST` requires project-specific validation discovery plus a `comment.add` test report before `complete-work`.
 - `buildImplementationPrompt()` and `buildReviewPrompt()` are the canonical LLM instructions for Ralph-style flows.
 
 Key references:

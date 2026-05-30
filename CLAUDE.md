@@ -6,6 +6,40 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Brain Dump is a local-first kanban task manager designed for AI-assisted development workflows. It integrates with Claude Code to provide ticket context when starting work, and includes "Ralph" - an autonomous agent mode that iterates through backlogs.
 
+## Operating Doctrine
+
+Performance and reliability are first-order product requirements in this repo.
+
+Core priorities:
+
+1. Performance first.
+2. Reliability first.
+3. Predictable behavior under load and failure: reconnects, partial AI streams, failed hooks, interrupted Ralph sessions, stale database state, and missing provider CLIs.
+
+When a tradeoff is required, choose correctness, observability, and a small reliable interface over a quick local shortcut.
+
+Completion gates:
+
+- For this Brain Dump repository, `pnpm check` must pass before a code ticket is considered complete.
+- When Brain Dump is working on another project, discover that project's validation commands from its docs and config. Do not assume pnpm, npm, TypeScript, or lint/test scripts exist.
+- For this Brain Dump repository, run `pnpm build` when touching routing, bundling, build config, server/client boundaries, or package exports.
+- Run focused tests for the area changed.
+- For this Brain Dump repository, run `pnpm build:analyze` when changing frontend initial load, route chunks, charts, modals, devtools, or other bundle-sensitive code.
+- For performance work, include before/after numbers and the command or workflow used to get them.
+
+Hot paths:
+
+- App boot, hydration, board/list navigation, ticket modal open, search/filtering, dashboard analytics, MCP tool dispatch, workflow start/complete, provider launch, git operations, SQLite queries, hook execution, and setup scripts.
+- Do not add blocking work to initial render, route loaders, MCP tool wrappers, hook scripts, or startup without a measured reason.
+- Prefer narrower SQL, fewer round trips, cached/resolved adapters, parallel independent I/O, and lazy route/modal/chart chunks.
+
+Architecture rules:
+
+- Business logic belongs in `core/`.
+- `src/api/`, `cli/`, `mcp-server/tools/`, hooks, plugins, and setup scripts are adapters around `core/`.
+- If two adapters need the same behavior, move it behind a shared core interface instead of copying it.
+- See `docs/performance/performance-and-reliability-discipline.md` for the full Brain Dump playbook inspired by T3 Code and UploadThing.
+
 ## Commands
 
 ```bash
@@ -132,7 +166,7 @@ backlog → ready → in_progress → ai_review → human_review → done
 ### Quick Reference
 
 1. `workflow` tool, `action: "start-work"`, `ticketId` → before writing code
-2. Implement + `pnpm check`
+2. Implement + project-specific validation (`pnpm check` for this Brain Dump repo)
 3. `workflow` tool, `action: "complete-work"`, `ticketId`, `summary` → after committing
 4. Self-review + `review` tool, `action: "submit-finding"` → for each issue
 5. `review` tool, `action: "generate-demo"`, `ticketId`, `steps` → then STOP
@@ -587,9 +621,9 @@ After implementing ANY feature, you MUST complete these steps:
 
 ### Code Quality (Always Required)
 
-- [ ] Run `pnpm type-check` - must pass with no errors
-- [ ] Run `pnpm lint` - must pass with no errors
-- [ ] Run `pnpm test` - all tests must pass
+- [ ] Run this project's validation commands (`pnpm check` for Brain Dump itself)
+- [ ] Record exact pass/fail/skipped results in a test_report comment
+- [ ] If no automated validation command is discoverable, record the manual smoke check performed
 
 ### If You Added New Code
 

@@ -574,9 +574,9 @@ export function getProjectContext(projectPath: string): ProjectContext {
     techStack: [],
     dosDonts: [],
     verificationSteps: [
-      "Run `pnpm type-check` - must pass with no errors",
-      "Run `pnpm lint` - must pass with no errors",
-      "Run `pnpm test` - all tests must pass",
+      "Discover validation commands from this project's docs and config before running checks",
+      "Run the project's own check/test/lint commands when available",
+      "If no automated validation command is discoverable, perform a targeted manual smoke check and record that no project validation command was found",
     ],
   };
 

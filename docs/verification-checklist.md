@@ -4,9 +4,10 @@ After implementing ANY feature, complete these steps:
 
 ## Code Quality (Always Required)
 
-- [ ] Run `pnpm type-check` - must pass with no errors
-- [ ] Run `pnpm lint` - must pass with no errors
-- [ ] Run `pnpm test` - all tests must pass
+- [ ] Discover validation commands from project docs/config
+- [ ] Run the project's own validation commands
+- [ ] Record exact pass/fail/skipped results in the test report
+- [ ] If no automated validation command exists, record the targeted manual smoke check performed
 
 ## If You Added New Code
 

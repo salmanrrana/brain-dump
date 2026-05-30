@@ -19,13 +19,10 @@ brain-dump context --ticket <ticket-id> --pretty
 
 ### 2) Run validation
 
-```bash
-pnpm type-check
-pnpm lint
-pnpm test
-```
-
-If the repo uses a combined command, use that.
+Discover and run this project's validation commands from docs/config. Do not assume
+pnpm, npm, TypeScript, lint, or test scripts exist. If no automated validation
+command is discoverable, run a targeted manual smoke check and record that no
+project validation command was found.
 
 ### 3) Submit findings through Brain Dump CLI
 

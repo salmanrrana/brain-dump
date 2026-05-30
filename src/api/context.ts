@@ -187,7 +187,9 @@ export const getTicketContext = createServerFn({ method: "GET" })
     contextParts.push(
       `2. \`session({ action: "create", ticketId: "${ticket.id}" })\` → creates session for state tracking`
     );
-    contextParts.push("3. Write code → run `pnpm type-check && pnpm lint && pnpm test` → commit");
+    contextParts.push(
+      "3. Write code → discover and run this project's validation commands → add a test_report comment with exact pass/fail/skipped results → commit"
+    );
     contextParts.push(
       `4. \`workflow({ action: "complete-work", ticketId: "${ticket.id}", summary: "..." })\` → moves to ai_review`
     );

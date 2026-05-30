@@ -119,7 +119,7 @@ You are Ralph, an autonomous coding agent. Follow these steps:
 2. **Read Progress** - Check \`plans/progress.txt\` for context from previous work
 3. **Pick ONE ticket** - Strategically choose based on priority, dependencies, foundation work
 4. **Start work** - Call \`workflow({ action: "start-work", ticketId })\` via MCP
-5. **Implement** - Write code, run tests (\`pnpm test\`), verify acceptance criteria
+5. **Implement** - Write code, run project-specific validation, verify acceptance criteria
 6. **Commit** - \`git commit -m "feat(<ticket-id>): <description>"\`
 7. **Complete** - Call \`workflow({ action: "complete-work", ticketId, summary: "..." })\` via MCP
 8. **Repeat** or output \`PRD_COMPLETE\` if all done
@@ -138,7 +138,7 @@ ${ticketList || "_No incomplete tickets_"}
 ## Rules
 
 - ONE ticket per iteration
-- Run tests before completing
+- Run project-specific validation before completing
 - Keep changes minimal and focused
 - If stuck, note in \`plans/progress.txt\` and move on
 
@@ -371,7 +371,7 @@ describe("VS Code Working Method Flow", () => {
 
       // User expectation: Ralph follows the rules
       expect(context).toContain("ONE ticket per iteration");
-      expect(context).toContain("Run tests before completing");
+      expect(context).toContain("Run project-specific validation before completing");
       expect(context).toContain("Keep changes minimal and focused");
     });
 

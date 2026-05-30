@@ -64,8 +64,8 @@ mcp__brain-dump__session "update-state"({
 When implementation is done:
 
 ```
-// 1. Run validation
-// pnpm type-check && pnpm lint && pnpm test
+// 1. Run validation discovered from this project's docs/config.
+// Do not assume pnpm/npm; use the project-standard commands.
 
 // 2. Complete the ticket work
 mcp__brain-dump__workflow "complete-work"({

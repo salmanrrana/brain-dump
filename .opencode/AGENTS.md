@@ -39,7 +39,9 @@ Telemetry is handled by MCP self-instrumentation — no external plugin needed.
 
 ## Quality Gates
 
-Run before completing: `pnpm type-check && pnpm lint && pnpm test`
+Before completing, discover and run this project's validation commands from docs/config.
+Do not assume pnpm, npm, TypeScript, lint, or test scripts exist. Record exact
+pass/fail/skipped results in a test_report comment.
 
 ## Rules
 

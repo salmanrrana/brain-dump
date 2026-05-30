@@ -49,15 +49,15 @@ This should create/check out the branch and move the ticket to `in_progress`.
 
 Use pi tools to inspect and edit files. Keep changes focused.
 
-Run quality gates when appropriate:
+Discover and run this project's validation commands from docs/config. Check `AGENTS.md`,
+`CLAUDE.md`, README, CONTRIBUTING, package scripts, `pyproject.toml`, `go.mod`,
+Makefile/Justfile, and CI files. Do not assume pnpm, npm, TypeScript, lint, or test
+scripts exist.
 
-```bash
-pnpm type-check
-pnpm lint
-pnpm test
-```
-
-If the project uses a different command, use the repo's standard check command.
+Examples only: package script check/test/lint, pytest/ruff when configured,
+`go test ./...`, `cargo test`, `dotnet test`, `mvn test`, `./gradlew test`.
+If no automated validation command is discoverable, run a targeted manual smoke check
+and record that no project validation command was found.
 
 Good commit format:
 
