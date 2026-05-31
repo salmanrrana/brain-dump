@@ -3,7 +3,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, extname, join, relative, resolve } from "node:path";
 import { gzipSync } from "node:zlib";
-import { type BundleBudgets, loadPerfBudgets } from "./perf-budgets";
+import { type BundleBudgets, formatBytes, loadPerfBudgets, resolveCeilingBytes } from "./perf-budgets";
 
 type AssetKind = "script" | "style" | "other";
 
@@ -60,10 +60,6 @@ function getAssetKind(path: string): AssetKind {
 
 function getRisk(name: string): string {
   return RISK_RULES.find((rule) => rule.pattern.test(name))?.label ?? "general async asset";
-}
-
-function formatBytes(bytes: number): string {
-  return `${(bytes / 1024).toFixed(2)} kB`;
 }
 
 function summarizeAssets(): AssetSummary[] {
@@ -252,17 +248,15 @@ function evaluateBudgets(
     );
   }
 
-  // 3. Per-script ceiling (main handled above; known-large chunks get their own ceiling).
+  // 3. Per-script ceiling (main handled above; known-large chunks get their own
+  //    ceiling via resolveCeilingBytes — the same rule the prod spec applies).
   for (const script of scripts) {
     if (mainPattern.test(script.name)) continue;
-    const exception = budgets.knownLargeChunkExceptions.find((candidate) =>
-      script.name.toLowerCase().includes(candidate.pattern.toLowerCase())
-    );
-    const ceiling = exception ? exception.ceilingBytes : budgets.perScriptCeilingBytes;
+    const ceiling = resolveCeilingBytes(script.name, budgets);
     if (script.bytes > ceiling) {
       violations.push({
-        rule: exception ? `known-large chunk ceiling (${exception.pattern})` : "per-script ceiling",
-        detail: `${script.name} is ${formatBytes(script.bytes)} — over the ${formatBytes(ceiling)} ceiling.`,
+        rule: "per-script ceiling",
+        detail: `${script.name} is ${formatBytes(script.bytes)} — over its ${formatBytes(ceiling)} ceiling.`,
       });
     }
   }
@@ -285,6 +279,7 @@ function evaluateBudgets(
 /** Run the budget gate. Exits non-zero on any hard violation. Never writes the report. */
 function runCheck(assets: AssetSummary[]): void {
   const budgets = loadPerfBudgets().bundle;
+  const scriptCount = assets.filter((asset) => asset.kind === "script").length;
   const { violations, warnings } = evaluateBudgets(assets, budgets);
 
   for (const warning of warnings) {
@@ -293,7 +288,7 @@ function runCheck(assets: AssetSummary[]): void {
 
   if (violations.length === 0) {
     console.log(
-      `✅ Bundle budget gate passed (${assets.filter((a) => a.kind === "script").length} scripts checked against docs/performance/perf-budgets.json).`
+      `✅ Bundle budget gate passed (${scriptCount} scripts checked against docs/performance/perf-budgets.json).`
     );
     return;
   }

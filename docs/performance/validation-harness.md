@@ -60,12 +60,16 @@ pnpm test:perf
 
 # 3. Render-count assertions — DEV build (the React Profiler / navigation-timing
 #    globals are DEV-only), scrolls the board and reads window.__profilerSummaries().
+#    Lives in the default e2e config, so it also runs as part of `pnpm test:e2e`.
 pnpm test:e2e perf-renders
 ```
 
 `pnpm perf:check` is the fast gate to wire into CI. The two Playwright specs need
 a browser; run them in a perf job or locally before landing a change that touches
-a hot path.
+a hot path. `perf-renders` runs against the DEV server (where the Profiler globals
+exist), so it stays in the default `pnpm test:e2e` config rather than its own
+preview config; `perf-production` is isolated in `playwright.perf.config.ts`
+because it needs a production build.
 
 ## How the gate stays honest
 

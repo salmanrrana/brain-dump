@@ -1,5 +1,4 @@
 {
-  "$schema": "./perf-budgets.schema.json",
   "description": "Performance budgets for the ⚡ Performance North Star initiative. Consumed by the bundle budget gate (scripts/analyze-client-bundle.ts --check, run via `pnpm perf:check`) and the Playwright perf specs (e2e/perf-production.spec.ts, e2e/perf-renders.spec.ts). Hard ceilings are a NO-REGRESSION RATCHET: they are derived from the committed runtime baseline (docs/performance/runtime-baseline-2026.md) plus a little headroom, so the gate passes today and only fails when a change makes things meaningfully worse. The `aspirational` targets are the north-star goals the execution-track epics drive toward; they only WARN, never fail the gate. When an epic genuinely shrinks a chunk, ratchet the ceiling DOWN to lock in the win.",
   "bundle": {
     "mainChunk": {

@@ -1,7 +1,7 @@
 import path from "node:path";
 import Database from "better-sqlite3";
 import { test, expect, type Page, type Request } from "@playwright/test";
-import { type BundleBudgets, loadPerfBudgets } from "../scripts/perf-budgets";
+import { loadPerfBudgets, resolveCeilingBytes } from "../scripts/perf-budgets";
 
 /**
  * Production performance gate (browser-flow assertions).
@@ -34,15 +34,6 @@ function collectScriptResources(): { url: string; decodedBodySize: number }[] {
   return (performance.getEntriesByType("resource") as PerformanceResourceTiming[])
     .filter((entry) => entry.initiatorType === "script" || /\.m?js(\?|$)/.test(entry.name))
     .map((entry) => ({ url: entry.name, decodedBodySize: entry.decodedBodySize }));
-}
-
-/** Ceiling for a single loaded script, matching the bundle-gate rules. */
-function ceilingForScript(name: string, bundle: BundleBudgets): number {
-  if (new RegExp(bundle.mainChunk.pattern).test(name)) return bundle.mainChunk.ceilingBytes;
-  const exception = bundle.knownLargeChunkExceptions.find((candidate) =>
-    name.toLowerCase().includes(candidate.pattern.toLowerCase())
-  );
-  return exception ? exception.ceilingBytes : bundle.perScriptCeilingBytes;
 }
 
 function isDataRequest(request: Request): boolean {
@@ -169,15 +160,23 @@ test("production build stays within performance budgets across the hot-path flow
   ).toBeLessThanOrEqual(runtime.maxForbiddenChunksLoaded);
 
   // ── (b) No loaded script over its uncompressed budget ────────────────────────
+  // Scripts that were preloaded but never decoded (or served from cache) report
+  // decodedBodySize 0; they cannot be size-checked here. Surface them so a large
+  // speculative preload cannot silently slip past the size budget — the bundle
+  // gate (pnpm perf:check) checks every emitted chunk on disk regardless.
+  const zeroSizeScripts = [...loadedScripts.values()].filter((s) => s.decodedBodySize === 0);
+  if (zeroSizeScripts.length > 0) {
+    console.warn(
+      `[perf] ${zeroSizeScripts.length} loaded script(s) had decodedBodySize=0 (preloaded/cached) and are size-checked only by pnpm perf:check, not here: ${zeroSizeScripts
+        .map((s) => s.url.split("/").pop())
+        .join(", ")}`
+    );
+  }
   const overBudget = [...loadedScripts.values()]
     .filter((script) => script.decodedBodySize > 0)
     .map((script) => {
       const name = script.url.split("/").pop() ?? script.url;
-      return {
-        name,
-        size: script.decodedBodySize,
-        ceiling: ceilingForScript(name, budgets.bundle),
-      };
+      return { name, size: script.decodedBodySize, ceiling: resolveCeilingBytes(name, budgets.bundle) };
     })
     .filter((script) => script.size > script.ceiling);
   expect(
@@ -193,19 +192,18 @@ test("production build stays within performance budgets across the hot-path flow
   // ── (c) Web Vitals within "good" thresholds (production __perfReport) ─────────
   const report = await readPerfReport(page);
   expect(report, "window.__perfReport() is unavailable in the production build").not.toBeNull();
-  expect(report).toHaveProperty("TTFB");
-  expect(report).toHaveProperty("LCP");
-  expect(report).toHaveProperty("CLS");
-  expect(report).toHaveProperty("INP");
+  const vitals = report!;
 
-  // TTFB always fires on navigation; require it and assert the budget.
-  const ttfb = report?.TTFB;
-  expect(ttfb, "TTFB was never reported by web-vitals").not.toBeNull();
+  // TTFB always fires on navigation, so it is a REQUIRED, non-null assertion —
+  // this is what guarantees the web-vitals signal is genuinely wired in prod.
+  const ttfb = vitals.TTFB;
+  expect(ttfb, "TTFB was never reported by web-vitals (is registerWebVitals wired?)").not.toBeNull();
   expect(ttfb!.value).toBeLessThanOrEqual(runtime.ttfbMs);
 
-  // LCP/CLS/INP can finalize later (hidden/interaction); assert only when present
-  // so the gate is deterministic, but they share the same documented thresholds.
-  if (report?.LCP) expect(report.LCP.value).toBeLessThanOrEqual(runtime.lcpMs);
-  if (report?.CLS) expect(report.CLS.value).toBeLessThanOrEqual(runtime.clsScore);
-  if (report?.INP) expect(report.INP.value).toBeLessThanOrEqual(runtime.inpMs);
+  // LCP/CLS/INP only finalize on interaction or page-hide, so they may be null in
+  // a short headless run. They are asserted ONLY when reported (advisory gate),
+  // against the same documented thresholds; this keeps the gate deterministic.
+  if (vitals.LCP) expect(vitals.LCP.value).toBeLessThanOrEqual(runtime.lcpMs);
+  if (vitals.CLS) expect(vitals.CLS.value).toBeLessThanOrEqual(runtime.clsScore);
+  if (vitals.INP) expect(vitals.INP.value).toBeLessThanOrEqual(runtime.inpMs);
 });

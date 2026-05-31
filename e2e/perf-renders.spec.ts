@@ -25,14 +25,24 @@ interface ProfilerSummary {
   renderCount: number;
 }
 
+// These run in the browser AFTER assertInstrumentationExposed has confirmed the
+// globals exist. They THROW (rather than return []) if a global is missing, so a
+// stripped instrumentation build fails loudly instead of letting a downstream
+// assertion pass vacuously against an empty collection.
 function readProfilerSummaries(): ProfilerSummary[] {
-  const fn = (window as unknown as Record<string, unknown>).__profilerSummaries;
-  return typeof fn === "function" ? (fn as () => ProfilerSummary[])() : [];
+  const w = window as unknown as { __profilerSummaries?: () => ProfilerSummary[] };
+  if (typeof w.__profilerSummaries !== "function") {
+    throw new Error("window.__profilerSummaries is unavailable — DEV instrumentation not exposed.");
+  }
+  return w.__profilerSummaries();
 }
 
 function readNavigationLog(): { route: string; fetches: unknown[] }[] {
-  const fn = (window as unknown as Record<string, unknown>).__navigationLog;
-  return typeof fn === "function" ? (fn as () => { route: string; fetches: unknown[] }[])() : [];
+  const w = window as unknown as { __navigationLog?: () => { route: string; fetches: unknown[] }[] };
+  if (typeof w.__navigationLog !== "function") {
+    throw new Error("window.__navigationLog is unavailable — DEV instrumentation not exposed.");
+  }
+  return w.__navigationLog();
 }
 
 /** Confirm the DEV-only instrumentation globals are actually present. */

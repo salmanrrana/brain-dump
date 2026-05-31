@@ -43,7 +43,11 @@ export default defineConfig({
     // Build, then serve the production output through Nitro's preview server.
     command: `pnpm build && pnpm exec vite preview --port ${PERF_PORT} --strictPort`,
     url: PERF_BASE_URL,
-    reuseExistingServer: !process.env.CI,
+    // Never reuse a server: the perf gate MUST measure the current tree. Reusing
+    // a stale `vite preview` (e.g. from a previous run still holding the port)
+    // would silently build nothing and test old output. --strictPort also makes
+    // a lingering process fail loudly rather than be reused.
+    reuseExistingServer: false,
     // Allow time for a cold production build before the preview server answers.
     timeout: 240 * 1000,
     env: {
