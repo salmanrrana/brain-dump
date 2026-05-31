@@ -5,6 +5,9 @@ import type { RouterContext } from "../router";
 // Side-effect imports: dev-only performance instrumentation
 import { markHydrationComplete } from "../lib/navigation-timing";
 import { setQueryClientForHealth } from "../lib/session-health";
+import { createBrowserLogger } from "../lib/browser-logger";
+
+const logger = createBrowserLogger("web-vitals");
 
 import AppLayout from "../components/AppLayout";
 import { SplashScreen } from "../components/SplashScreen";
@@ -116,10 +119,13 @@ function RootDocument({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     void import("../lib/web-vitals")
       .then((m) => m.registerWebVitals())
-      .catch((error) => {
+      .catch((error: unknown) => {
         // Best-effort instrumentation: a chunk-load failure must not break the
         // app. No UI surface to update — log so it stays visible to developers.
-        console.error("[web-vitals] Failed to load instrumentation module", error);
+        logger.error(
+          "Failed to load web-vitals instrumentation module; field metrics unavailable",
+          error instanceof Error ? error : undefined
+        );
       });
   }, []);
 

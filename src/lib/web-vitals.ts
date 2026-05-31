@@ -63,7 +63,8 @@ export function getWebVitalsReport(): WebVitalsReport {
 }
 
 function record(metric: Metric): void {
-  if (!METRIC_NAMES.includes(metric.name as WebVitalName)) return;
+  // `record` is only ever registered as the onLCP/onCLS/onINP/onTTFB callback,
+  // so metric.name is always one of our tracked names.
   samples.set(metric.name as WebVitalName, {
     name: metric.name as WebVitalName,
     value: metric.value,
@@ -119,10 +120,11 @@ export function registerWebVitals(): void {
     })
     .catch((error: unknown) => {
       // Field instrumentation is best-effort and must never break the app or
-      // surface UI noise. Log it so it remains visible to developers.
-      logger.warn(
+      // surface UI noise. A failed import loses all four subscriptions for the
+      // session, so this is a genuine error — log it for developer visibility.
+      logger.error(
         "Failed to load web-vitals; field metrics will be unavailable for this session",
-        error instanceof Error ? error : new Error(String(error))
+        error instanceof Error ? error : undefined
       );
     });
 }
