@@ -77,8 +77,7 @@ export function useProjects() {
     queryFn: () => getProjectsWithEpics(),
     // Snapshot tier: projects/epics only change via in-app mutations (which invalidate
     // this key) or the manual Refresh action. Serve cached data on navigation instead of
-    // refetching on every mount; `refetchOnMount: "always"` previously ignored staleTime
-    // and fired a redundant fetch on each route change through the persistent layout.
+    // refetching on every mount.
     staleTime: 30 * 1000,
   });
 

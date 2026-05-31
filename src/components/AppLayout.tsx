@@ -101,12 +101,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   // standalone `useProjects()` call) avoids a redundant subscription on every navigation.
   // `ProjectWithAIActivity` extends `ProjectWithEpics`, so it is assignable wherever plain
   // projects are expected (NewTicketModal, epic provider lookup, etc.).
-  const {
-    projects: projectsWithAI,
-    activeSessions,
-    refetch: refetchProjects,
-  } = useProjectsWithAIActivity();
-  const projects = projectsWithAI;
+  const { projects, activeSessions, refetch: refetchProjects } = useProjectsWithAIActivity();
   // Settings for Ralph launch
   const { settings } = useSettings();
   // Ralph launch mutation
@@ -567,7 +562,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                       <ProjectsPanel
                         isOpen={isProjectsPanelOpen}
                         onClose={closeProjectsPanel}
-                        projects={projectsWithAI}
+                        projects={projects}
                         selectedProjectId={filters.projectId}
                         selectedEpicId={filters.epicId}
                         onSelectProject={handleProjectSelect}
