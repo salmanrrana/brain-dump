@@ -462,6 +462,7 @@ export function useGitProjectInfo(projectPath: string) {
     queryKey: queryKeys.gitInfo(projectPath),
     queryFn: () => getGitProjectInfo({ data: projectPath }),
     refetchInterval: 30 * 1000, // Refresh every 30s
+    staleTime: 30 * 1000, // 30s — live/polling tier; matches refetchInterval
     enabled: !!projectPath,
   });
 }
@@ -526,13 +527,14 @@ export function useLaunchDevServer() {
 
 /**
  * Hook for fetching full epic detail data including tickets, progress, and learnings.
- * Uses staleTime: 0 to match ticket detail pattern (data can be updated externally via MCP).
+ * Snapshot tier: serve from cache on revisit; external MCP changes surface via mutation
+ * invalidation and the manual Refresh action rather than refetch-on-every-mount.
  */
 export function useEpicDetail(epicId: string) {
   const query = useQuery({
     queryKey: queryKeys.epicDetail(epicId),
     queryFn: () => getEpicDetail({ data: epicId }),
-    staleTime: 0, // Data can be updated externally via MCP
+    staleTime: 30 * 1000, // 30s — snapshot tier; revisits serve cache
     enabled: !!epicId,
   });
 
