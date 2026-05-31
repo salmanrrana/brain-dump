@@ -3,6 +3,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, extname, join, relative, resolve } from "node:path";
 import { gzipSync } from "node:zlib";
+import { type BundleBudgets, loadPerfBudgets } from "./perf-budgets";
 
 type AssetKind = "script" | "style" | "other";
 
@@ -184,8 +185,138 @@ function renderReport(assets: AssetSummary[]): string {
   return `${lines.join("\n")}\n`;
 }
 
+// =============================================================================
+// BUDGET GATE (--check mode)
+// =============================================================================
+
+/** Matches the initial/root candidate assets the report groups together. */
+const INITIAL_ASSET_PATTERN = /^(main|index|styles)-/i;
+
+interface BudgetViolation {
+  rule: string;
+  detail: string;
+}
+
+/**
+ * Compare the built assets against the committed budgets. Returns hard
+ * violations (fail the gate) and soft warnings (over the aspirational target
+ * but within the no-regression ceiling).
+ */
+function evaluateBudgets(
+  assets: AssetSummary[],
+  budgets: BundleBudgets
+): { violations: BudgetViolation[]; warnings: string[] } {
+  const violations: BudgetViolation[] = [];
+  const warnings: string[] = [];
+  const scripts = assets.filter((asset) => asset.kind === "script");
+  const mainPattern = new RegExp(budgets.mainChunk.pattern);
+
+  // 1. Main/root chunk: hard ceiling fails, aspirational target warns.
+  const mainAssets = scripts.filter((asset) => mainPattern.test(asset.name));
+  if (mainAssets.length === 0) {
+    violations.push({
+      rule: "main chunk present",
+      detail: `No asset matched /${budgets.mainChunk.pattern}/ — the build output looks wrong (did the build complete?).`,
+    });
+  }
+  for (const main of mainAssets) {
+    if (main.bytes > budgets.mainChunk.ceilingBytes) {
+      violations.push({
+        rule: "main chunk ceiling",
+        detail: `${main.name} is ${formatBytes(main.bytes)} — over the ${formatBytes(budgets.mainChunk.ceilingBytes)} no-regression ceiling.`,
+      });
+    } else if (
+      budgets.mainChunk.aspirationalBytes !== undefined &&
+      main.bytes > budgets.mainChunk.aspirationalBytes
+    ) {
+      warnings.push(
+        `${main.name} is ${formatBytes(main.bytes)} — over the ${formatBytes(budgets.mainChunk.aspirationalBytes)} aspirational target but within the ${formatBytes(budgets.mainChunk.ceilingBytes)} ceiling.`
+      );
+    }
+  }
+
+  // 2. Initial/root payload total.
+  const initialAssets = assets.filter((asset) => INITIAL_ASSET_PATTERN.test(asset.name));
+  const initialBytes = initialAssets.reduce((total, asset) => total + asset.bytes, 0);
+  if (initialBytes > budgets.initialRootTotal.ceilingBytes) {
+    violations.push({
+      rule: "initial/root total ceiling",
+      detail: `Initial/root assets total ${formatBytes(initialBytes)} — over the ${formatBytes(budgets.initialRootTotal.ceilingBytes)} ceiling.`,
+    });
+  } else if (
+    budgets.initialRootTotal.aspirationalBytes !== undefined &&
+    initialBytes > budgets.initialRootTotal.aspirationalBytes
+  ) {
+    warnings.push(
+      `Initial/root assets total ${formatBytes(initialBytes)} — over the ${formatBytes(budgets.initialRootTotal.aspirationalBytes)} aspirational target but within the ${formatBytes(budgets.initialRootTotal.ceilingBytes)} ceiling.`
+    );
+  }
+
+  // 3. Per-script ceiling (main handled above; known-large chunks get their own ceiling).
+  for (const script of scripts) {
+    if (mainPattern.test(script.name)) continue;
+    const exception = budgets.knownLargeChunkExceptions.find((candidate) =>
+      script.name.toLowerCase().includes(candidate.pattern.toLowerCase())
+    );
+    const ceiling = exception ? exception.ceilingBytes : budgets.perScriptCeilingBytes;
+    if (script.bytes > ceiling) {
+      violations.push({
+        rule: exception ? `known-large chunk ceiling (${exception.pattern})` : "per-script ceiling",
+        detail: `${script.name} is ${formatBytes(script.bytes)} — over the ${formatBytes(ceiling)} ceiling.`,
+      });
+    }
+  }
+
+  // 4. Forbidden code must not leak into the initial/root chunks.
+  for (const forbidden of budgets.forbiddenInInitialChunks) {
+    for (const asset of initialAssets) {
+      if (asset.name.toLowerCase().includes(forbidden.toLowerCase())) {
+        violations.push({
+          rule: `forbidden-in-initial:${forbidden}`,
+          detail: `${asset.name} pulls "${forbidden}" into an initial/root chunk — it must stay a separate lazy chunk.`,
+        });
+      }
+    }
+  }
+
+  return { violations, warnings };
+}
+
+/** Run the budget gate. Exits non-zero on any hard violation. Never writes the report. */
+function runCheck(assets: AssetSummary[]): void {
+  const budgets = loadPerfBudgets().bundle;
+  const { violations, warnings } = evaluateBudgets(assets, budgets);
+
+  for (const warning of warnings) {
+    console.warn(`⚠️  ${warning}`);
+  }
+
+  if (violations.length === 0) {
+    console.log(
+      `✅ Bundle budget gate passed (${assets.filter((a) => a.kind === "script").length} scripts checked against docs/performance/perf-budgets.json).`
+    );
+    return;
+  }
+
+  console.error(`❌ Bundle budget gate failed with ${violations.length} violation(s):`);
+  for (const violation of violations) {
+    console.error(`   • [${violation.rule}] ${violation.detail}`);
+  }
+  console.error(
+    "\nThese are no-regression ceilings from docs/performance/perf-budgets.json. " +
+      "If the increase is intentional and justified, update the budget (and the baseline doc) in the same change."
+  );
+  process.exitCode = 1;
+}
+
 function main(): void {
   const assets = summarizeAssets();
+
+  if (process.argv.includes("--check")) {
+    runCheck(assets);
+    return;
+  }
+
   const report = renderReport(assets);
   mkdirSync(REPORT_DIR, { recursive: true });
   writeFileSync(REPORT_PATH, report);

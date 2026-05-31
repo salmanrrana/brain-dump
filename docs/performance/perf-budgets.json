@@ -1,0 +1,40 @@
+{
+  "$schema": "./perf-budgets.schema.json",
+  "description": "Performance budgets for the ⚡ Performance North Star initiative. Consumed by the bundle budget gate (scripts/analyze-client-bundle.ts --check, run via `pnpm perf:check`) and the Playwright perf specs (e2e/perf-production.spec.ts, e2e/perf-renders.spec.ts). Hard ceilings are a NO-REGRESSION RATCHET: they are derived from the committed runtime baseline (docs/performance/runtime-baseline-2026.md) plus a little headroom, so the gate passes today and only fails when a change makes things meaningfully worse. The `aspirational` targets are the north-star goals the execution-track epics drive toward; they only WARN, never fail the gate. When an epic genuinely shrinks a chunk, ratchet the ceiling DOWN to lock in the win.",
+  "bundle": {
+    "mainChunk": {
+      "pattern": "^main-",
+      "ceilingBytes": 890880,
+      "aspirationalBytes": 512000,
+      "note": "Headline initial-load chunk. Baseline 797.7 kB — over the 500 kB aspirational target. Ceiling = baseline + ~8% headroom. Shrinking main-* is the 'Instant First Load' epic's job; ratchet ceilingBytes down as it lands."
+    },
+    "initialRootTotal": {
+      "ceilingBytes": 1100800,
+      "aspirationalBytes": 307200,
+      "note": "Sum of the initial/root candidate assets (main-*, index-*, styles-*) the analyzer already groups. Baseline ~992.5 kB uncompressed."
+    },
+    "perScriptCeilingBytes": 614400,
+    "knownLargeChunkExceptions": [
+      {
+        "pattern": "CostTreemapChart",
+        "ceilingBytes": 655360,
+        "note": "ECharts treemap. Lazy — only loads when the Cost Explorer dashboard tab is opened, so it never enters the initial path. Baseline 565.6 kB."
+      }
+    ],
+    "forbiddenInInitialChunks": ["devtools"],
+    "_forbiddenNote": "Devtools chunks (FloatingTanStackRouterDevtools-*, BaseTanStackRouterDevtoolsPanel-*) are allowed to exist as SEPARATE lazy chunks, but must never be merged into an initial/root asset. The browser-runtime check that they are not LOADED for real users lives in e2e/perf-production.spec.ts."
+  },
+  "runtime": {
+    "ttfbMs": 800,
+    "lcpMs": 2500,
+    "clsScore": 0.1,
+    "inpMs": 200,
+    "boardRenderCountCeiling": 14,
+    "warmRenavMaxLoaderFetches": 0,
+    "warmRenavMaxDataRequests": 2,
+    "forbiddenRuntimeChunkUrls": ["devtools"],
+    "maxForbiddenChunksLoaded": 1,
+    "_note": "ttfb/lcp/cls/inp use the web-vitals 'good' thresholds. boardRenderCountCeiling derives from the baseline (Board 7 renders) + headroom and is asserted in the DEV build via window.__profilerSummaries(). warmRenavMaxLoaderFetches (DEV, window.__navigationLog) asserts the ROUTER LOADER issues no data fetch when returning to a visited route — baseline 0, deterministic. warmRenavMaxDataRequests (PROD, network) is the stricter network-level ceiling: a warm /board re-nav currently triggers ~1 background revalidation of a short-staleTime component query (NOT a full-page/loader refetch — the page renders instantly from cache and the document never reloads). Target is 0 (the Snappy Navigation epic should align component staleTimes); the ratchet is 2 to tolerate revalidation timing without masking a genuine refetch storm.",
+    "_forbiddenChunksNote": "KNOWN ISSUE (no-regression ratchet). The TARGET is maxForbiddenChunksLoaded: 0 — no devtools chunk should ever load for real users. Today exactly 1 loads: Vite emits a modulepreload for the dynamic-import target of __root.tsx's `import.meta.env.DEV ? lazy(() => import('@tanstack/react-router-devtools')) : null` branch — Rollup keeps/preloads dynamic-import chunks reachable from a statically-dead branch. Removing this is bundle hygiene owned by the '⚡ Instant First Load' execution epic (which lists 'devtools'). The gate ratchets at 1 so it passes today while catching any further devtools leakage; ratchet it to 0 the moment that epic lands the fix."
+  }
+}

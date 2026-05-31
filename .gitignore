@@ -62,6 +62,7 @@ coverage/
 playwright-report/
 test-results/
 .playwright-xdg/
+.playwright-perf-xdg/
 
 Thumbs.db
 ehthumbs.db
