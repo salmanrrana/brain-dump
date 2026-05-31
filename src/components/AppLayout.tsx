@@ -96,9 +96,17 @@ interface AppLayoutProps {
 
 export default function AppLayout({ children }: AppLayoutProps) {
   const navigate = useNavigate();
-  const { projects, refetch: refetchProjects } = useProjects();
-  // Enhanced projects with AI activity for ProjectsPanel
-  const { projects: projectsWithAI, activeSessions } = useProjectsWithAIActivity();
+  // Single projects subscription for the persistent layout shell. `useProjectsWithAIActivity`
+  // internally subscribes to `useProjects`, so consuming its result here (instead of a second
+  // standalone `useProjects()` call) avoids a redundant subscription on every navigation.
+  // `ProjectWithAIActivity` extends `ProjectWithEpics`, so it is assignable wherever plain
+  // projects are expected (NewTicketModal, epic provider lookup, etc.).
+  const {
+    projects: projectsWithAI,
+    activeSessions,
+    refetch: refetchProjects,
+  } = useProjectsWithAIActivity();
+  const projects = projectsWithAI;
   // Settings for Ralph launch
   const { settings } = useSettings();
   // Ralph launch mutation

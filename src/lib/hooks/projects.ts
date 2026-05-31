@@ -75,8 +75,11 @@ export function useProjects() {
   const query = useQuery({
     queryKey: queryKeys.projectsWithEpics,
     queryFn: () => getProjectsWithEpics(),
-    staleTime: 30 * 1000, // 30s - balance between freshness and reducing refetches
-    refetchOnMount: "always", // Always refetch on mount to catch external changes
+    // Snapshot tier: projects/epics only change via in-app mutations (which invalidate
+    // this key) or the manual Refresh action. Serve cached data on navigation instead of
+    // refetching on every mount; `refetchOnMount: "always"` previously ignored staleTime
+    // and fired a redundant fetch on each route change through the persistent layout.
+    staleTime: 30 * 1000,
   });
 
   return {
