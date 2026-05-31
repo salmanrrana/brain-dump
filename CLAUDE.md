@@ -627,6 +627,17 @@ After implementing ANY feature, you MUST complete these steps:
 - [ ] Updated tool documentation if interface changed
 - [ ] Added Zod schema for input validation
 
+### If Performance-Sensitive Changes
+
+Brain Dump is local-first and must feel instant. Any change to a hot path
+(navigation, rendering, bundle graph, first load, SQLite queries) must publish
+**before/after numbers** — never a "felt faster" claim. Follow the runbook:
+
+- [ ] Followed the measure → fix → re-measure → prove loop in [`docs/performance/validating-optimizations.md`](docs/performance/validating-optimizations.md)
+- [ ] Ran the matching gate: `pnpm perf:check` (bundle), `pnpm test:perf` (browser flow), and/or `pnpm test:e2e perf-renders` (render counts)
+- [ ] Recorded the before/after result (command + numbers) in the ticket completion summary using the template in the runbook
+- [ ] Ratcheted the relevant ceiling in `docs/performance/perf-budgets.json` if the change locked in a win
+
 ### Before Marking Complete
 
 - [ ] All acceptance criteria from ticket met
