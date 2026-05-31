@@ -109,6 +109,20 @@ function RootDocument({ children }: { children: React.ReactNode }) {
     }
   }, [queryClient]);
 
+  // Register Core Web Vitals field metrics. Unlike the DEV-only timing above,
+  // this ships in production — it is the only LCP/CLS/INP/TTFB signal we emit.
+  // Runs once after hydration. The whole web-vitals module is dynamically
+  // imported so neither it nor the web-vitals package touch the main chunk.
+  useEffect(() => {
+    void import("../lib/web-vitals")
+      .then((m) => m.registerWebVitals())
+      .catch((error) => {
+        // Best-effort instrumentation: a chunk-load failure must not break the
+        // app. No UI surface to update — log so it stays visible to developers.
+        console.error("[web-vitals] Failed to load instrumentation module", error);
+      });
+  }, []);
+
   return (
     <html lang="en" className="dark" data-theme={DEFAULT_THEME} suppressHydrationWarning>
       <head>
