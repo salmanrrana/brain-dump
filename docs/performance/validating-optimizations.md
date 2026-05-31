@@ -52,7 +52,8 @@ answers yours.
 | Is a SQLite query slow?                         | `npx tsx scripts/measure-sqlite-baseline.ts`          | node  | p50/p95/avg/max over N iterations              |
 
 > **Build caveat:** the `window.__*Report()` / `__*Summaries()` instrumentation in
-> `src/lib/navigation-timing.ts` is **DEV-only** — use those numbers for _relative_
+> `src/lib/navigation-timing.ts` (navigation/hydration/splash/asset globals) and
+> `src/lib/profiler.ts` (the `__profiler*` globals) is **DEV-only** — use those numbers for _relative_
 > before/after deltas and render-count tracking, not absolute wall-clock. Use the
 > **bundle** (prod), **web-vitals** (`window.__perfReport()`, prod + dev), and
 > **SQLite** (real DB) numbers when you need absolute figures. `window.__perfReport()`
