@@ -23,7 +23,7 @@
 
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { epics, projects, reviewFindings, tickets } from "../src/lib/schema";
 import { getDatabasePath } from "../src/lib/xdg";
 
@@ -114,7 +114,7 @@ function main(): void {
     .groupBy(tickets.epicId)
     .orderBy(desc(sql`COUNT(*)`))
     .all();
-  const busiestEpicId = epicCounts[0]?.epicId ?? undefined;
+  const busiestEpicId = epicCounts[0]?.epicId;
 
   const totalTickets =
     db
@@ -159,6 +159,10 @@ function main(): void {
             .all().length,
         iterations
       )
+    );
+  } else {
+    console.warn(
+      "WARNING: no tickets found — skipping 'getTicketSummaries (board, one project)'. Run against a populated DB for the full 4-query baseline."
     );
   }
 
@@ -222,13 +226,17 @@ function main(): void {
             })
             .from(reviewFindings)
             .innerJoin(tickets, eq(reviewFindings.ticketId, tickets.id))
-            .where(and(eq(tickets.epicId, busiestEpicId)))
+            .where(eq(tickets.epicId, busiestEpicId))
             .groupBy(reviewFindings.severity, reviewFindings.status)
             .all().length;
           return rows;
         },
         iterations
       )
+    );
+  } else {
+    console.warn(
+      "WARNING: no epic with tickets found — skipping 'getEpicDetail (composite, one epic)'. Run against a populated DB for the full 4-query baseline."
     );
   }
 

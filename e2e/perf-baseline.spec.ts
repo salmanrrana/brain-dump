@@ -176,6 +176,14 @@ test("capture runtime performance baseline", async ({ page }) => {
   )?.id;
   sampleDb.close();
 
+  // Fail loudly on a broken precondition rather than emitting a green run with null
+  // detail-route data the reader might transcribe or overlook.
+  expect(epicId, "No epics in the Playwright DB — was first-launch sample data seeded?").toBeTruthy();
+  expect(
+    ticketId,
+    "No tickets in the Playwright DB — was first-launch sample data seeded?"
+  ).toBeTruthy();
+
   let epicDetail: PageSnapshot | null = null;
   let ticketDetail: PageSnapshot | null = null;
 
@@ -216,4 +224,8 @@ test("capture runtime performance baseline", async ({ page }) => {
   expect(boardCold.navTiming.loadEventMs).toBeGreaterThan(0);
   expect(boardCold.assets.length).toBeGreaterThan(0);
   expect(afterSpaSequence.navigationLog.length).toBeGreaterThan(0);
+  expect(
+    afterSpaSequence.profiler.length,
+    "Profiler summaries are empty — is the dev build running with React Profiler instrumentation?"
+  ).toBeGreaterThan(0);
 });
