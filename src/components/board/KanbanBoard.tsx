@@ -399,17 +399,11 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
         <div style={columnsContainerStyles}>
           {COLUMNS.map((status) => {
             const columnTicketIds = ticketIdsByStatus[status];
-            // Scope focus to the column that owns the card: every other column
-            // receives null, so its `BoardColumn` memo holds and a focus move
-            // re-renders only the column(s) that gained/lost focus.
-            const columnFocusedId =
-              focusedTicketId !== null && columnTicketIds.includes(focusedTicketId)
-                ? focusedTicketId
-                : null;
-            const columnTabStopId =
-              rovingTabStopId !== null && columnTicketIds.includes(rovingTabStopId)
-                ? rovingTabStopId
-                : null;
+            // Scope focus/tab-stop to the column that owns the card: every other
+            // column receives null, so its `BoardColumn` memo holds and a focus
+            // move re-renders only the column(s) that gained/lost focus.
+            const columnFocusedId = scopeToColumn(focusedTicketId, columnTicketIds);
+            const columnTabStopId = scopeToColumn(rovingTabStopId, columnTicketIds);
             return (
               <BoardColumn
                 key={status}
@@ -437,6 +431,15 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
 function truncateTitle(title: string, maxLength = 30): string {
   if (title.length <= maxLength) return title;
   return `${title.slice(0, maxLength - 3)}...`;
+}
+
+/**
+ * Returns `id` only when it belongs to this column's ticket ids, else null.
+ * Used to hand each `BoardColumn` a focus/tab-stop id scoped to itself, so a
+ * focus move leaves every other column's props (and thus its `memo`) untouched.
+ */
+function scopeToColumn(id: string | null, columnTicketIds: string[]): string | null {
+  return id !== null && columnTicketIds.includes(id) ? id : null;
 }
 
 const boardContainerStyles: React.CSSProperties = {

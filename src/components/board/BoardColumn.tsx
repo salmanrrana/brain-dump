@@ -19,13 +19,9 @@ export interface BoardColumnProps {
   onTicketClick?: ((ticket: TicketSummary) => void) | undefined;
   /** Active Ralph sessions keyed by ticket id */
   activeRalphSessions?: Record<string, ActiveRalphSession> | undefined;
-  /**
-   * Keyboard-focused ticket id IF it belongs to this column, else null. The
-   * board passes null to every column that doesn't own the focused card, so a
-   * focus move re-renders only the column(s) that gained/lost focus.
-   */
+  /** Keyboard-focused ticket id for this column; null when no card here is focused. */
   focusedTicketId: string | null;
-  /** Roving tab-stop ticket id IF it belongs to this column, else null. */
+  /** Roving tab-stop ticket id for this column; null when the tab stop is elsewhere. */
   tabStopTicketId: string | null;
   /** Stable higher-order ref factory from the keyboard navigation hook */
   registerCardRef: (ticketId: string) => (el: HTMLElement | null) => void;

@@ -296,6 +296,11 @@ export function useBoardKeyboardNavigation(
   // the board so keyboard users can Tab into the grid. A stable string (rather
   // than a fresh `getTabIndex` closure on every focus move) lets the board scope
   // it per column, so only the cards whose tab-stop/focus state changed re-render.
+  //
+  // The "first card" fallback uses `allTickets`, which is built in `COLUMNS`
+  // order from the same `ticketsByStatus` the board renders. Consumers that
+  // resolve which column owns this id MUST scope it using that same column
+  // ordering, or the tab stop could land in the wrong column.
   const rovingTabStopId = useMemo(() => {
     if (effectiveFocusedTicketId) return effectiveFocusedTicketId;
     return allTickets[0]?.ticket.id ?? null;
