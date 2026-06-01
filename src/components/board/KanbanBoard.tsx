@@ -51,6 +51,18 @@ export interface KanbanBoardProps {
 // Use shared constant from constants.ts
 const COLUMNS = COLUMN_STATUSES as unknown as TicketStatus[];
 
+// Sensor option objects hoisted to module scope so they keep a stable identity
+// across renders. Recreating them inline made `useSensor`/`useSensors` rebuild
+// the sensor descriptors on every board render.
+const POINTER_SENSOR_OPTIONS = {
+  activationConstraint: {
+    distance: 8,
+  },
+} as const;
+const KEYBOARD_SENSOR_OPTIONS = {
+  coordinateGetter: sortableKeyboardCoordinates,
+} as const;
+
 /**
  * Human-readable labels for each status.
  */
@@ -183,14 +195,8 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
   const isDraggingRef = useRef(false);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
+    useSensor(PointerSensor, POINTER_SENSOR_OPTIONS),
+    useSensor(KeyboardSensor, KEYBOARD_SENSOR_OPTIONS)
   );
 
   // Group tickets by status

@@ -14,6 +14,7 @@ import {
   type StatusChange,
 } from "../lib/hooks";
 import type { TicketSummary } from "../api/tickets";
+import type { TagFilters } from "../api/tags";
 import { useToast } from "../components/Toast";
 import TicketListView from "../components/TicketListView";
 import TagListView from "../components/TagListView";
@@ -27,6 +28,10 @@ import { markLoaderStart, markLoaderEnd, timedFetch } from "../lib/navigation-ti
 import { ListSkeleton } from "../components/route-skeletons";
 
 const logger = createBrowserLogger("routes:list");
+
+// Stable empty tag-filter object. Showing ALL tags (unfiltered) needs a constant
+// reference so the tags query key/inputs don't change identity every render.
+const EMPTY_TAG_FILTERS: TagFilters = {};
 
 interface ListSearch {
   view?: "tags";
@@ -97,7 +102,7 @@ function ListView() {
   }, [appFilters.projectId, appFilters.epicId, appFilters.tags]);
 
   // Tag metadata: show ALL tags (unfiltered) so the Tags tab works without selecting a project/epic
-  const tagFilters = useMemo(() => ({}), []);
+  const tagFilters = EMPTY_TAG_FILTERS;
 
   // Handle status changes from external sources (CLI, hooks)
   const handleStatusChange = useCallback(

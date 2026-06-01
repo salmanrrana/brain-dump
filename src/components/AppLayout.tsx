@@ -1,4 +1,4 @@
-import { lazy, ReactNode, Suspense, useState, useMemo, useCallback } from "react";
+import { lazy, memo, ReactNode, Suspense, useState, useMemo, useCallback } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { LayoutGrid, List, Settings, RefreshCw, Menu, MessageSquareWarning } from "lucide-react";
 import { IconSidebar } from "./navigation/IconSidebar";
@@ -460,6 +460,13 @@ export default function AppLayout({ children }: AppLayoutProps) {
     closeProjectsPanel();
   }, [openProject, closeProjectsPanel]);
 
+  // Handler for import from ProjectsPanel — stable identity so the panel's
+  // props don't change every render.
+  const handleImportFromPanel = useCallback(() => {
+    closeProjectsPanel();
+    setIsImportModalOpen(true);
+  }, [closeProjectsPanel]);
+
   // Handler for epic selection from ProjectsPanel
   const handleEpicSelectFromPanel = useCallback(
     (epicId: string | null, projectId: string) => {
@@ -580,10 +587,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                           onAddEpic={handleAddEpicFromPanel}
                           onEditEpic={handleEditEpicFromPanel}
                           onLaunchRalphForEpic={handleLaunchRalphForEpic}
-                          onImport={() => {
-                            closeProjectsPanel();
-                            setIsImportModalOpen(true);
-                          }}
+                          onImport={handleImportFromPanel}
                           epicTicketCounts={epicTicketCounts}
                           epicsWithActiveAI={epicsWithActiveAI}
                         />
@@ -704,7 +708,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   );
 }
 
-function AppHeader() {
+const AppHeader = memo(function AppHeader() {
   const navigate = useNavigate();
   const routerState = useRouterState({ select: (s) => s.location });
   const pathname = routerState.pathname;
@@ -833,7 +837,7 @@ function AppHeader() {
       )}
     </header>
   );
-}
+});
 
 interface SidebarProps {
   /** Optional callback when a navigation item is clicked (for mobile menu close) */
