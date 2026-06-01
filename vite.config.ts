@@ -373,8 +373,33 @@ function serverOnlyImplementationModules(): Plugin {
   };
 }
 
+// The DEV-gated devtools in `src/routes/__root.tsx` lazy-import
+// `@tanstack/react-devtools` + `@tanstack/react-router-devtools`. In production
+// `import.meta.env.DEV` is false so that branch is dead code, yet Rollup still
+// emits ~55kB of `*Devtools*` chunks for the dynamic imports. `@tanstack/devtools-vite`
+// only strips `@tanstack/react-devtools`, not the router devtools. This plugin
+// resolves both packages to an empty module during `vite build` (production),
+// keeping the chunks out of `.output/public`. It uses `apply: "build"` so the
+// dev server (`vite dev`) is untouched and devtools still work in `pnpm dev`.
+function stripDevtoolsInProduction(): Plugin {
+  const STUBBED = new Set(["@tanstack/react-router-devtools", "@tanstack/react-devtools"]);
+  const STUB_ID = "\0brain-dump:devtools-stub";
+  return {
+    name: "brain-dump:strip-devtools-in-production",
+    enforce: "pre",
+    apply: "build",
+    resolveId(source) {
+      return STUBBED.has(source) ? STUB_ID : null;
+    },
+    load(id) {
+      return id === STUB_ID ? "export {};" : null;
+    },
+  };
+}
+
 const config = defineConfig({
   plugins: [
+    stripDevtoolsInProduction(),
     serverOnlyImplementationModules(),
     serverOnlyNativeModules(),
     devtools(
