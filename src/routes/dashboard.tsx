@@ -190,9 +190,7 @@ function Dashboard() {
     [navigate]
   );
 
-  // Compute all stat counts in a single pass, memoized on their real inputs, so
-  // unrelated re-renders (background polls of other queries, tab switches) don't
-  // re-run these array scans in the render body.
+  // Single-pass counts; avoids re-scanning tickets on unrelated background-poll re-renders.
   const { totalCount, inProgressCount, aiActiveCount, doneCount } = useMemo(() => {
     let inProgress = 0;
     let done = 0;

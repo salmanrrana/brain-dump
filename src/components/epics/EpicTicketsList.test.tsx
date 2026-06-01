@@ -16,9 +16,10 @@ vi.mock("@tanstack/react-router", () => ({
   ),
 }));
 
+let ticketCounter = 0;
 function makeTicket(overrides: Partial<EpicTicket> = {}): EpicTicket {
   return {
-    id: Math.random().toString(36).slice(2),
+    id: `ticket-${++ticketCounter}`,
     title: "Untitled ticket",
     status: "backlog",
     priority: null,
@@ -74,7 +75,7 @@ describe("EpicTicketsList", () => {
     expect(screen.queryByText("Shipped feature")).not.toBeInTheDocument();
 
     // Clicking the Done header reveals the ticket.
-    await user.click(screen.getByText("Done (1)"));
+    await user.click(screen.getByRole("button", { name: /Done \(1\)/ }));
     expect(screen.getByText("Shipped feature")).toBeInTheDocument();
   });
 });
