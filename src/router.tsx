@@ -48,6 +48,11 @@ export const getRouter = () => {
     context: { queryClient },
 
     scrollRestoration: true,
+    // Prefetch a route's loader (incl. its ensureQueryData) on hover/focus intent so the
+    // target page is usually ready by the time the user clicks. Composes with
+    // defaultPreloadStaleTime below: prefetched data stays warm for 30s and is served from
+    // cache (matching the query staleTime), so an already-cached route does not double-fetch.
+    defaultPreload: "intent",
     defaultPreloadStaleTime: 30_000, // 30s — allows hover-prefetch to serve cached data
   });
 
