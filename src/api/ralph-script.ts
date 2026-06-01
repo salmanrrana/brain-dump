@@ -73,7 +73,7 @@ fi
 `,
     invocation: `  # Run Claude in print mode (-p) so it exits after completion
   # This allows the bash loop to continue to the next iteration
-  claude --dangerously-skip-permissions --output-format text -p "$(cat "$PROMPT_FILE")"`,
+  $ITER_TIMEOUT_CMD claude --dangerously-skip-permissions --output-format text -p "$(cat "$PROMPT_FILE")"`,
   },
   opencode: {
     displayName: "OpenCode",
@@ -110,7 +110,7 @@ fi
   if [ -n "\${BRAIN_DUMP_LAUNCH_MODEL_PROVIDER:-}" ] && [ -n "\${BRAIN_DUMP_LAUNCH_MODEL:-}" ]; then
     OPENCODE_MODEL_ARGS+=(--model "\${BRAIN_DUMP_LAUNCH_MODEL_PROVIDER}/\${BRAIN_DUMP_LAUNCH_MODEL}")
   fi
-  opencode run "\${OPENCODE_MODEL_ARGS[@]}" "$(cat "$PROMPT_FILE")"`,
+  $ITER_TIMEOUT_CMD opencode run "\${OPENCODE_MODEL_ARGS[@]}" "$(cat "$PROMPT_FILE")"`,
   },
   codex: {
     displayName: "Codex",
@@ -158,7 +158,7 @@ fi
   if [ -n "\${BRAIN_DUMP_LAUNCH_MODEL:-}" ]; then
     CODEX_MODEL_ARGS+=(--model "\${BRAIN_DUMP_LAUNCH_MODEL}")
   fi
-  codex exec "\${CODEX_MODEL_ARGS[@]}" --dangerously-bypass-approvals-and-sandbox "$(cat "$PROMPT_FILE")"`,
+  $ITER_TIMEOUT_CMD codex exec "\${CODEX_MODEL_ARGS[@]}" --dangerously-bypass-approvals-and-sandbox "$(cat "$PROMPT_FILE")"`,
   },
   "cursor-agent": {
     displayName: "Cursor Agent",
@@ -184,7 +184,7 @@ fi
   if [ -n "\${BRAIN_DUMP_LAUNCH_MODEL:-}" ]; then
     CURSOR_AGENT_MODEL_ARGS+=(--model "\${BRAIN_DUMP_LAUNCH_MODEL}")
   fi
-  "$CURSOR_AGENT_BIN" --force --approve-mcps --trust "\${CURSOR_AGENT_MODEL_ARGS[@]}" -p "$(cat "$PROMPT_FILE")"`,
+  $ITER_TIMEOUT_CMD "$CURSOR_AGENT_BIN" --force --approve-mcps --trust "\${CURSOR_AGENT_MODEL_ARGS[@]}" -p "$(cat "$PROMPT_FILE")"`,
   },
   pi: {
     displayName: "Pi",
@@ -216,12 +216,19 @@ fi
   if [ -n "\${BRAIN_DUMP_LAUNCH_MODEL_PROVIDER:-}" ] && [ -n "\${BRAIN_DUMP_LAUNCH_MODEL:-}" ]; then
     PI_MODEL_ARGS+=(--model "\${BRAIN_DUMP_LAUNCH_MODEL_PROVIDER}/\${BRAIN_DUMP_LAUNCH_MODEL}")
   fi
-  pi "\${PI_MODEL_ARGS[@]}" -p "$(cat "$PROMPT_FILE")"`,
+  $ITER_TIMEOUT_CMD pi "\${PI_MODEL_ARGS[@]}" -p "$(cat "$PROMPT_FILE")"`,
   },
 };
 
 // Default timeout for Ralph session (1 hour in seconds)
 export const DEFAULT_TIMEOUT_SECONDS = 3600;
+
+// Default per-iteration AI timeout (30 minutes in seconds). Wraps the single
+// AI invocation inside the wrapper loop so an iteration whose AI process never
+// exits (hangs on the invocation line) is killed and surfaced, instead of
+// silently stalling the loop until the session-level timeout fires. Clamped to
+// never exceed the session timeout.
+export const DEFAULT_PER_ITERATION_TIMEOUT_SECONDS = 1800;
 
 // ============================================================================
 // SCRIPT GENERATION
@@ -238,9 +245,16 @@ export function generateRalphScript(
   projectOrigin?: ProjectOriginInfo | undefined,
   aiBackend: RalphAiBackend = "claude",
   promptProfile: RalphPromptProfile = { type: "implementation" },
-  modelSelection?: ConcreteLaunchModelSelection
+  modelSelection?: ConcreteLaunchModelSelection,
+  perIterationTimeoutSeconds: number = DEFAULT_PER_ITERATION_TIMEOUT_SECONDS
 ): string {
   const imageName = "brain-dump-ralph-sandbox:latest";
+
+  // Per-iteration timeout can never usefully exceed the whole-session timeout.
+  const perIterationTimeoutValue = Math.max(
+    0,
+    Math.min(perIterationTimeoutSeconds, timeoutSeconds)
+  );
   const sandboxHeader = useSandbox ? " (Docker Sandbox)" : "";
 
   // Docker host setup - export DOCKER_HOST if using non-default socket
@@ -422,7 +436,7 @@ fi
     aiBackend === "claude"
       ? `  # Run Claude in print mode (-p) so it exits after completion
   # This allows the bash loop to continue to the next iteration
-  claude --dangerously-skip-permissions${claudeNativeModelArgument} --output-format text -p "$(cat "$PROMPT_FILE")"`
+  $ITER_TIMEOUT_CMD claude --dangerously-skip-permissions${claudeNativeModelArgument} --output-format text -p "$(cat "$PROMPT_FILE")"`
       : AI_BACKEND_CONFIGS[aiBackend].invocation;
 
   // Generate the AI invocation command based on backend choice.
@@ -448,7 +462,7 @@ fi
   # Labels:
   #   brain-dump.project-id/project-name: Tracks which project started this container
   #   brain-dump.epic-id/epic-title: Tracks which epic (if applicable)
-  docker run --rm -it \\
+  $ITER_TIMEOUT_CMD docker run --rm -it \\
     --name "ralph-\${SESSION_ID}" \\
     --network ralph-net \\
     --memory=${resourceLimits.memory} \\
@@ -581,6 +595,7 @@ MAX_CONSECUTIVE_FAILURES=5
 LAST_INCOMPLETE_COUNT=-1
 NO_PROGRESS_COUNT=0
 MAX_NO_PROGRESS=3
+PER_ITERATION_TIMEOUT=${perIterationTimeoutValue}
 
 cd "$PROJECT_PATH"
 ${RALPH_ENV_EXPORTS}
@@ -594,6 +609,20 @@ if [ ! -f "$PROGRESS_FILE" ]; then
   echo "# Ralph Progress Log" > "$PROGRESS_FILE"
   echo "# Use this to leave notes for the next iteration" >> "$PROGRESS_FILE"
   echo "" >> "$PROGRESS_FILE"
+fi
+
+# Per-iteration AI timeout: catch a single iteration whose AI process never
+# exits (hangs on the invocation line) so the loop can recover instead of
+# silently stalling until the session-level timeout fires. coreutils 'timeout'
+# exits 124 (TERM) or 137 (SIGKILL via --kill-after) when it fires. Falls back
+# to no per-iteration timeout if 'timeout' is unavailable on this host.
+ITER_TIMEOUT_CMD=""
+if [ "$PER_ITERATION_TIMEOUT" -gt 0 ] 2>/dev/null; then
+  if command -v timeout >/dev/null 2>&1; then
+    ITER_TIMEOUT_CMD="timeout --signal=TERM --kill-after=30 $PER_ITERATION_TIMEOUT"
+  else
+    echo "[$(date -Iseconds)] WARN: 'timeout' command not found; per-iteration AI timeout disabled" >> "$PROGRESS_FILE"
+  fi
 fi
 
 # Rotate progress file if it exceeds 500 lines
@@ -675,11 +704,24 @@ RALPH_PROMPT_EOF
   # Retry loop for Claude invocation (handles transient "No messages returned" errors)
   AI_EXIT_CODE=1
   AI_INTERRUPTED=false
+  AI_ITER_TIMEOUT=false
   for RETRY in $(seq 1 $MAX_RETRIES); do
     set +e
 ${aiInvocation}
     AI_EXIT_CODE=$?
     set -e
+
+    # Per-iteration timeout fired: coreutils 'timeout' exits 124 (TERM) or 137
+    # (SIGKILL via --kill-after) when the AI process never returns. Surface this
+    # distinctly from the no-progress / session-timeout cases and stop retrying
+    # a hung process (retries would just re-incur the full timeout).
+    if [ -n "$ITER_TIMEOUT_CMD" ] && { [ $AI_EXIT_CODE -eq 124 ] || [ $AI_EXIT_CODE -eq 137 ]; }; then
+      echo ""
+      echo -e "\\033[0;31m⏱️  ${aiName} did not exit within \${PER_ITERATION_TIMEOUT}s on iteration $i. Killed to keep the loop alive.\\033[0m"
+      echo "[$(date -Iseconds)] ITERATION TIMEOUT: ${aiName} hung for >\${PER_ITERATION_TIMEOUT}s on iteration $i (killed, exit code: $AI_EXIT_CODE)" >> "$PROGRESS_FILE"
+      AI_ITER_TIMEOUT=true
+      break
+    fi
 
     if [ $AI_EXIT_CODE -eq 130 ] || [ $AI_EXIT_CODE -eq 143 ]; then
       echo ""
@@ -721,7 +763,11 @@ ${aiInvocation}
   if [ $AI_EXIT_CODE -ne 0 ]; then
     CONSECUTIVE_FAILURES=$((CONSECUTIVE_FAILURES + 1))
     echo -e "\\033[0;31m⚠️  Consecutive failures: $CONSECUTIVE_FAILURES/$MAX_CONSECUTIVE_FAILURES\\033[0m"
-    echo "[$(date -Iseconds)] FAILURE: Iteration $i failed after $MAX_RETRIES retries (exit code: $AI_EXIT_CODE)" >> "$PROGRESS_FILE"
+    # A per-iteration timeout already wrote its own distinct ITERATION TIMEOUT
+    # line above; don't double-log it as a generic post-retry failure.
+    if [ "$AI_ITER_TIMEOUT" != "true" ]; then
+      echo "[$(date -Iseconds)] FAILURE: Iteration $i failed after $MAX_RETRIES retries (exit code: $AI_EXIT_CODE)" >> "$PROGRESS_FILE"
+    fi
 
     if [ $CONSECUTIVE_FAILURES -ge $MAX_CONSECUTIVE_FAILURES ]; then
       echo ""

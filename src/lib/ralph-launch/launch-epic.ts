@@ -42,6 +42,49 @@ import type {
 
 const coreGit = createRealGitOperations();
 
+/**
+ * Apply the database status changes for an epic implementation launch and
+ * return a `rollback` that restores the captured pre-launch statuses.
+ *
+ * Board-display correctness contract:
+ * - ONLY the first runnable ticket (status `backlog` or `ready`) is handed to
+ *   `promoteFirstTicket` (which calls `startWork` → `in_progress` + branch).
+ * - Every other ticket keeps its existing status: `backlog` stays `backlog`,
+ *   `ready` stays `ready`. Tickets already in `ai_review` / `human_review` /
+ *   `done` are never touched.
+ * - `rollback()` restores each ticket's captured pre-launch status, so a later
+ *   launch step that fails cannot leave the board half-mutated.
+ *
+ * Statuses are captured BEFORE `promoteFirstTicket` runs so the rollback can
+ * restore the exact pre-launch state regardless of what the promotion mutated.
+ */
+export function applyEpicLaunchStatusChanges(
+  db: RalphLaunchDb,
+  epicTickets: TicketRecord[],
+  promoteFirstTicket: (ticket: TicketRecord) => void
+): { firstTicketId: string | null; rollback: () => void } {
+  const capturedStatuses = epicTickets.map((ticket) => ({
+    id: ticket.id,
+    status: ticket.status,
+  }));
+
+  const firstTicket = epicTickets.find(
+    (ticket) => ticket.status === "backlog" || ticket.status === "ready"
+  );
+
+  if (firstTicket) {
+    promoteFirstTicket(firstTicket);
+  }
+
+  const rollback = () => {
+    for (const { id, status } of capturedStatuses) {
+      db.update(tickets).set({ status }).where(eq(tickets.id, id)).run();
+    }
+  };
+
+  return { firstTicketId: firstTicket?.id ?? null, rollback };
+}
+
 const WORKING_METHOD_LABELS: Record<string, string> = {
   vscode: "VS Code",
   cursor: "Cursor",
@@ -543,11 +586,13 @@ export async function launchRalphForEpicCore(
   writeFileSync(scriptPath, ralphScript, { mode: 0o700 });
   chmodSync(scriptPath, 0o700);
 
+  // Promote ONLY the first runnable ticket to in_progress (via startWork). All
+  // other epic tickets keep their existing status — previously a loop here set
+  // every backlog/ready ticket to in_progress, which made the board show
+  // several tickets "in progress" with no Ralph session behind them.
+  let rollbackEpicLaunchStatuses: () => void = () => {};
   if (startsImplementationWorkflow) {
-    const firstTicket = epicTickets.find(
-      (ticket) => ticket.status === "backlog" || ticket.status === "ready"
-    );
-    if (firstTicket) {
+    const { rollback } = applyEpicLaunchStatusChanges(db, epicTickets, (firstTicket) => {
       try {
         startWork(sqlite, firstTicket.id, coreGit);
       } catch (error) {
@@ -559,16 +604,8 @@ export async function launchRalphForEpicCore(
           throw error;
         }
       }
-    }
-
-    for (const ticket of epicTickets) {
-      if (
-        ticket.id !== firstTicket?.id &&
-        (ticket.status === "backlog" || ticket.status === "ready")
-      ) {
-        db.update(tickets).set({ status: "in_progress" }).where(eq(tickets.id, ticket.id)).run();
-      }
-    }
+    });
+    rollbackEpicLaunchStatuses = rollback;
   }
 
   console.log(
@@ -582,11 +619,7 @@ export async function launchRalphForEpicCore(
     const contextContent = generateVSCodeContext(prd, promptProfile);
     const contextResult = await writeVSCodeContext(project.path, contextContent);
     if (!contextResult.success) {
-      if (startsImplementationWorkflow) {
-        for (const ticket of epicTickets) {
-          db.update(tickets).set({ status: ticket.status }).where(eq(tickets.id, ticket.id)).run();
-        }
-      }
+      rollbackEpicLaunchStatuses();
       return contextResult;
     }
 
@@ -602,11 +635,7 @@ export async function launchRalphForEpicCore(
     }
 
     if (!launchResult.success) {
-      if (startsImplementationWorkflow) {
-        for (const ticket of epicTickets) {
-          db.update(tickets).set({ status: ticket.status }).where(eq(tickets.id, ticket.id)).run();
-        }
-      }
+      rollbackEpicLaunchStatuses();
       return launchResult;
     }
 
@@ -637,6 +666,7 @@ export async function launchRalphForEpicCore(
   console.log("[brain-dump] Using terminal launch path");
   const launchResult = await launchInTerminal(project.path, scriptPath, preferredTerminal);
   if (!launchResult.success) {
+    rollbackEpicLaunchStatuses();
     return launchResult;
   }
 

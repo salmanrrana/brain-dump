@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Profiler, Suspense, lazy, useCallback, useState } from "react";
+import { Profiler, Suspense, lazy, useCallback, useMemo, useState } from "react";
 import { onRenderCallback } from "../lib/profiler";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTicketSummaries, useDashboardAnalytics } from "../lib/hooks";
@@ -193,6 +193,22 @@ function Dashboard() {
     [navigate]
   );
 
+  // Single-pass counts; avoids re-scanning tickets on unrelated background-poll re-renders.
+  const { totalCount, inProgressCount, aiActiveCount, doneCount } = useMemo(() => {
+    let inProgress = 0;
+    let done = 0;
+    for (const ticket of tickets) {
+      if (ticket.status === "in_progress") inProgress += 1;
+      else if (ticket.status === "done") done += 1;
+    }
+    return {
+      totalCount: tickets.length,
+      inProgressCount: inProgress,
+      aiActiveCount: Object.keys(sessions).length,
+      doneCount: done,
+    };
+  }, [tickets, sessions]);
+
   if (loading) {
     return <div className="h-full" />;
   }
@@ -204,11 +220,6 @@ function Dashboard() {
       </div>
     );
   }
-
-  const totalCount = tickets.length;
-  const inProgressCount = tickets.filter((t) => t.status === "in_progress").length;
-  const aiActiveCount = Object.keys(sessions).length;
-  const doneCount = tickets.filter((t) => t.status === "done").length;
 
   return (
     <Profiler id="Dashboard" onRender={onRenderCallback}>

@@ -373,6 +373,43 @@ function serverOnlyImplementationModules(): Plugin {
   };
 }
 
+// React Compiler configuration. `target: "19"` matches react@19.2 so the compiler
+// emits the runtime calls that ship natively with React 19 (no extra runtime shim).
+//
+// The compiler defaults to panicThreshold "none": when it cannot prove a component
+// safe it bails out silently and leaves the source untouched. Without a logger those
+// CompileError/PipelineError diagnostics are dropped on the floor, so a hot component
+// that compiles today could quietly revert to a bailout after a refactor with no build
+// output. We attach a build-time logger that surfaces those events (zero runtime cost —
+// logEvent only fires during the Babel transform) so bailouts are visible, not hidden.
+type ReactCompilerEvent = {
+  kind: string;
+  detail?: {
+    options?: { reason?: string; category?: string; loc?: { identifierName?: string } };
+    reason?: string;
+    category?: string;
+    loc?: { identifierName?: string };
+  };
+};
+
+const reactCompilerConfig = {
+  target: "19",
+  logger: {
+    logEvent(filename: string, event: ReactCompilerEvent) {
+      if (event.kind !== "CompileError" && event.kind !== "PipelineError") return;
+      // Bailouts (category "Todo"/"InvalidReact" etc.) are non-fatal — the function is
+      // left as-is — but print a concise, greppable one-liner so a hot component silently
+      // dropping to a bailout after a refactor is visible instead of hidden. Reason/category
+      // live under either `detail.options` (CompilerErrorDetail) or `detail` (diagnostic).
+      const opts = event.detail?.options ?? event.detail ?? {};
+      const where = opts.loc?.identifierName ? ` (${opts.loc.identifierName})` : "";
+      const category = opts.category ? `[${opts.category}] ` : "";
+      const reason = opts.reason ?? "compiler bailout";
+      console.warn(`[react-compiler] ${filename}${where}: ${category}${reason}`);
+    },
+  },
+} as const;
+
 const config = defineConfig({
   plugins: [
     serverOnlyImplementationModules(),
@@ -398,7 +435,13 @@ const config = defineConfig({
     }),
     tailwindcss(),
     tanstackStart(),
-    viteReact(),
+    // React Compiler: auto-memoizes components it can prove safe for React 19.
+    // See docs/performance/react-compiler.md for bailouts and bundle impact.
+    viteReact({
+      babel: {
+        plugins: [["babel-plugin-react-compiler", reactCompilerConfig]],
+      },
+    }),
   ],
   // Keep the browser dep optimizer from eagerly pre-bundling native modules.
   optimizeDeps: {

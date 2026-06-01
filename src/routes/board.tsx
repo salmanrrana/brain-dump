@@ -5,7 +5,7 @@ import { onRenderCallback } from "../lib/profiler";
 import {
   useAppActiveSessions,
   useAppFilters,
-  useAppRefresh,
+  useAppTicketRefresh,
   useAppSearchNavigation,
 } from "../components/AppLayoutContext";
 import { useTicketSummaries, useProjects, type Ticket, type StatusChange } from "../lib/hooks";
@@ -52,7 +52,7 @@ export const Route = createFileRoute("/board")({
 
 function Board() {
   const { filters: appFilters, clearAllFilters } = useAppFilters();
-  const { ticketRefreshKey } = useAppRefresh();
+  const { ticketRefreshKey } = useAppTicketRefresh();
   const { selectedTicketIdFromSearch, clearSelectedTicketFromSearch } = useAppSearchNavigation();
   const { projects } = useProjects();
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);

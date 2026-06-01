@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ChevronDown, ChevronRight, AlertCircle, GitPullRequest } from "lucide-react";
 import {
@@ -30,10 +30,28 @@ const STATUS_GROUP_ORDER = [
   "done",
 ] as const;
 
-export function EpicTicketsList({ tickets }: EpicTicketsListProps) {
+function EpicTicketsListComponent({ tickets }: EpicTicketsListProps) {
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
     return new Set(["done"]);
   });
+
+  // Group tickets by status once per `tickets` change instead of on every render
+  // (epic detail re-renders on background polls and findings updates).
+  const ticketsByStatus = useMemo(
+    () =>
+      tickets.reduce(
+        (acc, ticket) => {
+          const status = ticket.status || "backlog";
+          if (!acc[status]) {
+            acc[status] = [];
+          }
+          acc[status].push(ticket);
+          return acc;
+        },
+        {} as Record<string, typeof tickets>
+      ),
+    [tickets]
+  );
 
   if (tickets.length === 0) {
     return (
@@ -53,18 +71,6 @@ export function EpicTicketsList({ tickets }: EpicTicketsListProps) {
       </div>
     );
   }
-
-  const ticketsByStatus = tickets.reduce(
-    (acc, ticket) => {
-      const status = ticket.status || "backlog";
-      if (!acc[status]) {
-        acc[status] = [];
-      }
-      acc[status].push(ticket);
-      return acc;
-    },
-    {} as Record<string, typeof tickets>
-  );
 
   const toggleGroup = (status: string) => {
     setCollapsedGroups((prev) => {
@@ -239,3 +245,5 @@ export function EpicTicketsList({ tickets }: EpicTicketsListProps) {
     </div>
   );
 }
+
+export const EpicTicketsList = memo(EpicTicketsListComponent);
