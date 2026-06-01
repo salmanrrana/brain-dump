@@ -1,4 +1,4 @@
-import { renderHook, act } from "@testing-library/react";
+import { render, renderHook, act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
 import type { KeyboardEvent } from "react";
 import { useBoardKeyboardNavigation } from "./use-board-keyboard-navigation";
@@ -99,6 +99,30 @@ describe("useBoardKeyboardNavigation roving tabindex", () => {
     act(() => result.current.handleKeyDown(arrowRight()));
     expect(result.current.focusedTicketId).toBe("c");
     expect(result.current.rovingTabStopId).toBe("c");
+  });
+
+  it("focuses a card that mounts after keyboard navigation reaches it", async () => {
+    function VirtualizedFocusHarness() {
+      const navigation = useBoardKeyboardNavigation({ ticketsByStatus });
+
+      return (
+        <div data-testid="board" onKeyDown={navigation.handleKeyDown} tabIndex={0}>
+          {navigation.focusedTicketId === "a" ? (
+            <button ref={navigation.registerCardRef("a")} data-testid="virtual-card-a">
+              Ticket a
+            </button>
+          ) : null}
+        </div>
+      );
+    }
+
+    render(<VirtualizedFocusHarness />);
+
+    fireEvent.keyDown(screen.getByTestId("board"), { key: "ArrowDown" });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("virtual-card-a")).toHaveFocus();
+    });
   });
 
   it("drops the tab stop to null when the board has no tickets", () => {

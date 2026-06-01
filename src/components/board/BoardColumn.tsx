@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useRef } from "react";
 import { KanbanColumn } from "./KanbanColumn";
 import { KanbanColumnContent } from "./KanbanColumnContent";
 import type { TicketStatus, TicketSummary } from "../../api/tickets";
@@ -58,9 +58,18 @@ export const BoardColumn = memo(function BoardColumn({
   registerCardRef,
   onCardFocus,
 }: BoardColumnProps) {
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
   return (
-    <KanbanColumn status={status} label={label} count={tickets.length} accentColor={accentColor}>
+    <KanbanColumn
+      status={status}
+      label={label}
+      count={tickets.length}
+      accentColor={accentColor}
+      innerRef={scrollContainerRef}
+    >
       <KanbanColumnContent
+        scrollContainerRef={scrollContainerRef}
         ticketIds={ticketIds}
         tickets={tickets}
         onTicketClick={onTicketClick}

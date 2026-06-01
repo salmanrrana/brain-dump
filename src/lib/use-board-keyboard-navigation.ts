@@ -81,6 +81,7 @@ export function useBoardKeyboardNavigation(
 
   const [focusedTicketId, setFocusedTicketId] = useState<string | null>(null);
   const cardRefs = useRef<Map<string, HTMLElement>>(new Map());
+  const pendingFocusTicketId = useRef<string | null>(null);
 
   // Build a flat list of all tickets for navigation (useMemo caches the computed array)
   const allTickets = useMemo(() => {
@@ -119,8 +120,11 @@ export function useBoardKeyboardNavigation(
     setFocusedTicketId(ticketId);
     const element = cardRefs.current.get(ticketId);
     if (element) {
+      pendingFocusTicketId.current = null;
       element.focus();
+      return;
     }
+    pendingFocusTicketId.current = ticketId;
   }, []);
 
   // Navigate up within the same column
@@ -305,6 +309,23 @@ export function useBoardKeyboardNavigation(
     if (effectiveFocusedTicketId) return effectiveFocusedTicketId;
     return allTickets[0]?.ticket.id ?? null;
   }, [effectiveFocusedTicketId, allTickets]);
+
+  useEffect(() => {
+    if (!effectiveFocusedTicketId) {
+      pendingFocusTicketId.current = null;
+      return;
+    }
+
+    if (pendingFocusTicketId.current !== effectiveFocusedTicketId) {
+      return;
+    }
+
+    const element = cardRefs.current.get(effectiveFocusedTicketId);
+    if (element) {
+      pendingFocusTicketId.current = null;
+      element.focus();
+    }
+  }, [effectiveFocusedTicketId]);
 
   // Register a card element ref
   const registerCardRef = useCallback(
