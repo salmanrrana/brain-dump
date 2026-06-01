@@ -61,6 +61,9 @@ function parseFontFaces(css) {
   return faces;
 }
 
+/** Every field we read from each @font-face — all are required to emit a valid rule. */
+const REQUIRED_FIELDS = ["family", "style", "weight", "unicodeRange", "url"];
+
 /** Deterministic, human-readable local filename for a font face. */
 function fileNameFor({ family, weight, style, subset }) {
   const slug = family.toLowerCase().replace(/\s+/g, "-");
@@ -69,40 +72,72 @@ function fileNameFor({ family, weight, style, subset }) {
   return `${slug}-${weightSlug}-${style}-${subset}.woff2`;
 }
 
+/** Build the @font-face CSS block for a face served from /fonts/<fileName>. */
+function fontFaceRule(face, fileName) {
+  return [
+    `/* ${face.family} ${face.weight} ${face.style} — ${face.subset} */`,
+    `@font-face {`,
+    `  font-family: "${face.family}";`,
+    `  font-style: ${face.style};`,
+    `  font-weight: ${face.weight};`,
+    `  font-display: swap;`,
+    `  src: url("/fonts/${fileName}") format("woff2");`,
+    `  unicode-range: ${face.unicodeRange};`,
+    `}`,
+  ].join("\n");
+}
+
 async function main() {
   console.log("Fetching Google Fonts CSS…");
   const cssRes = await fetch(GOOGLE_FONTS_CSS_URL, { headers: { "User-Agent": CHROME_UA } });
   if (!cssRes.ok) throw new Error(`Google Fonts CSS request failed: ${cssRes.status}`);
   const css = await cssRes.text();
-
-  const faces = parseFontFaces(css).filter((f) => KEEP_SUBSETS.has(f.subset));
-  if (faces.length === 0) throw new Error("No matching font faces parsed — did the CSS format change?");
-
-  await mkdir(FONTS_DIR, { recursive: true });
-
-  const rules = [];
-  for (const face of faces) {
-    const fileName = fileNameFor(face);
-    console.log(`Downloading ${fileName} (${face.subset})…`);
-    const res = await fetch(face.url, { headers: { "User-Agent": CHROME_UA } });
-    if (!res.ok) throw new Error(`Font download failed (${face.url}): ${res.status}`);
-    const buf = Buffer.from(await res.arrayBuffer());
-    await writeFile(resolve(FONTS_DIR, fileName), buf);
-
-    rules.push(
-      [
-        `/* ${face.family} ${face.weight} ${face.style} — ${face.subset} */`,
-        `@font-face {`,
-        `  font-family: "${face.family}";`,
-        `  font-style: ${face.style};`,
-        `  font-weight: ${face.weight};`,
-        `  font-display: swap;`,
-        `  src: url("/fonts/${fileName}") format("woff2");`,
-        `  unicode-range: ${face.unicodeRange};`,
-        `}`,
-      ].join("\n")
+  // A 200 with an empty/near-empty body (rate limiting, a proxy stripping the
+  // payload) would otherwise surface as a misleading "format changed" parse error.
+  if (css.length < 100) {
+    throw new Error(
+      `Google Fonts CSS body was unexpectedly short (${css.length} bytes) — possible rate limit or network issue.`
     );
   }
+
+  const faces = parseFontFaces(css).filter((f) => KEEP_SUBSETS.has(f.subset));
+  if (faces.length === 0)
+    throw new Error("No matching font faces parsed — did the CSS format change?");
+
+  // Guard against per-field parse corruption: a Google Fonts format change could
+  // match a block but leave individual fields empty, which `faces.length` can't
+  // detect. Fail loudly here rather than emit a broken rule / 0-byte WOFF2.
+  for (const face of faces) {
+    const missing = REQUIRED_FIELDS.filter((key) => !face[key]);
+    if (missing.length > 0) {
+      throw new Error(
+        `Incomplete @font-face parsed (family: "${face.family}", subset: "${face.subset}"): ` +
+          `missing [${missing.join(", ")}]. The Google Fonts CSS format may have changed.`
+      );
+    }
+  }
+
+  // Two-phase: download everything into memory first (in parallel), so a single
+  // failed fetch aborts before any file is written — never leaving an incomplete
+  // set of WOFF2 files on disk out of sync with fonts.css.
+  const downloads = await Promise.all(
+    faces.map(async (face) => {
+      const fileName = fileNameFor(face);
+      console.log(`Downloading ${fileName} (${face.subset})…`);
+      const res = await fetch(face.url, { headers: { "User-Agent": CHROME_UA } });
+      if (!res.ok) throw new Error(`Font download failed (${face.url}): ${res.status}`);
+      const buf = Buffer.from(await res.arrayBuffer());
+      if (buf.length === 0)
+        throw new Error(`Downloaded 0 bytes for ${fileName} (${face.url}) — possible CDN error.`);
+      return { face, fileName, buf };
+    })
+  );
+
+  await mkdir(FONTS_DIR, { recursive: true });
+  await Promise.all(
+    downloads.map(({ fileName, buf }) => writeFile(resolve(FONTS_DIR, fileName), buf))
+  );
+  const rules = downloads.map(({ face, fileName }) => fontFaceRule(face, fileName));
 
   const header = [
     "/**",
