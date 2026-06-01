@@ -86,6 +86,7 @@ describe("cost model defaults", () => {
       "claude-opus-4-5",
       "claude-opus-4-6",
       "claude-opus-4-7",
+      "claude-opus-4-8",
       "claude-sonnet-3-7",
       "claude-sonnet-4",
       "claude-sonnet-4-5",
@@ -98,6 +99,14 @@ describe("cost model defaults", () => {
       outputCostPerMtok: 15,
       cacheReadCostPerMtok: 0.3,
       cacheCreateCostPerMtok: 3.75,
+    });
+
+    const opus48 = listCostModels(db).find((model) => model.modelName === "claude-opus-4-8");
+    expect(opus48).toMatchObject({
+      inputCostPerMtok: 5,
+      outputCostPerMtok: 25,
+      cacheReadCostPerMtok: 0.5,
+      cacheCreateCostPerMtok: 6.25,
     });
 
     const haiku3 = listCostModels(db).find((model) => model.modelName === "claude-haiku-3");
@@ -255,7 +264,7 @@ describe("cost model defaults", () => {
   it("syncs missing defaults before recalculating costs", () => {
     db.prepare("DELETE FROM cost_models WHERE provider = 'anthropic'").run();
     recordUsage(db, {
-      model: "claude-sonnet-4-5-20250929",
+      model: "claude-opus-4-8-20260528",
       inputTokens: 1_000_000,
       outputTokens: 1_000_000,
       cacheReadTokens: 1_000_000,
@@ -273,7 +282,7 @@ describe("cost model defaults", () => {
       cost_usd: number | null;
     };
     expect(result.updatedRows).toBe(1);
-    expect(after.cost_usd).toBeCloseTo(22.05);
+    expect(after.cost_usd).toBeCloseTo(36.75);
   });
 
   it("records Pi token usage sources without rejecting them", () => {

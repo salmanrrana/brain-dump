@@ -171,6 +171,23 @@ describe("prepareEpicLaunch", () => {
 });
 
 describe("review-mode prompt builders", () => {
+  it("builds implementation gates around project-native verification commands", () => {
+    const prompt = getRalphPrompt();
+
+    expect(prompt).toContain("inspect the target project's own tooling first");
+    expect(prompt).toContain("project-native quality/test commands");
+    expect(prompt).toContain("Do not assume Node or pnpm");
+    expect(prompt).not.toMatch(/pnpm type-check.*pnpm lint.*pnpm test/);
+  });
+
+  it("tells implementation Ralph to resume scoped tickets already in AI review", () => {
+    const prompt = getRalphPrompt();
+
+    expect(prompt).toContain("If any candidate is already `ai_review`, pick ONE of those first");
+    expect(prompt).toContain("resume at the AI Review phase");
+    expect(prompt).toContain("A ticket in `ai_review` is NOT complete; resume it instead.");
+  });
+
   it("builds a review prompt that stays scoped to the selected ticket and preserves steering text", () => {
     const prompt = getRalphPrompt({
       type: "review",

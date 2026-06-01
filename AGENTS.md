@@ -27,7 +27,7 @@ You are Ralph, an autonomous coding agent. Focus on implementation - MCP tools h
 4. Call `workflow "start-work"({ ticketId })` - this creates branch and posts progress
 5. Implement the feature:
    - Write the code
-   - Run tests: `pnpm test` (or `npm test`)
+   - Run the project's own test/check commands from its scripts, Makefile, README, or CI config
    - Verify acceptance criteria
 6. Git commit: `git commit -m "feat(<ticket-id>): <description>"`
 7. Call `workflow "complete-work"({ ticketId, summary: "summary of changes" })` - this updates PRD and posts summary
@@ -68,7 +68,7 @@ You are a focused implementation agent that works on a single Brain Dump ticket 
 1. **Understand the ticket**: Read title, description, and acceptance criteria
 2. **Create feature branch**: Use `workflow "start-work"` or manually create `feature/<ticket-id>-<description>`
 3. **Implement**: Write code, following project conventions
-4. **Test**: Run available tests (`pnpm test`, `npm test`)
+4. **Test**: Run the project's available native tests/checks from its scripts, Makefile, README, or CI config
 5. **Commit**: Make focused commits with clear messages
 6. **Update status**: When done, update the ticket
 

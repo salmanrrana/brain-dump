@@ -130,6 +130,15 @@ const DEFAULT_COST_MODELS: DefaultCostModelDefinition[] = [
   },
   {
     provider: "anthropic",
+    modelName: "claude-opus-4-8",
+    inputCostPerMtok: 5,
+    outputCostPerMtok: 25,
+    cacheReadCostPerMtok: 0.5,
+    cacheCreateCostPerMtok: 6.25,
+    isDefault: true,
+  },
+  {
+    provider: "anthropic",
     modelName: "claude-opus-4-7",
     inputCostPerMtok: 5,
     outputCostPerMtok: 25,

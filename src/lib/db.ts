@@ -33,10 +33,24 @@ if (!integrityResult.healthy) {
   console.log(`[DB] ${integrityResult.message}`);
 }
 
+/**
+ * Apply connection PRAGMAs tuned for a local, read-heavy desktop app where the
+ * UI, MCP server, and CLI may all touch the same SQLite file concurrently.
+ * Must run on every new connection (PRAGMAs are per-connection, not persisted).
+ */
+function applyConnectionPragmas(connection: Database.Database): void {
+  connection.pragma("journal_mode = WAL"); // concurrent readers + single writer
+  connection.pragma("foreign_keys = ON"); // enforce cascades/constraints
+  connection.pragma("synchronous = NORMAL"); // biggest write-latency win; crash-safe under WAL
+  connection.pragma("busy_timeout = 5000"); // wait out locks instead of throwing SQLITE_BUSY
+  connection.pragma("cache_size = -32000"); // ~32MB page cache (negative = KiB)
+  connection.pragma("mmap_size = 268435456"); // 256MB memory-mapped reads
+  connection.pragma("temp_store = MEMORY"); // keep ORDER BY/GROUP BY temp data off disk
+}
+
 // Create database connection
 const sqlite = new Database(dbPath);
-sqlite.pragma("journal_mode = WAL");
-sqlite.pragma("foreign_keys = ON");
+applyConnectionPragmas(sqlite);
 
 // Acquire lock and setup graceful shutdown
 // This ensures lock is cleaned up and WAL is checkpointed on shutdown

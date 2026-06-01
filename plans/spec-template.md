@@ -308,9 +308,9 @@ export function FeatureCard({ id }: { id: string }) {
 - [ ] Unit tests for core logic
 - [ ] Integration test for full workflow
 - [ ] TypeScript types exported
-- [ ] No type errors (`pnpm type-check`)
-- [ ] No lint errors (`pnpm lint`)
-- [ ] All tests pass (`pnpm test`)
+- [ ] Project-native type/static checks pass
+- [ ] Project-native lint/format checks pass
+- [ ] Project-native tests pass
 
 ---
 

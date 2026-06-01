@@ -19,10 +19,8 @@ Follow this 5-step workflow exactly:
 2. Implement and verify
 - Update session state to implementing
 - Make focused code changes for one ticket only
-- Run quality checks:
-  - pnpm type-check
-  - pnpm lint
-  - pnpm test
+- Inspect the target project's own tooling first (package scripts, Makefile, Composer/PHPUnit/Pest, Go tooling, README/CLAUDE.md, CI config)
+- Run the project-native quality/test commands that apply to this ticket, preferring an existing all-in-one check/test command when available
 - Post a comment.add with commentType: "test_report" summarizing the exact command results
 - Omit author when adding AI comments so Brain Dump auto-detects the active provider
 - Ensure acceptance criteria are met

@@ -548,6 +548,12 @@ export function listSessions(
 // Bulk Session Operations
 // ============================================
 
+export interface CompleteActiveSessionsForTicketResult {
+  ticketId: string;
+  completedCount: number;
+  completedSessionIds: string[];
+}
+
 export interface ClearActiveSessionsResult {
   projectId: string;
   clearedCount: number;
@@ -618,6 +624,88 @@ export function clearActiveSessionsForProject(
   }
 
   return { projectId, clearedCount: clearedSessionIds.length, clearedSessionIds };
+}
+
+/**
+ * Complete all active Ralph sessions for a ticket.
+ *
+ * This is used when the workflow reaches a terminal agent-owned handoff point
+ * (for example demo generation moves the ticket to human_review). It prevents
+ * stale active sessions from making the UI show Ralph as still "testing" or
+ * "reviewing" after the ticket has already been handed to the human reviewer.
+ */
+export function completeActiveSessionsForTicket(
+  db: DbHandle,
+  ticketId: string,
+  outcome: SessionOutcome = "success",
+  reason = "ticket handed to human review",
+  errorMessage?: string
+): CompleteActiveSessionsForTicketResult {
+  getTicketRow(db, ticketId);
+
+  const activeSessions = db
+    .prepare(
+      `SELECT rs.id, rs.state_history, p.path as project_path
+       FROM ralph_sessions rs
+       JOIN tickets t ON rs.ticket_id = t.id
+       JOIN projects p ON t.project_id = p.id
+       WHERE rs.ticket_id = ? AND rs.completed_at IS NULL`
+    )
+    .all(ticketId) as Array<{
+    id: string;
+    state_history: string | null;
+    project_path: string;
+  }>;
+
+  if (activeSessions.length === 0) {
+    return { ticketId, completedCount: 0, completedSessionIds: [] };
+  }
+
+  const now = new Date().toISOString();
+  const completedSessionIds: string[] = [];
+
+  const completeAll = db.transaction(() => {
+    for (const session of activeSessions) {
+      const stateHistory = parseStateHistory(session.state_history);
+      const metadata: Record<string, unknown> = { outcome, reason };
+      if (errorMessage) {
+        metadata.errorMessage = errorMessage;
+      }
+
+      stateHistory.push({
+        state: "done",
+        timestamp: now,
+        metadata,
+      });
+
+      db.prepare(
+        `UPDATE ralph_sessions
+         SET current_state = 'done', state_history = ?, outcome = ?, error_message = ?, completed_at = ?
+         WHERE id = ?`
+      ).run(JSON.stringify(stateHistory), outcome, errorMessage ?? null, now, session.id);
+
+      emitEvent(db, {
+        sessionId: session.id,
+        type: "state_change",
+        data: {
+          state: "done",
+          outcome,
+          message: reason,
+          ...(errorMessage ? { error: errorMessage } : {}),
+        },
+      });
+
+      completedSessionIds.push(session.id);
+    }
+  });
+  completeAll();
+
+  const projectPaths = new Set(activeSessions.map((session) => session.project_path));
+  for (const projectPath of projectPaths) {
+    removeRalphStateFile(projectPath);
+  }
+
+  return { ticketId, completedCount: completedSessionIds.length, completedSessionIds };
 }
 
 // ============================================

@@ -508,6 +508,46 @@ describe("generateDemo", () => {
     expect(ticket.status).toBe("human_review");
   });
 
+  it("completes active Ralph sessions when handing the ticket to human_review", () => {
+    seedProject();
+    seedAiReviewTicket();
+    const startedAt = new Date().toISOString();
+    db.prepare(
+      `INSERT INTO ralph_sessions (id, ticket_id, project_id, current_state, state_history, started_at)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    ).run(
+      "session-1",
+      "ticket-1",
+      "proj-1",
+      "testing",
+      JSON.stringify([{ state: "testing", timestamp: startedAt }]),
+      startedAt
+    );
+
+    generateDemo(db, {
+      ticketId: "ticket-1",
+      steps: [
+        { order: 1, description: "Open the app", expectedOutcome: "App loads", type: "manual" },
+      ],
+    });
+
+    const session = db.prepare("SELECT * FROM ralph_sessions WHERE id = ?").get("session-1") as {
+      current_state: string;
+      outcome: string | null;
+      completed_at: string | null;
+      state_history: string;
+    };
+    const events = db
+      .prepare("SELECT * FROM ralph_events WHERE session_id = ? AND type = 'state_change'")
+      .all("session-1");
+
+    expect(session.current_state).toBe("done");
+    expect(session.outcome).toBe("success");
+    expect(session.completed_at).toBeTruthy();
+    expect(JSON.parse(session.state_history).at(-1)).toMatchObject({ state: "done" });
+    expect(events.length).toBeGreaterThan(0);
+  });
+
   it("throws InvalidStateError when ticket is not in ai_review", () => {
     seedProject();
     seedTicket("ticket-1", "proj-1", "in_progress");

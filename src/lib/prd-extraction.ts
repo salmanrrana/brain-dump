@@ -574,9 +574,9 @@ export function getProjectContext(projectPath: string): ProjectContext {
     techStack: [],
     dosDonts: [],
     verificationSteps: [
-      "Run `pnpm type-check` - must pass with no errors",
-      "Run `pnpm lint` - must pass with no errors",
-      "Run `pnpm test` - all tests must pass",
+      "Inspect the project's scripts, Makefile, README/CLAUDE.md, and CI config to identify the native quality/test commands",
+      "Run the project's all-in-one check/test command when available",
+      "Otherwise run the relevant typecheck, lint, test, and build commands for this stack",
     ],
   };
 

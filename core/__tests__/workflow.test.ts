@@ -59,7 +59,7 @@ function seedTestReport(ticketId = "ticket-1", author = "ralph:claude") {
   ).run(
     `comment-${ticketId}-${now}`,
     ticketId,
-    "pnpm type-check: pass\npnpm lint: pass\npnpm test: pass",
+    "make check: pass\nmake test: pass",
     author,
     now
   );
