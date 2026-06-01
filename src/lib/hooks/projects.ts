@@ -217,8 +217,6 @@ export function useUpdateProject() {
       };
     }) => updateProject({ data }),
     onSuccess: () => {
-      // Targeted to the live project-list query (see useCreateProject) — avoids nuking
-      // an open projectDeletePreview dry-run via prefix match.
       queryClient.invalidateQueries({ queryKey: queryKeys.projectsWithEpics });
     },
   });
@@ -231,7 +229,6 @@ export function useDeleteProject() {
     mutationFn: (params: { projectId: string; confirm?: boolean }) =>
       deleteProject({ data: params }),
     onSuccess: () => {
-      // Targeted to the live project-list query (see useCreateProject).
       queryClient.invalidateQueries({ queryKey: queryKeys.projectsWithEpics });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
