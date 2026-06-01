@@ -373,6 +373,10 @@ function serverOnlyImplementationModules(): Plugin {
   };
 }
 
+// React Compiler configuration. `target: "19"` matches react@19.2 so the compiler
+// emits the runtime calls that ship natively with React 19 (no extra runtime shim).
+const reactCompilerConfig = { target: "19" } as const;
+
 const config = defineConfig({
   plugins: [
     serverOnlyImplementationModules(),
@@ -398,7 +402,16 @@ const config = defineConfig({
     }),
     tailwindcss(),
     tanstackStart(),
-    viteReact(),
+    // React Compiler (babel-plugin-react-compiler) auto-memoizes components it can
+    // safely optimize, eliminating most of the manual memo/useMemo/useCallback churn
+    // that was causing the board/dashboard re-render jank. It is incremental: any
+    // component it cannot prove safe is silently skipped (bailout) and left as-is.
+    // The compiler targets React 19 by default, which matches our react@19.2.
+    viteReact({
+      babel: {
+        plugins: [["babel-plugin-react-compiler", reactCompilerConfig]],
+      },
+    }),
   ],
   // Keep the browser dep optimizer from eagerly pre-bundling native modules.
   optimizeDeps: {
