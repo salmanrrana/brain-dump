@@ -1,58 +1,72 @@
 /**
- * Vitest Setup File for MSW and React Testing
+ * Vitest setup shared by node and DOM projects.
  *
- * This file is loaded before all tests to set up:
- * - MSW mock server for network requests
- * - React testing environment with jsdom
- * - Jest DOM matchers for Testing Library
- *
- * Note: For TanStack Start server functions, you may also need to mock
- * the actual functions using vi.mock() since they don't always go through HTTP.
+ * Node tests only get isolated Brain Dump data directories. DOM tests also get
+ * MSW, Testing Library cleanup, jest-dom matchers, and browser API shims.
  */
 
-import { beforeAll, afterEach, afterAll, vi } from "vitest";
-import { server, resetMockDataStore } from "./server";
-import "@testing-library/jest-dom/vitest";
-import { cleanup } from "@testing-library/react";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { afterAll, afterEach, beforeAll, vi } from "vitest";
 
-// Mock window.matchMedia for components that use media queries
-Object.defineProperty(window, "matchMedia", {
-  writable: true,
-  value: vi.fn().mockImplementation((query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: vi.fn(), // deprecated
-    removeListener: vi.fn(), // deprecated
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn(),
-  })),
-});
+const hasDom = typeof window !== "undefined";
+const disableDbStartupTasks = process.env.BRAIN_DUMP_DISABLE_DB_STARTUP_TASKS === "1";
 
-// Mock ResizeObserver
-global.ResizeObserver = vi.fn().mockImplementation(() => ({
-  observe: vi.fn(),
-  unobserve: vi.fn(),
-  disconnect: vi.fn(),
-}));
+if (disableDbStartupTasks && process.env.XDG_DATA_HOME && process.env.XDG_STATE_HOME) {
+  const dataDir = join(process.env.XDG_DATA_HOME, "brain-dump");
+  const stateDir = join(process.env.XDG_STATE_HOME, "brain-dump");
+  const dbPath = join(dataDir, "brain-dump.db");
 
-// Start MSW server before all tests
-// 'error' mode throws if any request isn't handled - helps catch missing handlers
-beforeAll(() => {
-  server.listen({
-    onUnhandledRequest: "warn", // Use 'warn' instead of 'error' to avoid breaking existing tests
+  mkdirSync(dataDir, { recursive: true, mode: 0o700 });
+  mkdirSync(join(stateDir, "backups"), { recursive: true, mode: 0o700 });
+  mkdirSync(join(stateDir, "logs"), { recursive: true, mode: 0o700 });
+
+  if (!existsSync(dbPath)) {
+    writeFileSync(dbPath, "");
+  }
+}
+
+if (hasDom) {
+  const [{ cleanup }, { resetMockDataStore, server }] = await Promise.all([
+    import("@testing-library/react"),
+    import("./server"),
+    import("@testing-library/jest-dom/vitest"),
+  ]);
+
+  // Mock window.matchMedia for components that use media queries.
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(), // deprecated
+      removeListener: vi.fn(), // deprecated
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
   });
-});
 
-// Reset handlers and data store after each test for isolation
-afterEach(() => {
-  server.resetHandlers();
-  resetMockDataStore();
-  cleanup(); // Clean up React components after each test
-});
+  globalThis.ResizeObserver = vi.fn().mockImplementation(() => ({
+    observe: vi.fn(),
+    unobserve: vi.fn(),
+    disconnect: vi.fn(),
+  }));
 
-// Clean up after all tests complete
-afterAll(() => {
-  server.close();
-});
+  beforeAll(() => {
+    server.listen({
+      onUnhandledRequest: "warn",
+    });
+  });
+
+  afterEach(() => {
+    server.resetHandlers();
+    resetMockDataStore();
+    cleanup();
+  });
+
+  afterAll(() => {
+    server.close();
+  });
+}

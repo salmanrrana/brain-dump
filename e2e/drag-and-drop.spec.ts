@@ -1,4 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
+import Database from "better-sqlite3";
+import { randomUUID } from "node:crypto";
+import path from "node:path";
 
 /**
  * Drag and Drop E2E Tests - Kent C. Dodds Style
@@ -241,6 +244,74 @@ test.describe("Kanban Board Drag and Drop", () => {
       const readyAfterReload = await getTicketsInColumn(page, "Ready");
       expect(readyAfterReload).toContain("Persist Column Test");
     });
+
+    test("user drags a card out of a virtualized column and sees it persist", async ({ page }) => {
+      test.setTimeout(90_000);
+      const sourceTitle = `Virtualized Drag Source ${Date.now().toString(36)}`;
+      try {
+        seedVirtualizedBacklogTickets(sourceTitle);
+
+        await page.reload();
+        await expect(page.locator("h3:has-text('Backlog')")).toBeVisible({ timeout: 10000 });
+        await page.locator(".letter-glitch-canvas").waitFor({ state: "detached", timeout: 10000 });
+
+        const backlogColumn = page.getByTestId("column-backlog");
+        const inProgressColumn = page.getByTestId("column-in_progress");
+        await expect(backlogColumn.getByTestId("kanban-virtual-list")).toBeVisible({
+          timeout: 10000,
+        });
+
+        const sourceCard = backlogColumn.getByLabel(`Open ticket: ${sourceTitle}`, {
+          exact: true,
+        });
+        await expect(sourceCard).toBeVisible();
+
+        const sourceBox = await sourceCard.boundingBox();
+        const targetBox = await inProgressColumn.locator("[data-droppable]").boundingBox();
+        if (!sourceBox || !targetBox) {
+          throw new Error("Could not measure virtualized drag source or In Progress drop target");
+        }
+
+        await page.mouse.move(
+          sourceBox.x + sourceBox.width / 2,
+          sourceBox.y + sourceBox.height / 2
+        );
+        await page.mouse.down();
+        await page.mouse.move(
+          sourceBox.x + sourceBox.width / 2 + 20,
+          sourceBox.y + sourceBox.height / 2 + 20,
+          { steps: 10 }
+        );
+        await page.mouse.move(targetBox.x + 20, targetBox.y + 20, { steps: 60 });
+        await page.mouse.move(
+          targetBox.x + targetBox.width / 2,
+          targetBox.y + targetBox.height / 2,
+          {
+            steps: 60,
+          }
+        );
+        await page.mouse.up();
+        await page.waitForTimeout(500);
+
+        await expect(
+          inProgressColumn.getByLabel(`Open ticket: ${sourceTitle}`, { exact: true })
+        ).toBeVisible();
+        await expect(
+          backlogColumn.getByLabel(`Open ticket: ${sourceTitle}`, { exact: true })
+        ).not.toBeVisible();
+
+        await page.reload();
+        await expect(
+          page
+            .getByTestId("column-in_progress")
+            .getByLabel(`Open ticket: ${sourceTitle}`, { exact: true })
+        ).toBeVisible({
+          timeout: 10000,
+        });
+      } finally {
+        deleteVirtualizedBacklogTickets(sourceTitle);
+      }
+    });
   });
 
   test.describe("Visual Feedback During Drag", () => {
@@ -274,3 +345,99 @@ test.describe("Kanban Board Drag and Drop", () => {
     });
   });
 });
+
+function seedVirtualizedBacklogTickets(sourceTitle: string): void {
+  const dbPath = path.join(process.cwd(), ".playwright-xdg", "data", "brain-dump", "brain-dump.db");
+  const db = new Database(dbPath);
+  db.pragma("busy_timeout = 5000");
+
+  try {
+    const project = db.prepare("SELECT id FROM projects ORDER BY created_at LIMIT 1").get() as
+      | { id: string }
+      | undefined;
+    if (!project) {
+      throw new Error("No project exists for virtualized drag seed");
+    }
+
+    db.prepare("DELETE FROM tickets WHERE title LIKE 'Virtualized Drag Source %'").run();
+
+    const insertTicket = db.prepare(`
+      INSERT INTO tickets (
+        id,
+        title,
+        description,
+        status,
+        priority,
+        position,
+        project_id,
+        epic_id,
+        tags,
+        subtasks,
+        is_blocked,
+        blocked_reason,
+        linked_files,
+        attachments,
+        created_at,
+        updated_at,
+        completed_at,
+        branch_name,
+        pr_number,
+        pr_url,
+        pr_status
+      ) VALUES (
+        @id,
+        @title,
+        NULL,
+        'backlog',
+        'medium',
+        @position,
+        @projectId,
+        NULL,
+        '[]',
+        NULL,
+        0,
+        NULL,
+        NULL,
+        '[]',
+        datetime('now'),
+        datetime('now'),
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL
+      )
+    `);
+
+    const insertMany = db.transaction(() => {
+      const basePosition = -Date.now();
+      for (let index = 0; index < 24; index += 1) {
+        insertTicket.run({
+          id: randomUUID(),
+          title: index === 0 ? sourceTitle : `${sourceTitle} filler ${index}`,
+          position: basePosition + index,
+          projectId: project.id,
+        });
+      }
+    });
+
+    insertMany();
+  } finally {
+    db.close();
+  }
+}
+
+function deleteVirtualizedBacklogTickets(sourceTitle: string): void {
+  const dbPath = path.join(process.cwd(), ".playwright-xdg", "data", "brain-dump", "brain-dump.db");
+  const db = new Database(dbPath);
+  db.pragma("busy_timeout = 5000");
+
+  try {
+    db.prepare("DELETE FROM tickets WHERE title = ? OR title LIKE ?").run(
+      sourceTitle,
+      `${sourceTitle} filler %`
+    );
+  } finally {
+    db.close();
+  }
+}

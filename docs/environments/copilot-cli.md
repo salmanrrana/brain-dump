@@ -129,7 +129,7 @@ Copilot CLI:
   session tool, action: "update-state", state: "implementing"
   # Write code, run tests, make commits
   session tool, action: "update-state", state: "testing"
-  # pnpm test, pnpm type-check, pnpm lint
+  # run project-specific validation discovered from docs/config
 
 Commit format:
   git commit -m "feat(abc-123): Add new feature"

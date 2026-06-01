@@ -19,11 +19,12 @@ Follow this 5-step workflow exactly:
 2. Implement and verify
 - Update session state to implementing
 - Make focused code changes for one ticket only
-- Run quality checks:
-  - pnpm type-check
-  - pnpm lint
-  - pnpm test
-- Post a comment.add with commentType: "test_report" summarizing the exact command results
+- Discover and run this project's validation commands before completing:
+  - Read project docs/config first: AGENTS.md, CLAUDE.md, README, CONTRIBUTING, package.json scripts, pyproject.toml, go.mod, Makefile/Justfile, CI files
+  - Use the project's own commands, not Brain Dump's commands
+  - Examples only: package script check/test/lint, pytest/ruff when configured, go test ./..., cargo test, dotnet test, mvn test, ./gradlew test
+  - If no automated command is discoverable, do a targeted manual smoke check and state that no project validation command was found
+- Post a comment.add with commentType: "test_report" summarizing exact commands and pass/fail/skipped results
 - Omit author when adding AI comments so Brain Dump auto-detects the active provider
 - Ensure acceptance criteria are met
 

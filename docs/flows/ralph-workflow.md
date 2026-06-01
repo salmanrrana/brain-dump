@@ -41,7 +41,7 @@ Here's exactly what happens when you click "Start Ralph" and walk away:
 │      ✓ session "update-state" → implementing (writing code)                 │
 │      ✓ Write LoginForm.tsx, auth.ts                                         │
 │      ✓ session "update-state" → testing                                     │
-│      ✓ Run pnpm test → All tests pass                                       │
+│      ✓ Run project validation → Required checks pass                        │
 │      ✓ session "update-state" → committing                                  │
 │      ✓ git commit -m "feat(abc): add login form with validation"            │
 │      ✓ workflow "complete-work" → PRD updated (1/3 passes: true)            │

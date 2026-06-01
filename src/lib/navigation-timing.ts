@@ -336,13 +336,13 @@ export function printSplashReport(): void {
     console.log(`   Splash blocked until: ${completeMark.startTime.toFixed(1)}ms`);
     console.log(`   Unnecessary blocking: ${Math.max(0, splashAfterHydration).toFixed(1)}ms`);
     console.log(`   Role: branding animation (LetterGlitch effect)`);
-    console.log(`   Config: MIN_DISPLAY=${800}ms, FADE_DURATION=${800}ms`);
+    console.log(`   Config: no minimum display — dismissal tracks readiness; fade only`);
 
     if (splashAfterHydration > 500) {
       console.warn(
         `   ⚠️ Splash blocks ${splashAfterHydration.toFixed(0)}ms AFTER hydration completes.`
       );
-      console.warn(`   Consider reducing MIN_DISPLAY_MS or showing splash only on cold boot.`);
+      console.warn(`   Expected: only the fade duration should remain after hydration.`);
     }
   }
 

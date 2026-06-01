@@ -1,0 +1,91 @@
+import { memo, useCallback, useState } from "react";
+import { KanbanColumn } from "./KanbanColumn";
+import { KanbanColumnContent } from "./KanbanColumnContent";
+import type { TicketStatus, TicketSummary } from "../../api/tickets";
+import type { ActiveRalphSession } from "../../lib/hooks";
+
+export interface BoardColumnProps {
+  /** Status this column represents */
+  status: TicketStatus;
+  /** Human-readable column label */
+  label: string;
+  /** Accent color for the column header */
+  accentColor: string;
+  /** Ordered ticket ids for this column's SortableContext */
+  ticketIds: string[];
+  /** Tickets to render as cards (already sorted by position) */
+  tickets: TicketSummary[];
+  /** Click handler forwarded to each card (must be referentially stable) */
+  onTicketClick?: ((ticket: TicketSummary) => void) | undefined;
+  /** Active Ralph sessions keyed by ticket id */
+  activeRalphSessions?: Record<string, ActiveRalphSession> | undefined;
+  /** Keyboard-focused ticket id for this column; null when no card here is focused. */
+  focusedTicketId: string | null;
+  /** Roving tab-stop ticket id for this column; null when the tab stop is elsewhere. */
+  tabStopTicketId: string | null;
+  /** Stable higher-order ref factory from the keyboard navigation hook */
+  registerCardRef: (ticketId: string) => (el: HTMLElement | null) => void;
+  /** Stable focus handler from the keyboard navigation hook */
+  onCardFocus: (ticketId: string) => void;
+}
+
+/**
+ * One kanban column: the column shell (`KanbanColumn`) plus its sortable card
+ * list (`KanbanColumnContent`), memoized as a single unit.
+ *
+ * The board renders six of these. Keyboard navigation focus lives in the board,
+ * so every arrow-key press re-renders the board. Without this boundary the board
+ * would hand each column a fresh `children` element, re-rendering all six column
+ * shells (and re-mapping every card list) on every focus move.
+ *
+ * By scoping the focus props per column — the board passes `focusedTicketId` /
+ * `tabStopTicketId` only to the column that actually owns that card, and null to
+ * the rest — this `memo` boundary holds for the unaffected columns. A focus move
+ * (or an idle background poll, where TanStack Query keeps ticket references
+ * stable) then re-renders at most the one or two columns whose focus changed,
+ * and within them only the one or two cards whose tab-stop/focus state flipped.
+ */
+export const BoardColumn = memo(function BoardColumn({
+  status,
+  label,
+  accentColor,
+  ticketIds,
+  tickets,
+  onTicketClick,
+  activeRalphSessions,
+  focusedTicketId,
+  tabStopTicketId,
+  registerCardRef,
+  onCardFocus,
+}: BoardColumnProps) {
+  const [scrollContainer, setScrollContainer] = useState<HTMLDivElement | null>(null);
+  const handleScrollContainerRef = useCallback((node: HTMLDivElement | null) => {
+    if (node) {
+      setScrollContainer(node);
+    }
+  }, []);
+
+  return (
+    <KanbanColumn
+      status={status}
+      label={label}
+      count={tickets.length}
+      accentColor={accentColor}
+      innerRef={handleScrollContainerRef}
+    >
+      <KanbanColumnContent
+        scrollContainer={scrollContainer}
+        ticketIds={ticketIds}
+        tickets={tickets}
+        onTicketClick={onTicketClick}
+        activeRalphSessions={activeRalphSessions}
+        focusedTicketId={focusedTicketId}
+        tabStopTicketId={tabStopTicketId}
+        registerCardRef={registerCardRef}
+        onCardFocus={onCardFocus}
+      />
+    </KanbanColumn>
+  );
+});
+
+export default BoardColumn;

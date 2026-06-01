@@ -90,7 +90,7 @@ When working on tickets in this project:
 
 ## Completing Work
 
-1. Ensure validation passes: `pnpm type-check`, `pnpm lint`, `pnpm test`
+1. Ensure project-specific validation passes. Discover commands from docs/config; do not assume pnpm/npm.
 2. Call `workflow "complete-work"` with summary
 3. Run `/review-ticket` to trigger AI review
    ...
@@ -153,8 +153,7 @@ Write code, make commits, run tests:
 # Commit (manually call MCP tool in chat)
 @brain-dump workflow link-commit ticketId abc12ef
 
-# Run tests
-pnpm test
+# Run project-specific validation commands discovered from docs/config
 ```
 
 ### Phase 3: Complete & Review
@@ -350,7 +349,8 @@ Since VS Code has full codebase context, leverage it:
 Always validate before completing:
 
 ```bash
-pnpm check    # runs type-check, lint, test
+# Example for Brain Dump itself only:
+pnpm check
 ```
 
 Only then call:

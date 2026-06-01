@@ -91,8 +91,9 @@ export function useDemoScript(
     },
     enabled,
     refetchInterval: pollingInterval > 0 ? pollingInterval : false,
-    refetchOnWindowFocus: pollingInterval === 0,
-    staleTime: 0, // Demo script status can change externally
+    // Non-polling: snapshot tier (30s) so revisits serve cache. Polling: match interval.
+    // Window-focus refetch stays off (global default); external changes surface via invalidation.
+    staleTime: pollingInterval > 0 ? pollingInterval : 30 * 1000,
   });
 
   return {
@@ -241,8 +242,9 @@ export function useWorkflowState(
     },
     enabled,
     refetchInterval: pollingInterval > 0 ? pollingInterval : false,
-    refetchOnWindowFocus: pollingInterval === 0,
-    staleTime: 0, // Workflow state can change externally (MCP tools)
+    // Non-polling: snapshot tier (30s) so revisits serve cache. Polling: match interval.
+    // Window-focus refetch stays off (global default); MCP changes surface via invalidation.
+    staleTime: pollingInterval > 0 ? pollingInterval : 30 * 1000,
   });
 
   // Process the discriminated union result

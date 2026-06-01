@@ -77,9 +77,8 @@ workflow "start-work"(selectedTicketId)
 # - Write minimal, focused changes
 
 # 3. Verification
-pnpm test                         # Must pass
-pnpm type-check                   # Must pass
-pnpm lint                        # Should pass
+# Discover validation commands from project docs/config.
+# Do not assume pnpm/npm; use the project-standard commands.
 
 # 4. Complete ticket
 workflow "complete-work"(ticketId, summary)
@@ -150,8 +149,8 @@ read_existing_components(ticket.related_area)
 ```typescript
 // Every ticket must pass these checks
 interface TicketCompletion {
-  tests_pass: boolean; // pnpm test succeeds
-  types_check: boolean; // pnpm type-check succeeds
+  validation_run: boolean; // project-specific validation was run or explicitly unavailable
+  validation_summary: string; // exact pass/fail/skipped results
   acceptance_met: boolean; // All AC items verified
   no_regressions: boolean; // No existing functionality broken
 }

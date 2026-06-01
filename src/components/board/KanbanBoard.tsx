@@ -1,14 +1,13 @@
 import type { FC } from "react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import {
   useTicketSummaries,
   useUpdateTicketStatus,
   useUpdateTicketPosition,
   type ActiveRalphSession,
 } from "../../lib/hooks";
-import { TicketCard } from "./TicketCard";
-import { KanbanColumn } from "./KanbanColumn";
-import { SortableTicketCard } from "./SortableTicketCard";
+import { BoardColumn } from "./BoardColumn";
+import { BoardDragOverlay } from "./BoardDragOverlay";
 import type { TicketStatus, TicketSummary } from "../../api/tickets";
 import { useToast } from "../Toast";
 import { createBrowserLogger } from "../../lib/browser-logger";
@@ -16,23 +15,17 @@ import { useBoardKeyboardNavigation } from "../../lib/use-board-keyboard-navigat
 import { COLUMN_STATUSES } from "../../lib/constants";
 import {
   DndContext,
-  DragOverlay,
   closestCenter,
   pointerWithin,
   KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
-  type DragStartEvent,
   type DragEndEvent,
   type Announcements,
   type CollisionDetection,
 } from "@dnd-kit/core";
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
+import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 
 export interface KanbanBoardProps {
   /** Optional project ID to filter tickets */
@@ -57,6 +50,18 @@ export interface KanbanBoardProps {
 
 // Use shared constant from constants.ts
 const COLUMNS = COLUMN_STATUSES as unknown as TicketStatus[];
+
+// Sensor option objects hoisted to module scope so they keep a stable identity
+// across renders. Recreating them inline made `useSensor`/`useSensors` rebuild
+// the sensor descriptors on every board render.
+const POINTER_SENSOR_OPTIONS = {
+  activationConstraint: {
+    distance: 8,
+  },
+} as const;
+const KEYBOARD_SENSOR_OPTIONS = {
+  coordinateGetter: sortableKeyboardCoordinates,
+} as const;
 
 /**
  * Human-readable labels for each status.
@@ -184,18 +189,14 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
   const updatePositionMutation = useUpdateTicketPosition();
   const { showToast } = useToast();
 
-  // DnD State
-  const [activeTicket, setActiveTicket] = useState<TicketSummary | null>(null);
+  // DnD State — the active drag item lives in the isolated BoardDragOverlay so
+  // it never re-renders the board tree. We only track "is a drag in progress"
+  // via a ref (no re-render) to gate keyboard navigation while dragging.
+  const isDraggingRef = useRef(false);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
+    useSensor(PointerSensor, POINTER_SENSOR_OPTIONS),
+    useSensor(KeyboardSensor, KEYBOARD_SENSOR_OPTIONS)
   );
 
   // Group tickets by status
@@ -248,29 +249,27 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
   const {
     focusedTicketId,
     handleKeyDown: handleBoardKeyDown,
-    getTabIndex,
+    rovingTabStopId,
     registerCardRef,
     handleCardFocus,
   } = useBoardKeyboardNavigation({
     ticketsByStatus,
     onTicketSelect: onTicketClick,
-    disabled: !!activeTicket, // Disable keyboard nav while dragging
+    disabledRef: isDraggingRef, // Disable keyboard nav while dragging (no re-render)
   });
 
-  const handleDragStart = useCallback(
-    (event: DragStartEvent) => {
-      const ticket = tickets.find((t) => t.id === event.active.id);
-      if (ticket) {
-        setActiveTicket(ticket);
-      }
-    },
-    [tickets]
-  );
+  const handleDragStart = useCallback(() => {
+    isDraggingRef.current = true;
+  }, []);
+
+  const handleDragCancel = useCallback(() => {
+    isDraggingRef.current = false;
+  }, []);
 
   const handleDragEnd = useCallback(
     async (event: DragEndEvent) => {
       const { active, over } = event;
-      setActiveTicket(null);
+      isDraggingRef.current = false;
 
       if (!over) return;
 
@@ -393,6 +392,7 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
       collisionDetection={kanbanCollisionDetection}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
       accessibility={{ announcements }}
     >
       <div
@@ -404,48 +404,31 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
       >
         <div style={columnsContainerStyles}>
           {COLUMNS.map((status) => {
-            const columnTickets = ticketsByStatus[status];
-            const count = columnTickets.length;
-            const accentColor = COLUMN_COLORS[status];
-
+            const columnTicketIds = ticketIdsByStatus[status];
+            // Scope focus/tab-stop to the column that owns the card: every other
+            // column receives null, so its `BoardColumn` memo holds and a focus
+            // move re-renders only the column(s) that gained/lost focus.
+            const columnFocusedId = scopeToColumn(focusedTicketId, columnTicketIds);
+            const columnTabStopId = scopeToColumn(rovingTabStopId, columnTicketIds);
             return (
-              <KanbanColumn
+              <BoardColumn
                 key={status}
                 status={status}
                 label={COLUMN_LABELS[status]}
-                count={count}
-                accentColor={accentColor}
-              >
-                <SortableContext
-                  items={ticketIdsByStatus[status]}
-                  strategy={verticalListSortingStrategy}
-                >
-                  {columnTickets.map((ticket) => (
-                    <SortableTicketCard
-                      key={ticket.id}
-                      ticket={ticket}
-                      onTicketClick={onTicketClick}
-                      ralphSession={activeRalphSessions?.[ticket.id] ?? null}
-                      tabIndex={getTabIndex(ticket.id)}
-                      isFocused={focusedTicketId === ticket.id}
-                      registerCardRef={registerCardRef}
-                      onCardFocus={handleCardFocus}
-                    />
-                  ))}
-                </SortableContext>
-              </KanbanColumn>
+                accentColor={COLUMN_COLORS[status]}
+                ticketIds={columnTicketIds}
+                tickets={ticketsByStatus[status]}
+                onTicketClick={onTicketClick}
+                activeRalphSessions={activeRalphSessions}
+                focusedTicketId={columnFocusedId}
+                tabStopTicketId={columnTabStopId}
+                registerCardRef={registerCardRef}
+                onCardFocus={handleCardFocus}
+              />
             );
           })}
         </div>
-        <DragOverlay>
-          {activeTicket ? (
-            <TicketCard
-              ticket={activeTicket}
-              isOverlay
-              isAiActive={!!activeRalphSessions?.[activeTicket.id]}
-            />
-          ) : null}
-        </DragOverlay>
+        <BoardDragOverlay tickets={tickets} activeRalphSessions={activeRalphSessions} />
       </div>
     </DndContext>
   );
@@ -454,6 +437,15 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
 function truncateTitle(title: string, maxLength = 30): string {
   if (title.length <= maxLength) return title;
   return `${title.slice(0, maxLength - 3)}...`;
+}
+
+/**
+ * Returns `id` only when it belongs to this column's ticket ids, else null.
+ * Used to hand each `BoardColumn` a focus/tab-stop id scoped to itself, so a
+ * focus move leaves every other column's props (and thus its `memo`) untouched.
+ */
+function scopeToColumn(id: string | null, columnTicketIds: string[]): string | null {
+  return id !== null && columnTicketIds.includes(id) ? id : null;
 }
 
 const boardContainerStyles: React.CSSProperties = {

@@ -71,8 +71,8 @@ session "update-state"({ sessionId: "...", state: "implementing" });
 ```
 
 - Write the code
-- Run type checks: `pnpm type-check`
-- Run tests: `pnpm test`
+- Discover validation commands from this project's docs/config
+- Run the project's own validation commands
 - Verify acceptance criteria
 
 ### 6. Commit Changes
@@ -99,7 +99,7 @@ workflow "complete-work"({
 
 This:
 
-- Validates that tests pass
+- Validates that a current test_report comment exists with exact pass/fail/skipped results
 - Moves ticket to `ai_review` status
 - Posts work summary as comment
 - Updates PRD file (`passes: true`)
@@ -251,7 +251,7 @@ Otherwise, the next iteration picks the next task.
 ## Important Rules
 
 1. **One task per iteration** - Keeps context focused
-2. **Always test** - Run tests before completing
+2. **Always validate** - Run project-specific validation before completing
 3. **Use workflow "complete-work"** - Never directly set status to "done"
 4. **Run all review agents** - Fix critical/major before demo
 5. **Stop at human_review** - Wait for human approval

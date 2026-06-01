@@ -16,11 +16,11 @@ import {
 import { launchProjectInception, launchSpecBreakdown } from "../../api/inception";
 import { getRalphEvents } from "../../api/ralph-events";
 import {
-  checkDockerAvailable,
   listRalphContainers,
   getRalphContainerLogs,
   getRalphContainerStats,
 } from "../../api/services";
+import { getDockerStatus } from "../../api/settings";
 import type { RalphEventType, RalphEventData } from "../schema";
 import type { ContainerStats, ContainerStatsResult } from "../../api/docker-utils";
 import { queryKeys } from "../query-keys";
@@ -163,8 +163,8 @@ export function useLaunchProjectInception() {
   return useMutation({
     mutationFn: (data: { preferredTerminal?: string | null }) => launchProjectInception({ data }),
     onSuccess: () => {
-      // A new project may be created, invalidate projects list
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+      // A new project may be created, invalidate the live project-list query
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectsWithEpics });
     },
   });
 }
@@ -184,7 +184,7 @@ export function useLaunchSpecBreakdown() {
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
       queryClient.invalidateQueries({ queryKey: queryKeys.projectTicketCounts });
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectsWithEpics });
     },
   });
 }
@@ -307,8 +307,11 @@ export function useRalphEvents(
 /**
  * Hook for checking Docker daemon availability.
  *
- * Uses a cached check (60 second server-side TTL) to avoid repeatedly hitting Docker.
- * The hook also does client-side polling to detect when Docker starts/stops.
+ * Reads from the single app-wide `dockerStatus` query (backed by
+ * `getDockerStatus`) so the layout, settings, and any other consumer share one
+ * cached query and a single poll instead of maintaining a separate
+ * Docker-availability query key. The hook polls periodically to detect when
+ * Docker starts/stops while the app is open.
  *
  * @param options - Configuration options
  * @returns Docker availability status and query state
@@ -324,8 +327,8 @@ export function useDockerAvailable(
   const { enabled = true, recheckInterval = 60000 } = options;
 
   const query = useQuery({
-    queryKey: queryKeys.ralph.dockerAvailable(),
-    queryFn: () => checkDockerAvailable({ data: {} }),
+    queryKey: queryKeys.dockerStatus,
+    queryFn: () => getDockerStatus(),
     enabled,
     // Re-check periodically to detect Docker starting/stopping
     refetchInterval: recheckInterval,
@@ -336,17 +339,12 @@ export function useDockerAvailable(
   });
 
   return {
-    /** Whether Docker daemon is available */
-    available: query.data?.available ?? false,
-    /** Whether the result was from cache */
-    cached: query.data?.cached ?? false,
-    /** Error message if Docker is not available */
-    error: query.data?.error,
+    /** Whether Docker is installed and the daemon is running */
+    available: query.data ? query.data.dockerAvailable && query.data.dockerRunning : false,
     /** Whether the query is loading */
     loading: query.isLoading,
     /** Force a fresh check */
-    refetch: () =>
-      checkDockerAvailable({ data: { forceRefresh: true } }).then(() => query.refetch()),
+    refetch: query.refetch,
   };
 }
 

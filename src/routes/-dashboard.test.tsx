@@ -11,8 +11,13 @@ vi.mock("@tanstack/react-query", () => ({
 // Mock the hooks module
 vi.mock("../lib/hooks", () => ({
   useTicketSummaries: vi.fn(),
-  useActiveRalphSessions: vi.fn(),
   useDashboardAnalytics: vi.fn(),
+}));
+
+// Dashboard reads active Ralph sessions from the shared AppLayout context
+// (computed once by the layout) rather than its own polling subscription.
+vi.mock("../components/AppLayoutContext", () => ({
+  useAppActiveSessions: vi.fn(),
 }));
 
 // Mock api/cost for getCostExplorerData used in prefetch
@@ -49,10 +54,11 @@ vi.mock("../components/dashboard/CostExplorerTab", () => ({
   CostExplorerTab: vi.fn(() => <div data-testid="cost-explorer-tab">Cost Explorer</div>),
 }));
 
-import { useTicketSummaries, useActiveRalphSessions, useDashboardAnalytics } from "../lib/hooks";
+import { useTicketSummaries, useDashboardAnalytics } from "../lib/hooks";
+import { useAppActiveSessions } from "../components/AppLayoutContext";
 
 const mockUseTicketSummaries = useTicketSummaries as ReturnType<typeof vi.fn>;
-const mockUseActiveRalphSessions = useActiveRalphSessions as ReturnType<typeof vi.fn>;
+const mockUseAppActiveSessions = useAppActiveSessions as ReturnType<typeof vi.fn>;
 const mockUseDashboardAnalytics = useDashboardAnalytics as ReturnType<typeof vi.fn>;
 
 function createTicket(
@@ -87,7 +93,7 @@ let Dashboard: any;
 beforeEach(async () => {
   vi.clearAllMocks();
   mockUseTicketSummaries.mockReturnValue({ tickets: [], loading: false, error: null });
-  mockUseActiveRalphSessions.mockReturnValue({ sessions: {}, error: null });
+  mockUseAppActiveSessions.mockReturnValue({ activeSessions: {} });
   mockUseDashboardAnalytics.mockReturnValue({
     data: null,
     isLoading: false,
@@ -134,9 +140,8 @@ describe("Dashboard", () => {
       loading: false,
       error: null,
     });
-    mockUseActiveRalphSessions.mockReturnValue({
-      sessions: { "session-1": {}, "session-2": {} },
-      error: null,
+    mockUseAppActiveSessions.mockReturnValue({
+      activeSessions: { "session-1": {}, "session-2": {} },
     });
 
     render(<Dashboard />);

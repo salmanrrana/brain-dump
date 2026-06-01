@@ -98,16 +98,6 @@ export function formatShortDate(dateStr: string): string {
 // Shared Styles
 // =============================================================================
 
-export const tooltipStyle: React.CSSProperties = {
-  backgroundColor: "var(--bg-secondary)",
-  border: "none",
-  borderRadius: "var(--radius-md)",
-  padding: "var(--spacing-2)",
-  color: "var(--text-primary)",
-  fontSize: "var(--font-size-sm)",
-  boxShadow: "var(--shadow-lg)",
-};
-
 export const emptyChartStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",

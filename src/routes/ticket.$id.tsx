@@ -3,6 +3,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useCallback, useRef } from "react";
 import { ArrowLeft, AlertCircle } from "lucide-react";
 import { getTicket } from "../api/tickets";
+import { getWorkflowDisplayState } from "../api/workflow";
+import { getProjectsWithEpics } from "../api/projects";
 import { pushBranchServerFn } from "../api/ship-server-fns";
 import { useToast } from "../components/Toast";
 import {
@@ -29,6 +31,7 @@ import { type LaunchType } from "../components/tickets/LaunchActions";
 import type { LaunchModelSelection } from "../lib/launch-model-catalog";
 import { POLLING_INTERVALS } from "../lib/constants";
 import { queryKeys } from "../lib/query-keys";
+import { markLoaderStart, markLoaderEnd, timedFetch } from "../lib/navigation-timing";
 import {
   useProjects,
   useSettings,
@@ -41,11 +44,37 @@ import {
 export const Route = createFileRoute("/ticket/$id")({
   pendingComponent: TicketDetailSkeleton,
   loader: async ({ context, params }) => {
-    await context.queryClient.ensureQueryData({
-      queryKey: queryKeys.ticket(params.id),
-      queryFn: () => getTicket({ data: params.id }),
-      staleTime: 30_000,
-    });
+    markLoaderStart("ticket");
+    // Parallel-prefetch the above-the-fold data (ticket + workflow state +
+    // projects) so the page renders complete instead of waterfalling these
+    // queries after first paint. staleTime matches the consuming hooks'
+    // snapshot tier (30s) so the prefetched data is served from cache rather
+    // than immediately re-fetched. Below-the-fold panels (cost, telemetry,
+    // claude-tasks, comments, demo) stay lazy on-mount and must not block.
+    await Promise.all([
+      timedFetch("ticket:ticket", () =>
+        context.queryClient.ensureQueryData({
+          queryKey: queryKeys.ticket(params.id),
+          queryFn: () => getTicket({ data: params.id }),
+          staleTime: 30_000,
+        })
+      ),
+      timedFetch("ticket:workflowState", () =>
+        context.queryClient.ensureQueryData({
+          queryKey: queryKeys.workflowState(params.id),
+          queryFn: () => getWorkflowDisplayState({ data: params.id }),
+          staleTime: 30_000,
+        })
+      ),
+      timedFetch("ticket:projects", () =>
+        context.queryClient.ensureQueryData({
+          queryKey: queryKeys.projectsWithEpics,
+          queryFn: () => getProjectsWithEpics(),
+          staleTime: 30_000,
+        })
+      ),
+    ]);
+    markLoaderEnd("ticket");
   },
   component: TicketDetailPage,
   errorComponent: TicketDetailError,
