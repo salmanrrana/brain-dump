@@ -79,6 +79,29 @@ function ModalFallback() {
   );
 }
 
+// Loading fallback for the lazy MobileSidebar. The drawer chrome (backdrop +
+// slide-in panel) is already on screen by the time this shows, so the fallback
+// mirrors the sidebar's logo row + a visible "Loading…" line instead of leaving
+// the opened drawer blank while its chunk fetches.
+function MobileSidebarFallback() {
+  return (
+    <aside
+      className="flex flex-col h-full"
+      style={{
+        backgroundColor: "var(--bg-secondary)",
+        borderRight: "1px solid var(--border-primary)",
+      }}
+    >
+      <div className="h-14 flex items-center px-4 border-b border-[var(--border-primary)]">
+        <h1 className="text-3xl">🧠 💩</h1>
+      </div>
+      <div role="status" aria-live="polite" className="flex-1 p-4">
+        <div className="text-sm text-[var(--text-muted)] py-4 text-center">Loading…</div>
+      </div>
+    </aside>
+  );
+}
+
 interface AppLayoutProps {
   children: ReactNode;
 }
@@ -547,7 +570,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                       {/* Projects Panel - slide-out panel (desktop only). Lazy-loaded
                           and only mounted while open so it stays out of the main chunk. */}
                       {isProjectsPanelOpen && (
-                        <Suspense fallback={null}>
+                        <Suspense fallback={<ModalFallback />}>
                           <ProjectsPanel
                             isOpen={isProjectsPanelOpen}
                             onClose={closeProjectsPanel}
@@ -588,7 +611,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                             aria-modal="true"
                             aria-label="Mobile navigation menu"
                           >
-                            <Suspense fallback={null}>
+                            <Suspense fallback={<MobileSidebarFallback />}>
                               <MobileSidebar
                                 onItemClick={closeMobileMenu}
                                 activeSessions={activeSessions}
