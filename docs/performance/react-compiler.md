@@ -26,49 +26,74 @@ viteReact({
 
 ## ESLint health check
 
-The compiler's static-analysis rules are already active through
-`eslint-plugin-react-hooks@7` (`recommended`): `react-hooks/purity`,
-`preserve-manual-memoization`, `immutability`, `set-state-in-render`,
-`incompatible-library`, etc. `pnpm lint` is therefore the compiler health check — it
-passes with 0 errors. The warnings it surfaces are pre-existing `react-refresh` notes
-plus `react-hooks/incompatible-library` on TanStack Virtual's `useVirtualizer()` (an
+`eslint-plugin-react-hooks@7`'s `recommended` config ships the compiler-derived
+rules-of-React checks (`react-hooks/purity`, `react-hooks/immutability`,
+`react-hooks/set-state-in-render`, `react-hooks/incompatible-library`,
+`react-hooks/preserve-manual-memoization`, …), and they are already active — `pnpm lint`
+passes with 0 errors. These catch _rules-of-React violations_, but they are **not** a
+complete bailout signal: they do not flag syntactic bailouts (e.g. KanbanBoard's
+value-block-inside-`try/catch`), and `react-hooks/incompatible-library` is `warn`
+severity, so it never fails `pnpm lint` (the script has no `--max-warnings 0`). The
+warnings lint surfaces today are pre-existing `react-refresh` notes plus
+`react-hooks/incompatible-library` on TanStack Virtual's `useVirtualizer()` (an
 inherently un-memoizable API — see bailouts below).
+
+The reliable bailout signal is the **build-time compiler logger** wired into
+`reactCompilerConfig` in `vite.config.ts`: it `console.warn`s on every `CompileError` /
+`PipelineError` during `pnpm build`/`pnpm dev`, so a component silently dropping to a
+bailout after a refactor is visible instead of hidden.
 
 ## Compilation evidence
 
-Running the compiler directly over hot components (target `19`, counting injected
-`_c(n)` memo-cache slots):
+Compilation is **per-function**, not per-file: the compiler optimizes each component/hook
+it can prove safe and bails out of the rest, so a single file can have both compiled and
+bailed functions. What matters for this epic is that the **hot board leaf components
+compile cleanly** (zero bailouts in `pnpm build`, verified via the build logger):
 
-| Component                      | Result                 |
-| ------------------------------ | ---------------------- |
-| `board/KanbanColumn.tsx`       | ✅ compiled            |
-| `board/TicketCard.tsx`         | ✅ compiled            |
-| `board/SortableTicketCard.tsx` | ✅ compiled            |
-| `routes/dashboard.tsx`         | ✅ compiled (3 slots)  |
-| `epics/EpicTicketsList.tsx`    | ✅ compiled            |
-| `AppLayout.tsx`                | ✅ compiled (2 slots)  |
-| `board/KanbanBoard.tsx`        | ⚠️ bailout (see below) |
+| Hot component                   | Result      |
+| ------------------------------- | ----------- |
+| `board/KanbanColumn.tsx`        | ✅ compiled |
+| `board/KanbanColumnContent.tsx` | ✅ compiled |
+| `board/TicketCard.tsx`          | ✅ compiled |
+| `board/SortableTicketCard.tsx`  | ✅ compiled |
+| `epics/EpicTicketsList.tsx`     | ✅ compiled |
+| `routes/dashboard.tsx`          | ✅ compiled |
 
-The production client build also carries the React 19 memo-cache runtime
-(`useMemoCache` appears in the main vendor chunk), and the hot route chunks grow by
-exactly the injected memoization code (see bundle impact).
+Container/route components (`board/KanbanBoard.tsx`, `AppLayout.tsx`, the route entry
+files) have _some_ functions that bail (see below) while others compile. The production
+client build carries the React 19 memo-cache runtime (`useMemoCache` in the main vendor
+chunk), and the hot chunks grow by exactly the injected memoization code (see bundle
+impact).
 
 ## Documented bailouts
 
-The compiler skips these; they fall back to their existing manual memoization and behave
-identically. None are errors — each is a known compiler limitation.
+Bailouts are **non-fatal**: the affected function is left exactly as written and keeps its
+existing manual memoization. The build-time logger reports **38 bailout events across 26
+files** on this branch, broken down by category:
 
-- **`board/KanbanBoard.tsx`** — `CompileError: Support value blocks (conditional,
-logical, optional chaining, etc) within a try/catch statement`. The component body
-  uses optional chaining / conditional expressions inside a `try/catch`, which the
-  current compiler does not yet model, so it skips the whole `KanbanBoard` function.
-  KanbanBoard already isolates its drag overlay (`BoardDragOverlay`) and delegates card
-  rendering to the **compiled** `KanbanColumn`/`SortableTicketCard`, so the hot drag path
-  is still optimized. Revisit if a future compiler release lifts the try/catch
-  restriction — no refactor is done here per the "don't rip out manual memoization" scope.
-- **`useVirtualizer()` call sites** (`TicketListView`, virtualized comment lists) —
-  flagged `react-hooks/incompatible-library`: TanStack Virtual returns functions that
-  cannot be memoized safely, so the compiler leaves those components alone.
+| Category              | Count | Meaning                                                                   |
+| --------------------- | ----: | ------------------------------------------------------------------------- |
+| `Todo`                |    31 | Known compiler limitations — syntax it doesn't yet model                  |
+| `IncompatibleLibrary` |     4 | `useVirtualizer()` (TanStack Virtual returns un-memoizable functions)     |
+| `Suppression`         |     2 | Component has React ESLint rules disabled, so the compiler skips it       |
+| `Hooks`               |     1 | A conditional/inconsistent-order hook call the compiler flags (see below) |
+
+Notable cases:
+
+- **`Todo` — value blocks inside `try/catch`** (e.g. `board/KanbanBoard.tsx`,
+  `epics/EpicDetailHeader.tsx`): optional chaining / conditionals inside a `try/catch`,
+  plus related TODOs (`ThrowStatement` / `TryStatement` without a catch, computed
+  properties in object patterns). The compiler skips the whole function. KanbanBoard still
+  isolates its drag overlay (`BoardDragOverlay`) and delegates card rendering to the
+  **compiled** `KanbanColumn`/`SortableTicketCard`, so the hot drag path stays optimized.
+  These resolve themselves as the compiler matures — no refactor here per the "don't rip
+  out manual memoization" scope.
+- **`IncompatibleLibrary` — `useVirtualizer()`** (`TicketListView`, virtualized comment
+  lists): TanStack Virtual returns functions that cannot be memoized safely; the compiler
+  leaves those components alone.
+- **`Hooks` — conditional hook call**: the logger surfaces one latent Rules-of-Hooks
+  violation (a hook not called in consistent order). It is pre-existing and out of scope
+  for this ticket, but it is a good follow-up candidate now that it is visible.
 
 ## Build & bundle impact
 
