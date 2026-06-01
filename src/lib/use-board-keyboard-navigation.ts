@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import type { TicketSummary } from "../api/tickets";
 import type { TicketStatus } from "../api/tickets";
 import { COLUMN_STATUSES } from "./constants";
@@ -14,6 +14,13 @@ interface UseBoardKeyboardNavigationConfig {
   onTicketSelect?: ((ticket: TicketSummary) => void) | undefined;
   /** Whether keyboard navigation is disabled (e.g., modal open, input focused) */
   disabled?: boolean;
+  /**
+   * Ref-based disable flag, checked at keydown time. Lets callers disable
+   * navigation (e.g. while a drag is in progress) WITHOUT triggering a
+   * re-render of the board on every drag start/end. Refs are stable, so the
+   * `handleKeyDown` identity stays put.
+   */
+  disabledRef?: RefObject<boolean> | undefined;
 }
 
 interface UseBoardKeyboardNavigationReturn {
@@ -65,7 +72,7 @@ interface UseBoardKeyboardNavigationReturn {
 export function useBoardKeyboardNavigation(
   config: UseBoardKeyboardNavigationConfig
 ): UseBoardKeyboardNavigationReturn {
-  const { ticketsByStatus, onTicketSelect, disabled = false } = config;
+  const { ticketsByStatus, onTicketSelect, disabled = false, disabledRef } = config;
 
   const [focusedTicketId, setFocusedTicketId] = useState<string | null>(null);
   const cardRefs = useRef<Map<string, HTMLElement>>(new Map());
@@ -196,7 +203,7 @@ export function useBoardKeyboardNavigation(
   // Handle keydown on the board
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (disabled || isInputFocused()) return;
+      if (disabled || disabledRef?.current || isInputFocused()) return;
 
       switch (e.key) {
         case "ArrowUp":
@@ -253,6 +260,7 @@ export function useBoardKeyboardNavigation(
     },
     [
       disabled,
+      disabledRef,
       navigateUp,
       navigateDown,
       navigateToColumn,
