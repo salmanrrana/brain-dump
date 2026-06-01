@@ -5,6 +5,9 @@ import type { RouterContext } from "../router";
 // Side-effect imports: dev-only performance instrumentation
 import { markHydrationComplete } from "../lib/navigation-timing";
 import { setQueryClientForHealth } from "../lib/session-health";
+import { createBrowserLogger } from "../lib/browser-logger";
+
+const logger = createBrowserLogger("web-vitals");
 
 import AppLayout from "../components/AppLayout";
 import { SplashScreen } from "../components/SplashScreen";
@@ -108,6 +111,23 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       setQueryClientForHealth(queryClient);
     }
   }, [queryClient]);
+
+  // Register Core Web Vitals field metrics. Unlike the DEV-only timing above,
+  // this ships in production — it is the only LCP/CLS/INP/TTFB signal we emit.
+  // Runs once after hydration. The whole web-vitals module is dynamically
+  // imported so neither it nor the web-vitals package touch the main chunk.
+  useEffect(() => {
+    void import("../lib/web-vitals")
+      .then((m) => m.registerWebVitals())
+      .catch((error: unknown) => {
+        // Best-effort instrumentation: a chunk-load failure must not break the
+        // app. No UI surface to update — log so it stays visible to developers.
+        logger.error(
+          "Failed to load web-vitals instrumentation module; field metrics unavailable",
+          error instanceof Error ? error : undefined
+        );
+      });
+  }, []);
 
   return (
     <html lang="en" className="dark" data-theme={DEFAULT_THEME} suppressHydrationWarning>

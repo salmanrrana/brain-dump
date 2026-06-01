@@ -63,6 +63,7 @@ playwright-report/
 test-results/
 .playwright-xdg/
 .vitest-xdg/
+.playwright-perf-xdg/
 
 Thumbs.db
 ehthumbs.db
