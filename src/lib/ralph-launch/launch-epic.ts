@@ -666,6 +666,7 @@ export async function launchRalphForEpicCore(
   console.log("[brain-dump] Using terminal launch path");
   const launchResult = await launchInTerminal(project.path, scriptPath, preferredTerminal);
   if (!launchResult.success) {
+    rollbackEpicLaunchStatuses();
     return launchResult;
   }
 
