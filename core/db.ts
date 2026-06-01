@@ -961,13 +961,19 @@ export interface InitDatabaseOptions {
  * server, and CLI may all touch the same SQLite file concurrently. Mirrors the
  * web-app connection in src/lib/db.ts so the CLI/MCP path performs identically.
  * Must run on every new connection (PRAGMAs are per-connection, not persisted).
+ *
+ * `isInMemory` skips the file-backed-only PRAGMAs (WAL journal, page cache, and
+ * memory-mapped I/O) that SQLite silently ignores for `:memory:` databases, so
+ * the test connection's configuration reflects what actually takes effect.
  */
-function applyConnectionPragmas(db: Database.Database): void {
-  db.pragma("journal_mode = WAL"); // concurrent readers + single writer
+function applyConnectionPragmas(db: Database.Database, isInMemory = false): void {
+  if (!isInMemory) {
+    db.pragma("journal_mode = WAL"); // concurrent readers + single writer
+    db.pragma("cache_size = -32000"); // ~32MB page cache (negative = KiB)
+    db.pragma(`mmap_size = ${256 * 1024 * 1024}`); // memory-mapped reads
+  }
   db.pragma("synchronous = NORMAL"); // biggest write-latency win; crash-safe under WAL
   db.pragma("busy_timeout = 5000"); // wait out locks instead of throwing SQLITE_BUSY
-  db.pragma("cache_size = -32000"); // ~32MB page cache (negative = KiB)
-  db.pragma("mmap_size = 268435456"); // 256MB memory-mapped reads
   db.pragma("temp_store = MEMORY"); // keep ORDER BY/GROUP BY temp data off disk
 }
 
@@ -1032,7 +1038,7 @@ export function initDatabase(options: InitDatabaseOptions = {}): InitDatabaseRes
  */
 export function createTestDatabase(logger: Logger = silentLogger): InitDatabaseResult {
   const db = new Database(":memory:");
-  applyConnectionPragmas(db);
+  applyConnectionPragmas(db, true);
 
   ensureBaseSchema(db, logger);
 
