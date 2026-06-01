@@ -1,19 +1,13 @@
 import { useMemo } from "react";
 import { Layers } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import {
   sectionStyles,
   sectionHeaderStyles,
   sectionTitleStyles,
   sectionContentStyles,
 } from "./shared-styles";
-import {
-  useThemeColors,
-  formatUsd,
-  tooltipStyle,
-  emptyChartStyle,
-  subtitleStyle,
-} from "./chart-utils";
+import { useThemeColors, formatUsd, emptyChartStyle, subtitleStyle } from "./chart-utils";
+import { EChart, buildHBarOption } from "./echarts-base";
 import type { DashboardCostAnalytics } from "../../api/cost";
 
 export interface CostByEpicChartProps {
@@ -49,6 +43,20 @@ export function CostByEpicChart({ data }: CostByEpicChartProps) {
     [data]
   );
 
+  const option = useMemo(
+    () =>
+      buildHBarOption({
+        categories: chartData.map((d) => d.shortTitle),
+        values: chartData.map((d) => d.costUsd),
+        palette: EPIC_PALETTE,
+        colors,
+        xAxisLabelFormatter: (v) => `$${v}`,
+        tooltipTitle: (index, name) => chartData[index]?.title ?? name,
+        tooltipValue: (value) => `Cost: ${formatUsd(value)}`,
+      }),
+    [chartData, colors]
+  );
+
   if (chartData.length === 0) {
     return (
       <section style={sectionStyles}>
@@ -73,52 +81,7 @@ export function CostByEpicChart({ data }: CostByEpicChartProps) {
         <span style={subtitleStyle}>{formatUsd(totalCost)} total</span>
       </div>
       <div style={sectionContentStyles}>
-        <ResponsiveContainer width="100%" height={chartData.length * 36 + 20}>
-          <BarChart
-            data={chartData}
-            layout="vertical"
-            margin={{ top: 5, right: 60, left: 8, bottom: 5 }}
-          >
-            <defs>
-              {EPIC_PALETTE.map((color, i) => (
-                <linearGradient key={i} id={`epicBar${i}`} x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%" stopColor={color} stopOpacity={0.85} />
-                  <stop offset="100%" stopColor={color} stopOpacity={0.55} />
-                </linearGradient>
-              ))}
-            </defs>
-            <XAxis
-              type="number"
-              tick={{ fontSize: 10, fill: colors.textSecondary }}
-              stroke={colors.border}
-              tickFormatter={(v: number) => `$${v}`}
-              axisLine={false}
-              tickLine={false}
-            />
-            <YAxis
-              type="category"
-              dataKey="shortTitle"
-              tick={{ fontSize: 11, fill: colors.text }}
-              width={200}
-              stroke="transparent"
-              tickLine={false}
-            />
-            <Tooltip
-              contentStyle={{ ...tooltipStyle, minWidth: 180 }}
-              formatter={(value: number) => [formatUsd(value), "Cost"]}
-              labelFormatter={(_label: string, payload) => {
-                const item = payload?.[0]?.payload as { title?: string } | undefined;
-                return item?.title ?? _label;
-              }}
-              cursor={{ fill: "var(--bg-hover)", radius: 4 }}
-            />
-            <Bar dataKey="costUsd" radius={[0, 6, 6, 0]} barSize={22}>
-              {chartData.map((_entry, index) => (
-                <Cell key={index} fill={`url(#epicBar${index % EPIC_PALETTE.length})`} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+        <EChart option={option} height={chartData.length * 36 + 20} ariaLabel="Cost by epic" />
       </div>
     </section>
   );

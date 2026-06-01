@@ -1,12 +1,13 @@
-import { type FC, useState, useEffect } from "react";
+import { type FC, useMemo } from "react";
 import { Clock } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import {
   sectionStyles,
   sectionHeaderStyles,
   sectionTitleStyles,
   sectionContentStyles,
 } from "./shared-styles";
+import { useThemeColors } from "./chart-utils";
+import { EChart, twoColorGradient, tooltipBox, type FormatterParam } from "./echarts-base";
 import type { DashboardAnalytics } from "../../api/analytics";
 
 export interface CycleTimeCardProps {
@@ -16,40 +17,62 @@ export interface CycleTimeCardProps {
 /**
  * CycleTimeCard - Shows average, median, and P95 cycle times.
  */
+const formatHours = (hours: number): string => {
+  if (hours < 24) {
+    return `${hours.toFixed(1)}h`;
+  }
+  const days = Math.floor(hours / 24);
+  const remainingHours = hours % 24;
+  if (remainingHours < 1) {
+    return `${days}d`;
+  }
+  return `${days}d ${remainingHours.toFixed(0)}h`;
+};
+
 export const CycleTimeCard: FC<CycleTimeCardProps> = ({ analytics }) => {
   const { cycleTime } = analytics;
+  const colors = useThemeColors();
 
-  // Get computed colors for gradient
-  const [colors, setColors] = useState({ start: "#f97316", end: "#ea580c" });
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const updateColors = () => {
-      const root = document.documentElement;
-      const style = getComputedStyle(root);
-      const start = style.getPropertyValue("--accent-primary").trim() || "#f97316";
-      const end = style.getPropertyValue("--accent-secondary").trim() || "#ea580c";
-      setColors({ start, end });
-    };
-    updateColors();
-    const observer = new MutationObserver(updateColors);
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["data-theme"],
-    });
-    return () => observer.disconnect();
-  }, []);
-
-  const formatHours = (hours: number): string => {
-    if (hours < 24) {
-      return `${hours.toFixed(1)}h`;
-    }
-    const days = Math.floor(hours / 24);
-    const remainingHours = hours % 24;
-    if (remainingHours < 1) {
-      return `${days}d`;
-    }
-    return `${days}d ${remainingHours.toFixed(0)}h`;
-  };
+  const option = useMemo(
+    () => ({
+      grid: { top: 5, right: 5, bottom: 50, left: 5, containLabel: true },
+      tooltip: {
+        trigger: "axis",
+        axisPointer: { type: "shadow" },
+        ...tooltipBox(colors),
+        formatter: (params: FormatterParam[]) => {
+          const p = params[0];
+          if (!p) return "";
+          return `<div style="font-weight:500">${p.name}</div><div style="color:var(--text-secondary)">${p.value}</div>`;
+        },
+      },
+      xAxis: {
+        type: "category",
+        data: cycleTime.distribution.map((d) => d.range),
+        axisLabel: { fontSize: 9, color: colors.textSecondary, rotate: 45 },
+        axisLine: { lineStyle: { color: colors.border } },
+        axisTick: { show: false },
+      },
+      yAxis: {
+        type: "value",
+        axisLabel: { fontSize: 9, color: colors.textSecondary },
+        axisLine: { show: false },
+        axisTick: { show: false },
+        splitLine: { lineStyle: { color: colors.border, opacity: 0.3 } },
+      },
+      series: [
+        {
+          type: "bar",
+          data: cycleTime.distribution.map((d) => d.count),
+          itemStyle: {
+            color: twoColorGradient(colors.primary, colors.secondary),
+            borderRadius: [4, 4, 0, 0],
+          },
+        },
+      ],
+    }),
+    [cycleTime.distribution, colors]
+  );
 
   return (
     <section style={sectionStyles}>
@@ -131,52 +154,7 @@ export const CycleTimeCard: FC<CycleTimeCardProps> = ({ analytics }) => {
 
         {/* Distribution chart */}
         {cycleTime.distribution.length > 0 ? (
-          <ResponsiveContainer width="100%" height={120}>
-            <BarChart data={cycleTime.distribution}>
-              <defs>
-                <linearGradient id="cycleTimeGradient" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%" stopColor={colors.start} />
-                  <stop offset="100%" stopColor={colors.end} />
-                </linearGradient>
-              </defs>
-              <XAxis
-                dataKey="range"
-                tick={{ fontSize: 9, fill: "var(--text-tertiary)" }}
-                stroke="var(--border-primary)"
-                angle={-45}
-                textAnchor="end"
-                height={50}
-              />
-              <YAxis
-                tick={{ fontSize: 9, fill: "var(--text-tertiary)" }}
-                stroke="var(--border-primary)"
-                width={30}
-              />
-              <Tooltip
-                cursor={{ fill: "transparent" }}
-                contentStyle={{
-                  backgroundColor: "var(--bg-secondary)",
-                  border: "none",
-                  outline: "none",
-                  boxShadow: "var(--shadow-lg)",
-                  padding: "var(--spacing-2)",
-                  borderRadius: "var(--radius-md)",
-                }}
-                wrapperStyle={{
-                  outline: "none",
-                  border: "none",
-                }}
-                labelStyle={{ color: "var(--text-primary)" }}
-                itemStyle={{ color: "var(--text-secondary)" }}
-              />
-              <Bar
-                dataKey="count"
-                fill="url(#cycleTimeGradient)"
-                radius={[4, 4, 0, 0]}
-                background={false}
-              />
-            </BarChart>
-          </ResponsiveContainer>
+          <EChart option={option} height={120} ariaLabel="Cycle time distribution" />
         ) : (
           <div
             style={{

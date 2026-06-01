@@ -3,8 +3,8 @@ import { PRMetrics } from "./PRMetrics";
 import { TopProjectsCard } from "./TopProjectsCard";
 import type { DashboardAnalytics } from "../../api/analytics";
 
-// Lazy-load recharts-heavy chart components so the initial dashboard bundle
-// does not include the full recharts library (~200 KB parsed).
+// Lazy-load the ECharts-backed chart components so the initial dashboard
+// bundle does not include the charting library until analytics are shown.
 const VelocityChart = lazy(() =>
   import("./VelocityChart").then((m) => ({ default: m.VelocityChart }))
 );

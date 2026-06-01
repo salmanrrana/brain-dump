@@ -15,8 +15,15 @@ function getThemeGlitchColors(): string[] {
   ].filter(Boolean);
   return colors.length > 0 ? colors : FALLBACK_COLORS;
 }
-const MIN_DISPLAY_MS = 800;
-const FADE_DURATION_MS = 800;
+// Splash dismissal tracks actual app readiness — there is no artificial minimum
+// display time. FADE_DURATION_MS is the only timed value and is kept short so a
+// fast cold boot reveals real content almost immediately.
+const FADE_DURATION_MS = 300;
+// Defer the expensive LetterGlitch canvas animation: only escalate to it if the
+// app is still not ready after this window, so it never contends with React
+// hydration on a fast cold boot. The splash only "earns" the animation on a
+// genuinely slow boot.
+const GLITCH_DELAY_MS = 250;
 
 const overlayStyle: React.CSSProperties = {
   position: "fixed",
@@ -35,12 +42,14 @@ const spinnerContainerStyle: React.CSSProperties = {
 };
 
 interface SplashScreenProps {
+  /** Becomes true once the app has hydrated and is interactive. */
+  ready: boolean;
   onComplete: () => void;
 }
 
-export function SplashScreen({ onComplete }: SplashScreenProps) {
+export function SplashScreen({ ready, onComplete }: SplashScreenProps) {
   const [fadeComplete, setFadeComplete] = useState(false);
-  const [minTimeElapsed, setMinTimeElapsed] = useState(false);
+  const [showGlitch, setShowGlitch] = useState(false);
   const onCompleteRef = useRef(onComplete);
 
   useEffect(() => {
@@ -61,17 +70,20 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
     }
   }, []);
 
-  // Minimum display timer
+  // Defer the LetterGlitch animation so it never competes with hydration on a
+  // fast cold boot. If the app reports ready before GLITCH_DELAY_MS elapses, the
+  // timer is cleared and only the cheap spinner is ever shown.
   useEffect(() => {
-    const timer = setTimeout(() => setMinTimeElapsed(true), MIN_DISPLAY_MS);
+    if (prefersReducedMotion || ready) return;
+    const timer = setTimeout(() => setShowGlitch(true), GLITCH_DELAY_MS);
     return () => clearTimeout(timer);
-  }, []);
+  }, [prefersReducedMotion, ready]);
 
-  // Once minimum time has elapsed, start fade-out then signal completion
-  const isFading = minTimeElapsed && !fadeComplete;
+  // Dismiss as soon as the app is ready — no artificial minimum display time.
+  const isFading = ready && !fadeComplete;
 
   useEffect(() => {
-    if (!minTimeElapsed) return;
+    if (!ready) return;
     if (import.meta.env.DEV) {
       performance.mark("splash:fade-start");
       try {
@@ -94,15 +106,21 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
       onCompleteRef.current();
     }, FADE_DURATION_MS);
     return () => clearTimeout(timer);
-  }, [minTimeElapsed]);
+  }, [ready]);
 
   if (fadeComplete) return null;
 
   const style = { ...overlayStyle, opacity: isFading ? 0 : 1 };
 
-  if (prefersReducedMotion) {
+  // Cheap spinner path: reduced-motion users, plus every fast boot before the
+  // LetterGlitch escalation window elapses.
+  if (prefersReducedMotion || !showGlitch) {
     return (
-      <div style={{ ...style, ...spinnerContainerStyle }}>
+      <div
+        role="status"
+        aria-label="Loading Brain Dump"
+        style={{ ...style, ...spinnerContainerStyle }}
+      >
         <Loader2
           className="animate-spin"
           size={48}
@@ -113,7 +131,7 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
   }
 
   return (
-    <div style={style}>
+    <div role="status" aria-label="Loading Brain Dump" style={style}>
       <LetterGlitch
         glitchColors={glitchColors}
         glitchSpeed={10}
