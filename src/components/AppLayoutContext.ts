@@ -133,6 +133,17 @@ export function useAppProjectsPanel() {
   return useRequiredContext(useContext(AppProjectsPanelContext), "useAppProjectsPanel");
 }
 
+/**
+ * Aggregate hook returning the full app state surface.
+ *
+ * ⚠️ Subscribes to EVERY context — including AppRefreshContext, so a caller
+ * re-renders whenever `isRefreshing` toggles. This defeats the render isolation
+ * that AppTicketRefreshContext provides. Prefer the granular hooks
+ * (`useAppFilters`, `useAppTicketRefresh`, `useAppRefresh`, …); in particular
+ * board/list should call `useAppTicketRefresh()` directly so the refresh
+ * spinner does not re-render them. Use this only where the full merged state is
+ * genuinely needed.
+ */
 export function useAppState() {
   return {
     ...useAppFilters(),
