@@ -19,8 +19,21 @@ export interface AppModalActionsState {
   closeModal: () => void;
 }
 
-export interface AppRefreshState {
+/**
+ * `ticketRefreshKey` is split into its own context so that board/list — which
+ * only need the key to trigger a refetch — do NOT re-render when the header
+ * refresh spinner toggles `isRefreshing`. See AppRefreshState below.
+ */
+export interface AppTicketRefreshState {
   ticketRefreshKey: number;
+}
+
+/**
+ * Refresh action + spinner state, consumed only by the header. `isRefreshing`
+ * toggling here re-renders the header spinner (intended) but not board/list,
+ * which subscribe to AppTicketRefreshContext instead.
+ */
+export interface AppRefreshState {
   refreshAllData: () => void;
   isRefreshing: boolean;
 }
@@ -55,6 +68,7 @@ export interface AppProjectsPanelState {
 
 type AppState = AppFiltersState &
   AppModalActionsState &
+  AppTicketRefreshState &
   AppRefreshState &
   AppSearchNavigationState &
   AppSampleDataState &
@@ -64,6 +78,7 @@ type AppState = AppFiltersState &
 
 export const AppFiltersContext = createContext<AppFiltersState | null>(null);
 export const AppModalActionsContext = createContext<AppModalActionsState | null>(null);
+export const AppTicketRefreshContext = createContext<AppTicketRefreshState | null>(null);
 export const AppRefreshContext = createContext<AppRefreshState | null>(null);
 export const AppSearchNavigationContext = createContext<AppSearchNavigationState | null>(null);
 export const AppSampleDataContext = createContext<AppSampleDataState | null>(null);
@@ -84,6 +99,14 @@ export function useAppFilters() {
 
 export function useAppModalActions() {
   return useRequiredContext(useContext(AppModalActionsContext), "useAppModalActions");
+}
+
+/**
+ * Subscribe to the ticket refresh key only. Use this in board/list so they
+ * refetch on key bumps without re-rendering when the header spinner toggles.
+ */
+export function useAppTicketRefresh() {
+  return useRequiredContext(useContext(AppTicketRefreshContext), "useAppTicketRefresh");
 }
 
 export function useAppRefresh() {
@@ -114,6 +137,7 @@ export function useAppState() {
   return {
     ...useAppFilters(),
     ...useAppModalActions(),
+    ...useAppTicketRefresh(),
     ...useAppRefresh(),
     ...useAppSearchNavigation(),
     ...useAppSampleData(),

@@ -34,6 +34,7 @@ import {
   AppModalActionsContext,
   AppProjectsPanelContext,
   AppRefreshContext,
+  AppTicketRefreshContext,
   AppSampleDataContext,
   AppSearchNavigationContext,
   useAppEpicDeletion,
@@ -49,6 +50,7 @@ import {
   type AppModalActionsState,
   type AppProjectsPanelState,
   type AppRefreshState,
+  type AppTicketRefreshState,
   type AppSampleDataState,
   type AppSearchNavigationState,
 } from "./AppLayoutContext";
@@ -358,13 +360,21 @@ export default function AppLayout({ children }: AppLayoutProps) {
     [openNewTicket, openProject, openEpic, openSettings, openFeedback, closeModal]
   );
 
-  const appRefreshState: AppRefreshState = useMemo(
+  // Isolated so board/list re-render only when the key bumps, not when the
+  // header spinner toggles isRefreshing.
+  const appTicketRefreshState: AppTicketRefreshState = useMemo(
     () => ({
       ticketRefreshKey,
+    }),
+    [ticketRefreshKey]
+  );
+
+  const appRefreshState: AppRefreshState = useMemo(
+    () => ({
       refreshAllData,
       isRefreshing,
     }),
-    [ticketRefreshKey, refreshAllData, isRefreshing]
+    [refreshAllData, isRefreshing]
   );
 
   const appSearchNavigationState: AppSearchNavigationState = useMemo(
@@ -542,144 +552,153 @@ export default function AppLayout({ children }: AppLayoutProps) {
   return (
     <AppFiltersContext.Provider value={appFiltersState}>
       <AppModalActionsContext.Provider value={appModalActionsState}>
-        <AppRefreshContext.Provider value={appRefreshState}>
-          <AppSearchNavigationContext.Provider value={appSearchNavigationState}>
-            <AppSampleDataContext.Provider value={appSampleDataState}>
-              <AppEpicDeletionContext.Provider value={appEpicDeletionState}>
-                <AppMobileMenuContext.Provider value={appMobileMenuState}>
-                  <AppProjectsPanelContext.Provider value={appProjectsPanelState}>
-                    {/* Desktop: grid with IconSidebar (64px) | Mobile: single column */}
-                    <div className="h-screen grid grid-cols-1 md:grid-cols-[64px_1fr] text-[var(--text-primary)]">
-                      {/* Desktop IconSidebar - hidden on mobile, z-30 so tooltips render above main content */}
-                      <div className="hidden md:block relative z-30">
-                        <IconSidebar onAction={handleSidebarAction} />
-                      </div>
-
-                      {/* Projects Panel - slide-out panel (desktop only) */}
-                      <ProjectsPanel
-                        isOpen={isProjectsPanelOpen}
-                        onClose={closeProjectsPanel}
-                        projects={projectsWithAI}
-                        selectedProjectId={filters.projectId}
-                        selectedEpicId={filters.epicId}
-                        onSelectProject={handleProjectSelect}
-                        onSelectEpic={handleEpicSelectFromPanel}
-                        onAddProject={handleAddProjectFromPanel}
-                        onEditProject={handleProjectEdit}
-                        onAddEpic={handleAddEpicFromPanel}
-                        onEditEpic={handleEditEpicFromPanel}
-                        onLaunchRalphForEpic={handleLaunchRalphForEpic}
-                        onImport={() => {
-                          closeProjectsPanel();
-                          setIsImportModalOpen(true);
-                        }}
-                        epicTicketCounts={epicTicketCounts}
-                        epicsWithActiveAI={epicsWithActiveAI}
-                      />
-
-                      {/* Mobile sidebar overlay */}
-                      {isMobileMenuOpen && (
-                        <div className="fixed inset-0 z-50 md:hidden">
-                          {/* Backdrop */}
-                          <div
-                            className="absolute inset-0 bg-black/60"
-                            onClick={closeMobileMenu}
-                            aria-hidden="true"
-                          />
-                          {/* Slide-out menu */}
-                          <div
-                            className="absolute top-0 left-0 bottom-0 w-[280px] bg-[var(--bg-secondary)] shadow-xl transform transition-transform duration-200 ease-out animate-slide-in-left"
-                            role="dialog"
-                            aria-modal="true"
-                            aria-label="Mobile navigation menu"
-                          >
-                            <Sidebar
-                              onItemClick={closeMobileMenu}
-                              activeSessions={activeSessions}
-                            />
-                          </div>
+        <AppTicketRefreshContext.Provider value={appTicketRefreshState}>
+          <AppRefreshContext.Provider value={appRefreshState}>
+            <AppSearchNavigationContext.Provider value={appSearchNavigationState}>
+              <AppSampleDataContext.Provider value={appSampleDataState}>
+                <AppEpicDeletionContext.Provider value={appEpicDeletionState}>
+                  <AppMobileMenuContext.Provider value={appMobileMenuState}>
+                    <AppProjectsPanelContext.Provider value={appProjectsPanelState}>
+                      {/* Desktop: grid with IconSidebar (64px) | Mobile: single column */}
+                      <div className="h-screen grid grid-cols-1 md:grid-cols-[64px_1fr] text-[var(--text-primary)]">
+                        {/* Desktop IconSidebar - hidden on mobile, z-30 so tooltips render above main content */}
+                        <div className="hidden md:block relative z-30">
+                          <IconSidebar onAction={handleSidebarAction} />
                         </div>
-                      )}
 
-                      {/* Main content area - takes remaining space */}
-                      <div className="flex flex-col min-w-0 overflow-hidden">
-                        {/* Header */}
-                        <AppHeader />
+                        {/* Projects Panel - slide-out panel (desktop only) */}
+                        <ProjectsPanel
+                          isOpen={isProjectsPanelOpen}
+                          onClose={closeProjectsPanel}
+                          projects={projectsWithAI}
+                          selectedProjectId={filters.projectId}
+                          selectedEpicId={filters.epicId}
+                          onSelectProject={handleProjectSelect}
+                          onSelectEpic={handleEpicSelectFromPanel}
+                          onAddProject={handleAddProjectFromPanel}
+                          onEditProject={handleProjectEdit}
+                          onAddEpic={handleAddEpicFromPanel}
+                          onEditEpic={handleEditEpicFromPanel}
+                          onLaunchRalphForEpic={handleLaunchRalphForEpic}
+                          onImport={() => {
+                            closeProjectsPanel();
+                            setIsImportModalOpen(true);
+                          }}
+                          epicTicketCounts={epicTicketCounts}
+                          epicsWithActiveAI={epicsWithActiveAI}
+                        />
 
-                        {/* Content */}
-                        <main id="main-content" tabIndex={-1} className="flex-1 overflow-auto p-6">
-                          {children}
-                        </main>
+                        {/* Mobile sidebar overlay */}
+                        {isMobileMenuOpen && (
+                          <div className="fixed inset-0 z-50 md:hidden">
+                            {/* Backdrop */}
+                            <div
+                              className="absolute inset-0 bg-black/60"
+                              onClick={closeMobileMenu}
+                              aria-hidden="true"
+                            />
+                            {/* Slide-out menu */}
+                            <div
+                              className="absolute top-0 left-0 bottom-0 w-[280px] bg-[var(--bg-secondary)] shadow-xl transform transition-transform duration-200 ease-out animate-slide-in-left"
+                              role="dialog"
+                              aria-modal="true"
+                              aria-label="Mobile navigation menu"
+                            >
+                              <Sidebar
+                                onItemClick={closeMobileMenu}
+                                activeSessions={activeSessions}
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Main content area - takes remaining space */}
+                        <div className="flex flex-col min-w-0 overflow-hidden">
+                          {/* Header */}
+                          <AppHeader />
+
+                          {/* Content */}
+                          <main
+                            id="main-content"
+                            tabIndex={-1}
+                            className="flex-1 overflow-auto p-6"
+                          >
+                            {children}
+                          </main>
+                        </div>
+
+                        <Suspense fallback={<ModalFallback />}>
+                          {/* New Ticket Modal */}
+                          {modal.type === "newTicket" && (
+                            <NewTicketModal
+                              projects={projects}
+                              epics={allEpics}
+                              defaultProjectId={filters.projectId}
+                              onClose={closeModal}
+                              onCreate={handleTicketCreated}
+                            />
+                          )}
+
+                          {/* Project Modal */}
+                          {modal.type === "project" && (
+                            <ProjectModal
+                              project={modal.project}
+                              onClose={closeModal}
+                              onSave={handleProjectSaved}
+                            />
+                          )}
+
+                          {/* Epic Modal */}
+                          {modal.type === "epic" && (
+                            <EpicModal
+                              epic={modal.epic}
+                              projectId={modal.projectId}
+                              onClose={closeModal}
+                              onSave={handleEpicSaved}
+                            />
+                          )}
+
+                          {/* Settings Modal */}
+                          {modal.type === "settings" && <SettingsModal onClose={closeModal} />}
+
+                          {/* Keyboard Shortcuts Help Modal */}
+                          {modal.type === "shortcuts" && (
+                            <ShortcutsModal isOpen={true} onClose={closeModal} />
+                          )}
+
+                          {/* Feedback Modal */}
+                          {modal.type === "feedback" && <FeedbackModal onClose={closeModal} />}
+
+                          {/* Delete Epic Confirmation Modal */}
+                          {epicToDelete && (
+                            <DeleteConfirmationModal
+                              isOpen={true}
+                              onClose={handleDeleteEpicCancel}
+                              onConfirm={handleDeleteEpicConfirm}
+                              isLoading={deleteEpicMutation.isPending}
+                              entityType="epic"
+                              entityName={epicToDelete.title}
+                              preview={deleteEpicPreview}
+                              error={deleteEpicError}
+                            />
+                          )}
+
+                          {/* Import Modal */}
+                          {isImportModalOpen && (
+                            <ImportModal
+                              isOpen={true}
+                              onClose={() => setIsImportModalOpen(false)}
+                            />
+                          )}
+                        </Suspense>
                       </div>
-
-                      <Suspense fallback={<ModalFallback />}>
-                        {/* New Ticket Modal */}
-                        {modal.type === "newTicket" && (
-                          <NewTicketModal
-                            projects={projects}
-                            epics={allEpics}
-                            defaultProjectId={filters.projectId}
-                            onClose={closeModal}
-                            onCreate={handleTicketCreated}
-                          />
-                        )}
-
-                        {/* Project Modal */}
-                        {modal.type === "project" && (
-                          <ProjectModal
-                            project={modal.project}
-                            onClose={closeModal}
-                            onSave={handleProjectSaved}
-                          />
-                        )}
-
-                        {/* Epic Modal */}
-                        {modal.type === "epic" && (
-                          <EpicModal
-                            epic={modal.epic}
-                            projectId={modal.projectId}
-                            onClose={closeModal}
-                            onSave={handleEpicSaved}
-                          />
-                        )}
-
-                        {/* Settings Modal */}
-                        {modal.type === "settings" && <SettingsModal onClose={closeModal} />}
-
-                        {/* Keyboard Shortcuts Help Modal */}
-                        {modal.type === "shortcuts" && (
-                          <ShortcutsModal isOpen={true} onClose={closeModal} />
-                        )}
-
-                        {/* Feedback Modal */}
-                        {modal.type === "feedback" && <FeedbackModal onClose={closeModal} />}
-
-                        {/* Delete Epic Confirmation Modal */}
-                        {epicToDelete && (
-                          <DeleteConfirmationModal
-                            isOpen={true}
-                            onClose={handleDeleteEpicCancel}
-                            onConfirm={handleDeleteEpicConfirm}
-                            isLoading={deleteEpicMutation.isPending}
-                            entityType="epic"
-                            entityName={epicToDelete.title}
-                            preview={deleteEpicPreview}
-                            error={deleteEpicError}
-                          />
-                        )}
-
-                        {/* Import Modal */}
-                        {isImportModalOpen && (
-                          <ImportModal isOpen={true} onClose={() => setIsImportModalOpen(false)} />
-                        )}
-                      </Suspense>
-                    </div>
-                  </AppProjectsPanelContext.Provider>
-                </AppMobileMenuContext.Provider>
-              </AppEpicDeletionContext.Provider>
-            </AppSampleDataContext.Provider>
-          </AppSearchNavigationContext.Provider>
-        </AppRefreshContext.Provider>
+                    </AppProjectsPanelContext.Provider>
+                  </AppMobileMenuContext.Provider>
+                </AppEpicDeletionContext.Provider>
+              </AppSampleDataContext.Provider>
+            </AppSearchNavigationContext.Provider>
+          </AppRefreshContext.Provider>
+        </AppTicketRefreshContext.Provider>
       </AppModalActionsContext.Provider>
     </AppFiltersContext.Provider>
   );

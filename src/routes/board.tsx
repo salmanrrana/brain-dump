@@ -4,7 +4,7 @@ import { Profiler, useCallback, useEffect, useMemo, useState } from "react";
 import { onRenderCallback } from "../lib/profiler";
 import {
   useAppFilters,
-  useAppRefresh,
+  useAppTicketRefresh,
   useAppSearchNavigation,
 } from "../components/AppLayoutContext";
 import {
@@ -57,7 +57,7 @@ export const Route = createFileRoute("/board")({
 
 function Board() {
   const { filters: appFilters, clearAllFilters } = useAppFilters();
-  const { ticketRefreshKey } = useAppRefresh();
+  const { ticketRefreshKey } = useAppTicketRefresh();
   const { selectedTicketIdFromSearch, clearSelectedTicketFromSearch } = useAppSearchNavigation();
   const { projects } = useProjects();
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);

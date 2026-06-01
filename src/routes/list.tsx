@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   useAppFilters,
-  useAppRefresh,
+  useAppTicketRefresh,
   useAppSearchNavigation,
 } from "../components/AppLayoutContext";
 import {
@@ -65,7 +65,7 @@ type ListSubMode = "tickets" | "tags";
 
 function ListView() {
   const { filters: appFilters } = useAppFilters();
-  const { ticketRefreshKey } = useAppRefresh();
+  const { ticketRefreshKey } = useAppTicketRefresh();
   const { selectedTicketIdFromSearch, clearSelectedTicketFromSearch } = useAppSearchNavigation();
   const navigate = useNavigate();
   const { projects } = useProjects();
