@@ -1,12 +1,13 @@
 import { type FC, useMemo } from "react";
 import { Clock, Bot } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from "recharts";
 import {
   sectionStyles,
   sectionHeaderStyles,
   sectionTitleStyles,
   sectionContentStyles,
 } from "./shared-styles";
+import { useThemeColors } from "./chart-utils";
+import { EChart, buildHBarOption } from "./echarts-base";
 import type { DashboardAnalytics } from "../../api/analytics";
 
 export interface RalphMetricsProps {
@@ -31,17 +32,18 @@ function getStateColor(state: string): string {
 /**
  * RalphMetrics - Shows Ralph session stats with state-colored bars.
  */
+const formatDuration = (minutes: number): string => {
+  if (minutes < 60) {
+    return `${Math.round(minutes)}m`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const mins = Math.round(minutes % 60);
+  return `${hours}h ${mins}m`;
+};
+
 export const RalphMetrics: FC<RalphMetricsProps> = ({ analytics }) => {
   const { ralphMetrics } = analytics;
-
-  const formatDuration = (minutes: number): string => {
-    if (minutes < 60) {
-      return `${Math.round(minutes)}m`;
-    }
-    const hours = Math.floor(minutes / 60);
-    const mins = Math.round(minutes % 60);
-    return `${hours}h ${mins}m`;
-  };
+  const colors = useThemeColors();
 
   const stateData = useMemo(() => {
     const entries = Object.entries(ralphMetrics.avgTimeByState)
@@ -54,6 +56,21 @@ export const RalphMetrics: FC<RalphMetricsProps> = ({ analytics }) => {
       rawState: state,
     }));
   }, [ralphMetrics.avgTimeByState]);
+
+  const option = useMemo(
+    () =>
+      buildHBarOption({
+        categories: stateData.map((d) => d.name),
+        values: stateData.map((d) => d.value),
+        palette: stateData.map((d) => getStateColor(d.rawState)),
+        colors,
+        barWidth: 20,
+        gradientEnd: 0.5,
+        yAxisLabelColor: colors.textSecondary,
+        tooltipValue: (value) => formatDuration(value),
+      }),
+    [stateData, colors]
+  );
 
   return (
     <section style={sectionStyles}>
@@ -117,58 +134,11 @@ export const RalphMetrics: FC<RalphMetricsProps> = ({ analytics }) => {
             >
               Time by State
             </div>
-            <ResponsiveContainer width="100%" height={stateData.length * 35 + 20}>
-              <BarChart
-                data={stateData}
-                layout="vertical"
-                margin={{ top: 5, right: 5, left: 70, bottom: 5 }}
-              >
-                <defs>
-                  {stateData.map((item, i) => {
-                    const color = getStateColor(item.rawState);
-                    return (
-                      <linearGradient key={i} id={`stateBar${i}`} x1="0" y1="0" x2="1" y2="0">
-                        <stop offset="0%" stopColor={color} stopOpacity={0.85} />
-                        <stop offset="100%" stopColor={color} stopOpacity={0.5} />
-                      </linearGradient>
-                    );
-                  })}
-                </defs>
-                <XAxis
-                  type="number"
-                  tick={{ fontSize: 9, fill: "var(--text-tertiary)" }}
-                  stroke="var(--border-primary)"
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  type="category"
-                  dataKey="name"
-                  tick={{ fontSize: 11, fill: "var(--text-secondary)" }}
-                  stroke="transparent"
-                  width={65}
-                  tickLine={false}
-                />
-                <Tooltip
-                  cursor={{ fill: "var(--bg-hover)", radius: 4 }}
-                  contentStyle={{
-                    backgroundColor: "var(--bg-secondary)",
-                    border: "none",
-                    outline: "none",
-                    boxShadow: "var(--shadow-lg)",
-                    padding: "var(--spacing-2)",
-                    borderRadius: "var(--radius-md)",
-                  }}
-                  wrapperStyle={{ outline: "none", border: "none" }}
-                  formatter={(value: number) => formatDuration(value)}
-                />
-                <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={20}>
-                  {stateData.map((_entry, index) => (
-                    <Cell key={index} fill={`url(#stateBar${index})`} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <EChart
+              option={option}
+              height={stateData.length * 35 + 20}
+              ariaLabel="Average time by Ralph session state"
+            />
           </div>
         ) : (
           <div

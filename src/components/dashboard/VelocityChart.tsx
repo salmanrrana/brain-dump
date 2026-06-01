@@ -1,14 +1,4 @@
-import { type FC } from "react";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  ReferenceLine,
-} from "recharts";
+import { type FC, useMemo } from "react";
 import { Activity, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import {
   sectionStyles,
@@ -16,7 +6,11 @@ import {
   sectionTitleStyles,
   sectionContentStyles,
 } from "./shared-styles";
+import { useThemeColors } from "./chart-utils";
+import { EChart, buildAreaOption } from "./echarts-base";
 import type { DashboardAnalytics } from "../../api/analytics";
+
+const COMPLETION_COLOR = "#10b981";
 
 export interface VelocityChartProps {
   analytics: DashboardAnalytics;
@@ -27,6 +21,7 @@ export interface VelocityChartProps {
  */
 export const VelocityChart: FC<VelocityChartProps> = ({ analytics }) => {
   const { completionTrend, velocity } = analytics;
+  const colors = useThemeColors();
 
   const getTrendIcon = () => {
     switch (velocity.trend) {
@@ -56,6 +51,24 @@ export const VelocityChart: FC<VelocityChartProps> = ({ analytics }) => {
       completionTrend.filter((d) => d.count > 0).length
     : 0;
 
+  const option = useMemo(
+    () =>
+      buildAreaOption({
+        categories: completionTrend.map((d) => d.date),
+        values: completionTrend.map((d) => d.count),
+        color: COMPLETION_COLOR,
+        colors,
+        avg,
+        xAxisLabelFormatter: (value) => {
+          const date = new Date(value);
+          return `${date.getMonth() + 1}/${date.getDate()}`;
+        },
+        tooltipTitle: (name) => new Date(name).toLocaleDateString(),
+        tooltipValue: (value) => `${value}`,
+      }),
+    [completionTrend, avg, colors]
+  );
+
   return (
     <section style={sectionStyles}>
       <div style={sectionHeaderStyles}>
@@ -72,74 +85,7 @@ export const VelocityChart: FC<VelocityChartProps> = ({ analytics }) => {
       </div>
       <div style={sectionContentStyles}>
         {hasData ? (
-          <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={completionTrend}>
-              <defs>
-                <linearGradient id="completionGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#10b981" stopOpacity={0.28} />
-                  <stop offset="100%" stopColor="#10b981" stopOpacity={0.02} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid
-                strokeDasharray="none"
-                stroke="var(--border-primary)"
-                opacity={0.15}
-                vertical={false}
-              />
-              <XAxis
-                dataKey="date"
-                tick={{ fontSize: 10, fill: "var(--text-tertiary)" }}
-                stroke="var(--border-primary)"
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={(value) => {
-                  const date = new Date(value);
-                  return `${date.getMonth() + 1}/${date.getDate()}`;
-                }}
-              />
-              <YAxis
-                tick={{ fontSize: 10, fill: "var(--text-tertiary)" }}
-                stroke="var(--border-primary)"
-                axisLine={false}
-                tickLine={false}
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "var(--bg-secondary)",
-                  border: "none",
-                  outline: "none",
-                  boxShadow: "var(--shadow-lg)",
-                  padding: "var(--spacing-2)",
-                  borderRadius: "var(--radius-md)",
-                }}
-                wrapperStyle={{ outline: "none", border: "none" }}
-                labelFormatter={(value) => new Date(value).toLocaleDateString()}
-              />
-              {avg > 0 && (
-                <ReferenceLine
-                  y={avg}
-                  stroke="#10b981"
-                  strokeDasharray="4 4"
-                  strokeOpacity={0.5}
-                  strokeWidth={1}
-                />
-              )}
-              <Area
-                type="monotone"
-                dataKey="count"
-                stroke="#10b981"
-                strokeWidth={2.5}
-                fill="url(#completionGradient)"
-                dot={false}
-                activeDot={{
-                  r: 5,
-                  strokeWidth: 2,
-                  stroke: "#10b981",
-                  fill: "var(--bg-card)",
-                }}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          <EChart option={option} height={200} ariaLabel="Completion trend over time" />
         ) : (
           <div
             style={{

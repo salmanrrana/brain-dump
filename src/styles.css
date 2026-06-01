@@ -522,46 +522,6 @@ a.nav-item,
   }
 }
 
-/* Remove white backgrounds from recharts in dark mode */
-.recharts-wrapper,
-.recharts-surface {
-  background: transparent !important;
-}
-
-.recharts-cartesian-grid-horizontal line,
-.recharts-cartesian-grid-vertical line {
-  stroke: var(--border-primary);
-  opacity: 0.2;
-}
-
-/* Remove tooltip outlines/borders - clean tooltip appearance */
-.recharts-tooltip-wrapper {
-  background: transparent !important;
-  outline: none !important;
-  border: none !important;
-}
-
-.recharts-default-tooltip {
-  background: var(--bg-secondary) !important;
-  border: none !important;
-  outline: none !important;
-  border-radius: var(--radius-md) !important;
-  padding: var(--spacing-2) !important;
-  box-shadow: var(--shadow-lg) !important;
-}
-
-/* Remove any border/outline from tooltip content */
-.recharts-tooltip-wrapper * {
-  outline: none !important;
-  border: none !important;
-}
-
-/* Make sure active dots don't have white backgrounds */
-.recharts-active-dot {
-  fill: var(--accent-primary) !important;
-  stroke: var(--bg-secondary) !important;
-}
-
 /* ============================================
    HIDE SCROLLBARS WHILE MAINTAINING SCROLLABILITY
    ============================================

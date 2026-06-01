@@ -1,12 +1,13 @@
 import { type FC, useMemo, useEffect, useState } from "react";
 import { Brain } from "lucide-react";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import {
   sectionStyles,
   sectionHeaderStyles,
   sectionTitleStyles,
   sectionContentStyles,
 } from "./shared-styles";
+import { useThemeColors } from "./chart-utils";
+import { EChart, buildDonutOption } from "./echarts-base";
 import type { DashboardAnalytics } from "../../api/analytics";
 
 export interface AIUsageChartProps {
@@ -41,6 +42,7 @@ function getComputedColors(): { claude: string; ralph: string; opencode: string;
 export const AIUsageChart: FC<AIUsageChartProps> = ({ analytics }) => {
   const { aiUsage } = analytics;
   const [colors, setColors] = useState(getComputedColors());
+  const themeColors = useThemeColors();
 
   useEffect(() => {
     const updateColors = () => setColors(getComputedColors());
@@ -73,6 +75,22 @@ export const AIUsageChart: FC<AIUsageChartProps> = ({ analytics }) => {
       ? data.reduce((max, item) => (item.value > max.value ? item : max), data[0]!)
       : null;
 
+  const option = useMemo(
+    () =>
+      buildDonutOption({
+        data: data.map((entry) => {
+          const colorKey = entry.name.toLowerCase() as keyof typeof colors;
+          return { name: entry.name, value: entry.value, color: colors[colorKey] || colors.user };
+        }),
+        colors: themeColors,
+        centerText: dominant ? String(total) : undefined,
+        centerSubtext: "TOTAL",
+        labelFormatter: "{b}: {d}%",
+        tooltipUnit: "comment",
+      }),
+    [data, dominant, total, colors, themeColors]
+  );
+
   return (
     <section style={sectionStyles}>
       <div style={sectionHeaderStyles}>
@@ -84,85 +102,7 @@ export const AIUsageChart: FC<AIUsageChartProps> = ({ analytics }) => {
       </div>
       <div style={sectionContentStyles}>
         {data.length > 0 ? (
-          <ResponsiveContainer width="100%" height={220}>
-            <PieChart>
-              <Pie
-                data={data}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ name, percentage }) => `${name}: ${percentage.toFixed(0)}%`}
-                outerRadius={80}
-                innerRadius={40}
-                dataKey="value"
-                stroke="var(--bg-card)"
-                strokeWidth={3}
-                paddingAngle={2}
-              >
-                {data.map((entry, index) => {
-                  const colorKey = entry.name.toLowerCase() as keyof typeof colors;
-                  const color = colors[colorKey] || colors.user;
-                  return <Cell key={`cell-${index}`} fill={color} />;
-                })}
-              </Pie>
-              {/* Centered total statistic */}
-              {dominant && (
-                <>
-                  <text
-                    x="50%"
-                    y="46%"
-                    textAnchor="middle"
-                    dominantBaseline="central"
-                    style={{ fontSize: 20, fontWeight: 700, fill: "var(--text-primary)" }}
-                  >
-                    {total}
-                  </text>
-                  <text
-                    x="50%"
-                    y="57%"
-                    textAnchor="middle"
-                    dominantBaseline="central"
-                    style={{
-                      fontSize: 9,
-                      fill: "var(--text-tertiary)",
-                      textTransform: "uppercase" as const,
-                      letterSpacing: "0.5px",
-                    }}
-                  >
-                    total
-                  </text>
-                </>
-              )}
-              <Tooltip
-                content={({ active, payload }) => {
-                  if (!active || !payload || payload.length === 0) return null;
-                  const item = payload[0];
-                  if (!item) return null;
-                  const payloadData = item.payload as { percentage?: number } | undefined;
-                  const percentage = payloadData?.percentage ?? 0;
-                  return (
-                    <div
-                      style={{
-                        backgroundColor: "var(--bg-secondary)",
-                        border: "none",
-                        outline: "none",
-                        borderRadius: "var(--radius-md)",
-                        padding: "var(--spacing-2)",
-                        color: "var(--text-primary)",
-                        fontSize: "var(--font-size-sm)",
-                        boxShadow: "var(--shadow-lg)",
-                      }}
-                    >
-                      <div style={{ fontWeight: "500" }}>{item.name}</div>
-                      <div style={{ color: "var(--text-secondary)" }}>
-                        {item.value} comments ({percentage.toFixed(1)}%)
-                      </div>
-                    </div>
-                  );
-                }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
+          <EChart option={option} height={220} ariaLabel="AI usage breakdown by source" />
         ) : (
           <div
             style={{
