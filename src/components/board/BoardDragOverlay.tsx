@@ -1,5 +1,5 @@
-import { memo, useState } from "react";
-import { DragOverlay, useDndMonitor } from "@dnd-kit/core";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { DragOverlay, useDndMonitor, type DragStartEvent } from "@dnd-kit/core";
 import { TicketCard } from "./TicketCard";
 import type { TicketSummary } from "../../api/tickets";
 import type { ActiveRalphSession } from "../../lib/hooks";
@@ -27,17 +27,35 @@ export const BoardDragOverlay = memo(function BoardDragOverlay({
 }: BoardDragOverlayProps) {
   const [activeTicket, setActiveTicket] = useState<TicketSummary | null>(null);
 
-  useDndMonitor({
-    onDragStart(event) {
-      setActiveTicket(tickets.find((t) => t.id === event.active.id) ?? null);
-    },
-    onDragEnd() {
-      setActiveTicket(null);
-    },
-    onDragCancel() {
-      setActiveTicket(null);
-    },
-  });
+  // Keep the latest tickets in a ref so the dnd-kit listeners stay
+  // referentially stable. `useDndMonitor` re-subscribes whenever the listener
+  // object identity changes; a fresh `tickets` array on every board poll would
+  // otherwise tear down and re-register the subscription on the drag hot path.
+  const ticketsRef = useRef(tickets);
+  useEffect(() => {
+    ticketsRef.current = tickets;
+  }, [tickets]);
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    setActiveTicket(ticketsRef.current.find((t) => t.id === event.active.id) ?? null);
+  }, []);
+
+  const clearActiveTicket = useCallback(() => {
+    setActiveTicket(null);
+  }, []);
+
+  // Stable listener object → dnd-kit subscribes exactly once for this overlay's
+  // lifetime instead of re-registering on every re-render.
+  const monitor = useMemo(
+    () => ({
+      onDragStart: handleDragStart,
+      onDragEnd: clearActiveTicket,
+      onDragCancel: clearActiveTicket,
+    }),
+    [handleDragStart, clearActiveTicket]
+  );
+
+  useDndMonitor(monitor);
 
   return (
     <DragOverlay>
