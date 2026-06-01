@@ -7,7 +7,7 @@ import {
   type ActiveRalphSession,
 } from "../../lib/hooks";
 import { KanbanColumn } from "./KanbanColumn";
-import { SortableTicketCard } from "./SortableTicketCard";
+import { KanbanColumnContent } from "./KanbanColumnContent";
 import { BoardDragOverlay } from "./BoardDragOverlay";
 import type { TicketStatus, TicketSummary } from "../../api/tickets";
 import { useToast } from "../Toast";
@@ -26,11 +26,7 @@ import {
   type Announcements,
   type CollisionDetection,
 } from "@dnd-kit/core";
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
+import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 
 export interface KanbanBoardProps {
   /** Optional project ID to filter tickets */
@@ -415,23 +411,16 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
                 count={count}
                 accentColor={accentColor}
               >
-                <SortableContext
-                  items={ticketIdsByStatus[status]}
-                  strategy={verticalListSortingStrategy}
-                >
-                  {columnTickets.map((ticket) => (
-                    <SortableTicketCard
-                      key={ticket.id}
-                      ticket={ticket}
-                      onTicketClick={onTicketClick}
-                      ralphSession={activeRalphSessions?.[ticket.id] ?? null}
-                      tabIndex={getTabIndex(ticket.id)}
-                      isFocused={focusedTicketId === ticket.id}
-                      registerCardRef={registerCardRef}
-                      onCardFocus={handleCardFocus}
-                    />
-                  ))}
-                </SortableContext>
+                <KanbanColumnContent
+                  ticketIds={ticketIdsByStatus[status]}
+                  tickets={columnTickets}
+                  onTicketClick={onTicketClick}
+                  activeRalphSessions={activeRalphSessions}
+                  getTabIndex={getTabIndex}
+                  focusedTicketId={focusedTicketId}
+                  registerCardRef={registerCardRef}
+                  onCardFocus={handleCardFocus}
+                />
               </KanbanColumn>
             );
           })}
