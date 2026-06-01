@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import type { Epic, Filters, ProjectBase } from "../lib/hooks";
+import type { ActiveRalphSession, Epic, Filters, ProjectBase } from "../lib/hooks";
 
 export interface AppFiltersState {
   filters: Filters;
@@ -53,6 +53,16 @@ export interface AppProjectsPanelState {
   closeProjectsPanel: () => void;
 }
 
+export interface AppActiveSessionsState {
+  /**
+   * Map of ticketId -> active Ralph session, computed once in the persistent
+   * `AppLayout` (via `useProjectsWithAIActivity`). Routes consume this instead
+   * of calling `useActiveRalphSessions()` again, so the polling subscription
+   * lives in a single place rather than being duplicated per-route.
+   */
+  activeSessions: Record<string, ActiveRalphSession>;
+}
+
 type AppState = AppFiltersState &
   AppModalActionsState &
   AppRefreshState &
@@ -60,7 +70,8 @@ type AppState = AppFiltersState &
   AppSampleDataState &
   AppEpicDeletionState &
   AppMobileMenuState &
-  AppProjectsPanelState;
+  AppProjectsPanelState &
+  AppActiveSessionsState;
 
 export const AppFiltersContext = createContext<AppFiltersState | null>(null);
 export const AppModalActionsContext = createContext<AppModalActionsState | null>(null);
@@ -70,6 +81,7 @@ export const AppSampleDataContext = createContext<AppSampleDataState | null>(nul
 export const AppEpicDeletionContext = createContext<AppEpicDeletionState | null>(null);
 export const AppMobileMenuContext = createContext<AppMobileMenuState | null>(null);
 export const AppProjectsPanelContext = createContext<AppProjectsPanelState | null>(null);
+export const AppActiveSessionsContext = createContext<AppActiveSessionsState | null>(null);
 
 function useRequiredContext<T>(context: T | null, hookName: string) {
   if (!context) {
@@ -110,6 +122,10 @@ export function useAppProjectsPanel() {
   return useRequiredContext(useContext(AppProjectsPanelContext), "useAppProjectsPanel");
 }
 
+export function useAppActiveSessions() {
+  return useRequiredContext(useContext(AppActiveSessionsContext), "useAppActiveSessions");
+}
+
 export function useAppState() {
   return {
     ...useAppFilters(),
@@ -120,5 +136,6 @@ export function useAppState() {
     ...useAppEpicDeletion(),
     ...useAppMobileMenu(),
     ...useAppProjectsPanel(),
+    ...useAppActiveSessions(),
   } satisfies AppState;
 }

@@ -155,7 +155,6 @@ export function useBuildSandboxImage() {
     mutationFn: () => buildSandboxImage(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.dockerStatus });
-      queryClient.invalidateQueries({ queryKey: queryKeys.dockerAvailability });
     },
   });
 }
@@ -168,8 +167,9 @@ export function useBuildSandboxImage() {
  * Hook for checking Docker availability with caching.
  *
  * Provides a consumer-friendly interface for checking if Docker can be used
- * to run Ralph in sandbox mode. Caches status for 30 seconds to prevent
- * excessive Docker checks when modals are opened/closed.
+ * to run Ralph in sandbox mode. Derives its values from the single app-wide
+ * `dockerStatus` query (backed by `getDockerStatus`), so every Docker-status
+ * consumer shares one cached query and one poll — no separate query key.
  *
  * Multiple components using this hook share the same cached query (deduplication).
  *
@@ -182,22 +182,20 @@ export function useBuildSandboxImage() {
  */
 export function useDockerAvailability() {
   const query = useQuery({
-    queryKey: queryKeys.dockerAvailability,
+    queryKey: queryKeys.dockerStatus,
     queryFn: async () => {
       const status = await getDockerStatus();
-      return {
-        available: status.dockerAvailable && status.dockerRunning,
-        imageBuilt: status.imageBuilt,
-        message: getDockerUnavailableMessage(status),
-      };
+      return status as DockerStatus;
     },
     staleTime: 30_000, // 30 seconds - prevents flicker on modal re-open
   });
 
+  const status = query.data ?? null;
+
   return {
-    isAvailable: query.data?.available ?? false,
-    isImageBuilt: query.data?.imageBuilt ?? false,
-    message: query.data?.message,
+    isAvailable: status ? status.dockerAvailable && status.dockerRunning : false,
+    isImageBuilt: status?.imageBuilt ?? false,
+    message: status ? getDockerUnavailableMessage(status) : undefined,
     loading: query.isLoading,
     refetch: query.refetch,
   };

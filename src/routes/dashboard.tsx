@@ -2,7 +2,8 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Profiler, Suspense, lazy, useCallback, useState } from "react";
 import { onRenderCallback } from "../lib/profiler";
 import { useQueryClient } from "@tanstack/react-query";
-import { useTicketSummaries, useActiveRalphSessions, useDashboardAnalytics } from "../lib/hooks";
+import { useTicketSummaries, useDashboardAnalytics } from "../lib/hooks";
+import { useAppActiveSessions } from "../components/AppLayoutContext";
 import { getTicketSummaries } from "../api/tickets";
 import { getDashboardAnalytics } from "../api/analytics";
 import { getDashboardTelemetryAnalytics } from "../api/telemetry";
@@ -124,7 +125,9 @@ function Dashboard() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
   const { tickets, loading, error } = useTicketSummaries();
-  const { sessions } = useActiveRalphSessions();
+  // Read active Ralph sessions from the shared AppLayout context instead of
+  // opening a duplicate polling subscription on the dashboard route.
+  const { activeSessions: sessions } = useAppActiveSessions();
   const {
     data: analytics,
     isLoading: analyticsLoading,

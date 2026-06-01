@@ -251,7 +251,7 @@ describe("useDockerAvailability", () => {
       // Manually invalidate the cache to simulate stale time expiration
       // This is equivalent to what happens when staleTime (30s) passes
       await act(async () => {
-        await queryClient.invalidateQueries({ queryKey: queryKeys.dockerAvailability });
+        await queryClient.invalidateQueries({ queryKey: queryKeys.dockerStatus });
       });
 
       // Wait for the refetch to complete

@@ -65,16 +65,12 @@ export const queryKeys = {
   dockerRuntimes: ["dockerRuntimes"] as const,
   activeDockerRuntime: ["activeDockerRuntime"] as const,
 
-  // Docker availability (for UI buttons)
-  dockerAvailability: ["docker-availability"] as const,
-
   // Active Ralph sessions
   activeRalphSessions: ["activeRalphSessions"] as const,
 
   // Ralph container monitoring (hierarchical for easy invalidation)
   ralph: {
     all: ["ralph"] as const,
-    dockerAvailable: () => ["ralph", "dockerAvailable"] as const,
     containers: () => ["ralph", "containers"] as const,
     containerLogs: (containerName: string, tail: number) =>
       ["ralph", "containerLogs", containerName, tail] as const,
