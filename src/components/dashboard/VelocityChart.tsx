@@ -6,7 +6,7 @@ import {
   sectionTitleStyles,
   sectionContentStyles,
 } from "./shared-styles";
-import { useThemeColors } from "./chart-utils";
+import { useThemeColors, formatShortDate } from "./chart-utils";
 import { EChart, buildAreaOption } from "./echarts-base";
 import type { DashboardAnalytics } from "../../api/analytics";
 
@@ -59,12 +59,9 @@ export const VelocityChart: FC<VelocityChartProps> = ({ analytics }) => {
         color: COMPLETION_COLOR,
         colors,
         avg,
-        xAxisLabelFormatter: (value) => {
-          const date = new Date(value);
-          return `${date.getMonth() + 1}/${date.getDate()}`;
-        },
+        xAxisLabelFormatter: formatShortDate,
         tooltipTitle: (name) => new Date(name).toLocaleDateString(),
-        tooltipValue: (value) => `${value}`,
+        tooltipValue: (value) => `${value} completed`,
       }),
     [completionTrend, avg, colors]
   );

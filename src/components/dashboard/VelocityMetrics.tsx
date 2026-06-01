@@ -51,11 +51,11 @@ export const VelocityMetrics: FC<VelocityMetricsProps> = ({ analytics }) => {
   const colors = useThemeColors();
 
   const option = useMemo(() => {
-    // Per-bar gradients: solid muted → muted→primary blend → solid primary.
+    // Bars ramp from muted to primary: solid muted, muted→primary blend, solid primary.
     const barColors = [
-      twoColorGradient(colors.muted, colors.muted),
+      colors.muted,
       twoColorGradient(colors.muted, colors.primary),
-      twoColorGradient(colors.primary, colors.primary),
+      colors.primary,
     ];
     return {
       grid: { top: 5, right: 5, bottom: 5, left: 5, containLabel: true },

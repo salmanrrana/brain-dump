@@ -87,9 +87,11 @@ export function EChart({ option, height, onEvents, ariaLabel, style }: EChartPro
 
 /**
  * Apply an alpha channel to a hex or rgb(a) color string.
- * Returns the input unchanged for unrecognized formats (e.g. CSS keywords).
+ * Handles 3-, 6-, and 8-digit hex (alpha digits are replaced by `alpha`) plus
+ * rgb()/rgba(). Returns the input unchanged for unrecognized formats (e.g. CSS
+ * keywords) — internal-only helper fed by theme tokens that are always hex/rgb.
  */
-export function withAlpha(color: string, alpha: number): string {
+function withAlpha(color: string, alpha: number): string {
   const c = color.trim();
   if (c.startsWith("#")) {
     let hex = c.slice(1);
@@ -99,7 +101,8 @@ export function withAlpha(color: string, alpha: number): string {
         .map((ch) => ch + ch)
         .join("");
     }
-    if (hex.length === 6) {
+    // 6-digit (#rrggbb) or 8-digit (#rrggbbaa) — take the rgb component.
+    if (hex.length === 6 || hex.length === 8) {
       const r = parseInt(hex.slice(0, 2), 16);
       const g = parseInt(hex.slice(2, 4), 16);
       const b = parseInt(hex.slice(4, 6), 16);
@@ -120,12 +123,7 @@ export function withAlpha(color: string, alpha: number): string {
  * Horizontal (left→right) bar gradient with the 0.85→0.55 opacity ramp used
  * by the recharts bars this replaces. Set `vertical` for top→bottom area fills.
  */
-export function barGradient(
-  color: string,
-  opacityStart = 0.85,
-  opacityEnd = 0.55,
-  vertical = false
-) {
+function barGradient(color: string, opacityStart = 0.85, opacityEnd = 0.55, vertical = false) {
   const [x2, y2] = vertical ? [0, 1] : [1, 0];
   return new echarts.graphic.LinearGradient(0, 0, x2, y2, [
     { offset: 0, color: withAlpha(color, opacityStart) },
@@ -143,7 +141,7 @@ export function twoColorGradient(start: string, end: string, vertical = false) {
 }
 
 /** Vertical (top→bottom) area fill gradient used by the area charts. */
-export function areaGradient(color: string, opacityTop = 0.28, opacityBottom = 0.02) {
+function areaGradient(color: string, opacityTop = 0.28, opacityBottom = 0.02) {
   return new echarts.graphic.LinearGradient(0, 0, 0, 1, [
     { offset: 0, color: withAlpha(color, opacityTop) },
     { offset: 1, color: withAlpha(color, opacityBottom) },
@@ -166,6 +164,15 @@ export function tooltipBox(colors: ChartColors) {
     textStyle: { color: colors.text, fontSize: 13 },
     extraCssText: "border-radius: 8px; box-shadow: var(--shadow-lg); outline: none;",
   };
+}
+
+/**
+ * Two-line tooltip HTML: bold title + secondary value. Renders an em-dash for
+ * missing/non-finite values (e.g. data gaps) instead of "undefined"/"NaN".
+ */
+function tooltipRows(title: string, value: number, format: (value: number) => string): string {
+  const body = value == null || !Number.isFinite(value) ? "—" : format(value);
+  return `<div style="font-weight:500">${title}</div><div style="color:var(--text-secondary)">${body}</div>`;
 }
 
 export interface HBarOptionConfig {
@@ -223,7 +230,7 @@ export function buildHBarOption(config: HBarOptionConfig): EChartsOption {
         const p = params[0];
         if (!p) return "";
         const title = tooltipTitle ? tooltipTitle(p.dataIndex, p.name) : p.name;
-        return `<div style="font-weight:500">${title}</div><div style="color:var(--text-secondary)">${tooltipValue(p.value)}</div>`;
+        return tooltipRows(title, p.value, tooltipValue);
       },
     },
     xAxis: {
@@ -306,7 +313,7 @@ export function buildDonutOption(config: DonutOptionConfig): EChartsOption {
       trigger: "item",
       ...tooltipBox(colors),
       formatter: (p: FormatterParam) => {
-        const pct = p.percent ?? 0;
+        const pct = Number.isFinite(p.percent) ? p.percent! : 0;
         const plural = p.value !== 1 ? "s" : "";
         return `<div style="font-weight:500">${p.name}</div><div style="color:var(--text-secondary)">${p.value} ${tooltipUnit}${plural} (${pct.toFixed(0)}%)</div>`;
       },
@@ -388,7 +395,7 @@ export function buildAreaOption(config: AreaOptionConfig): EChartsOption {
         const p = params[0];
         if (!p) return "";
         const title = tooltipTitle ? tooltipTitle(p.name) : p.name;
-        return `<div style="font-weight:500">${title}</div><div style="color:var(--text-secondary)">${tooltipValue(p.value)}</div>`;
+        return tooltipRows(title, p.value, tooltipValue);
       },
     },
     xAxis: {
