@@ -957,6 +957,21 @@ export interface InitDatabaseOptions {
 }
 
 /**
+ * Apply connection PRAGMAs tuned for a local, read-heavy app where the UI, MCP
+ * server, and CLI may all touch the same SQLite file concurrently. Mirrors the
+ * web-app connection in src/lib/db.ts so the CLI/MCP path performs identically.
+ * Must run on every new connection (PRAGMAs are per-connection, not persisted).
+ */
+function applyConnectionPragmas(db: Database.Database): void {
+  db.pragma("journal_mode = WAL"); // concurrent readers + single writer
+  db.pragma("synchronous = NORMAL"); // biggest write-latency win; crash-safe under WAL
+  db.pragma("busy_timeout = 5000"); // wait out locks instead of throwing SQLITE_BUSY
+  db.pragma("cache_size = -32000"); // ~32MB page cache (negative = KiB)
+  db.pragma("mmap_size = 268435456"); // 256MB memory-mapped reads
+  db.pragma("temp_store = MEMORY"); // keep ORDER BY/GROUP BY temp data off disk
+}
+
+/**
  * Initialize a database connection with WAL mode and run migrations.
  *
  * For production: `initDatabase()` — uses XDG paths, runs legacy migration.
@@ -1000,7 +1015,7 @@ export function initDatabase(options: InitDatabaseOptions = {}): InitDatabaseRes
   }
 
   const db = new Database(actualDbPath);
-  db.pragma("journal_mode = WAL");
+  applyConnectionPragmas(db);
   logger.info(`Connected to database: ${actualDbPath}`);
 
   if (!skipSchemaMigrations) {
@@ -1017,7 +1032,7 @@ export function initDatabase(options: InitDatabaseOptions = {}): InitDatabaseRes
  */
 export function createTestDatabase(logger: Logger = silentLogger): InitDatabaseResult {
   const db = new Database(":memory:");
-  db.pragma("journal_mode = WAL");
+  applyConnectionPragmas(db);
 
   ensureBaseSchema(db, logger);
 

@@ -207,3 +207,20 @@
 [2026-06-01T12:00:31-05:00] ITERATION TIMEOUT: Codex hung for >1800s on iteration 2 (killed, exit code: 124)
 [2026-06-01T12:30:33-05:00] ITERATION TIMEOUT: Codex hung for >1800s on iteration 3 (killed, exit code: 124)
 [2026-06-01T12:31:59-05:00] STALLED: No progress for 3 iterations. 9/9 incomplete.
+
+[2026-06-01 ticket 530333ed — Tune SQLite connection PRAGMAs]
+- src/lib/db.ts: applyConnectionPragmas() already sets WAL, foreign_keys, synchronous=NORMAL,
+  busy_timeout=5000, cache_size=-32000, mmap_size=256MB, temp_store=MEMORY (web app connection).
+- core/db.ts (CLI/MCP path): added applyConnectionPragmas() helper; applied at both connection
+  sites (initDatabase + createTestDatabase). Adds the 5 tuning PRAGMAs after WAL.
+  (foreign_keys deliberately left to ticket e8f8f66f to keep tickets separable.)
+- Validation (best-of-5, 20k autocommit writes / 1k analytics scans over 5k rows, on-disk $HOME,
+  better-sqlite3 driver timeout disabled so the PRAGMA's raw effect is measured):
+    * SQLITE_BUSY under 2 concurrent writer threads: WAL-only ≈373-415 errors -> tuned 0 (every run).
+      This is the primary reliability win (busy_timeout=5000 serializes contended writes).
+    * Write latency: neutral (±3-4% run-to-run noise) — on fast NVMe fsync is near-free so the
+      synchronous=NORMAL win is masked; no regression. Materializes on slower/contended disks.
+    * Query latency: neutral-to-slightly-slower micro-artifact (mmap overhead on a tiny fully-cached
+      5k-row table scanned 1k×); not representative of cold/larger production reads.
+- Gates: pnpm type-check clean; pnpm lint 0 errors (16 pre-existing warnings, none in core/db.ts);
+  core+db tests 423 passed.
