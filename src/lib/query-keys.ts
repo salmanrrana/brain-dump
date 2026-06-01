@@ -26,7 +26,9 @@ import type { CostExplorerParams } from "../api/cost";
 
 export const queryKeys = {
   // Projects
-  projects: ["projects"] as const,
+  // NOTE: there is no bare `["projects"]` query. `projectsWithEpics` is the live project-list
+  // query. Do NOT invalidate `["projects"]` as a prefix — it also matches `projectDeletePreview`
+  // (`["projects", id, "delete-preview"]`) and would wipe an open delete-preview dry-run.
   projectsWithEpics: ["projects", "with-epics"] as const,
   projectDeletePreview: (projectId: string) => ["projects", projectId, "delete-preview"] as const,
 
@@ -65,16 +67,12 @@ export const queryKeys = {
   dockerRuntimes: ["dockerRuntimes"] as const,
   activeDockerRuntime: ["activeDockerRuntime"] as const,
 
-  // Docker availability (for UI buttons)
-  dockerAvailability: ["docker-availability"] as const,
-
   // Active Ralph sessions
   activeRalphSessions: ["activeRalphSessions"] as const,
 
   // Ralph container monitoring (hierarchical for easy invalidation)
   ralph: {
     all: ["ralph"] as const,
-    dockerAvailable: () => ["ralph", "dockerAvailable"] as const,
     containers: () => ["ralph", "containers"] as const,
     containerLogs: (containerName: string, tail: number) =>
       ["ralph", "containerLogs", containerName, tail] as const,

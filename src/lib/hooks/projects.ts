@@ -75,8 +75,10 @@ export function useProjects() {
   const query = useQuery({
     queryKey: queryKeys.projectsWithEpics,
     queryFn: () => getProjectsWithEpics(),
-    staleTime: 30 * 1000, // 30s - balance between freshness and reducing refetches
-    refetchOnMount: "always", // Always refetch on mount to catch external changes
+    // Snapshot tier: projects/epics only change via in-app mutations (which invalidate
+    // this key) or the manual Refresh action. Serve cached data on navigation instead of
+    // refetching on every mount.
+    staleTime: 30 * 1000,
   });
 
   return {
@@ -193,7 +195,10 @@ export function useCreateProject() {
       workingMethod?: ProjectWorkingMethod;
     }) => createProject({ data }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+      // Targeted: `projectsWithEpics` is the only live project-list query. Invalidating the
+      // broad `["projects"]` prefix would also match (and nuke) any open `projectDeletePreview`
+      // dry-run (`["projects", id, "delete-preview"]`).
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectsWithEpics });
     },
   });
 }
@@ -212,7 +217,7 @@ export function useUpdateProject() {
       };
     }) => updateProject({ data }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectsWithEpics });
     },
   });
 }
@@ -224,7 +229,7 @@ export function useDeleteProject() {
     mutationFn: (params: { projectId: string; confirm?: boolean }) =>
       deleteProject({ data: params }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectsWithEpics });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
       queryClient.invalidateQueries({ queryKey: queryKeys.projectTicketCounts });
@@ -460,6 +465,7 @@ export function useGitProjectInfo(projectPath: string) {
     queryKey: queryKeys.gitInfo(projectPath),
     queryFn: () => getGitProjectInfo({ data: projectPath }),
     refetchInterval: 30 * 1000, // Refresh every 30s
+    staleTime: 30 * 1000, // 30s — live/polling tier; matches refetchInterval
     enabled: !!projectPath,
   });
 }
@@ -524,13 +530,14 @@ export function useLaunchDevServer() {
 
 /**
  * Hook for fetching full epic detail data including tickets, progress, and learnings.
- * Uses staleTime: 0 to match ticket detail pattern (data can be updated externally via MCP).
+ * Snapshot tier: serve from cache on revisit; external MCP changes surface via mutation
+ * invalidation and the manual Refresh action rather than refetch-on-every-mount.
  */
 export function useEpicDetail(epicId: string) {
   const query = useQuery({
     queryKey: queryKeys.epicDetail(epicId),
     queryFn: () => getEpicDetail({ data: epicId }),
-    staleTime: 0, // Data can be updated externally via MCP
+    staleTime: 30 * 1000, // 30s — snapshot tier; revisits serve cache
     enabled: !!epicId,
   });
 
