@@ -99,11 +99,11 @@ function renderContent({
 }) {
   const tickets = Array.from({ length: ticketCount }, (_, index) => makeTicket(index));
   const ticketIds = tickets.map((ticket) => ticket.id);
-  const scrollContainerRef = { current: document.createElement("div") };
+  const scrollContainer = document.createElement("div");
 
   return render(
     <KanbanColumnContent
-      scrollContainerRef={scrollContainerRef}
+      scrollContainer={scrollContainer}
       ticketIds={ticketIds}
       tickets={tickets}
       focusedTicketId={focusedTicketId}
@@ -122,10 +122,12 @@ describe("KanbanColumnContent virtualization", () => {
       ({
         count,
         enabled,
+        getItemKey,
         rangeExtractor,
       }: {
         count: number;
         enabled: boolean;
+        getItemKey: (index: number) => string | number;
         rangeExtractor: (range: {
           startIndex: number;
           endIndex: number;
@@ -140,7 +142,7 @@ describe("KanbanColumnContent virtualization", () => {
         return {
           getVirtualItems: () =>
             indexes.map((index) => ({
-              key: `row-${index}`,
+              key: getItemKey(index),
               index,
               start: index * 100,
               size: 100,
@@ -178,6 +180,13 @@ describe("KanbanColumnContent virtualization", () => {
 
     expect(screen.getByTestId("ticket-ticket-24")).toBeInTheDocument();
     expect(screen.queryByTestId("ticket-ticket-10")).not.toBeInTheDocument();
+    expect(virtualMocks.useVirtualizerMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        getItemKey: expect.any(Function),
+      })
+    );
+    const virtualizerOptions = virtualMocks.useVirtualizerMock.mock.calls.at(-1)?.[0];
+    expect(virtualizerOptions.getItemKey(24)).toBe("ticket-24");
   });
 
   it("keeps the focused row mounted when keyboard navigation reaches an offscreen card", () => {
@@ -191,5 +200,16 @@ describe("KanbanColumnContent virtualization", () => {
     expect(screen.getByTestId("ticket-ticket-24")).toHaveAttribute("tabindex", "0");
     expect(screen.getByTestId("ticket-ticket-24")).toHaveAttribute("data-focused", "true");
     expect(screen.queryByTestId("ticket-ticket-10")).not.toBeInTheDocument();
+  });
+
+  it("does not pin an unrelated dragged row into this virtualized column", () => {
+    renderContent({ ticketCount: 25 });
+
+    act(() => {
+      dndMocks.state.latestMonitor?.onDragStart?.({ active: { id: "ticket-from-another-column" } });
+    });
+
+    expect(screen.queryByTestId("ticket-ticket-24")).not.toBeInTheDocument();
+    expect(screen.queryByText("ticket-from-another-column")).not.toBeInTheDocument();
   });
 });

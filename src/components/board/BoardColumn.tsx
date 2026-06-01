@@ -1,4 +1,4 @@
-import { memo, useRef } from "react";
+import { memo, useCallback, useState } from "react";
 import { KanbanColumn } from "./KanbanColumn";
 import { KanbanColumnContent } from "./KanbanColumnContent";
 import type { TicketStatus, TicketSummary } from "../../api/tickets";
@@ -58,7 +58,12 @@ export const BoardColumn = memo(function BoardColumn({
   registerCardRef,
   onCardFocus,
 }: BoardColumnProps) {
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [scrollContainer, setScrollContainer] = useState<HTMLDivElement | null>(null);
+  const handleScrollContainerRef = useCallback((node: HTMLDivElement | null) => {
+    if (node) {
+      setScrollContainer(node);
+    }
+  }, []);
 
   return (
     <KanbanColumn
@@ -66,10 +71,10 @@ export const BoardColumn = memo(function BoardColumn({
       label={label}
       count={tickets.length}
       accentColor={accentColor}
-      innerRef={scrollContainerRef}
+      innerRef={handleScrollContainerRef}
     >
       <KanbanColumnContent
-        scrollContainerRef={scrollContainerRef}
+        scrollContainer={scrollContainer}
         ticketIds={ticketIds}
         tickets={tickets}
         onTicketClick={onTicketClick}

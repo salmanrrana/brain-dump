@@ -1,5 +1,4 @@
 import { memo, useCallback, useMemo, useState } from "react";
-import type { RefObject } from "react";
 import { useDndMonitor, type DragStartEvent } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
@@ -11,10 +10,14 @@ import type { ActiveRalphSession } from "../../lib/hooks";
 const VIRTUALIZATION_THRESHOLD = 20;
 const TICKET_CARD_HEIGHT_ESTIMATE = 132;
 const VIRTUALIZATION_OVERSCAN = 6;
+const INITIAL_SCROLL_RECT = {
+  width: 0,
+  height: TICKET_CARD_HEIGHT_ESTIMATE * 4,
+};
 
 export interface KanbanColumnContentProps {
   /** Scrollable column content element used by TanStack Virtual */
-  scrollContainerRef: RefObject<HTMLDivElement | null>;
+  scrollContainer: HTMLDivElement | null;
   /** Ordered ticket ids for this column's SortableContext */
   ticketIds: string[];
   /** Tickets to render as cards (already sorted by position) */
@@ -49,7 +52,7 @@ export interface KanbanColumnContentProps {
  * cards on an unrelated board update.
  */
 export const KanbanColumnContent = memo(function KanbanColumnContent({
-  scrollContainerRef,
+  scrollContainer,
   ticketIds,
   tickets,
   onTicketClick,
@@ -60,13 +63,28 @@ export const KanbanColumnContent = memo(function KanbanColumnContent({
   onCardFocus,
 }: KanbanColumnContentProps) {
   const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
+  const useVirtual = tickets.length > VIRTUALIZATION_THRESHOLD;
+  const ticketIndexById = useMemo(() => {
+    const indexById = new Map<string, number>();
+    tickets.forEach((ticket, index) => {
+      indexById.set(ticket.id, index);
+    });
+    return indexById;
+  }, [tickets]);
 
-  const handleDragStart = useCallback((event: DragStartEvent) => {
-    setActiveTicketId(String(event.active.id));
-  }, []);
+  const handleDragStart = useCallback(
+    (event: DragStartEvent) => {
+      const nextActiveTicketId = String(event.active.id);
+      if (!useVirtual || !ticketIndexById.has(nextActiveTicketId)) {
+        return;
+      }
+      setActiveTicketId(nextActiveTicketId);
+    },
+    [ticketIndexById, useVirtual]
+  );
 
   const clearActiveTicket = useCallback(() => {
-    setActiveTicketId(null);
+    setActiveTicketId((current) => (current === null ? current : null));
   }, []);
 
   const dndMonitor = useMemo(
@@ -80,10 +98,9 @@ export const KanbanColumnContent = memo(function KanbanColumnContent({
 
   useDndMonitor(dndMonitor);
 
-  const useVirtual = tickets.length > VIRTUALIZATION_THRESHOLD;
-  const focusedTicketIndex = focusedTicketId ? ticketIds.indexOf(focusedTicketId) : -1;
-  const tabStopTicketIndex = tabStopTicketId ? ticketIds.indexOf(tabStopTicketId) : -1;
-  const activeTicketIndex = activeTicketId ? ticketIds.indexOf(activeTicketId) : -1;
+  const focusedTicketIndex = focusedTicketId ? (ticketIndexById.get(focusedTicketId) ?? -1) : -1;
+  const tabStopTicketIndex = tabStopTicketId ? (ticketIndexById.get(tabStopTicketId) ?? -1) : -1;
+  const activeTicketIndex = activeTicketId ? (ticketIndexById.get(activeTicketId) ?? -1) : -1;
 
   const rangeExtractor = useCallback(
     (range: Range) => {
@@ -100,7 +117,9 @@ export const KanbanColumnContent = memo(function KanbanColumnContent({
 
   const virtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
     count: tickets.length,
-    getScrollElement: () => scrollContainerRef.current,
+    getScrollElement: () => scrollContainer,
+    getItemKey: (index) => tickets[index]?.id ?? index,
+    initialRect: INITIAL_SCROLL_RECT,
     estimateSize: () => TICKET_CARD_HEIGHT_ESTIMATE,
     overscan: VIRTUALIZATION_OVERSCAN,
     enabled: useVirtual,
