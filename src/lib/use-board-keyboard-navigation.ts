@@ -30,8 +30,13 @@ interface UseBoardKeyboardNavigationReturn {
   setFocusedTicketId: (id: string | null) => void;
   /** Handler for keydown events on the board container */
   handleKeyDown: (e: React.KeyboardEvent) => void;
-  /** Get tabIndex for a ticket card (roving tabindex pattern) */
-  getTabIndex: (ticketId: string) => 0 | -1;
+  /**
+   * Ticket id that participates in the page tab order (roving tabindex pattern):
+   * the focused card, or — when nothing is focused yet — the first card on the
+   * board. Exposed as a stable string (not a fresh function on every focus move)
+   * so consumers can scope it per column and re-render only the affected cards.
+   */
+  rovingTabStopId: string | null;
   /** Ref callback to register a ticket card element */
   registerCardRef: (ticketId: string) => (el: HTMLElement | null) => void;
   /** Handler for focus on a ticket card */
@@ -60,7 +65,7 @@ interface UseBoardKeyboardNavigationReturn {
  * const {
  *   focusedTicketId,
  *   handleKeyDown,
- *   getTabIndex,
+ *   rovingTabStopId,
  *   registerCardRef,
  *   handleCardFocus,
  * } = useBoardKeyboardNavigation({
@@ -286,21 +291,15 @@ export function useBoardKeyboardNavigation(
     return focusedTicketId;
   }, [focusedTicketId, validTicketIds]);
 
-  // Roving tabindex: focused card gets 0, others get -1
-  const getTabIndex = useCallback(
-    (ticketId: string): 0 | -1 => {
-      // If no ticket is focused, the first ticket should be focusable
-      if (!effectiveFocusedTicketId) {
-        const tickets = allTickets;
-        if (tickets.length > 0 && tickets[0]!.ticket.id === ticketId) {
-          return 0;
-        }
-        return -1;
-      }
-      return effectiveFocusedTicketId === ticketId ? 0 : -1;
-    },
-    [effectiveFocusedTicketId, allTickets]
-  );
+  // Roving tabindex: exactly one card participates in the page tab order. That
+  // is the focused card, or — when nothing is focused yet — the first card on
+  // the board so keyboard users can Tab into the grid. A stable string (rather
+  // than a fresh `getTabIndex` closure on every focus move) lets the board scope
+  // it per column, so only the cards whose tab-stop/focus state changed re-render.
+  const rovingTabStopId = useMemo(() => {
+    if (effectiveFocusedTicketId) return effectiveFocusedTicketId;
+    return allTickets[0]?.ticket.id ?? null;
+  }, [effectiveFocusedTicketId, allTickets]);
 
   // Register a card element ref
   const registerCardRef = useCallback(
@@ -332,7 +331,7 @@ export function useBoardKeyboardNavigation(
     focusedTicketId: effectiveFocusedTicketId,
     setFocusedTicketId,
     handleKeyDown,
-    getTabIndex,
+    rovingTabStopId,
     registerCardRef,
     handleCardFocus,
   };

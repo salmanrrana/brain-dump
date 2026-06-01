@@ -1,4 +1,4 @@
-import type { FC, ReactNode } from "react";
+import type { FC } from "react";
 import { useCallback, useMemo, useRef } from "react";
 import {
   useTicketSummaries,
@@ -6,8 +6,7 @@ import {
   useUpdateTicketPosition,
   type ActiveRalphSession,
 } from "../../lib/hooks";
-import { KanbanColumn } from "./KanbanColumn";
-import { KanbanColumnContent } from "./KanbanColumnContent";
+import { BoardColumn } from "./BoardColumn";
 import { BoardDragOverlay } from "./BoardDragOverlay";
 import type { TicketStatus, TicketSummary } from "../../api/tickets";
 import { useToast } from "../Toast";
@@ -244,7 +243,7 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
   const {
     focusedTicketId,
     handleKeyDown: handleBoardKeyDown,
-    getTabIndex,
+    rovingTabStopId,
     registerCardRef,
     handleCardFocus,
   } = useBoardKeyboardNavigation({
@@ -252,40 +251,6 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
     onTicketSelect: onTicketClick,
     disabledRef: isDraggingRef, // Disable keyboard nav while dragging (no re-render)
   });
-
-  // Memoize each column's content element so the `children` reference handed to
-  // `KanbanColumn` stays stable across renders. Combined with KanbanColumn's
-  // `memo`, this means an idle background poll (which keeps ticket references
-  // stable via TanStack Query's structural sharing) re-renders neither the
-  // column shell nor its card list. The map only recomputes when its real
-  // inputs change (ticket data, focus, callbacks).
-  const columnContents = useMemo(() => {
-    const contents = {} as Record<TicketStatus, ReactNode>;
-    for (const status of COLUMNS) {
-      contents[status] = (
-        <KanbanColumnContent
-          ticketIds={ticketIdsByStatus[status]}
-          tickets={ticketsByStatus[status]}
-          onTicketClick={onTicketClick}
-          activeRalphSessions={activeRalphSessions}
-          getTabIndex={getTabIndex}
-          focusedTicketId={focusedTicketId}
-          registerCardRef={registerCardRef}
-          onCardFocus={handleCardFocus}
-        />
-      );
-    }
-    return contents;
-  }, [
-    ticketIdsByStatus,
-    ticketsByStatus,
-    onTicketClick,
-    activeRalphSessions,
-    getTabIndex,
-    focusedTicketId,
-    registerCardRef,
-    handleCardFocus,
-  ]);
 
   const handleDragStart = useCallback(() => {
     isDraggingRef.current = true;
@@ -432,17 +397,36 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
         onKeyDown={handleBoardKeyDown}
       >
         <div style={columnsContainerStyles}>
-          {COLUMNS.map((status) => (
-            <KanbanColumn
-              key={status}
-              status={status}
-              label={COLUMN_LABELS[status]}
-              count={ticketsByStatus[status].length}
-              accentColor={COLUMN_COLORS[status]}
-            >
-              {columnContents[status]}
-            </KanbanColumn>
-          ))}
+          {COLUMNS.map((status) => {
+            const columnTicketIds = ticketIdsByStatus[status];
+            // Scope focus to the column that owns the card: every other column
+            // receives null, so its `BoardColumn` memo holds and a focus move
+            // re-renders only the column(s) that gained/lost focus.
+            const columnFocusedId =
+              focusedTicketId !== null && columnTicketIds.includes(focusedTicketId)
+                ? focusedTicketId
+                : null;
+            const columnTabStopId =
+              rovingTabStopId !== null && columnTicketIds.includes(rovingTabStopId)
+                ? rovingTabStopId
+                : null;
+            return (
+              <BoardColumn
+                key={status}
+                status={status}
+                label={COLUMN_LABELS[status]}
+                accentColor={COLUMN_COLORS[status]}
+                ticketIds={columnTicketIds}
+                tickets={ticketsByStatus[status]}
+                onTicketClick={onTicketClick}
+                activeRalphSessions={activeRalphSessions}
+                focusedTicketId={columnFocusedId}
+                tabStopTicketId={columnTabStopId}
+                registerCardRef={registerCardRef}
+                onCardFocus={handleCardFocus}
+              />
+            );
+          })}
         </div>
         <BoardDragOverlay tickets={tickets} activeRalphSessions={activeRalphSessions} />
       </div>

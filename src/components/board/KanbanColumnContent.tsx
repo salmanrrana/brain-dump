@@ -13,10 +13,14 @@ export interface KanbanColumnContentProps {
   onTicketClick?: ((ticket: TicketSummary) => void) | undefined;
   /** Active Ralph sessions keyed by ticket id */
   activeRalphSessions?: Record<string, ActiveRalphSession> | undefined;
-  /** Roving-tabindex resolver from the keyboard navigation hook */
-  getTabIndex: (ticketId: string) => 0 | -1;
-  /** Currently keyboard-focused ticket id (null when none) */
+  /**
+   * Keyboard-focused ticket id IF it belongs to this column, else null. Scoped
+   * by the board so a focus change in another column leaves this prop (and thus
+   * this column's `memo`) untouched.
+   */
   focusedTicketId: string | null;
+  /** Roving tab-stop ticket id IF it belongs to this column, else null. */
+  tabStopTicketId: string | null;
   /** Stable higher-order ref factory from the keyboard navigation hook */
   registerCardRef: (ticketId: string) => (el: HTMLElement | null) => void;
   /** Stable focus handler from the keyboard navigation hook */
@@ -43,8 +47,8 @@ export const KanbanColumnContent = memo(function KanbanColumnContent({
   tickets,
   onTicketClick,
   activeRalphSessions,
-  getTabIndex,
   focusedTicketId,
+  tabStopTicketId,
   registerCardRef,
   onCardFocus,
 }: KanbanColumnContentProps) {
@@ -56,8 +60,8 @@ export const KanbanColumnContent = memo(function KanbanColumnContent({
           ticket={ticket}
           onTicketClick={onTicketClick}
           ralphSession={activeRalphSessions?.[ticket.id] ?? null}
-          tabIndex={getTabIndex(ticket.id)}
-          isFocused={focusedTicketId === ticket.id}
+          tabIndex={ticket.id === tabStopTicketId ? 0 : -1}
+          isFocused={ticket.id === focusedTicketId}
           registerCardRef={registerCardRef}
           onCardFocus={onCardFocus}
         />
