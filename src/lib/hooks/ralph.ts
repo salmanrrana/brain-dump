@@ -163,8 +163,8 @@ export function useLaunchProjectInception() {
   return useMutation({
     mutationFn: (data: { preferredTerminal?: string | null }) => launchProjectInception({ data }),
     onSuccess: () => {
-      // A new project may be created, invalidate projects list
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+      // A new project may be created, invalidate the live project-list query
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectsWithEpics });
     },
   });
 }
@@ -184,7 +184,7 @@ export function useLaunchSpecBreakdown() {
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
       queryClient.invalidateQueries({ queryKey: queryKeys.projectTicketCounts });
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectsWithEpics });
     },
   });
 }

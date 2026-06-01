@@ -26,7 +26,9 @@ import type { CostExplorerParams } from "../api/cost";
 
 export const queryKeys = {
   // Projects
-  projects: ["projects"] as const,
+  // NOTE: there is no bare `["projects"]` query. `projectsWithEpics` is the live project-list
+  // query. Do NOT invalidate `["projects"]` as a prefix — it also matches `projectDeletePreview`
+  // (`["projects", id, "delete-preview"]`) and would wipe an open delete-preview dry-run.
   projectsWithEpics: ["projects", "with-epics"] as const,
   projectDeletePreview: (projectId: string) => ["projects", projectId, "delete-preview"] as const,
 

@@ -195,7 +195,10 @@ export function useCreateProject() {
       workingMethod?: ProjectWorkingMethod;
     }) => createProject({ data }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+      // Targeted: `projectsWithEpics` is the only live project-list query. Invalidating the
+      // broad `["projects"]` prefix would also match (and nuke) any open `projectDeletePreview`
+      // dry-run (`["projects", id, "delete-preview"]`).
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectsWithEpics });
     },
   });
 }
@@ -214,7 +217,9 @@ export function useUpdateProject() {
       };
     }) => updateProject({ data }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+      // Targeted to the live project-list query (see useCreateProject) — avoids nuking
+      // an open projectDeletePreview dry-run via prefix match.
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectsWithEpics });
     },
   });
 }
@@ -226,7 +231,8 @@ export function useDeleteProject() {
     mutationFn: (params: { projectId: string; confirm?: boolean }) =>
       deleteProject({ data: params }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+      // Targeted to the live project-list query (see useCreateProject).
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectsWithEpics });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
       queryClient.invalidateQueries({ queryKey: queryKeys.projectTicketCounts });

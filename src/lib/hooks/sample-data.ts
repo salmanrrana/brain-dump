@@ -64,7 +64,7 @@ export function useSampleData(onDeleted?: () => void): UseSampleDataReturn {
     onSuccess: () => {
       setHasSampleData(false);
       // Invalidate all affected queries - projects, tickets, summaries, counts, and tags
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectsWithEpics });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
       queryClient.invalidateQueries({ queryKey: queryKeys.projectTicketCounts });
