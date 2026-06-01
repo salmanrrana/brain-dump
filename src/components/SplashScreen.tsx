@@ -116,7 +116,11 @@ export function SplashScreen({ ready, onComplete }: SplashScreenProps) {
   // LetterGlitch escalation window elapses.
   if (prefersReducedMotion || !showGlitch) {
     return (
-      <div style={{ ...style, ...spinnerContainerStyle }}>
+      <div
+        role="status"
+        aria-label="Loading Brain Dump"
+        style={{ ...style, ...spinnerContainerStyle }}
+      >
         <Loader2
           className="animate-spin"
           size={48}
@@ -127,7 +131,7 @@ export function SplashScreen({ ready, onComplete }: SplashScreenProps) {
   }
 
   return (
-    <div style={style}>
+    <div role="status" aria-label="Loading Brain Dump" style={style}>
       <LetterGlitch
         glitchColors={glitchColors}
         glitchSpeed={10}

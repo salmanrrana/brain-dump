@@ -115,6 +115,14 @@ function getSplashAllowedSnapshot(): boolean {
   return cachedSplashAllowed;
 }
 
+// Reset the cache when this module is hot-reloaded so splash iteration in dev
+// re-reads sessionStorage instead of being pinned to the first decision.
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    cachedSplashAllowed = undefined;
+  });
+}
+
 function RootDocument({ children }: { children: React.ReactNode }) {
   const { queryClient } = Route.useRouteContext();
   const [dismissed, setDismissed] = useState(false);
@@ -133,10 +141,14 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 
   // Record that the splash has played this session + dev performance marks.
   useEffect(() => {
-    try {
-      sessionStorage.setItem(SPLASH_SHOWN_KEY, "1");
-    } catch {
-      // sessionStorage unavailable — nothing to persist.
+    // Only mark "shown" when the splash actually plays (cold boot), not on
+    // suppressed revisits where the flag is already set.
+    if (splashAllowed) {
+      try {
+        sessionStorage.setItem(SPLASH_SHOWN_KEY, "1");
+      } catch {
+        // sessionStorage unavailable — nothing to persist.
+      }
     }
 
     if (import.meta.env.DEV) {
@@ -149,7 +161,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       markHydrationComplete();
       setQueryClientForHealth(queryClient);
     }
-  }, [queryClient]);
+  }, [queryClient, splashAllowed]);
 
   return (
     <html lang="en" className="dark" data-theme={DEFAULT_THEME} suppressHydrationWarning>
