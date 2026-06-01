@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState, useSyncExternalStore } from "react";
 import { HeadContent, Scripts, createRootRouteWithContext } from "@tanstack/react-router";
 import { QueryClientProvider } from "@tanstack/react-query";
 import type { RouterContext } from "../router";
@@ -91,12 +91,54 @@ export const Route = createRootRouteWithContext<RouterContext>()({
   ),
 });
 
+// sessionStorage key that records the splash has already played in this tab
+// session, so full-reload revisits skip it entirely.
+const SPLASH_SHOWN_KEY = "bd:splash-shown";
+
+// `useSyncExternalStore` needs a subscribe function; our snapshots never change
+// after the first read, so subscription is a no-op.
+const noopSubscribe = () => () => {};
+
+// Whether the splash is allowed to play this page load. Decided once, cached, so
+// later writes to the sessionStorage flag never retroactively change the answer
+// (which would hide the splash mid-show). Returns false on full-reload revisits.
+let cachedSplashAllowed: boolean | undefined;
+function getSplashAllowedSnapshot(): boolean {
+  if (cachedSplashAllowed === undefined) {
+    try {
+      cachedSplashAllowed = sessionStorage.getItem(SPLASH_SHOWN_KEY) !== "1";
+    } catch {
+      // sessionStorage unavailable (e.g. privacy mode) — show the splash normally.
+      cachedSplashAllowed = true;
+    }
+  }
+  return cachedSplashAllowed;
+}
+
 function RootDocument({ children }: { children: React.ReactNode }) {
   const { queryClient } = Route.useRouteContext();
-  const [showSplash, setShowSplash] = useState(true);
+  const [dismissed, setDismissed] = useState(false);
 
-  // Mark app boot + hydration completion for Performance timeline + connect health monitor
+  // `hydrated` is false during SSR and the first client render (matching the
+  // server), then true once React has hydrated — without setState in an effect.
+  // This is the readiness signal the splash dismisses on.
+  const hydrated = useSyncExternalStore(
+    noopSubscribe,
+    () => true,
+    () => false
+  );
+  // Splash only plays on a true cold boot; revisits within the session skip it.
+  const splashAllowed = useSyncExternalStore(noopSubscribe, getSplashAllowedSnapshot, () => true);
+  const showSplash = splashAllowed && !dismissed;
+
+  // Record that the splash has played this session + dev performance marks.
   useEffect(() => {
+    try {
+      sessionStorage.setItem(SPLASH_SHOWN_KEY, "1");
+    } catch {
+      // sessionStorage unavailable — nothing to persist.
+    }
+
     if (import.meta.env.DEV) {
       performance.mark("app:boot:end");
       try {
@@ -122,7 +164,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <QueryClientProvider client={queryClient}>
           <ThemeProvider>
             <ToastProvider>
-              {showSplash && <SplashScreen onComplete={() => setShowSplash(false)} />}
+              {showSplash && (
+                <SplashScreen ready={hydrated} onComplete={() => setDismissed(true)} />
+              )}
               <AppLayout>{children}</AppLayout>
             </ToastProvider>
           </ThemeProvider>
