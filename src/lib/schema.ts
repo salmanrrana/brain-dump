@@ -75,6 +75,12 @@ export const tickets = sqliteTable(
     index("idx_tickets_project_status").on(table.projectId, table.status),
     index("idx_tickets_epic_status").on(table.epicId, table.status),
     index("idx_tickets_project_priority").on(table.projectId, table.priority),
+    // Board load/reorder filters by project and sorts by position — covering
+    // this with one composite index avoids the TEMP B-TREE filesort.
+    index("idx_tickets_project_position").on(table.projectId, table.position),
+    // Dashboard analytics filter/group/sort tickets by completed_at — index it
+    // to replace the repeated full table scans.
+    index("idx_tickets_completed_at").on(table.completedAt),
   ]
 );
 
