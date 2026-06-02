@@ -12,8 +12,8 @@
  * import { queryKeys } from "../lib/query-keys";
  *
  * const { data } = useQuery({
- *   queryKey: queryKeys.tickets({ projectId: "abc" }),
- *   queryFn: () => fetchTickets({ projectId: "abc" }),
+ *   queryKey: queryKeys.ticketSummaries({ projectId: "abc" }),
+ *   queryFn: () => getTicketSummaries({ data: { projectId: "abc" } }),
  * });
  *
  * // Invalidate all tickets
@@ -39,7 +39,6 @@ export const queryKeys = {
   // Tickets
   ticket: (ticketId: string) => ["ticket", ticketId] as const,
   ticketDeletePreview: (ticketId: string) => ["ticket", ticketId, "delete-preview"] as const,
-  tickets: (filters: TicketFilters) => ["tickets", filters] as const,
   allTickets: ["tickets"] as const,
   ticketSummaries: (filters: TicketFilters) => ["ticket-summaries", filters] as const,
   allTicketSummaries: ["ticket-summaries"] as const,
