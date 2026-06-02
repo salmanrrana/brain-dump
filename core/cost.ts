@@ -1494,17 +1494,24 @@ export function getTicketCostDetail(db: DbHandle, ticketId: string): TicketCostD
 }
 
 /**
- * SQLite caps bound parameters per statement; chunk IN-lists so large ticket
- * sets stay well under the limit across SQLite versions.
+ * SQLite caps bound parameters per statement; chunk IN-lists so large id sets
+ * stay well under the limit across SQLite versions.
  */
-const TICKET_ID_CHUNK = 500;
+const ID_CHUNK_SIZE = 500;
 
-function chunkTicketIds(ticketIds: string[]): string[][] {
+export function chunkIds(ids: string[]): string[][] {
   const chunks: string[][] = [];
-  for (let i = 0; i < ticketIds.length; i += TICKET_ID_CHUNK) {
-    chunks.push(ticketIds.slice(i, i + TICKET_ID_CHUNK));
+  for (let i = 0; i < ids.length; i += ID_CHUNK_SIZE) {
+    chunks.push(ids.slice(i, i + ID_CHUNK_SIZE));
   }
   return chunks;
+}
+
+/** Append a value to the array bucketed under key, creating the bucket if absent. */
+function pushToMapList<V>(map: Map<string, V[]>, key: string, value: V): void {
+  const list = map.get(key);
+  if (list) list.push(value);
+  else map.set(key, [value]);
 }
 
 /**
@@ -1514,7 +1521,7 @@ function chunkTicketIds(ticketIds: string[]): string[][] {
  */
 function loadTicketBaseCostTotals(db: DbHandle, ticketIds: string[]): Map<string, number> {
   const totals = new Map<string, number>();
-  for (const ids of chunkTicketIds(ticketIds)) {
+  for (const ids of chunkIds(ticketIds)) {
     const placeholders = ids.map(() => "?").join(", ");
     const rows = db
       .prepare(
@@ -1535,7 +1542,7 @@ function loadRalphSessionCostsByTicket(
   ticketIds: string[]
 ): Map<string, RalphSessionCostRow[]> {
   const byTicket = new Map<string, RalphSessionCostRow[]>();
-  for (const ids of chunkTicketIds(ticketIds)) {
+  for (const ids of chunkIds(ticketIds)) {
     const placeholders = ids.map(() => "?").join(", ");
     const rows = db
       .prepare(
@@ -1551,11 +1558,7 @@ function loadRalphSessionCostsByTicket(
          GROUP BY rs.id`
       )
       .all(...ids) as Array<RalphSessionCostRow & { ticket_id: string }>;
-    for (const row of rows) {
-      const list = byTicket.get(row.ticket_id);
-      if (list) list.push(row);
-      else byTicket.set(row.ticket_id, [row]);
-    }
+    for (const row of rows) pushToMapList(byTicket, row.ticket_id, row);
   }
   return byTicket;
 }
@@ -1566,7 +1569,7 @@ function loadSessionBreakdownByTicket(
   ticketIds: string[]
 ): Map<string, SessionBreakdownRow[]> {
   const byTicket = new Map<string, SessionBreakdownRow[]>();
-  for (const ids of chunkTicketIds(ticketIds)) {
+  for (const ids of chunkIds(ticketIds)) {
     const placeholders = ids.map(() => "?").join(", ");
     const rows = db
       .prepare(
@@ -1588,11 +1591,7 @@ function loadSessionBreakdownByTicket(
          ORDER BY ts.started_at DESC`
       )
       .all(...ids) as Array<SessionBreakdownRow & { ticket_id: string }>;
-    for (const row of rows) {
-      const list = byTicket.get(row.ticket_id);
-      if (list) list.push(row);
-      else byTicket.set(row.ticket_id, [row]);
-    }
+    for (const row of rows) pushToMapList(byTicket, row.ticket_id, row);
   }
   return byTicket;
 }
@@ -1685,6 +1684,10 @@ export function getCostExplorerData(db: DbHandle, params: CostExplorerParams): C
 
   // Build ticket detail — get stage breakdowns for each ticket
   function buildTicketNode(row: (typeof ticketRows)[0]): CostExplorerNode {
+    // baseTotalCost is the ticket's all-time cost (no date filter), matching
+    // getTicketCost's denominator so stage percentages stay consistent with the
+    // per-ticket detail view — even though the node's own value uses the
+    // date-filtered row.cost_usd.
     const baseTotalCost = baseTotalsByTicket.get(row.ticket_id) ?? 0;
     const stages = buildStageEntries(ralphByTicket.get(row.ticket_id) ?? [], baseTotalCost);
     const sessions = mapSessionBreakdown(sessionsByTicket.get(row.ticket_id) ?? []);

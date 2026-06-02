@@ -3,7 +3,7 @@ import { createReadStream, existsSync, readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
-import { recalculateCosts, recordUsage, syncDefaultCostModels } from "./cost.ts";
+import { chunkIds, recalculateCosts, recordUsage, syncDefaultCostModels } from "./cost.ts";
 import type { DbHandle } from "./types.ts";
 import type { RecalculateResult } from "./cost.ts";
 import type { Dirent } from "node:fs";
@@ -106,20 +106,17 @@ function overlapMs(left: TimeWindow, right: TimeWindow): number {
  */
 function loadSessionsWithUsage(db: DbHandle, sessionIds: string[]): Set<string> {
   const withUsage = new Set<string>();
-  const chunkSize = 500;
-  for (let i = 0; i < sessionIds.length; i += chunkSize) {
-    const ids = sessionIds.slice(i, i + chunkSize);
+  for (const ids of chunkIds(sessionIds)) {
     const placeholders = ids.map(() => "?").join(", ");
+    // The IN-list excludes NULLs by construction, so rows are non-null ids.
     const rows = db
       .prepare(
         `SELECT DISTINCT telemetry_session_id
          FROM token_usage
          WHERE telemetry_session_id IN (${placeholders})`
       )
-      .all(...ids) as Array<{ telemetry_session_id: string | null }>;
-    for (const row of rows) {
-      if (row.telemetry_session_id) withUsage.add(row.telemetry_session_id);
-    }
+      .all(...ids) as Array<{ telemetry_session_id: string }>;
+    for (const row of rows) withUsage.add(row.telemetry_session_id);
   }
   return withUsage;
 }
