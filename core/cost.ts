@@ -688,7 +688,15 @@ export function computeCostFromTokens(db: DbHandle, model: string, tokens: Token
   }
 
   if (!row) return 0;
+  return costFromCostModelRow(row, tokens);
+}
 
+/**
+ * Pure cost math from a resolved cost_models row and token counts.
+ * Shared by computeCostFromTokens (single DB lookup) and the in-memory
+ * recalculate path (one cost_models load, then resolve per row in memory).
+ */
+function costFromCostModelRow(row: DbCostModelRow, tokens: TokenCounts): number {
   const inputCost = (tokens.inputTokens / 1_000_000) * row.input_cost_per_mtok;
   const outputCost = (tokens.outputTokens / 1_000_000) * row.output_cost_per_mtok;
   const cacheReadCost =
@@ -701,6 +709,33 @@ export function computeCostFromTokens(db: DbHandle, model: string, tokens: Token
       : 0;
 
   return inputCost + outputCost + cacheReadCost + cacheCreateCost;
+}
+
+/**
+ * Resolve the best-matching cost_models row for a model name from an
+ * in-memory list, mirroring computeCostFromTokens's SQL matching:
+ * exact normalized match first, then longest-prefix fuzzy match. Lets
+ * callers price many token_usage rows without a DB query per row.
+ */
+function resolveCostModelRow(models: DbCostModelRow[], model: string): DbCostModelRow | undefined {
+  const normalized = normalizeModelName(model);
+
+  const exact = models.find((m) => m.model_name.toLowerCase() === normalized);
+  if (exact) return exact;
+
+  // Fuzzy: stored name is a prefix of input, or input is a prefix of stored
+  // name. Prefer the longest model_name (mirrors ORDER BY LENGTH DESC).
+  let best: DbCostModelRow | undefined;
+  for (const m of models) {
+    const name = m.model_name.toLowerCase();
+    if (
+      (normalized.startsWith(name) || name.startsWith(normalized)) &&
+      (!best || m.model_name.length > best.model_name.length)
+    ) {
+      best = m;
+    }
+  }
+  return best;
 }
 
 // ============================================
@@ -1168,6 +1203,10 @@ export function recalculateCosts(db: DbHandle): RecalculateResult {
     telemetry_session_id: string | null;
   }>;
 
+  // Load pricing once (after syncDefaultCostModels above) and resolve each
+  // row's model in memory — avoids ~2 cost_models lookups per token_usage row.
+  const costModels = db.prepare("SELECT * FROM cost_models").all() as DbCostModelRow[];
+
   let updatedRows = 0;
   let oldTotalCost = 0;
   let newTotalCost = 0;
@@ -1179,12 +1218,15 @@ export function recalculateCosts(db: DbHandle): RecalculateResult {
       const oldCost = row.cost_usd ?? 0;
       oldTotalCost += oldCost;
 
-      const newCost = computeCostFromTokens(db, row.model, {
-        inputTokens: row.input_tokens,
-        outputTokens: row.output_tokens,
-        cacheReadTokens: row.cache_read_tokens ?? 0,
-        cacheCreationTokens: row.cache_creation_tokens ?? 0,
-      });
+      const matched = resolveCostModelRow(costModels, row.model);
+      const newCost = matched
+        ? costFromCostModelRow(matched, {
+            inputTokens: row.input_tokens,
+            outputTokens: row.output_tokens,
+            cacheReadTokens: row.cache_read_tokens ?? 0,
+            cacheCreationTokens: row.cache_creation_tokens ?? 0,
+          })
+        : 0;
       newTotalCost += newCost;
 
       if (Math.abs(newCost - oldCost) > 0.000001) {
@@ -1338,6 +1380,73 @@ export function computeStageCosts(
 /**
  * Get detailed cost breakdown for a ticket including stage and session-level data.
  */
+/** A ralph_session joined to its matched telemetry cost over the session window. */
+interface RalphSessionCostRow {
+  id: string;
+  state_history: string | null;
+  started_at: string;
+  completed_at: string | null;
+  outcome: string | null;
+  total_cost_usd: number;
+}
+
+/** A per-session token_usage rollup joined to its telemetry_session metadata. */
+interface SessionBreakdownRow {
+  session_id: string;
+  model: string;
+  cost_usd: number;
+  input_tokens: number;
+  output_tokens: number;
+  started_at: string | null;
+  completed_at: string | null;
+  outcome: string | null;
+}
+
+/**
+ * Derive per-stage cost entries from a ticket's ralph sessions, attributing
+ * each session's cost across its workflow states and expressing each stage as
+ * a percentage of the ticket's all-time total cost.
+ */
+function buildStageEntries(
+  ralphRows: RalphSessionCostRow[],
+  baseTotalCostUsd: number
+): StageCostEntry[] {
+  const sessionsForStages = ralphRows.map((r) => ({
+    stateHistory: safeParseStateHistory(r.state_history),
+    totalCostUsd: r.total_cost_usd,
+    completedAt: r.completed_at,
+  }));
+
+  const stageCostMap = computeStageCosts(sessionsForStages);
+
+  const stages: StageCostEntry[] = [];
+  for (const [stage, data] of stageCostMap) {
+    if (stage === "done" || stage === "idle") continue;
+    stages.push({
+      stage,
+      costUsd: data.costUsd,
+      durationMs: data.durationMs,
+      percentage: baseTotalCostUsd > 0 ? (data.costUsd / baseTotalCostUsd) * 100 : 0,
+    });
+  }
+  stages.sort((a, b) => b.costUsd - a.costUsd);
+  return stages;
+}
+
+/** Map raw per-session rollup rows into the TicketCostDetail session shape. */
+function mapSessionBreakdown(rows: SessionBreakdownRow[]): TicketCostDetail["sessions"] {
+  return rows.map((r) => ({
+    sessionId: r.session_id,
+    costUsd: r.cost_usd ?? 0,
+    inputTokens: r.input_tokens ?? 0,
+    outputTokens: r.output_tokens ?? 0,
+    model: r.model,
+    startedAt: r.started_at ?? "",
+    completedAt: r.completed_at,
+    outcome: r.outcome,
+  }));
+}
+
 export function getTicketCostDetail(db: DbHandle, ticketId: string): TicketCostDetail {
   const base = getTicketCost(db, ticketId);
 
@@ -1354,35 +1463,9 @@ export function getTicketCostDetail(db: DbHandle, ticketId: string): TicketCostD
        WHERE rs.ticket_id = ?
        GROUP BY rs.id`
     )
-    .all(ticketId) as Array<{
-    id: string;
-    state_history: string | null;
-    started_at: string;
-    completed_at: string | null;
-    outcome: string | null;
-    total_cost_usd: number;
-  }>;
+    .all(ticketId) as RalphSessionCostRow[];
 
-  // Compute stage costs from ralph sessions
-  const sessionsForStages = ralphRows.map((r) => ({
-    stateHistory: safeParseStateHistory(r.state_history),
-    totalCostUsd: r.total_cost_usd,
-    completedAt: r.completed_at,
-  }));
-
-  const stageCostMap = computeStageCosts(sessionsForStages);
-
-  const stages: StageCostEntry[] = [];
-  for (const [stage, data] of stageCostMap) {
-    if (stage === "done" || stage === "idle") continue;
-    stages.push({
-      stage,
-      costUsd: data.costUsd,
-      durationMs: data.durationMs,
-      percentage: base.totalCostUsd > 0 ? (data.costUsd / base.totalCostUsd) * 100 : 0,
-    });
-  }
-  stages.sort((a, b) => b.costUsd - a.costUsd);
+  const stages = buildStageEntries(ralphRows, base.totalCostUsd);
 
   // Get per-session breakdown
   const sessionRows = db
@@ -1403,29 +1486,115 @@ export function getTicketCostDetail(db: DbHandle, ticketId: string): TicketCostD
        GROUP BY tu.telemetry_session_id
        ORDER BY ts.started_at DESC`
     )
-    .all(ticketId) as Array<{
-    session_id: string;
-    model: string;
-    cost_usd: number;
-    input_tokens: number;
-    output_tokens: number;
-    started_at: string | null;
-    completed_at: string | null;
-    outcome: string | null;
-  }>;
+    .all(ticketId) as SessionBreakdownRow[];
 
-  const sessions = sessionRows.map((r) => ({
-    sessionId: r.session_id,
-    costUsd: r.cost_usd ?? 0,
-    inputTokens: r.input_tokens ?? 0,
-    outputTokens: r.output_tokens ?? 0,
-    model: r.model,
-    startedAt: r.started_at ?? "",
-    completedAt: r.completed_at,
-    outcome: r.outcome,
-  }));
+  const sessions = mapSessionBreakdown(sessionRows);
 
   return { ...base, stages, sessions };
+}
+
+/**
+ * SQLite caps bound parameters per statement; chunk IN-lists so large ticket
+ * sets stay well under the limit across SQLite versions.
+ */
+const TICKET_ID_CHUNK = 500;
+
+function chunkTicketIds(ticketIds: string[]): string[][] {
+  const chunks: string[][] = [];
+  for (let i = 0; i < ticketIds.length; i += TICKET_ID_CHUNK) {
+    chunks.push(ticketIds.slice(i, i + TICKET_ID_CHUNK));
+  }
+  return chunks;
+}
+
+/**
+ * All-time total cost per ticket (no date filter), matching the denominator
+ * getTicketCost uses for stage percentages. Pre-fetched in one query per chunk
+ * instead of one per ticket.
+ */
+function loadTicketBaseCostTotals(db: DbHandle, ticketIds: string[]): Map<string, number> {
+  const totals = new Map<string, number>();
+  for (const ids of chunkTicketIds(ticketIds)) {
+    const placeholders = ids.map(() => "?").join(", ");
+    const rows = db
+      .prepare(
+        `SELECT ticket_id, COALESCE(SUM(cost_usd), 0) as total_cost_usd
+         FROM token_usage
+         WHERE ticket_id IN (${placeholders})
+         GROUP BY ticket_id`
+      )
+      .all(...ids) as Array<{ ticket_id: string; total_cost_usd: number }>;
+    for (const row of rows) totals.set(row.ticket_id, row.total_cost_usd);
+  }
+  return totals;
+}
+
+/** Ralph sessions with matched telemetry cost, bucketed by ticket id. */
+function loadRalphSessionCostsByTicket(
+  db: DbHandle,
+  ticketIds: string[]
+): Map<string, RalphSessionCostRow[]> {
+  const byTicket = new Map<string, RalphSessionCostRow[]>();
+  for (const ids of chunkTicketIds(ticketIds)) {
+    const placeholders = ids.map(() => "?").join(", ");
+    const rows = db
+      .prepare(
+        `SELECT
+           rs.ticket_id as ticket_id,
+           rs.id, rs.state_history, rs.started_at, rs.completed_at, rs.outcome,
+           COALESCE(SUM(tu.cost_usd), 0) as total_cost_usd
+         FROM ralph_sessions rs
+         LEFT JOIN token_usage tu ON tu.ticket_id = rs.ticket_id
+           AND tu.recorded_at >= rs.started_at
+           AND (tu.recorded_at <= rs.completed_at OR rs.completed_at IS NULL)
+         WHERE rs.ticket_id IN (${placeholders})
+         GROUP BY rs.id`
+      )
+      .all(...ids) as Array<RalphSessionCostRow & { ticket_id: string }>;
+    for (const row of rows) {
+      const list = byTicket.get(row.ticket_id);
+      if (list) list.push(row);
+      else byTicket.set(row.ticket_id, [row]);
+    }
+  }
+  return byTicket;
+}
+
+/** Per-session token_usage rollups joined to telemetry metadata, bucketed by ticket id. */
+function loadSessionBreakdownByTicket(
+  db: DbHandle,
+  ticketIds: string[]
+): Map<string, SessionBreakdownRow[]> {
+  const byTicket = new Map<string, SessionBreakdownRow[]>();
+  for (const ids of chunkTicketIds(ticketIds)) {
+    const placeholders = ids.map(() => "?").join(", ");
+    const rows = db
+      .prepare(
+        `SELECT
+           tu.ticket_id as ticket_id,
+           tu.telemetry_session_id as session_id,
+           COALESCE(tu.model, 'unknown') as model,
+           SUM(tu.cost_usd) as cost_usd,
+           SUM(tu.input_tokens) as input_tokens,
+           SUM(tu.output_tokens) as output_tokens,
+           ts.started_at,
+           ts.ended_at as completed_at,
+           ts.outcome
+         FROM token_usage tu
+         LEFT JOIN telemetry_sessions ts ON tu.telemetry_session_id = ts.id
+         WHERE tu.ticket_id IN (${placeholders})
+           AND tu.telemetry_session_id IS NOT NULL
+         GROUP BY tu.ticket_id, tu.telemetry_session_id
+         ORDER BY ts.started_at DESC`
+      )
+      .all(...ids) as Array<SessionBreakdownRow & { ticket_id: string }>;
+    for (const row of rows) {
+      const list = byTicket.get(row.ticket_id);
+      if (list) list.push(row);
+      else byTicket.set(row.ticket_id, [row]);
+    }
+  }
+  return byTicket;
 }
 
 /**
@@ -1507,12 +1676,21 @@ export function getCostExplorerData(db: DbHandle, params: CostExplorerParams): C
     }
   }
 
+  // Pre-fetch stage + session inputs for ALL tickets in a fixed number of
+  // queries (was ~4 queries per ticket via getTicketCostDetail).
+  const ticketIds = ticketRows.map((r) => r.ticket_id);
+  const baseTotalsByTicket = loadTicketBaseCostTotals(db, ticketIds);
+  const ralphByTicket = loadRalphSessionCostsByTicket(db, ticketIds);
+  const sessionsByTicket = loadSessionBreakdownByTicket(db, ticketIds);
+
   // Build ticket detail — get stage breakdowns for each ticket
   function buildTicketNode(row: (typeof ticketRows)[0]): CostExplorerNode {
-    const detail = getTicketCostDetail(db, row.ticket_id);
+    const baseTotalCost = baseTotalsByTicket.get(row.ticket_id) ?? 0;
+    const stages = buildStageEntries(ralphByTicket.get(row.ticket_id) ?? [], baseTotalCost);
+    const sessions = mapSessionBreakdown(sessionsByTicket.get(row.ticket_id) ?? []);
 
     // Build stage children
-    const stageChildren: CostExplorerNode[] = detail.stages.map(
+    const stageChildren: CostExplorerNode[] = stages.map(
       (stage) =>
         ({
           id: `${row.ticket_id}-${stage.stage}`,
@@ -1533,8 +1711,8 @@ export function getCostExplorerData(db: DbHandle, params: CostExplorerParams): C
     );
 
     // If no stages, add session-level children directly
-    if (stageChildren.length === 0 && detail.sessions.length > 0) {
-      const sessionChildren: CostExplorerNode[] = detail.sessions.map(
+    if (stageChildren.length === 0 && sessions.length > 0) {
+      const sessionChildren: CostExplorerNode[] = sessions.map(
         (s) =>
           ({
             id: s.sessionId,
