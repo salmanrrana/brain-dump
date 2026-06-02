@@ -30,11 +30,26 @@ export interface SearchResult {
 
 // ── Helpers ────────────────────────────────────────────────────
 
+/**
+ * Per-connection cache of the FTS5 availability check. The `tickets_fts` table
+ * is created once at startup and never dropped at runtime, so probing
+ * `sqlite_master` on every search keystroke is wasted work. Keyed by the db
+ * handle via a WeakMap so cache entries are released when a connection is GC'd.
+ */
+const fts5Availability = new WeakMap<DbHandle, boolean>();
+
 function hasFts5Table(db: DbHandle): boolean {
+  const cached = fts5Availability.get(db);
+  if (cached !== undefined) {
+    return cached;
+  }
+
   const row = db
     .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='tickets_fts'")
     .get() as { name: string } | undefined;
-  return row !== undefined;
+  const exists = row !== undefined;
+  fts5Availability.set(db, exists);
+  return exists;
 }
 
 // ── Search ─────────────────────────────────────────────────────

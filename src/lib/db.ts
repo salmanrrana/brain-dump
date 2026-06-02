@@ -228,9 +228,6 @@ function seedSampleData() {
   console.log("Sample data seeded successfully");
 }
 
-// Initialize tables on startup
-initTables();
-
 // Add working_method column to projects table if it doesn't exist (migration)
 function migrateProjectsTable() {
   const tableInfo = sqlite.prepare("PRAGMA table_info(projects)").all() as { name: string }[];
@@ -241,8 +238,6 @@ function migrateProjectsTable() {
     sqlite.exec("ALTER TABLE projects ADD COLUMN working_method TEXT DEFAULT 'auto'");
   }
 }
-
-migrateProjectsTable();
 
 function migrateEpicWorkflowStateTable() {
   const workflowStateExists = sqlite
@@ -274,8 +269,6 @@ function migrateEpicWorkflowStateTable() {
     sqlite.exec("ALTER TABLE epic_workflow_state ADD COLUMN pr_status TEXT");
   }
 }
-
-migrateEpicWorkflowStateTable();
 
 // Initialize FTS5 table for search if it doesn't exist
 function initFTS5() {
@@ -327,15 +320,6 @@ function initFTS5() {
       END
     `);
   }
-}
-
-// Check if tickets table exists before initializing FTS
-const ticketsTableExists = sqlite
-  .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='tickets'")
-  .get();
-
-if (ticketsTableExists) {
-  initFTS5();
 }
 
 // Initialize settings table if it doesn't exist
@@ -407,8 +391,6 @@ function initSettings() {
   }
 }
 
-initSettings();
-
 // Initialize ticket_comments table if it doesn't exist
 function initTicketComments() {
   const commentsExists = sqlite
@@ -432,8 +414,6 @@ function initTicketComments() {
   }
 }
 
-initTicketComments();
-
 // Initialize ralph_events table if it doesn't exist
 function initRalphEvents() {
   const eventsExists = sqlite
@@ -456,8 +436,6 @@ function initRalphEvents() {
     console.log("ralph_events table created successfully");
   }
 }
-
-initRalphEvents();
 
 // Initialize ralph_sessions table if it doesn't exist
 function initRalphSessions() {
@@ -498,8 +476,6 @@ function initRalphSessions() {
     }
   }
 }
-
-initRalphSessions();
 
 function initReviewWorkflowTables() {
   const workflowStateExists = sqlite
@@ -655,8 +631,6 @@ function initReviewWorkflowTables() {
   );
 }
 
-initReviewWorkflowTables();
-
 // Initialize conversation logging tables for enterprise compliance
 function initConversationLogging() {
   // Create conversation_sessions table
@@ -767,10 +741,51 @@ function initConversationLogging() {
   }
 }
 
-initConversationLogging();
+/**
+ * Run every table-creation / column-migration check in order. All steps are
+ * idempotent (existence-gated), but they total ~25 synchronous
+ * `sqlite_master` / `PRAGMA table_info` probes — wasted work on an
+ * already-migrated DB. See the `user_version` gate below for when this runs.
+ */
+function runSchemaMigrations(): void {
+  initTables();
+  migrateProjectsTable();
+  migrateEpicWorkflowStateTable();
 
-ensureTicketWorkflowColumns(sqlite);
-ensureTelemetryTables(sqlite);
+  // FTS5 init depends on the tickets table existing first.
+  const ticketsTableExists = sqlite
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='tickets'")
+    .get();
+  if (ticketsTableExists) {
+    initFTS5();
+  }
+
+  initSettings();
+  initTicketComments();
+  initRalphEvents();
+  initRalphSessions();
+  initReviewWorkflowTables();
+  initConversationLogging();
+  ensureTicketWorkflowColumns(sqlite);
+  ensureTelemetryTables(sqlite);
+}
+
+/**
+ * Bump this whenever a new table/column migration is added to
+ * `runSchemaMigrations()` so existing DBs re-run the checks once and re-stamp.
+ */
+const CURRENT_SCHEMA_VERSION = 1;
+
+// Gate the migration checks behind PRAGMA user_version (standard SQLite
+// pattern). When the DB is already at the current version we skip all ~25
+// probes, shaving startup/first-request latency. Otherwise we run them once
+// and stamp user_version so subsequent boots skip. Existing DBs report
+// user_version = 0, so they migrate exactly once after this change ships.
+const schemaVersion = sqlite.pragma("user_version", { simple: true }) as number;
+if (schemaVersion !== CURRENT_SCHEMA_VERSION) {
+  runSchemaMigrations();
+  sqlite.pragma(`user_version = ${CURRENT_SCHEMA_VERSION}`);
+}
 
 // Perform daily backup maintenance (deferred 5s to avoid blocking startup)
 // VACUUM INTO can take 10+ seconds on larger databases
