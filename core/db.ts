@@ -972,6 +972,7 @@ function applyConnectionPragmas(db: Database.Database, isInMemory = false): void
     db.pragma("cache_size = -32000"); // ~32MB page cache (negative = KiB)
     db.pragma(`mmap_size = ${256 * 1024 * 1024}`); // memory-mapped reads
   }
+  db.pragma("foreign_keys = ON"); // enforce cascades/constraints (also applies to :memory:)
   db.pragma("synchronous = NORMAL"); // biggest write-latency win; crash-safe under WAL
   db.pragma("busy_timeout = 5000"); // wait out locks instead of throwing SQLITE_BUSY
   db.pragma("temp_store = MEMORY"); // keep ORDER BY/GROUP BY temp data off disk
