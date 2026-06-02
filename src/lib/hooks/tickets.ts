@@ -6,7 +6,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  getTickets,
   getTicketSummaries,
   getPaginatedTicketSummaries,
   createTicket,
@@ -458,65 +457,6 @@ export function useTicketDeletePreview(ticketId: string, enabled: boolean) {
     queryFn: () => deleteTicket({ data: { ticketId, confirm: false } }),
     enabled,
   });
-}
-
-// =============================================================================
-// TICKET QUERIES
-// =============================================================================
-
-// Hook for fetching tickets with optional filters and polling
-// Polling disabled by default (pollingInterval = 0) for performance
-export function useTickets(
-  filters: TicketFilters = {},
-  options: {
-    pollingInterval?: number;
-    onStatusChange?: (change: StatusChange) => void;
-    enabled?: boolean;
-  } = {}
-) {
-  const prevTicketsRef = useRef<Map<string, string>>(new Map());
-  const isInitialLoad = useRef(true);
-  const { pollingInterval = 0, onStatusChange, enabled = true } = options;
-
-  const query = useQuery({
-    queryKey: queryKeys.tickets(filters),
-    queryFn: async () => {
-      return getTickets({ data: filters });
-    },
-    enabled,
-    staleTime: 30_000, // 30s — mutations invalidate; MCP changes picked up on next interval
-    refetchInterval: pollingInterval > 0 ? pollingInterval : false,
-  });
-
-  // Check for status changes when data updates
-  useEffect(() => {
-    if (!query.data || !onStatusChange) return;
-
-    if (!isInitialLoad.current) {
-      for (const ticket of query.data) {
-        const prevStatus = prevTicketsRef.current.get(ticket.id);
-        if (prevStatus && prevStatus !== ticket.status) {
-          onStatusChange({
-            ticketId: ticket.id,
-            ticketTitle: ticket.title,
-            fromStatus: prevStatus,
-            toStatus: ticket.status,
-          });
-        }
-      }
-    }
-
-    // Update previous tickets map
-    prevTicketsRef.current = new Map(query.data.map((t) => [t.id, t.status]));
-    isInitialLoad.current = false;
-  }, [query.data, onStatusChange]);
-
-  return {
-    tickets: query.data ?? [],
-    loading: query.isLoading,
-    error: query.error?.message ?? null,
-    refetch: query.refetch,
-  };
 }
 
 // =============================================================================

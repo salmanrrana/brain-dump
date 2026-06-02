@@ -35,7 +35,7 @@ vi.mock("@dnd-kit/sortable", () => ({
   verticalListSortingStrategy: {},
 }));
 
-// Mock the useTickets hook and mutation hooks
+// Mock the useTicketSummaries hook and mutation hooks
 const mockStatusMutate = vi.fn().mockResolvedValue(undefined);
 const mockPositionMutate = vi.fn().mockResolvedValue(undefined);
 

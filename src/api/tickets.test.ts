@@ -98,7 +98,7 @@ describe("Tickets API Logic", () => {
     return epicId;
   };
 
-  describe("getTickets", () => {
+  describe("ticket list queries (getTicketSummaries)", () => {
     it("should return empty array when no tickets exist", () => {
       const projectId = createTestProject();
       const result = db

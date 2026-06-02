@@ -45,7 +45,6 @@ export {
   useUpdateTicketPosition,
   useDeleteTicket,
   useTicketDeletePreview,
-  useTickets,
   useTicketSummaries,
   usePaginatedTicketSummaries,
   useSearch,

@@ -82,27 +82,6 @@ export interface TicketFilters {
   tags?: string[];
 }
 
-// Get tickets with optional filters
-export const getTickets = createServerFn({ method: "GET" })
-  .inputValidator((filters: TicketFilters) => filters)
-  .handler(async ({ data: filters }): Promise<Ticket[]> => {
-    const conditions: SQL[] = [];
-
-    if (filters.projectId) conditions.push(eq(tickets.projectId, filters.projectId));
-    if (filters.epicId) conditions.push(eq(tickets.epicId, filters.epicId));
-    if (filters.status) conditions.push(eq(tickets.status, filters.status));
-    if (filters.tags && filters.tags.length > 0) {
-      conditions.push(...tagFilterConditions(filters.tags));
-    }
-
-    let query = db.select().from(tickets);
-    if (conditions.length > 0) {
-      query = query.where(and(...conditions)) as typeof query;
-    }
-
-    return query.orderBy(tickets.position).all();
-  });
-
 // Get single ticket by ID
 export const getTicket = createServerFn({ method: "GET" })
   .inputValidator((id: string) => id)
