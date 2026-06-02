@@ -574,9 +574,9 @@ export function getProjectContext(projectPath: string): ProjectContext {
     techStack: [],
     dosDonts: [],
     verificationSteps: [
-      "Inspect the project's scripts, Makefile, README/CLAUDE.md, and CI config to identify the native quality/test commands",
-      "Run the project's all-in-one check/test command when available",
-      "Otherwise run the relevant typecheck, lint, test, and build commands for this stack",
+      "Discover validation commands from this project's docs and config before running checks",
+      "Run the project's own check/test/lint commands when available",
+      "If no automated validation command is discoverable, perform a targeted manual smoke check and record that no project validation command was found",
     ],
   };
 

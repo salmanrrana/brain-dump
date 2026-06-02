@@ -68,10 +68,11 @@ If all tickets are in \`human_review\` or \`done\`, output: \`PRD_COMPLETE\`.
  */
 const VERIFICATION_CHECKLIST = `
 ## Gates
-- Before complete-work: inspect the target project's own tooling first (\`package.json\`, \`Makefile\`, \`composer.json\`, \`go.mod\`, README/CLAUDE.md, CI config) and run the project-native quality/test commands that apply to this ticket
-- Prefer an existing all-in-one check/test command when the project provides one; otherwise run the relevant typecheck/lint/test/build commands for that stack
-- Do not assume Node or pnpm. Use pnpm only when the target project actually declares pnpm/package scripts; for PHP use the configured Composer/PHPUnit/Pest commands; for Go use the repo's Make target or \`go test ./...\`; for other stacks follow their native tooling
-- Before complete-work: add a \`comment({ action: "add", ticketId, content, commentType: "test_report" })\` entry summarizing the exact check commands and pass/fail results; omit \`author\` so Brain Dump auto-detects the active provider
+- Before complete-work: discover and run this project's validation commands, then verify all acceptance criteria are met
+- Discover commands from project docs/config first: \`AGENTS.md\`, \`CLAUDE.md\`, README, CONTRIBUTING, package scripts, \`pyproject.toml\`, \`go.mod\`, Makefile/Justfile, and CI files
+- Use the project's own commands, not Brain Dump's commands. Examples only: package script check/test/lint, pytest/ruff when configured, \`go test ./...\`, \`cargo test\`, \`dotnet test\`, \`mvn test\`, \`./gradlew test\`
+- If no automated validation command is discoverable, perform a targeted manual smoke check and explicitly record that no project validation command was found
+- Before complete-work: add a \`comment({ action: "add", ticketId, content, commentType: "test_report" })\` entry summarizing exact commands and pass/fail/skipped results; omit \`author\` so Brain Dump auto-detects the active provider
 - Before demo: all critical/major findings fixed, check-complete returns canProceedToHumanReview: true
 - Before session complete: generate-demo called, ticket in human_review
 `;

@@ -29,15 +29,16 @@ When the user asks to start work on a ticket, work on a task, or implement a fea
 1. Analyze the requirements
 2. Update session state: `session "update-state"({ state: 'implementing' })`
 3. Write and modify code
-4. Run tests: `pnpm test`
+4. Discover and run the project's validation commands from docs/config
 5. Verify acceptance criteria are met
 
 ## Testing & Review
 
-1. Run full test suite: `pnpm test`
-2. Run type check: `pnpm type-check`
-3. Run linter: `pnpm lint`
-4. Update session state: `session "update-state"({ state: 'testing' })`
+1. Check project docs/config first: `AGENTS.md`, `CLAUDE.md`, README, CONTRIBUTING, package scripts, `pyproject.toml`, `go.mod`, Makefile/Justfile, and CI files
+2. Run the project's own validation commands. Do not assume pnpm, npm, TypeScript, lint, or test scripts exist
+3. Examples only: package script check/test/lint, pytest/ruff when configured, `go test ./...`, `cargo test`, `dotnet test`, `mvn test`, `./gradlew test`
+4. If no automated validation command is discoverable, run a targeted manual smoke check and record that no project validation command was found
+5. Update session state: `session "update-state"({ state: 'testing' })`
 
 ## Completing Work
 
@@ -99,6 +100,6 @@ mcp__brain-dump__workflow "start-work"({ ticketId: "..." })
 - Always verify acceptance criteria before marking complete
 - Use meaningful commit messages referencing the ticket ID
 - Keep changes focused and minimal
-- Run tests frequently during development
+- Run project-specific validation frequently during development
 - Don't skip code review - it catches real bugs
 - Demo scripts should cover happy path + edge cases

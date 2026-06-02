@@ -44,7 +44,7 @@ brain-dump doctor
 4. **Code, commit, test**
    - Write code normally
    - Make commits: `git commit -m "feat(ticket-id): ..."`
-   - Run tests: `pnpm test`
+   - Run project-specific validation discovered from docs/config
    - Hooks track your work automatically
 
 5. **Complete implementation**
@@ -217,7 +217,7 @@ Telemetry is handled by the MCP server itself — no external hooks needed. The 
 /complete-ticket-work ticketId "summary of what you did"
 ```
 
-- Requires: Validation passed (`pnpm type-check`, `pnpm lint`, `pnpm test`)
+- Requires: Validation passed with project-specific commands
 - Moves ticket to `ai_review`
 - Starts AI review if enabled
 - Suggests next ticket
@@ -286,7 +286,7 @@ This is intentional - it ensures your work is properly tracked.
 
 **Fix:**
 
-1. Run `pnpm test` to see which tests fail
+1. Re-run the failing project-specific validation command to see details
 2. Fix the code
 3. Commit: `git commit -m "fix: ..."`
 4. Retry `workflow "complete-work"`

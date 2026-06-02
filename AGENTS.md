@@ -7,6 +7,44 @@ This file defines AI agents for VS Code Copilot Chat. To use these agents:
 
 ---
 
+## Project Operating Doctrine
+
+These rules apply to every Brain Dump agent and every ticket unless the user explicitly narrows the task.
+
+### Core Priorities
+
+1. Performance first.
+2. Reliability first.
+3. Predictable behavior under load and failure: reconnects, partial AI streams, failed hooks, interrupted Ralph sessions, stale database state, and missing provider CLIs.
+
+When these priorities conflict with convenience, choose correctness, observability, and a small reliable interface over a quick local shortcut.
+
+### Completion Requirements
+
+- For this Brain Dump repository, `pnpm check` must pass before a code ticket is considered complete.
+- When Brain Dump is working on another project, discover that project's validation commands from its docs and config. Do not assume pnpm, npm, TypeScript, or lint/test scripts exist.
+- For this Brain Dump repository, run `pnpm build` when the change touches routing, bundling, build config, server/client boundaries, or package exports.
+- Run focused tests for the area changed. Brain Dump examples: `pnpm test -- src/api/search.test.ts`, `pnpm test -- core/__tests__/workflow.test.ts`, or `pnpm test:e2e` for browser flows.
+- If a command cannot be run or fails for an unrelated existing reason, record the exact command and failure in the work summary.
+
+### Performance Discipline
+
+- Treat these as hot paths: app boot, board/list navigation, ticket modal open, search/filtering, dashboard analytics, MCP tool dispatch, workflow `start-work`/`complete-work`, git operations, SQLite queries, hook execution, and provider launch.
+- Do not add blocking work to initial render, route loaders, MCP tool wrappers, hook scripts, or startup without a measured reason.
+- Prefer fewer round trips, narrower SQL queries, cached/resolved adapters, parallel independent I/O, and lazy route/modal/chart chunks.
+- For performance work, include before/after numbers. Use existing tools first: `pnpm build:analyze`, `docs/performance/bundle-baseline.md`, browser `window.__navigationReport()`, `window.__profilerReport()`, `window.__assetReport()`, and MCP telemetry duration data.
+- Keep high-cardinality details such as ticket IDs, paths, model names, and command IDs in traces/events or logs, not aggregate labels.
+
+### Architecture Discipline
+
+- Keep business logic in `core/`. UI, CLI, MCP tools, hooks, and setup scripts are adapters around the core layer.
+- Keep adapters thin and explicit. If the same behavior appears in two adapters, move it behind a shared core interface instead of copying it.
+- Validate data at boundaries with existing schemas and typed errors. Avoid fallback values that hide failure.
+- Keep tickets and PRs small. Split broad features, rewrites, and mixed cleanup into separate work.
+- See `docs/performance/performance-and-reliability-discipline.md` for the full Brain Dump playbook inspired by T3 Code and UploadThing.
+
+---
+
 ## Ralph
 
 **Description:** Autonomous coding agent that works through Brain Dump backlogs. MCP tools handle workflow - Ralph focuses on implementation.
@@ -27,7 +65,9 @@ You are Ralph, an autonomous coding agent. Focus on implementation - MCP tools h
 4. Call `workflow "start-work"({ ticketId })` - this creates branch and posts progress
 5. Implement the feature:
    - Write the code
-   - Run the project's own test/check commands from its scripts, Makefile, README, or CI config
+   - Run the project-specific validation commands discovered from docs/config
+   - For Brain Dump itself, run `pnpm check`
+   - Run additional focused tests/builds when the touched area requires them
    - Verify acceptance criteria
 6. Git commit: `git commit -m "feat(<ticket-id>): <description>"`
 7. Call `workflow "complete-work"({ ticketId, summary: "summary of changes" })` - this updates PRD and posts summary
@@ -36,8 +76,9 @@ You are Ralph, an autonomous coding agent. Focus on implementation - MCP tools h
 #### Rules
 
 - ONE ticket per iteration
-- Run tests before completing
+- Run discovered project-specific validation before completing
 - Keep changes minimal and focused
+- Record performance measurements when changing a hot path
 - If stuck, note in progress.txt and move on
 
 ---
@@ -68,7 +109,7 @@ You are a focused implementation agent that works on a single Brain Dump ticket 
 1. **Understand the ticket**: Read title, description, and acceptance criteria
 2. **Create feature branch**: Use `workflow "start-work"` or manually create `feature/<ticket-id>-<description>`
 3. **Implement**: Write code, following project conventions
-4. **Test**: Run the project's available native tests/checks from its scripts, Makefile, README, or CI config
+4. **Test**: Run the project's own validation commands plus focused tests for the touched area
 5. **Commit**: Make focused commits with clear messages
 6. **Update status**: When done, update the ticket
 

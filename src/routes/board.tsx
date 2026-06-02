@@ -3,17 +3,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Profiler, useCallback, useEffect, useMemo, useState } from "react";
 import { onRenderCallback } from "../lib/profiler";
 import {
+  useAppActiveSessions,
   useAppFilters,
-  useAppRefresh,
+  useAppTicketRefresh,
   useAppSearchNavigation,
 } from "../components/AppLayoutContext";
-import {
-  useTicketSummaries,
-  useProjects,
-  useActiveRalphSessions,
-  type Ticket,
-  type StatusChange,
-} from "../lib/hooks";
+import { useTicketSummaries, useProjects, type Ticket, type StatusChange } from "../lib/hooks";
 import type { TicketSummary } from "../api/tickets";
 import { useToast } from "../components/Toast";
 import TicketModal from "../components/TicketModal";
@@ -57,7 +52,7 @@ export const Route = createFileRoute("/board")({
 
 function Board() {
   const { filters: appFilters, clearAllFilters } = useAppFilters();
-  const { ticketRefreshKey } = useAppRefresh();
+  const { ticketRefreshKey } = useAppTicketRefresh();
   const { selectedTicketIdFromSearch, clearSelectedTicketFromSearch } = useAppSearchNavigation();
   const { projects } = useProjects();
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
@@ -96,8 +91,10 @@ function Board() {
     onStatusChange: handleStatusChange,
   });
 
-  // Fetch active Ralph sessions for status display on cards
-  const { sessions: activeRalphSessions } = useActiveRalphSessions();
+  // Active Ralph sessions for status display on cards. Read from the shared
+  // AppLayout context (computed once by `useProjectsWithAIActivity`) instead of
+  // opening a duplicate polling subscription on the board route.
+  const { activeSessions: activeRalphSessions } = useAppActiveSessions();
 
   // Refetch when ticketRefreshKey changes (e.g., after creating a new ticket)
   useEffect(() => {

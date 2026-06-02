@@ -49,7 +49,9 @@ export function useInvalidateQueries() {
   const queryClient = useQueryClient();
 
   return {
-    invalidateProjects: () => queryClient.invalidateQueries({ queryKey: queryKeys.projects }),
+    invalidateProjects: () =>
+      // Target the live project-list query; avoids prefix-nuking projectDeletePreview.
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectsWithEpics }),
     invalidateTickets: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
@@ -57,7 +59,7 @@ export function useInvalidateQueries() {
     },
     invalidateTags: () => queryClient.invalidateQueries({ queryKey: queryKeys.allTags }),
     invalidateAll: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectsWithEpics });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
       queryClient.invalidateQueries({ queryKey: queryKeys.projectTicketCounts });

@@ -9,28 +9,34 @@ import { initializeWatcher, stopWatching } from "./db-watcher";
 import { startupIntegrityCheck } from "./integrity";
 import { ensureTelemetryTables, ensureTicketWorkflowColumns } from "./db-bootstrap";
 
+const disableStartupTasks = process.env.BRAIN_DUMP_DISABLE_DB_STARTUP_TASKS === "1";
+
 // Ensure XDG directories exist with proper permissions
 ensureDirectoriesSync();
 
 // Run migration from legacy ~/.brain-dump if needed
 // This must happen before opening the database
-const migrationResult = migrateFromLegacySync();
-if (migrationResult.migrated) {
-  console.log(`[DB] Migration completed: ${migrationResult.message}`);
+if (!disableStartupTasks) {
+  const migrationResult = migrateFromLegacySync();
+  if (migrationResult.migrated) {
+    console.log(`[DB] Migration completed: ${migrationResult.message}`);
+  }
 }
 
 // Get database path from XDG utility
 const dbPath = getDatabasePath();
 
 // Run quick integrity check on startup (fast, stops at first error)
-const integrityResult = startupIntegrityCheck(dbPath);
-if (!integrityResult.healthy) {
-  console.warn(`[DB] WARNING: ${integrityResult.message}`);
-  if (integrityResult.suggestRestore) {
-    console.warn(`[DB] A backup is available. Run: brain-dump restore --latest`);
+if (!disableStartupTasks) {
+  const integrityResult = startupIntegrityCheck(dbPath);
+  if (!integrityResult.healthy) {
+    console.warn(`[DB] WARNING: ${integrityResult.message}`);
+    if (integrityResult.suggestRestore) {
+      console.warn(`[DB] A backup is available. Run: brain-dump restore --latest`);
+    }
+  } else {
+    console.log(`[DB] ${integrityResult.message}`);
   }
-} else {
-  console.log(`[DB] ${integrityResult.message}`);
 }
 
 /**
@@ -54,21 +60,23 @@ applyConnectionPragmas(sqlite);
 
 // Acquire lock and setup graceful shutdown
 // This ensures lock is cleaned up and WAL is checkpointed on shutdown
-const lockResult = initializeLockSync("vite", () => {
-  try {
-    stopWatching(); // Stop file watcher
-    sqlite.pragma("wal_checkpoint(TRUNCATE)");
-    sqlite.close();
-  } catch (error) {
-    console.warn("[DB] Cleanup error during shutdown:", error);
+if (!disableStartupTasks) {
+  const lockResult = initializeLockSync("vite", () => {
+    try {
+      stopWatching(); // Stop file watcher
+      sqlite.pragma("wal_checkpoint(TRUNCATE)");
+      sqlite.close();
+    } catch (error) {
+      console.warn("[DB] Cleanup error during shutdown:", error);
+    }
+  });
+  if (lockResult.acquired) {
+    console.log(`[DB] ${lockResult.message}`);
   }
-});
-if (lockResult.acquired) {
-  console.log(`[DB] ${lockResult.message}`);
 }
 
 // Start watching for unexpected database file deletions
-if (initializeWatcher(dbPath)) {
+if (!disableStartupTasks && initializeWatcher(dbPath)) {
   console.log(`[DB] Database file watcher started`);
 }
 
@@ -769,6 +777,8 @@ ensureTelemetryTables(sqlite);
 const BACKUP_DEFER_MS = 5000;
 
 function scheduleBackupMaintenance(): void {
+  if (disableStartupTasks) return;
+
   setTimeout(() => {
     try {
       const result = performDailyBackupSync();
@@ -787,6 +797,8 @@ scheduleBackupMaintenance();
 
 // Clean up old launch scripts on startup
 async function cleanupLaunchScripts() {
+  if (disableStartupTasks) return;
+
   try {
     const { cleanupOldScripts } = await import("../api/terminal");
     await cleanupOldScripts();

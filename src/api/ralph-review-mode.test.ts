@@ -174,9 +174,11 @@ describe("review-mode prompt builders", () => {
   it("builds implementation gates around project-native verification commands", () => {
     const prompt = getRalphPrompt();
 
-    expect(prompt).toContain("inspect the target project's own tooling first");
-    expect(prompt).toContain("project-native quality/test commands");
-    expect(prompt).toContain("Do not assume Node or pnpm");
+    expect(prompt).toContain("discover and run this project's validation commands");
+    expect(prompt).toContain("Use the project's own commands, not Brain Dump's commands");
+    expect(prompt).toContain(
+      "If no automated validation command is discoverable, perform a targeted manual smoke check"
+    );
     expect(prompt).not.toMatch(/pnpm type-check.*pnpm lint.*pnpm test/);
   });
 

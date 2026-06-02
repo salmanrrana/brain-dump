@@ -18,7 +18,7 @@ When working on Brain Dump tickets, follow this quality workflow to ensure consi
    - `committing` - Creating git commits
    - `reviewing` - Final self-review
 4. **Implement changes**: Write code, following patterns in CLAUDE.md
-5. **Validate**: Run `pnpm check` (type-check, lint, test)
+5. **Validate**: Discover and run this project's validation commands from docs/config. Do not assume pnpm/npm.
 6. **Complete**: Call `mcp__brain-dump__workflow` with `action: "complete-work"`, `ticketId`, and `summary`
 
 ## Status Flow
@@ -66,9 +66,9 @@ All Brain Dump MCP tools use the `mcp__brain-dump__` prefix with an `action` par
 
 Before marking a ticket complete:
 
-- [ ] `pnpm type-check` passes
-- [ ] `pnpm lint` passes
-- [ ] `pnpm test` passes
+- [ ] Project validation commands were discovered from docs/config and run
+- [ ] Exact pass/fail/skipped results were recorded in a test_report comment
+- [ ] If no automated command exists, a targeted manual smoke check was recorded
 - [ ] All acceptance criteria met
 - [ ] Work summary added
 

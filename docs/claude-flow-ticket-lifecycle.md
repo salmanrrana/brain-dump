@@ -265,11 +265,11 @@ sequenceDiagram
 
     rect rgb(30, 50, 30)
         Note over Claude,Tool: Run Tests
-        Claude->>Tool: Bash { command: "pnpm check" }
+        Claude->>Tool: Bash { command: "project-specific validation command" }
 
         PreHook->>PreHook: log-tool-start.sh (telemetry)
 
-        Note over Tool: pnpm type-check ✓<br/>pnpm lint ✓<br/>pnpm test ✓
+        Note over Tool: validation command results recorded in test_report
 
         PostHook->>PostHook: log-tool-end.sh (telemetry)
     end
@@ -687,7 +687,7 @@ flowchart TB
     StartWork --> CreateSession["session { create, ticketId }"]
     CreateSession --> Analyze["session { update-state: analyzing }<br/>Read ticket, specs, acceptance criteria"]
 
-    Analyze --> Implement["session { update-state: implementing }<br/>Write code, run pnpm check"]
+    Analyze --> Implement["session { update-state: implementing }<br/>Write code, run project validation"]
 
     Implement --> Test["session { update-state: testing }<br/>Run tests, verify behavior"]
 
@@ -782,7 +782,7 @@ graph TB
         C2 --> C3["Hooks enforce state"]
         C3 --> C4["Telemetry captures every tool call"]
         C4 --> C5["State: testing"]
-        C5 --> C6["pnpm check (type-check + lint + test)"]
+        C5 --> C6["Project-specific validation"]
         C6 --> C7["State: committing"]
         C7 --> C8["git commit"]
         C8 --> C9["Commit linked to ticket (hook)"]

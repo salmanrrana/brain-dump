@@ -25,11 +25,13 @@ This creates a git branch, sets status to `in_progress`, and posts a "Starting w
 
 ### Step 2: Implement + Verify
 
-Write code, then run quality gates:
+Write code, then discover and run this project's validation commands:
 
-- `pnpm type-check` -- must pass
-- `pnpm lint` -- must pass
-- `pnpm test` -- must pass
+- Check project docs/config first: `AGENTS.md`, `CLAUDE.md`, README, CONTRIBUTING, package scripts, `pyproject.toml`, `go.mod`, Makefile/Justfile, and CI files.
+- Use the project's own commands. Do not assume pnpm, npm, TypeScript, lint, or test scripts exist.
+- Common examples only: package script check/test/lint, pytest/ruff when configured, `go test ./...`, `cargo test`, `dotnet test`, `mvn test`, `./gradlew test`.
+- If no automated validation command is discoverable, run a targeted manual smoke check and record that no project validation command was found.
+- When available, `.claude/skills/brain-dump-workflow/scripts/run-quality-checks.sh` can be used as a discovery helper.
 
 Commit with format: `feat(<ticket-short-id>): <description>`
 

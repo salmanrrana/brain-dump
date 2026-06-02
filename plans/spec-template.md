@@ -308,9 +308,9 @@ export function FeatureCard({ id }: { id: string }) {
 - [ ] Unit tests for core logic
 - [ ] Integration test for full workflow
 - [ ] TypeScript types exported
-- [ ] Project-native type/static checks pass
-- [ ] Project-native lint/format checks pass
-- [ ] Project-native tests pass
+- [ ] Project-specific validation commands were discovered from docs/config
+- [ ] Project-specific validation commands pass
+- [ ] Manual smoke check recorded if no automated validation command exists
 
 ---
 

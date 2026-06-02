@@ -301,7 +301,7 @@ export function completeWork(
 
   if (!latestTestReport) {
     throw new ValidationError(
-      "Cannot complete work: add a test_report comment for this implementation pass summarizing the project-native quality/test commands you ran and their results, then retry."
+      "Cannot complete work: add a test_report comment for this implementation pass summarizing the project-specific validation commands you ran, their pass/fail/skipped results, and any manual smoke checks, then retry."
     );
   }
 

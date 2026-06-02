@@ -290,6 +290,8 @@ describe("getProjectContext", () => {
   it("returns default context when CLAUDE.md does not exist", () => {
     const result = getProjectContext(testDir);
     expect(result.verificationSteps).toHaveLength(3);
+    expect(result.verificationSteps.join("\n")).toContain("Discover validation commands");
+    expect(result.verificationSteps.join("\n")).not.toContain("pnpm");
     expect(result.techStack).toEqual([]);
     expect(result.dosDonts).toEqual([]);
   });

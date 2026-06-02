@@ -8,6 +8,9 @@ const playwrightXdgRoot = path.join(process.cwd(), ".playwright-xdg");
 
 const config: Parameters<typeof defineConfig>[0] = {
   testDir: "./e2e",
+  // perf-production.spec.ts requires the production server (pnpm test:perf /
+  // playwright.perf.config.ts). It must not run under the DEV server here.
+  testIgnore: ["**/perf-production.spec.ts"],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,

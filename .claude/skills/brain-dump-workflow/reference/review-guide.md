@@ -15,7 +15,7 @@ Detailed self-review checklist for Step 4 of the Brain Dump workflow.
 
 ### Type Safety
 
-- [ ] `pnpm type-check` passes
+- [ ] Project-specific type/static checks were run when configured
 - [ ] No `any` types (unless justified with a comment)
 - [ ] All function parameters typed
 - [ ] All return types explicit
@@ -34,7 +34,7 @@ Detailed self-review checklist for Step 4 of the Brain Dump workflow.
 - [ ] New code has tests that verify user-facing behavior
 - [ ] Tests are not testing implementation details
 - [ ] Edge cases tested
-- [ ] `pnpm test` passes
+- [ ] Project-specific tests were run when configured
 - [ ] No brittle mocking
 
 ### Performance
@@ -74,7 +74,7 @@ suggestedFix: "How to fix it"
 For each critical/major finding:
 
 1. Make the code fix
-2. Run `pnpm type-check && pnpm lint && pnpm test`
+2. Run the project's validation commands discovered from docs/config. Do not assume pnpm/npm; use the repo-standard commands.
 3. Commit: `fix(<ticket-id>): <description>`
 4. Mark fixed by calling the **review** tool:
 

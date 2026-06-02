@@ -31,10 +31,9 @@ export function useClaudeTasks(ticketId: string, options: { pollingInterval?: nu
     },
     enabled: Boolean(ticketId),
     refetchInterval: pollingInterval > 0 ? pollingInterval : false,
-    // Prevent double-fetches from window focus when actively polling
-    refetchOnWindowFocus: pollingInterval === 0,
-    // Keep data fresh only as long as polling interval
-    staleTime: pollingInterval > 0 ? pollingInterval : 0,
+    // Non-polling: snapshot tier (30s) so revisits serve cache. Polling: match interval.
+    // Window-focus refetch stays off (global default); external changes surface via invalidation.
+    staleTime: pollingInterval > 0 ? pollingInterval : 30 * 1000,
   });
 
   return {

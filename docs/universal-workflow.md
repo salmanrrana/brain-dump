@@ -96,15 +96,15 @@ The AI writes code, runs tests, and creates commits.
 
 **Requirements to pass this phase:**
 
-- `pnpm type-check` must pass (no TypeScript errors)
-- `pnpm lint` must pass (no style violations)
-- `pnpm test` must pass (all tests green)
+- Project-specific validation commands must be discovered from docs/config and run.
+- Exact pass/fail/skipped results must be recorded in a test_report comment.
+- If no automated validation command exists, a targeted manual smoke check must be recorded.
 
 If any fail, AI cannot complete the ticket.
 
 **Ticket comments show:**
 
-- "✓ Validation passed: type-check, lint, test"
+- "Validation passed" with the exact project-specific commands that ran
 
 ### Phase 3: Complete Implementation
 
@@ -468,7 +468,7 @@ You tried to complete work but tests don't pass.
 
 **Fix:**
 
-- Run `pnpm test` to see which tests fail
+- Re-run the project-specific failing validation command to see details
 - Fix the code
 - Re-commit
 - Try `workflow` `complete-work` again

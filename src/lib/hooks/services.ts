@@ -43,10 +43,9 @@ export function useProjectServices(
       return getProjectServices({ data: { projectPath } });
     },
     enabled: enabled && Boolean(projectPath),
-    // Prefer event-driven updates: refetch on focus + mutation invalidation.
-    // Polling is a fallback for external changes, so don't double-fetch on focus while polling.
+    // Rely on mutation invalidation + polling fallback; window-focus refetch stays off
+    // (global default) to avoid refetch storms on focus, consistent with the other hooks.
     refetchInterval: pollingInterval > 0 ? pollingInterval : false,
-    refetchOnWindowFocus: pollingInterval === 0,
     staleTime: 30_000, // 30s — services change infrequently
   });
 
