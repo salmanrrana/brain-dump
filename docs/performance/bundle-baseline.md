@@ -26,29 +26,29 @@ Use `pnpm analyze:bundle` when `.output/public/assets` already exists and you on
 
 ## Initial Route Payload Risks
 
-| Asset | Kind | Size | Gzip | Risk | Warning |
-| --- | --- | ---: | ---: | --- | --- |
-| `.output/public/assets/main-7LpL-vyi.js` | script | 729.25 kB | 214.31 kB | initial/root application | over 500 kB |
-| `.output/public/assets/styles-Bbf_1_Gl.css` | style | 105.20 kB | 17.67 kB | general async asset |  |
-| `.output/public/assets/index-DkFMrSmH.js` | script | 16.05 kB | 5.07 kB | initial/root application |  |
-| `.output/public/assets/index-G5uUhusR.js` | script | 15.19 kB | 2.86 kB | initial/root application |  |
+| Asset                                       | Kind   |      Size |      Gzip | Risk                     | Warning     |
+| ------------------------------------------- | ------ | --------: | --------: | ------------------------ | ----------- |
+| `.output/public/assets/main-7LpL-vyi.js`    | script | 729.25 kB | 214.31 kB | initial/root application | over 500 kB |
+| `.output/public/assets/styles-Bbf_1_Gl.css` | style  | 105.20 kB |  17.67 kB | general async asset      |             |
+| `.output/public/assets/index-DkFMrSmH.js`   | script |  16.05 kB |   5.07 kB | initial/root application |             |
+| `.output/public/assets/index-G5uUhusR.js`   | script |  15.19 kB |   2.86 kB | initial/root application |             |
 
 ## Top Client Scripts
 
-| Asset | Kind | Size | Gzip | Risk | Warning |
-| --- | --- | ---: | ---: | --- | --- |
-| `.output/public/assets/main-7LpL-vyi.js` | script | 729.25 kB | 214.31 kB | initial/root application | over 500 kB |
-| `.output/public/assets/installCanvasRenderer-DMV3qFXr.js` | script | 484.78 kB | 164.91 kB | general async asset |  |
-| `.output/public/assets/ticket._id-Bxqs55JH.js` | script | 139.02 kB | 22.73 kB | ticket detail route |  |
-| `.output/public/assets/echarts-base-CNY2_kQW.js` | script | 98.91 kB | 35.38 kB | general async asset |  |
-| `.output/public/assets/epic._id-HMkATXFu.js` | script | 95.55 kB | 14.36 kB | epic detail route |  |
-| `.output/public/assets/CostTreemapChart-BQ05SJ4X.js` | script | 91.55 kB | 30.57 kB | chart library chunk |  |
-| `.output/public/assets/SettingsModal-BpECJxQT.js` | script | 88.56 kB | 13.89 kB | general async asset |  |
-| `.output/public/assets/board-B_fyVaM7.js` | script | 87.75 kB | 25.14 kB | Kanban drag and drop |  |
-| `.output/public/assets/RelatedTickets-BB7ClBsj.js` | script | 65.65 kB | 12.17 kB | related-ticket graph |  |
-| `.output/public/assets/schemas-DWEUtmMS.js` | script | 62.82 kB | 16.97 kB | general async asset |  |
-| `.output/public/assets/TicketModal-D4uo0oa2.js` | script | 52.29 kB | 9.04 kB | ticket form modal |  |
-| `.output/public/assets/projects._projectId-CLg3t1kh.js` | script | 50.16 kB | 7.36 kB | general async asset |  |
+| Asset                                                     | Kind   |      Size |      Gzip | Risk                     | Warning     |
+| --------------------------------------------------------- | ------ | --------: | --------: | ------------------------ | ----------- |
+| `.output/public/assets/main-7LpL-vyi.js`                  | script | 729.25 kB | 214.31 kB | initial/root application | over 500 kB |
+| `.output/public/assets/installCanvasRenderer-DMV3qFXr.js` | script | 484.78 kB | 164.91 kB | general async asset      |             |
+| `.output/public/assets/ticket._id-Bxqs55JH.js`            | script | 139.02 kB |  22.73 kB | ticket detail route      |             |
+| `.output/public/assets/echarts-base-CNY2_kQW.js`          | script |  98.91 kB |  35.38 kB | general async asset      |             |
+| `.output/public/assets/epic._id-HMkATXFu.js`              | script |  95.55 kB |  14.36 kB | epic detail route        |             |
+| `.output/public/assets/CostTreemapChart-BQ05SJ4X.js`      | script |  91.55 kB |  30.57 kB | chart library chunk      |             |
+| `.output/public/assets/SettingsModal-BpECJxQT.js`         | script |  88.56 kB |  13.89 kB | general async asset      |             |
+| `.output/public/assets/board-B_fyVaM7.js`                 | script |  87.75 kB |  25.14 kB | Kanban drag and drop     |             |
+| `.output/public/assets/RelatedTickets-BB7ClBsj.js`        | script |  65.65 kB |  12.17 kB | related-ticket graph     |             |
+| `.output/public/assets/schemas-DWEUtmMS.js`               | script |  62.82 kB |  16.97 kB | general async asset      |             |
+| `.output/public/assets/TicketModal-D4uo0oa2.js`           | script |  52.29 kB |   9.04 kB | ticket form modal        |             |
+| `.output/public/assets/projects._projectId-CLg3t1kh.js`   | script |  50.16 kB |   7.36 kB | general async asset      |             |
 
 ## Observations
 
@@ -58,4 +58,3 @@ Use `pnpm analyze:bundle` when `.output/public/assets` already exists and you on
 - `TicketModal-*`, `SettingsModal-*`, `ProjectModal-*`, `EpicModal-*`, `ImportModal-*`, and other modal assets appear as separate client chunks when present.
 - Chart-heavy assets are split from root assets: `CostTreemapChart-BQ05SJ4X.js`, `VelocityMetrics-6Ju928XM.js`, `CycleTimeCard-BufjnjbY.js`, `VelocityChart-BspQD9Lh.js`.
 - Any future `@tanstack/*devtools*` or chart library code showing up in `main-*` should be treated as an initial-load regression.
-

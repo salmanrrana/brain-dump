@@ -52,8 +52,8 @@ const WORKFLOW_PHASES = `
 
 Use Brain Dump MCP tools literally. No local substitutes for branching, review, or status updates.
 
-1. **Implementation** — start-work → create session → implement → commit → complete-work
-2. **AI Review** — self-review → submit-finding → fix critical/major → check-complete (must return canProceedToHumanReview: true)
+1. **Implementation** — start-work → create session → implement → commit → complete-work (skip this phase if the chosen ticket is already in ai_review)
+2. **AI Review** — self-review or resume existing findings → submit-finding → fix critical/major → check-complete (must return canProceedToHumanReview: true)
 3. **Demo** — generate-demo with 3+ manual test steps → ticket moves to human_review
 4. **Stop** — complete session → STOP. Never move tickets to done yourself.
 
@@ -61,8 +61,10 @@ If all tickets are in \`human_review\` or \`done\`, output: \`PRD_COMPLETE\`.
 `;
 
 /**
- * The verification checklist from CLAUDE.md.
- * Used by both getRalphPrompt() and generateVSCodeContext().
+ * Project-native verification gates used by both getRalphPrompt() and
+ * generateVSCodeContext(). These intentionally avoid naming a single package
+ * manager because Ralph can run against Node, PHP, Go, Python, or any other
+ * project Brain Dump tracks.
  */
 const VERIFICATION_CHECKLIST = `
 ## Gates
@@ -89,12 +91,14 @@ const SCOPE_CONSTRAINTS = `
 Before anything else, read \`plans/prd.json\` from the project root. That file contains the tickets this Ralph run is scoped to (one epic, or a single ticket). It is the authoritative task list.
 
 1. FIRST action every iteration: read \`plans/prd.json\` and find entries where \`passes: false\`.
-2. For each \`passes: false\` candidate, call \`ticket({ action: "get", ticketId: "<id>" })\` to check \`status\`. Skip any ticket whose status is \`ai_review\`, \`human_review\`, or \`done\` — those are already past implementation and \`start-work\` will refuse them. The PRD's \`passes\` flag can lag behind real ticket status between iterations.
-3. Pick ONE candidate whose status is \`backlog\`, \`ready\`, or \`in_progress\` and work only on that ticket.
-4. Do NOT call \`ticket\` with \`action: "list"\` across the whole project to discover work. The PRD is scoped; the project backlog is not.
-5. Do NOT pick tickets whose IDs do not appear in \`plans/prd.json\`, even if they look related or higher-priority.
-6. If every PRD entry is either \`passes: true\` or has a ticket status of \`ai_review\` / \`human_review\` / \`done\`, output the exact token \`PRD_COMPLETE\` and stop. Do not look for more work outside the PRD.
-7. If \`plans/prd.json\` is missing or empty, output \`PRD_COMPLETE\` and stop. Do not fall back to project-wide ticket discovery.
+2. For each \`passes: false\` candidate, call \`ticket({ action: "get", ticketId: "<id>" })\` to check \`status\`. The PRD's \`passes\` flag can lag behind real ticket status between iterations.
+3. If any candidate is already \`ai_review\`, pick ONE of those first and resume at the AI Review phase. Do NOT call \`start-work\` or \`complete-work\` for it; use \`review({ action: "get-findings", ... })\`, fix open critical/major findings, \`review({ action: "check-complete", ... })\`, then \`review({ action: "generate-demo", ... })\`.
+4. Otherwise pick ONE candidate whose status is \`backlog\`, \`ready\`, or \`in_progress\` and work only on that ticket through the full implementation workflow.
+5. Skip candidates whose status is \`human_review\` or \`done\`; those are waiting on humans or already complete.
+6. Do NOT call \`ticket\` with \`action: "list"\` across the whole project to discover work. The PRD is scoped; the project backlog is not.
+7. Do NOT pick tickets whose IDs do not appear in \`plans/prd.json\`, even if they look related or higher-priority.
+8. If every PRD entry is either \`passes: true\` or has a ticket status of \`human_review\` / \`done\`, output the exact token \`PRD_COMPLETE\` and stop. Do not look for more work outside the PRD. A ticket in \`ai_review\` is NOT complete; resume it instead.
+9. If \`plans/prd.json\` is missing or empty, output \`PRD_COMPLETE\` and stop. Do not fall back to project-wide ticket discovery.
 `;
 
 /**
@@ -127,8 +131,9 @@ ${VERIFICATION_CHECKLIST}
 
 Use \`session\` to keep progress and UI state accurate.
 
-1. Create once after starting ticket work:
+1. Create once after starting ticket work, or when resuming an \`ai_review\` ticket that has no active session:
    \`session({ action: "create", ticketId: "<ticketId>" })\`
+   If an active session already exists, reuse it with \`session({ action: "get", ticketId: "<ticketId>" })\` instead of creating another.
 2. Update state at each phase transition:
    \`session({ action: "update-state", sessionId: "<sessionId>", state: "analyzing|implementing|testing|committing|reviewing", metadata: { message: "..." } })\`
 3. Complete after demo generation, then STOP:

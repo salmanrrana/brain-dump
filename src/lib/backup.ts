@@ -176,7 +176,10 @@ export function verifyBackup(backupPath: string): boolean {
 
   try {
     const db = new Database(backupPath, { readonly: true });
-    const result = db.pragma("integrity_check") as { integrity_check: string }[];
+    // integrity_check(1) stops at the first error instead of scanning the whole
+    // file, matching the startup integrity path (src/lib/integrity.ts). A valid
+    // DB still returns a single "ok" row.
+    const result = db.pragma("integrity_check(1)") as { integrity_check: string }[];
     db.close();
 
     return result.length === 1 && result[0]?.integrity_check === "ok";
@@ -297,9 +300,8 @@ export function getDatabaseStats(dbPath: string): {
         count: number;
       }
     ).count;
-    const epics = (
-      db.prepare("SELECT COUNT(*) as count FROM epics").get() as { count: number }
-    ).count;
+    const epics = (db.prepare("SELECT COUNT(*) as count FROM epics").get() as { count: number })
+      .count;
     const tickets = (
       db.prepare("SELECT COUNT(*) as count FROM tickets").get() as {
         count: number;

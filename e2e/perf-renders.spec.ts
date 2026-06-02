@@ -38,7 +38,9 @@ function readProfilerSummaries(): ProfilerSummary[] {
 }
 
 function readNavigationLog(): { route: string; fetches: unknown[] }[] {
-  const w = window as unknown as { __navigationLog?: () => { route: string; fetches: unknown[] }[] };
+  const w = window as unknown as {
+    __navigationLog?: () => { route: string; fetches: unknown[] }[];
+  };
   if (typeof w.__navigationLog !== "function") {
     throw new Error("window.__navigationLog is unavailable — DEV instrumentation not exposed.");
   }

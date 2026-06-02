@@ -9,230 +9,156 @@
   ],
   "userStories": [
     {
-      "id": "33f3720a-1234-41de-a2da-013db2bb4af1",
-      "title": "Create shared launch model catalog from pricing data",
+      "id": "530333ed-3186-4bef-bbaf-95a14c790b7f",
+      "title": "Tune SQLite connection PRAGMAs for a local read-heavy app",
       "passes": false,
-      "overview": "The model picker MVP should use existing AI Pricing data instead of maintaining a separate static model list. Pricing rows are exposed by `getCostModels()` and backed by `cost_models` / `core/cost.ts` defaults.",
+      "overview": "Both connection setups only set `journal_mode=WAL` (+ `foreign_keys` in src/lib). Best-practice PRAGMAs that materially reduce write latency and eliminate busy errors are missing.",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "A shared type represents `Default` versus a concrete model selection.",
-        "A shared function returns model choices for each launch provider.",
-        "The catalog uses `getCostModels()` data and handles an empty/missing pricing table gracefully.",
-        "Tests cover provider filtering, `Default` inclusion, and OpenCode multi-provider formatting needs."
+        "All listed PRAGMAs set at both connection sites with a rationale comment.",
+        "Measured write/query improvement recorded; no busy errors under concurrent access.",
+        "`pnpm check` passes; relevant DB tests pass."
       ],
       "references": [
-        "src/api/cost.ts",
-        "src/lib/schema.ts",
-        "src/lib/launch-provider-contract.ts",
-        "src/lib/ui-launch-registry.ts"
+        "src/lib/db.ts:44-45",
+        "src/lib/db.ts"
       ],
-      "description": "## Context\n\nThe model picker MVP should use existing AI Pricing data instead of maintaining a separate static model list. Pricing rows are exposed by `getCostModels()` and backed by `cost_models` / `core/cost.ts` defaults.\n\n## Scope\n\nCreate a shared launch-model catalog layer that maps launch providers to eligible pricing providers/models and always includes a `Default` option.\n\n## Implementation Notes\n\n- Use current cost model rows as the source of concrete model choices.\n- Map Claude to `anthropic`, Codex to `openai`, Cursor Agent to `cursor`, and OpenCode to the providers it can address via `provider/model`.\n- Treat providers with no reliable pricing-backed mapping as `Default` only until their provider ticket proves otherwise.\n- Keep `Default` as an explicit sentinel, not a fake `cost_models` row.\n\n## Acceptance Criteria\n\n- A shared type represents `Default` versus a concrete model selection.\n- A shared function returns model choices for each launch provider.\n- The catalog uses `getCostModels()` data and handles an empty/missing pricing table gracefully.\n- Tests cover provider filtering, `Default` inclusion, and OpenCode multi-provider formatting needs.\n\n## Relevant Files\n\n- `src/api/cost.ts`\n- `src/lib/schema.ts`\n- `core/cost.ts`\n- `src/lib/launch-provider-contract.ts`\n- `src/lib/ui-launch-registry.ts`",
+      "description": "> 🌿 **Branch:** Implement on the existing `chore/project-validation-discovery` branch — do NOT create a per-ticket branch. **Planning only:** do not start work until explicitly requested.\n\n## Problem\nBoth connection setups only set `journal_mode=WAL` (+ `foreign_keys` in src/lib). Best-practice PRAGMAs that materially reduce write latency and eliminate busy errors are missing.\n\n## Evidence\n`src/lib/db.ts:44-45`; `core/db.ts:1003,1020`.\n\n## Fix — add after WAL at all connection sites\n- `synchronous = NORMAL` — biggest write-latency win; still crash-safe under WAL.\n- `busy_timeout = 5000` — avoids `SQLITE_BUSY` under concurrent UI + MCP + CLI access.\n- `cache_size = -32000` (~32MB) — fewer page reads on board/analytics.\n- `mmap_size = 268435456` (256MB) — memory-mapped reads.\n- `temp_store = MEMORY` — keep GROUP BY/ORDER BY temp data off disk (analytics).\n\nApply at BOTH `src/lib/db.ts` and `core/db.ts` (CLI/MCP path). Verify values are sensible cross-platform.\n\n## Hot paths\nEvery SQLite read/write; especially board load, analytics, status writes.\n\n## Validation\nFocused timing of a representative write (status update) and an analytics query before/after; confirm no `SQLITE_BUSY` under simultaneous UI + MCP access. Record numbers.\n\n## Acceptance criteria\n- All listed PRAGMAs set at both connection sites with a rationale comment.\n- Measured write/query improvement recorded; no busy errors under concurrent access.\n- `pnpm check` passes; relevant DB tests pass.",
       "priority": "high",
       "tags": [
-        "model-picker",
-        "pricing",
-        "launch"
+        "performance",
+        "sqlite",
+        "pragma"
       ]
     },
     {
-      "id": "e0400d3f-32b7-4a9c-a5cb-e305d10d0178",
-      "title": "Add optional model picker to launch provider menus",
-      "passes": true,
-      "overview": "Users should not be forced through model selection every time. The provider window should default to provider behavior, then reveal provider-specific models only when the user selects a `Pick your model` checkbox/toggle.",
+      "id": "2c2fc1a5-d30d-412d-9aa1-834c138c77c1",
+      "title": "Add missing hot-path indexes: tickets.position and tickets.completed_at",
+      "passes": false,
+      "overview": "Two hot-path queries sort/filter on unindexed columns:\n- The board's `getTicketSummaries`/`getTickets` do `ORDER BY tickets.position` (`src/api/tickets.ts:444,98`) but `position` is not indexed — SQLite filesorts matching rows on every board load and reorder.\n- Dashboard analytics filter/sort on `completed_at` in 5+ queries (`src/api/analytics.ts:88-96,123-130,248-252`) but `completed_at` is unindexed → repeated full scans.",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Ticket launch and epic launch surfaces both support optional model selection.",
-        "The selected model is scoped to the launch action and does not persist globally.",
-        "Providers without concrete catalog models still present `Default` and explain why no concrete choices are available.",
-        "Tests cover checked/unchecked behavior and provider-specific model list changes."
+        "Both indexes added to schema + migration generated/applied.",
+        "Query plans use the new indexes (no filesort on board ORDER BY position).",
+        "`pnpm db:generate`/`pnpm db:migrate` clean; `pnpm check` passes."
       ],
       "references": [
-        "src/components/LaunchProviderMenu.tsx",
-        "src/components/LaunchProviderMenu.test.tsx",
-        "src/components/tickets/LaunchActions.tsx",
-        "src/components/tickets/LaunchActions.test.tsx",
-        "src/components/epics/EpicDetailHeader.tsx",
-        "src/routes/-epic.$id.test.tsx"
+        "src/api/tickets.ts:444,98",
+        "src/api/analytics.ts:88-96,123-130,248-252",
+        "src/lib/schema.ts:70-78",
+        "src/lib/db.ts"
       ],
-      "description": "## Context\n\nUsers should not be forced through model selection every time. The provider window should default to provider behavior, then reveal provider-specific models only when the user selects a `Pick your model` checkbox/toggle.\n\n## Scope\n\nUpdate the ticket and epic launch menus so users can opt into model selection before launching a provider.\n\n## UX Requirements\n\n- Add a `Pick your model` checkbox/toggle near provider selection.\n- When unchecked, launch actions use `Default` and do not show model selectors.\n- When checked, selecting/focusing a provider shows that provider's available model choices.\n- Every provider model list includes `Default` as the first safe option.\n- Loading/disabled states still work and remain accessible.\n\n## Acceptance Criteria\n\n- Ticket launch and epic launch surfaces both support optional model selection.\n- The selected model is scoped to the launch action and does not persist globally.\n- Providers without concrete catalog models still present `Default` and explain why no concrete choices are available.\n- Tests cover checked/unchecked behavior and provider-specific model list changes.\n\n## Relevant Files\n\n- `src/components/LaunchProviderMenu.tsx`\n- `src/components/LaunchProviderMenu.test.tsx`\n- `src/components/tickets/LaunchActions.tsx`\n- `src/components/tickets/LaunchActions.test.tsx`\n- `src/components/epics/EpicDetailHeader.tsx`\n- `src/routes/-epic.$id.test.tsx`",
+      "description": "> 🌿 **Branch:** Implement on the existing `chore/project-validation-discovery` branch — do NOT create a per-ticket branch. **Planning only:** do not start work until explicitly requested.\n\n## Problem\nTwo hot-path queries sort/filter on unindexed columns:\n- The board's `getTicketSummaries`/`getTickets` do `ORDER BY tickets.position` (`src/api/tickets.ts:444,98`) but `position` is not indexed — SQLite filesorts matching rows on every board load and reorder.\n- Dashboard analytics filter/sort on `completed_at` in 5+ queries (`src/api/analytics.ts:88-96,123-130,248-252`) but `completed_at` is unindexed → repeated full scans.\n\n## Evidence\n`src/lib/schema.ts:70-78` (existing ticket indexes; no `position`, no `completed_at`).\n\n## Fix\n- Add `index(\"idx_tickets_project_position\").on(projectId, position)` (covers board filter+sort together).\n- Add `index(\"idx_tickets_completed_at\").on(completedAt)`.\n- Generate + run the migration: `pnpm db:generate` then `pnpm db:migrate`. Also add to any imperative `CREATE INDEX IF NOT EXISTS` init in `src/lib/db.ts` for existing DBs.\n\n## Hot paths\nBoard load/reorder; dashboard analytics.\n\n## Validation\n`EXPLAIN QUERY PLAN` before/after shows index use instead of `SCAN ... USING TEMP B-TREE`; focused timing of the board summary + analytics queries. Record before/after.\n\n## Acceptance criteria\n- Both indexes added to schema + migration generated/applied.\n- Query plans use the new indexes (no filesort on board ORDER BY position).\n- `pnpm db:generate`/`pnpm db:migrate` clean; `pnpm check` passes.",
       "priority": "high",
       "tags": [
-        "model-picker",
-        "ui",
-        "launch"
+        "performance",
+        "sqlite",
+        "index",
+        "schema"
       ]
     },
     {
-      "id": "ed98f7f3-b65b-45ae-8757-5245cd87a426",
-      "title": "Thread launch model selection through dispatch contracts",
-      "passes": true,
-      "overview": "The selected model must flow from UI to launch code for both interactive ticket launches and Ralph autonomous ticket/epic launches.",
+      "id": "e8f8f66f-0291-44f0-99a2-dac952fedf6d",
+      "title": "Enable foreign_keys in core/db.ts (CLI/MCP path)",
+      "passes": false,
+      "overview": "`src/lib/db.ts` sets `foreign_keys = ON`, but `core/db.ts` (the connection used by the CLI and MCP server) sets only `journal_mode = WAL` — it does NOT enable foreign keys (`core/db.ts:1003-1004,1020-1021`). On the CLI/MCP path, cascades and FK constraints are silently unenforced, and the FK indexes go unused. This is primarily a correctness/reliability issue but also means inconsistent behavior between the web app and CLI/MCP writers.",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Interactive ticket launches can carry a selected concrete model to terminal launchers.",
-        "Ralph ticket and epic launches can carry a selected concrete model into launch script generation.",
-        "`Default` produces the same command/script output as current behavior.",
-        "Existing provider dispatch tests are updated to assert selected model propagation."
+        "`foreign_keys = ON` set at both `core/db.ts` connection sites.",
+        "CLI/MCP delete cascades behave consistently with the web app.",
+        "`pnpm check` and relevant core/MCP tests pass."
       ],
       "references": [
-        "src/lib/launch-provider-contract.ts",
-        "src/lib/ui-launch-dispatcher.ts",
-        "src/lib/ui-launch-registry.test.ts",
-        "src/lib/ralph-launch/types.ts",
-        "src/api/terminal.ts",
-        "src/api/ralph-script.ts"
+        "src/lib/db.ts",
+        "src/lib/db.ts:45"
       ],
-      "description": "## Context\n\nThe selected model must flow from UI to launch code for both interactive ticket launches and Ralph autonomous ticket/epic launches.\n\n## Scope\n\nExtend launch dispatch types, payloads, and tests so model selection reaches each provider launcher without changing launch behavior when `Default` is selected.\n\n## Implementation Notes\n\n- Add optional model selection fields to UI dispatch context/payload types.\n- Extend `InteractiveTerminalPayload`, `LaunchTicketInput`, and `LaunchEpicInput` or equivalent types.\n- Ensure `Default` is omitted or normalized before invoking provider CLIs.\n- Keep backwards compatibility only where needed for current call sites.\n\n## Acceptance Criteria\n\n- Interactive ticket launches can carry a selected concrete model to terminal launchers.\n- Ralph ticket and epic launches can carry a selected concrete model into launch script generation.\n- `Default` produces the same command/script output as current behavior.\n- Existing provider dispatch tests are updated to assert selected model propagation.\n\n## Relevant Files\n\n- `src/lib/launch-provider-contract.ts`\n- `src/lib/ui-launch-dispatcher.ts`\n- `src/lib/ui-launch-registry.test.ts`\n- `src/lib/ralph-launch/types.ts`\n- `src/api/terminal.ts`\n- `src/api/ralph-script.ts`",
-      "priority": "high",
-      "tags": [
-        "model-picker",
-        "launch",
-        "types"
-      ]
-    },
-    {
-      "id": "ae6cdcbd-640f-4b3a-a375-8444170efcfa",
-      "title": "Implement Claude model override support",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Interactive Claude launch includes `--model <selected>` only for concrete selections.",
-        "Ralph Claude invocation includes `--model <selected>` only for concrete selections.",
-        "`Default` generated command/script remains equivalent to current behavior.",
-        "Tests cover both interactive and Ralph command generation."
-      ],
-      "references": [
-        "src/api/terminal.ts",
-        "src/api/ralph-script.ts",
-        "src/api/ralph-script*.test.ts"
-      ],
-      "description": "## Research Already Captured\n\nClaude Code docs state startup model selection is supported with `claude --model <alias|name>`, and `default` clears model override / uses runtime default.\n\nDocs:\n\n- https://code.claude.com/docs/en/cli-reference\n- https://code.claude.com/docs/en/model-config\n\n## Scope\n\nAdd model override support for Claude interactive ticket launches and Ralph autonomous Claude launches.\n\n## Implementation Notes\n\n- For concrete Anthropic model choices, pass `--model <modelName>`.\n- For `Default`, do not pass a model flag.\n- Keep shell escaping safe for model names.\n- Do not persist the model to Claude settings.\n\n## Acceptance Criteria\n\n- Interactive Claude launch includes `--model <selected>` only for concrete selections.\n- Ralph Claude invocation includes `--model <selected>` only for concrete selections.\n- `Default` generated command/script remains equivalent to current behavior.\n- Tests cover both interactive and Ralph command generation.\n\n## Relevant Files\n\n- `src/api/terminal.ts`\n- `src/api/ralph-script.ts`\n- `src/api/ralph-script*.test.ts`",
+      "description": "> 🌿 **Branch:** Implement on the existing `chore/project-validation-discovery` branch — do NOT create a per-ticket branch. **Planning only:** do not start work until explicitly requested.\n\n## Problem\n`src/lib/db.ts` sets `foreign_keys = ON`, but `core/db.ts` (the connection used by the CLI and MCP server) sets only `journal_mode = WAL` — it does NOT enable foreign keys (`core/db.ts:1003-1004,1020-1021`). On the CLI/MCP path, cascades and FK constraints are silently unenforced, and the FK indexes go unused. This is primarily a correctness/reliability issue but also means inconsistent behavior between the web app and CLI/MCP writers.\n\n## Fix\n- Add `db.pragma(\"foreign_keys = ON\")` at both `core/db.ts` connection sites, matching `src/lib/db.ts`.\n- Verify existing CLI/MCP tests still pass (some may have relied on cascades NOT firing — fix those if they were masking a bug).\n\n## Evidence\n`core/db.ts:1003-1004,1020-1021` vs `src/lib/db.ts:45`.\n\n## Hot paths\nMCP tool dispatch, CLI operations (writes/deletes).\n\n## Validation\nConfirm a cascade-dependent delete behaves identically via CLI/MCP and the web app. Run core + MCP tests.\n\n## Acceptance criteria\n- `foreign_keys = ON` set at both `core/db.ts` connection sites.\n- CLI/MCP delete cascades behave consistently with the web app.\n- `pnpm check` and relevant core/MCP tests pass.",
       "priority": "medium",
       "tags": [
-        "model-picker",
-        "claude",
-        "provider"
+        "performance",
+        "sqlite",
+        "correctness"
       ]
     },
     {
-      "id": "12da724f-88cf-4da9-8a90-8cd503d721f0",
-      "title": "Implement Codex model override support",
-      "passes": true,
-      "overview": "",
+      "id": "7a6d2110-be8b-4a1b-b30c-4a5c9645784d",
+      "title": "Use summary column projection for board/list (stop getTickets SELECT *)",
+      "passes": false,
+      "overview": "`getTickets` does `db.select().from(tickets)` — a full `SELECT *` returning `description`, `linked_files`, `attachments`, `subtasks` (potentially large JSON blobs) for every ticket (`src/api/tickets.ts:98`). Board/list views only need summary fields, and a `getTicketSummaries` endpoint with a `TICKET_SUMMARY_COLUMNS` projection already exists (`src/api/tickets.ts:401-421,444`). Using the full-row endpoint for summary views wastes serialization + transfer on every board render and status change.",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Codex CLI ticket launch uses the selected model when concrete.",
-        "Ralph Codex invocation uses the selected model when concrete.",
-        "Codex App behavior is explicitly handled and tested as supported or default-only.",
-        "`Default` command/script output remains equivalent to current behavior."
+        "Board/list summary views use the projected `getTicketSummaries` (no `SELECT *`).",
+        "Detail views still get full data.",
+        "Measured payload/time reduction recorded; `pnpm check` passes."
       ],
       "references": [
-        "src/api/terminal.ts",
-        "src/api/codex-launch.ts",
-        "src/api/ralph-script.ts",
-        "src/lib/ui-launch-registry.ts"
+        "src/api/tickets.ts:98",
+        "src/api/tickets.ts:401-421,444",
+        "src/api/tickets.ts:98,401-421,444"
       ],
-      "description": "## Research Already Captured\n\nCodex CLI docs state `--model` / `-m` overrides the configured model for the invocation, while config fallback uses `model = \"...\"`.\n\nDocs:\n\n- https://developers.openai.com/codex/cli/reference\n- https://developers.openai.com/codex/config-basic\n\n## Scope\n\nAdd model override support for Codex CLI interactive ticket launches and Ralph autonomous Codex launches.\n\n## Implementation Notes\n\n- Map Codex model choices from pricing provider `openai`.\n- For concrete selections, pass `--model <modelName>` or `-m <modelName>` in the provider's documented position.\n- For `Default`, do not pass a model override.\n- Verify whether Codex App launch can accept a model at launch; if not, clearly leave Codex App on `Default` only or document the limitation in code/UI.\n\n## Acceptance Criteria\n\n- Codex CLI ticket launch uses the selected model when concrete.\n- Ralph Codex invocation uses the selected model when concrete.\n- Codex App behavior is explicitly handled and tested as supported or default-only.\n- `Default` command/script output remains equivalent to current behavior.\n\n## Relevant Files\n\n- `src/api/terminal.ts`\n- `src/api/codex-launch.ts`\n- `src/api/ralph-script.ts`\n- `src/lib/ui-launch-registry.ts`",
+      "description": "> 🌿 **Branch:** Implement on the existing `chore/project-validation-discovery` branch — do NOT create a per-ticket branch. **Planning only:** do not start work until explicitly requested.\n\n## Problem\n`getTickets` does `db.select().from(tickets)` — a full `SELECT *` returning `description`, `linked_files`, `attachments`, `subtasks` (potentially large JSON blobs) for every ticket (`src/api/tickets.ts:98`). Board/list views only need summary fields, and a `getTicketSummaries` endpoint with a `TICKET_SUMMARY_COLUMNS` projection already exists (`src/api/tickets.ts:401-421,444`). Using the full-row endpoint for summary views wastes serialization + transfer on every board render and status change.\n\n## Fix\n- Audit UI call sites of `getTickets`; migrate board/list/summary consumers to `getTicketSummaries` (projected columns).\n- Keep `getTickets`/full-row fetch only for detail surfaces that actually need description/attachments/subtasks.\n- Ensure query keys/types line up so components get the right shape.\n\n## Evidence\n`src/api/tickets.ts:98,401-421,444`.\n\n## Hot paths\nBoard/list load and re-render after status change.\n\n## Validation\nMeasure payload size + query time for the board data path before/after. Confirm board/list render identically.\n\n## Acceptance criteria\n- Board/list summary views use the projected `getTicketSummaries` (no `SELECT *`).\n- Detail views still get full data.\n- Measured payload/time reduction recorded; `pnpm check` passes.",
       "priority": "medium",
       "tags": [
-        "model-picker",
-        "codex",
-        "provider"
+        "performance",
+        "sqlite",
+        "over-fetch"
       ]
     },
     {
-      "id": "c2259556-3ab6-4a0b-bb0f-16d323a695cc",
-      "title": "Implement OpenCode multi-provider model override support",
-      "passes": true,
-      "overview": "",
+      "id": "fcdd4257-4190-4856-8669-495203391de4",
+      "title": "Eliminate N+1 query loops in cost computation paths",
+      "passes": false,
+      "overview": "Several cost paths issue a query per row inside a loop:\n- `getCostExplorerData` calls `getTicketCostDetail(db, row.ticket_id)` per ticket; each does ~4 queries → ~`1 + 4N` queries (`core/cost.ts:1502-1503,1584-1585,1610-1611`).\n- `recalculateCosts` calls `computeCostFromTokens` per `token_usage` row, and each does 2 `cost_models` lookups → ~`2 * rows` queries inside the transaction (`core/cost.ts:1141-1175`).\n- `sessionHasUsage` runs a `COUNT(*)` per session in the deep recalculate backfills (`core/deep-cost-recalculate.ts:202,351,522`).",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "OpenCode interactive ticket launcher passes `--model provider/model` for concrete selections.",
-        "Ralph OpenCode invocation passes `--model provider/model` for concrete selections.",
-        "OpenCode model list can include pricing rows from multiple providers and displays enough context to disambiguate duplicate names.",
-        "Tests cover formatting, `Default`, and multiple provider groups."
+        "Cost explorer, recalculate, and deep-recalculate no longer issue per-row/per-session queries.",
+        "Cost numbers unchanged (verified against current output).",
+        "`pnpm check` and cost tests pass."
       ],
-      "references": [
-        "src/api/terminal.ts",
-        "src/api/ralph-script.ts",
-        "src/lib/launch-provider-contract.ts",
-        "src/lib/ui-launch-registry.ts"
-      ],
-      "description": "## Research Already Captured\n\nOpenCode docs state TUI and `opencode run` accept `--model` / `-m` in `provider/model` format. OpenCode loads models by priority: CLI flag, config, last used model, internal priority. `opencode models [provider]` can list configured models, but MVP should use pricing rows.\n\nDocs:\n\n- https://opencode.ai/docs/cli/\n- https://opencode.ai/docs/models/\n\n## Scope\n\nAdd OpenCode model override support for interactive ticket launches and Ralph autonomous OpenCode launches.\n\n## Implementation Notes\n\n- OpenCode choices should support multiple pricing providers where useful, not just `opensource`.\n- Format concrete selections as `provider/model` for OpenCode.\n- Decide and document the MVP mapping between Brain Dump pricing provider names and OpenCode provider IDs.\n- For `Default`, do not pass `--model`.\n\n## Acceptance Criteria\n\n- OpenCode interactive ticket launcher passes `--model provider/model` for concrete selections.\n- Ralph OpenCode invocation passes `--model provider/model` for concrete selections.\n- OpenCode model list can include pricing rows from multiple providers and displays enough context to disambiguate duplicate names.\n- Tests cover formatting, `Default`, and multiple provider groups.\n\n## Relevant Files\n\n- `src/api/terminal.ts`\n- `src/api/ralph-script.ts`\n- `src/lib/launch-provider-contract.ts`\n- `src/lib/ui-launch-registry.ts`",
-      "priority": "high",
-      "tags": [
-        "model-picker",
-        "opencode",
-        "provider"
-      ]
-    },
-    {
-      "id": "4e4762e1-3681-4756-8462-8c92285fcb46",
-      "title": "Implement Cursor Agent model override support",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Cursor Agent ticket launcher passes selected concrete model.",
-        "Ralph Cursor Agent invocation passes selected concrete model.",
-        "Cursor editor behavior is tested as supported or intentionally default-only.",
-        "Model choices come from pricing provider `cursor` for MVP."
-      ],
-      "references": [
-        "src/api/terminal.ts",
-        "src/api/ralph-script.ts",
-        "src/lib/ui-launch-registry.ts"
-      ],
-      "description": "## Research Already Captured\n\nCursor Agent docs state `--model <model>` selects the model and `--list-models` / `agent models` can list available models. MVP should use pricing provider `cursor` rows.\n\nDocs:\n\n- https://cursor.com/docs/cli/reference/parameters\n\n## Scope\n\nAdd model override support for Cursor Agent interactive ticket launches and Ralph autonomous Cursor Agent launches. Explicitly decide what to do with the Cursor editor launch surface, which may not have a reliable one-shot CLI model override.\n\n## Implementation Notes\n\n- For Cursor Agent concrete selections, pass `--model <modelName>`.\n- For `Default`, do not pass a model override.\n- Cursor editor launch should be default-only unless implementation finds a documented launch-time model mechanism.\n\n## Acceptance Criteria\n\n- Cursor Agent ticket launcher passes selected concrete model.\n- Ralph Cursor Agent invocation passes selected concrete model.\n- Cursor editor behavior is tested as supported or intentionally default-only.\n- Model choices come from pricing provider `cursor` for MVP.\n\n## Relevant Files\n\n- `src/api/terminal.ts`\n- `src/api/ralph-script.ts`\n- `src/lib/ui-launch-registry.ts`",
+      "references": [],
+      "description": "> 🌿 **Branch:** Implement on the existing `chore/project-validation-discovery` branch — do NOT create a per-ticket branch. **Planning only:** do not start work until explicitly requested.\n\n## Problem\nSeveral cost paths issue a query per row inside a loop:\n- `getCostExplorerData` calls `getTicketCostDetail(db, row.ticket_id)` per ticket; each does ~4 queries → ~`1 + 4N` queries (`core/cost.ts:1502-1503,1584-1585,1610-1611`).\n- `recalculateCosts` calls `computeCostFromTokens` per `token_usage` row, and each does 2 `cost_models` lookups → ~`2 * rows` queries inside the transaction (`core/cost.ts:1141-1175`).\n- `sessionHasUsage` runs a `COUNT(*)` per session in the deep recalculate backfills (`core/deep-cost-recalculate.ts:202,351,522`).\n\n## Fix\n- `getCostExplorerData`: pre-fetch ralph_sessions + token_usage aggregates for ALL ticket IDs in one query each, then join in memory in `buildTicketNode`.\n- `recalculateCosts`: load `cost_models` into a `Map` once before the loop; resolve pricing in memory (no per-row DB query).\n- Deep recalculate: pre-fetch the set of session IDs that already have usage via one `GROUP BY`/`IN (...)` query → build a Set.\n\n## Hot paths\nCost Explorer page; cost recalculate / backfill commands.\n\n## Validation\nCount queries (or time) for cost explorer on an epic with ~20 tickets before/after; recalculate on a large token_usage set. Record before/after.\n\n## Acceptance criteria\n- Cost explorer, recalculate, and deep-recalculate no longer issue per-row/per-session queries.\n- Cost numbers unchanged (verified against current output).\n- `pnpm check` and cost tests pass.",
       "priority": "medium",
       "tags": [
-        "model-picker",
-        "cursor",
-        "provider"
+        "performance",
+        "sqlite",
+        "n+1",
+        "cost"
       ]
     },
     {
-      "id": "5747469d-3355-45b1-8e37-bb5b9db6808c",
-      "title": "Implement Copilot and unsupported-provider model handling",
-      "passes": true,
-      "overview": "",
+      "id": "305c1f00-c7e8-4034-8147-66c2cb600ae9",
+      "title": "Cheapen startup & search DB checks (user_version gating, FTS cache, integrity_check(1))",
+      "passes": false,
+      "overview": "Startup runs ~25 synchronous `sqlite_master`/`PRAGMA table_info` checks on every boot (`src/lib/db.ts:82-758`, `src/lib/db-bootstrap.ts:3-25`), adding ~10-50ms to first-request latency even when no migration is needed. Two smaller repeat-cost checks: `hasFts5Table` queries `sqlite_master` on every search keystroke (`core/search.ts:33-38`), and `verifyBackup` uses full `integrity_check` instead of the cheaper `integrity_check(1)` (`src/lib/backup.ts:179`).",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Copilot model handling is explicitly implemented as concrete-selection support or documented/tested default-only MVP behavior.",
-        "Pi, VS Code, Cursor editor, and other unsupported surfaces do not show misleading concrete model choices.",
-        "UI communicates default-only providers without blocking launches.",
-        "Tests cover all default-only provider paths."
+        "Migration checks skipped via `user_version` when DB is current.",
+        "`hasFts5Table` cached; `verifyBackup` uses `integrity_check(1)`.",
+        "No migration/correctness regression; `pnpm check` + DB/backup tests pass."
       ],
       "references": [
-        "src/api/terminal.ts",
-        "src/api/ralph-script.ts",
-        "src/lib/ui-launch-registry.ts",
-        "src/components/LaunchProviderMenu.tsx"
+        "src/lib/db.ts:82-758",
+        "src/lib/db-bootstrap.ts:3-25",
+        "src/lib/backup.ts:179"
       ],
-      "description": "## Research Already Captured\n\nGitHub Copilot CLI docs state `--model=MODEL` selects the model and `auto` lets Copilot choose. It also supports `COPILOT_MODEL`. Existing Brain Dump pricing defaults do not currently include a dedicated `copilot` provider.\n\nDocs:\n\n- https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference\n\n## Scope\n\nAdd safe model handling for Copilot CLI and define MVP behavior for providers with no pricing-backed model list, including Pi, VS Code, and plain editor launches.\n\n## Implementation Notes\n\n- Use `Default` for Copilot until a pricing-backed mapping is chosen, or use clearly mapped pricing rows if verified during implementation.\n- If adding concrete Copilot choices, pass `--model=<model>` for one-shot launches and avoid persistent config mutation.\n- Pi currently has no pricing defaults and existing usage recording uses `BRAIN_DUMP_PI_MODEL`; keep Pi default-only unless a concrete CLI model mechanism is verified.\n- VS Code and editor-only launches should be default-only unless a launch-time model override exists.\n\n## Acceptance Criteria\n\n- Copilot model handling is explicitly implemented as concrete-selection support or documented/tested default-only MVP behavior.\n- Pi, VS Code, Cursor editor, and other unsupported surfaces do not show misleading concrete model choices.\n- UI communicates default-only providers without blocking launches.\n- Tests cover all default-only provider paths.\n\n## Relevant Files\n\n- `src/api/terminal.ts`\n- `src/api/ralph-script.ts`\n- `src/lib/ui-launch-registry.ts`\n- `src/components/LaunchProviderMenu.tsx`",
-      "priority": "medium",
+      "description": "> 🌿 **Branch:** Implement on the existing `chore/project-validation-discovery` branch — do NOT create a per-ticket branch. **Planning only:** do not start work until explicitly requested.\n\n## Problem\nStartup runs ~25 synchronous `sqlite_master`/`PRAGMA table_info` checks on every boot (`src/lib/db.ts:82-758`, `src/lib/db-bootstrap.ts:3-25`), adding ~10-50ms to first-request latency even when no migration is needed. Two smaller repeat-cost checks: `hasFts5Table` queries `sqlite_master` on every search keystroke (`core/search.ts:33-38`), and `verifyBackup` uses full `integrity_check` instead of the cheaper `integrity_check(1)` (`src/lib/backup.ts:179`).\n\n## Fix\n- Gate the migration/column checks behind `PRAGMA user_version`: bump `user_version` after migrations; skip all checks when it matches the current version (standard SQLite migration pattern).\n- Cache the `hasFts5Table` boolean (module-level / per-DB WeakMap) — it never changes at runtime.\n- Change `verifyBackup` to `integrity_check(1)` (stop at first error), matching the startup path.\n- Where multiple `PRAGMA table_info(<table>)` calls hit the same table, fetch once and reuse.\n\n## Hot paths\nApp/server startup; search keystrokes; backup creation/restore.\n\n## Validation\nTime cold startup (first-request DB init) before/after with an already-migrated DB; confirm search and backup verify still correct. Record before/after.\n\n## Acceptance criteria\n- Migration checks skipped via `user_version` when DB is current.\n- `hasFts5Table` cached; `verifyBackup` uses `integrity_check(1)`.\n- No migration/correctness regression; `pnpm check` + DB/backup tests pass.",
+      "priority": "low",
       "tags": [
-        "model-picker",
-        "copilot",
-        "pi",
-        "provider"
+        "performance",
+        "sqlite",
+        "startup"
       ]
     }
   ],
@@ -379,7 +305,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-05-05T03:31:36.961Z",
-  "epicTitle": "Launch Model Picker",
-  "epicDescription": "# Launch Model Picker\n\n## Goal\n\nAllow users launching a ticket or epic to optionally choose the AI model for the selected provider. If the user does not opt into model selection, Brain Dump should launch the provider with its provider-default model. If the user enables model selection, the selected provider determines the available model list and Brain Dump passes the chosen model into that launch session.\n\n## MVP Scope\n\nUse existing AI Pricing / `cost_models` data as the model catalog. Include a `Default` choice for every launch provider. `Default` means Brain Dump does not pass a model override and lets the provider CLI/app use its normal default behavior.\n\n## Current Code Pointers\n\n- Provider picker UI: `src/components/LaunchProviderMenu.tsx`\n- Provider identity and dispatch contracts: `src/lib/launch-provider-contract.ts`\n- Provider registry: `src/lib/ui-launch-registry.ts`\n- Launch dispatching: `src/lib/ui-launch-dispatcher.ts`\n- Interactive launchers: `src/api/terminal.ts`\n- Ralph autonomous launch script generation: `src/api/ralph-script.ts`\n- Ralph launch input types: `src/lib/ralph-launch/types.ts`\n- Pricing model server API: `src/api/cost.ts`\n- Cost model defaults and sync: `core/cost.ts`\n- Cost model schema: `src/lib/schema.ts`\n\n## Research Notes\n\n- Claude Code supports `--model <alias|name>` and has a `default` option that clears model override.\n- OpenCode supports `--model` / `-m` for TUI and `opencode run`, in `provider/model` format; `opencode models [provider]` can list configured provider models.\n- Cursor Agent supports `--model <model>` and `--list-models` / `agent models`.\n- Codex CLI supports `--model` / `-m` and config fallback via `model = \"...\"`.\n- GitHub Copilot CLI supports `--model=MODEL` and `COPILOT_MODEL`; it also supports `auto` to let Copilot choose.\n- Existing pricing defaults currently include `anthropic`, `openai`, `google`, `opensource`, and `cursor`; no dedicated `copilot` or `pi` pricing provider exists yet.\n\n## Design Constraints\n\n- Keep the provider picker simple: checkbox/toggle for `Pick your model`, then provider-specific model selection only when enabled.\n- Keep the launch contract explicit: distinguish `Default` from a concrete model override.\n- Do not mutate persistent provider defaults when a model is selected for a single launch.\n- Handle provider-specific model ID formats; OpenCode should receive `provider/model`, Claude/Codex/Cursor/Copilot likely receive the model name expected by that CLI.\n- Include tests for ticket launch, epic launch, and Ralph autonomous launch paths.\n\n## Out of Scope For MVP\n\n- Live provider model discovery as the primary catalog.\n- Model capability metadata beyond existing pricing rows.\n- Persisted per-user favorite model selections unless implementation discovers an existing preference pattern that makes this trivial."
+  "generatedAt": "2026-06-01T21:42:34.092Z",
+  "epicTitle": "⚡ SQLite Data Layer Speed (PRAGMAs, indexes, N+1)",
+  "epicDescription": "## Why this epic exists\n\nEvery UI interaction ultimately reads/writes local SQLite. If the data layer isn't tuned, the whole app inherits avoidable latency. Investigation found missing connection PRAGMAs, missing indexes on hot-path sort/filter columns, several N+1 query loops, and over-fetching on the board.\n\n## Root causes found (with evidence)\n\n- **Missing PRAGMAs** (`src/lib/db.ts:44-45`, `core/db.ts:1003,1020`): only `journal_mode=WAL` + `foreign_keys` are set. Missing `synchronous=NORMAL` (biggest write-latency win), `busy_timeout` (causes SQLITE_BUSY under UI+MCP+CLI contention), `cache_size`, `mmap_size`, `temp_store=MEMORY`.\n- **`core/db.ts` does not set `foreign_keys=ON`** — CLI/MCP path silently bypasses cascades.\n- **Missing index on `tickets.position`** — the board's `ORDER BY position` falls back to filesort on every load/reorder (`src/lib/schema.ts:70-78`, `src/api/tickets.ts:444`).\n- **Missing index on `tickets.completed_at`** — dashboard analytics does 5+ full scans (`src/api/analytics.ts:88-130,248`).\n- **N+1 queries**: `getCostExplorerData` ~4 queries/ticket (`core/cost.ts:1502,1584,1610`); `recalculateCosts` 2 cost-model queries/row (`core/cost.ts:1166`); `sessionHasUsage` per session (`core/deep-cost-recalculate.ts`).\n- **Over-fetch**: `getTickets` does `SELECT *` (description/attachments/subtasks JSON) for board views instead of the existing `getTicketSummaries` projection (`src/api/tickets.ts:98`).\n- **Startup**: ~25 uncached `PRAGMA table_info`/`sqlite_master` checks run every boot; could be gated behind `PRAGMA user_version`. `hasFts5Table` queries `sqlite_master` on every search keystroke. `verifyBackup` uses full `integrity_check` instead of `integrity_check(1)`.\n\n## Goal\n\nConnection tuned for a local read-heavy app, hot-path queries index-backed, no N+1 loops, board fetches only summary columns, startup checks cheap. Prove with focused query timing.\n\n## 🌿 BRANCH REQUIREMENT\n\nAll tickets in this epic MUST be implemented on the existing branch **`chore/project-validation-discovery`** (no per-ticket branches). PLANNING ONLY — do not start work until requested. DB schema changes require `pnpm db:generate`/`pnpm db:migrate` per CLAUDE.md. See the ⚡ Performance North Star epic for validation methodology."
 }

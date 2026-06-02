@@ -38,6 +38,7 @@ import {
   updateEpicReviewRun,
   updateEpicReviewRunTicketLink,
 } from "./epic-review-run.ts";
+import { completeActiveSessionsForTicket } from "./session.ts";
 
 // ============================================
 // Internal Helpers
@@ -442,6 +443,13 @@ export function generateDemo(db: DbHandle, params: GenerateDemoParams): DemoScri
   db.prepare("UPDATE tickets SET status = 'human_review', updated_at = ? WHERE id = ?").run(
     now,
     ticketId
+  );
+
+  completeActiveSessionsForTicket(
+    db,
+    ticketId,
+    "success",
+    "Demo generated; ticket handed to human review."
   );
 
   if (linkedEpicReviewRunId) {

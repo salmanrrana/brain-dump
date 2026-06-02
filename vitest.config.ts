@@ -35,6 +35,10 @@ const defaultExclude = [
 ];
 
 export default defineConfig({
+  // The React Compiler (babel-plugin-react-compiler) is intentionally NOT enabled here.
+  // Tests run on un-compiled components by design — assert user-visible behavior, not the
+  // referential identity of compiler-memoized values. Production code is compiled; see
+  // vite.config.ts and docs/performance/react-compiler.md.
   plugins: [react()],
   test: {
     setupFiles: ["./src/mocks/vitest.setup.ts"],

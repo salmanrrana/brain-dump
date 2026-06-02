@@ -178,7 +178,10 @@ test("capture runtime performance baseline", async ({ page }) => {
 
   // Fail loudly on a broken precondition rather than emitting a green run with null
   // detail-route data the reader might transcribe or overlook.
-  expect(epicId, "No epics in the Playwright DB — was first-launch sample data seeded?").toBeTruthy();
+  expect(
+    epicId,
+    "No epics in the Playwright DB — was first-launch sample data seeded?"
+  ).toBeTruthy();
   expect(
     ticketId,
     "No tickets in the Playwright DB — was first-launch sample data seeded?"

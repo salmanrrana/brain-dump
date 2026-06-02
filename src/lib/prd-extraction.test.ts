@@ -317,9 +317,9 @@ describe("getProjectContext", () => {
 
 ### Code Quality (Always Required)
 
-- [ ] Run \`pnpm type-check\`
-- [ ] Run \`pnpm lint\`
-- [ ] Run \`pnpm test\`
+- [ ] Run \`make typecheck\`
+- [ ] Run \`make lint\`
+- [ ] Run \`make test\`
 
 ## Other Section
 `;
@@ -327,6 +327,6 @@ describe("getProjectContext", () => {
 
     const result = getProjectContext(testDir);
     expect(result.verificationSteps).toHaveLength(3);
-    expect(result.verificationSteps[0]).toContain("pnpm type-check");
+    expect(result.verificationSteps[0]).toContain("make typecheck");
   });
 });

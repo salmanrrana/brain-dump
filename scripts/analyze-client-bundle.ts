@@ -3,7 +3,12 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, extname, join, relative, resolve } from "node:path";
 import { gzipSync } from "node:zlib";
-import { type BundleBudgets, formatBytes, loadPerfBudgets, resolveCeilingBytes } from "./perf-budgets";
+import {
+  type BundleBudgets,
+  formatBytes,
+  loadPerfBudgets,
+  resolveCeilingBytes,
+} from "./perf-budgets";
 
 type AssetKind = "script" | "style" | "other";
 

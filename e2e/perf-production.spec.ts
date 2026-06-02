@@ -176,7 +176,11 @@ test("production build stays within performance budgets across the hot-path flow
     .filter((script) => script.decodedBodySize > 0)
     .map((script) => {
       const name = script.url.split("/").pop() ?? script.url;
-      return { name, size: script.decodedBodySize, ceiling: resolveCeilingBytes(name, budgets.bundle) };
+      return {
+        name,
+        size: script.decodedBodySize,
+        ceiling: resolveCeilingBytes(name, budgets.bundle),
+      };
     })
     .filter((script) => script.size > script.ceiling);
   expect(
@@ -197,7 +201,10 @@ test("production build stays within performance budgets across the hot-path flow
   // TTFB always fires on navigation, so it is a REQUIRED, non-null assertion —
   // this is what guarantees the web-vitals signal is genuinely wired in prod.
   const ttfb = vitals.TTFB;
-  expect(ttfb, "TTFB was never reported by web-vitals (is registerWebVitals wired?)").not.toBeNull();
+  expect(
+    ttfb,
+    "TTFB was never reported by web-vitals (is registerWebVitals wired?)"
+  ).not.toBeNull();
   expect(ttfb!.value).toBeLessThanOrEqual(runtime.ttfbMs);
 
   // LCP/CLS/INP only finalize on interaction or page-hide, so they may be null in

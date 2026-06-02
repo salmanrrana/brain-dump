@@ -3,7 +3,7 @@ import { createReadStream, existsSync, readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
-import { recalculateCosts, recordUsage, syncDefaultCostModels } from "./cost.ts";
+import { chunkIds, recalculateCosts, recordUsage, syncDefaultCostModels } from "./cost.ts";
 import type { DbHandle } from "./types.ts";
 import type { RecalculateResult } from "./cost.ts";
 import type { Dirent } from "node:fs";
@@ -99,11 +99,26 @@ function overlapMs(left: TimeWindow, right: TimeWindow): number {
   return Math.max(0, Math.min(left.endMs, right.endMs) - Math.max(left.startMs, right.startMs));
 }
 
-function sessionHasUsage(db: DbHandle, telemetrySessionId: string): boolean {
-  const existing = db
-    .prepare("SELECT COUNT(*) as count FROM token_usage WHERE telemetry_session_id = ?")
-    .get(telemetrySessionId) as { count: number };
-  return existing.count > 0;
+/**
+ * Pre-fetch the set of telemetry session ids that already have token_usage in
+ * one query (chunked for SQLite's bound-parameter cap) instead of a COUNT(*)
+ * per session inside the backfill loop.
+ */
+function loadSessionsWithUsage(db: DbHandle, sessionIds: string[]): Set<string> {
+  const withUsage = new Set<string>();
+  for (const ids of chunkIds(sessionIds)) {
+    const placeholders = ids.map(() => "?").join(", ");
+    // The IN-list excludes NULLs by construction, so rows are non-null ids.
+    const rows = db
+      .prepare(
+        `SELECT DISTINCT telemetry_session_id
+         FROM token_usage
+         WHERE telemetry_session_id IN (${placeholders})`
+      )
+      .all(...ids) as Array<{ telemetry_session_id: string }>;
+    for (const row of rows) withUsage.add(row.telemetry_session_id);
+  }
+  return withUsage;
 }
 
 function loadMissingUsageSessions(db: DbHandle, environments: string[]): BrainTelemetrySession[] {
@@ -194,12 +209,16 @@ function backfillOpenCode(db: DbHandle): BackfillSourceResult {
       .all() as OpenCodeSession[];
 
     const usedOpenCodeSessionIds = new Set<string>();
+    const sessionsWithUsage = loadSessionsWithUsage(
+      db,
+      sessions.map((session) => session.telemetrySessionId)
+    );
     let insertedRows = 0;
     let skippedExistingRows = 0;
     let matchedSessions = 0;
 
     for (const session of sessions) {
-      if (sessionHasUsage(db, session.telemetrySessionId)) {
+      if (sessionsWithUsage.has(session.telemetrySessionId)) {
         skippedExistingRows += 1;
         continue;
       }
@@ -343,12 +362,16 @@ async function backfillClaudeCode(db: DbHandle): Promise<BackfillSourceResult> {
   }
 
   const usedTranscriptPaths = new Set<string>();
+  const sessionsWithUsage = loadSessionsWithUsage(
+    db,
+    sessions.map((session) => session.telemetrySessionId)
+  );
   let insertedRows = 0;
   let skippedExistingRows = 0;
   let matchedSessions = 0;
 
   for (const session of sessions) {
-    if (sessionHasUsage(db, session.telemetrySessionId)) {
+    if (sessionsWithUsage.has(session.telemetrySessionId)) {
       skippedExistingRows += 1;
       continue;
     }
@@ -514,12 +537,16 @@ async function backfillCodexCli(db: DbHandle): Promise<BackfillSourceResult> {
   }
 
   const usedTranscriptPaths = new Set<string>();
+  const sessionsWithUsage = loadSessionsWithUsage(
+    db,
+    sessions.map((session) => session.telemetrySessionId)
+  );
   let insertedRows = 0;
   let skippedExistingRows = 0;
   let matchedSessions = 0;
 
   for (const session of sessions) {
-    if (sessionHasUsage(db, session.telemetrySessionId)) {
+    if (sessionsWithUsage.has(session.telemetrySessionId)) {
       skippedExistingRows += 1;
       continue;
     }

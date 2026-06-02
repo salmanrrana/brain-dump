@@ -75,6 +75,9 @@ export const tickets = sqliteTable(
     index("idx_tickets_project_status").on(table.projectId, table.status),
     index("idx_tickets_epic_status").on(table.epicId, table.status),
     index("idx_tickets_project_priority").on(table.projectId, table.priority),
+    // Board filter+sort (project_id, ORDER BY position) and analytics completed_at
+    index("idx_tickets_project_position").on(table.projectId, table.position),
+    index("idx_tickets_completed_at").on(table.completedAt),
   ]
 );
 
