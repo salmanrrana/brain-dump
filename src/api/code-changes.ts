@@ -53,6 +53,7 @@ export interface CodeChangePatchServerInput {
   ticketId?: string;
   sourceId?: string;
   filePath?: string;
+  ignoreWhitespace?: boolean;
 }
 
 export function validateCodeChangePatchInputForApi(input: unknown): CodeChangePatchServerInput {
@@ -70,6 +71,7 @@ export function validateCodeChangePatchInputForApi(input: unknown): CodeChangePa
     ...(ticketId ? { ticketId } : {}),
     ...(sourceId ? { sourceId } : {}),
     ...(filePath ? { filePath } : {}),
+    ...(data.ignoreWhitespace === true ? { ignoreWhitespace: true } : {}),
   };
 }
 

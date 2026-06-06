@@ -218,6 +218,7 @@ export function EpicCodeChangesSection({
               error={error}
               onSelectionChange={onSearchChange}
               onRetrySummary={() => void refetch()}
+              onClose={() => onSearchChange({ open: false })}
             />
           </Suspense>
         </div>

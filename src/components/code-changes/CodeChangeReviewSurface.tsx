@@ -36,6 +36,12 @@ export interface CodeChangeReviewSurfaceProps {
   error?: string | null;
   onSelectionChange?: (selection: CodeChangeSelectionPatch) => void;
   onRetrySummary?: () => void;
+  /**
+   * Called when the user dismisses the review surface from within it (Escape
+   * key). Lets the host route close the panel without forcing keyboard users to
+   * tab back up to the header toggle.
+   */
+  onClose?: () => void;
   className?: string;
 }
 
@@ -254,6 +260,7 @@ export function CodeChangeReviewSurface({
   error = null,
   onSelectionChange,
   onRetrySummary,
+  onClose,
   className = "",
 }: CodeChangeReviewSurfaceProps) {
   const visibleGroups = useMemo(
@@ -279,6 +286,7 @@ export function CodeChangeReviewSurface({
       ...(selectedFile?.group.ticketId ? { ticketId: selectedFile.group.ticketId } : {}),
       ...(selectedFile?.sourceId ? { sourceId: selectedFile.sourceId } : {}),
       ...(selectedFile?.file.path ? { filePath: selectedFile.file.path } : {}),
+      ...(selection.ignoreWhitespace ? { ignoreWhitespace: true } : {}),
     },
     { enabled: open && Boolean(selectedFile) }
   );
@@ -305,6 +313,12 @@ export function CodeChangeReviewSurface({
   return (
     <section
       className={`rounded-xl border border-[var(--border-primary)] bg-[var(--bg-primary)] p-4 ${className}`}
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && onClose) {
+          event.stopPropagation();
+          onClose();
+        }
+      }}
     >
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>

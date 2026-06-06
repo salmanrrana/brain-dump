@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { ChangedFilesTree } from "./ChangedFilesTree";
@@ -256,6 +256,47 @@ describe("CodeChangeReviewSurface", () => {
     );
     expect(screen.getByLabelText("Unified diff")).toBeInTheDocument();
   });
+
+  it("forwards ignoreWhitespace to the patch fetch so the toggle actually changes the diff", () => {
+    render(
+      <CodeChangeReviewSurface
+        scope={{ type: "ticket", id: "ticket-1" }}
+        summary={createSummary()}
+        open={true}
+        selection={{
+          selectedFilePath: "src/features/auth/Login.tsx",
+          selectedSourceId: "ticket:ticket-1:commit:abc123",
+          wordWrap: true,
+          ignoreWhitespace: true,
+        }}
+      />
+    );
+
+    expect(mockUseCodeChangePatch).toHaveBeenLastCalledWith(
+      expect.objectContaining({ ignoreWhitespace: true }),
+      { enabled: true }
+    );
+  });
+
+  it("closes the surface when the user presses Escape", () => {
+    const onClose = vi.fn();
+
+    render(
+      <CodeChangeReviewSurface
+        scope={{ type: "ticket", id: "ticket-1" }}
+        summary={createSummary()}
+        open={true}
+        selection={{ wordWrap: true, ignoreWhitespace: false }}
+        onClose={onClose}
+      />
+    );
+
+    // The keydown handler is bound to the surface <section>; React events bubble,
+    // so dispatching from a descendant inside the surface reaches it.
+    fireEvent.keyDown(screen.getByText("Select a file to load its diff."), { key: "Escape" });
+
+    expect(onClose).toHaveBeenCalled();
+  });
 });
 
 describe("DiffPatchViewer", () => {
@@ -268,5 +309,21 @@ describe("DiffPatchViewer", () => {
     const largePatch = `${"@@ -1 +1 @@\n+line\n"}${" context\n".repeat(130000)}`;
     rerender(<DiffPatchViewer patch={largePatch} />);
     expect(screen.getByText(/large patch rendered with virtualization/i)).toBeInTheDocument();
+  });
+
+  it("guards oversized patches behind an explicit render-anyway fallback", async () => {
+    const oversizedPatch = `@@ -1 +1 @@\n${"+line of change\n".repeat(400_000)}`;
+    expect(oversizedPatch.length).toBeGreaterThan(5_000_000);
+
+    render(<DiffPatchViewer patch={oversizedPatch} />);
+
+    // Instead of a blank/frozen panel, the user gets a clear fallback...
+    expect(screen.getByText(/diff is very large/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Unified diff")).not.toBeInTheDocument();
+
+    // ...and can still opt in to rendering it.
+    await userEvent.click(screen.getByRole("button", { name: /render anyway/i }));
+
+    expect(screen.getByLabelText("Unified diff")).toBeInTheDocument();
   });
 });

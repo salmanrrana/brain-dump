@@ -45,6 +45,17 @@ function hasPatchSelection(input: UseCodeChangePatchInput): boolean {
   return Boolean(input.scope.id && input.sourceId && input.filePath);
 }
 
+function describePatchKey(input: UseCodeChangePatchInput) {
+  return {
+    scopeType: input.scope.type,
+    scopeId: input.scope.id,
+    ...(input.ticketId ? { ticketId: input.ticketId } : {}),
+    ...(input.sourceId ? { sourceId: input.sourceId } : {}),
+    ...(input.filePath ? { filePath: input.filePath } : {}),
+    ...(input.ignoreWhitespace ? { ignoreWhitespace: true } : {}),
+  };
+}
+
 export function useCodeChangeSummary(
   scope: CodeChangeScope,
   options: UseCodeChangeSummaryOptions = {}
@@ -93,13 +104,7 @@ export function useCodeChangePatch(
   const enabled = Boolean(options.enabled ?? true) && hasPatchSelection(input);
 
   const query = useQuery<CodeChangePatchResult>({
-    queryKey: queryKeys.codeChangePatch({
-      scopeType: input.scope.type,
-      scopeId: input.scope.id,
-      ...(input.ticketId ? { ticketId: input.ticketId } : {}),
-      ...(input.sourceId ? { sourceId: input.sourceId } : {}),
-      ...(input.filePath ? { filePath: input.filePath } : {}),
-    }),
+    queryKey: queryKeys.codeChangePatch(describePatchKey(input)),
     queryFn: async ({ signal }) => {
       const result = await getCodeChangePatchServerFn({ data: input });
       if (signal.aborted) {

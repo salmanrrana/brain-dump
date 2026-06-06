@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 export interface DiffPatchViewerProps {
@@ -9,6 +9,20 @@ export interface DiffPatchViewerProps {
 
 const DEFAULT_MAX_HEIGHT = 560;
 const LARGE_PATCH_BYTES = 1_000_000;
+// Above this size we do not auto-render. Splitting and virtualizing a multi-MB
+// patch can still stall the main thread, so we show an explicit fallback with an
+// opt-in "Render anyway" instead of risking a frozen or blank panel.
+const OVERSIZED_PATCH_BYTES = 5_000_000;
+
+function formatBytes(bytes: number): string {
+  if (bytes >= 1_000_000) {
+    return `${(bytes / 1_000_000).toFixed(1)} MB`;
+  }
+  if (bytes >= 1_000) {
+    return `${Math.round(bytes / 1_000)} KB`;
+  }
+  return `${bytes} B`;
+}
 
 function getLineClassName(line: string): string {
   if (line.startsWith("+") && !line.startsWith("+++")) {
@@ -36,7 +50,21 @@ export function DiffPatchViewer({
   maxHeight = DEFAULT_MAX_HEIGHT,
 }: DiffPatchViewerProps) {
   const parentRef = useRef<HTMLDivElement | null>(null);
-  const lines = useMemo(() => patch.split("\n"), [patch]);
+  const isOversized = patch.length > OVERSIZED_PATCH_BYTES;
+  const [forceRender, setForceRender] = useState(false);
+
+  // Reset the opt-in render whenever the selected patch changes, so switching to
+  // another oversized file always re-shows the guard instead of silently
+  // rendering it.
+  useEffect(() => {
+    setForceRender(false);
+  }, [patch]);
+
+  const showOversizedGuard = isOversized && !forceRender;
+  const lines = useMemo(
+    () => (showOversizedGuard ? [] : patch.split("\n")),
+    [patch, showOversizedGuard]
+  );
   // Rows are not a fixed height: a wrapped (word-wrap) line or a long unwrapped
   // line is taller than the estimate. The `ref={virtualizer.measureElement}` on
   // each row measures its real height (via the library default), keeping the
@@ -64,6 +92,25 @@ export function DiffPatchViewer({
         <p className="mt-1 text-sm text-[var(--text-tertiary)]">
           This change is binary, so Brain Dump cannot render an inline text diff.
         </p>
+      </div>
+    );
+  }
+
+  if (showOversizedGuard) {
+    return (
+      <div className="rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-4">
+        <h4 className="text-sm font-medium text-[var(--text-primary)]">Diff is very large</h4>
+        <p className="mt-1 text-sm text-[var(--text-tertiary)]">
+          This patch is {formatBytes(patch.length)}. Rendering it inline may make the page
+          unresponsive. Open the change in your editor or pull request, or render it anyway.
+        </p>
+        <button
+          type="button"
+          className="mt-3 inline-flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-3 py-1.5 text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--bg-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]/40"
+          onClick={() => setForceRender(true)}
+        >
+          Render anyway
+        </button>
       </div>
     );
   }

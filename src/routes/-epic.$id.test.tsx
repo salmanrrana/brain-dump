@@ -24,6 +24,8 @@ vi.mock("@tanstack/react-router", () => ({
     history: { back: vi.fn() },
     navigate: vi.fn(),
   }),
+  useNavigate: () => vi.fn(),
+  useSearch: () => ({}),
   useCanGoBack: () => true,
 }));
 
@@ -43,6 +45,10 @@ const EpicDetailPage = Route.options.component as ComponentType;
 
 vi.mock("../api/ship-server-fns", () => ({
   pushBranchServerFn: mockPushBranchServerFn,
+}));
+
+vi.mock("../components/epics/EpicCodeChangesSection", () => ({
+  EpicCodeChangesSection: () => <div>Code changes</div>,
 }));
 
 vi.mock("../lib/hooks", () => ({

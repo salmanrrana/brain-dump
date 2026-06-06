@@ -825,7 +825,8 @@ async function readPatchForSource(
   deps: CodeChangeDeps,
   projectPath: string,
   source: CodeChangeSource,
-  filePath?: string
+  filePath?: string,
+  ignoreWhitespace = false
 ): Promise<CodeChangePatch | CodeChangeState> {
   const parsed = parseSourceId(source.id);
   if (!parsed) {
@@ -835,9 +836,21 @@ async function readPatchForSource(
     );
   }
 
+  // `--ignore-all-space` (-w) makes git omit whitespace-only changes from the
+  // rendered patch. It is a diff option, so it must come before `--end-of-options`
+  // and the commit/range argument.
+  const whitespaceArgs = ignoreWhitespace ? ["--ignore-all-space"] : [];
+
   let args: string[];
   if (parsed.kind === "commit") {
-    args = ["show", "--format=", "--find-renames", "--end-of-options", parsed.value];
+    args = [
+      "show",
+      "--format=",
+      "--find-renames",
+      ...whitespaceArgs,
+      "--end-of-options",
+      parsed.value,
+    ];
   } else {
     const baseBranch = await resolveBaseBranch(deps, projectPath);
     if (!baseBranch) {
@@ -846,7 +859,7 @@ async function readPatchForSource(
         "Neither main nor master is available for branch comparison."
       );
     }
-    args = ["diff", "--find-renames", `${baseBranch}...${parsed.value}`];
+    args = ["diff", "--find-renames", ...whitespaceArgs, `${baseBranch}...${parsed.value}`];
   }
 
   if (filePath) {
@@ -887,6 +900,7 @@ export async function getCodeChangePatch(
     ticketId?: string;
     sourceId?: string;
     filePath?: string;
+    ignoreWhitespace?: boolean;
   },
   deps: CodeChangeDeps
 ): Promise<CodeChangePatchResult> {
@@ -926,7 +940,13 @@ export async function getCodeChangePatch(
 
   const patchResults = await Promise.all(
     selectedSources.map((source) =>
-      readPatchForSource(deps, summaryContext.project.path, source, input.filePath)
+      readPatchForSource(
+        deps,
+        summaryContext.project.path,
+        source,
+        input.filePath,
+        input.ignoreWhitespace ?? false
+      )
     )
   );
   const firstState = patchResults.find((result): result is CodeChangeState => "kind" in result);

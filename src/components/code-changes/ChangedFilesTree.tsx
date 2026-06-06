@@ -125,6 +125,16 @@ function TreeNode({
       : (file?.sourceIds[0] ?? "");
   const isSelected = node.path === selectedFilePath;
   const isShared = sharedFilePaths?.has(node.path) ?? false;
+  const ariaLabel = [
+    node.name,
+    file?.status ? `status ${file.status}` : null,
+    `${node.additions} added`,
+    `${node.deletions} removed`,
+    isShared ? "shared across tickets" : null,
+    file?.binary ? "binary" : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
 
   return (
     <li>
@@ -136,6 +146,7 @@ function TreeNode({
             : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
         }`}
         style={{ paddingLeft }}
+        aria-label={ariaLabel}
         aria-current={isSelected ? "true" : undefined}
         onClick={() => {
           if (file && sourceId) {

@@ -454,4 +454,74 @@ describe("getCodeChangePatch", () => {
       maxBuffer: 16 * 1024 * 1024,
     });
   });
+
+  it("passes --ignore-all-space to git when ignoreWhitespace is requested", async () => {
+    const repoPath = createRepoDir();
+    seedProject(db, { id: "proj-1", path: repoPath });
+    seedTicket(db, { id: "ticket-1", projectId: "proj-1" });
+    linkCommits("ticket-1", ["abcdef1234567890"]);
+    const { execFileNoThrow, calls } = createRecordingExec({
+      [createCommandKey(
+        ["cat-file", "-e", "--end-of-options", "abcdef1234567890^{commit}"],
+        repoPath
+      )]: createExecResult(),
+      [createCommandKey(
+        [
+          "show",
+          "--numstat",
+          "--format=",
+          "--find-renames",
+          "--end-of-options",
+          "abcdef1234567890",
+        ],
+        repoPath
+      )]: createExecResult({ stdout: "10\t2\tsrc/commit.ts\n" }),
+      [createCommandKey(
+        [
+          "show",
+          "--name-status",
+          "--format=",
+          "--find-renames",
+          "--end-of-options",
+          "abcdef1234567890",
+        ],
+        repoPath
+      )]: createExecResult({ stdout: "M\tsrc/commit.ts\n" }),
+      [createCommandKey(
+        [
+          "show",
+          "--format=",
+          "--find-renames",
+          "--ignore-all-space",
+          "--end-of-options",
+          "abcdef1234567890",
+          "--",
+          "src/commit.ts",
+        ],
+        repoPath
+      )]: createExecResult({ stdout: "diff --git a/src/commit.ts b/src/commit.ts\n+changed" }),
+    });
+
+    const patch = await getCodeChangePatch(
+      {
+        scope: { type: "ticket", id: "ticket-1" },
+        sourceId: "ticket:ticket-1:commit:abcdef1234567890",
+        filePath: "src/commit.ts",
+        ignoreWhitespace: true,
+      },
+      { db, execFileNoThrow }
+    );
+
+    expect(patch.state.kind).toBe("available");
+    expect(calls.at(-1)?.args).toEqual([
+      "show",
+      "--format=",
+      "--find-renames",
+      "--ignore-all-space",
+      "--end-of-options",
+      "abcdef1234567890",
+      "--",
+      "src/commit.ts",
+    ]);
+  });
 });

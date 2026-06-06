@@ -133,5 +133,6 @@ export const queryKeys = {
     ticketId?: string;
     sourceId?: string;
     filePath?: string;
+    ignoreWhitespace?: boolean;
   }) => ["codeChanges", "patch", params] as const,
 };
