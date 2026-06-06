@@ -1,6 +1,13 @@
-import { createFileRoute, useParams, useRouter, useCanGoBack } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  useParams,
+  useRouter,
+  useCanGoBack,
+  useNavigate,
+  useSearch,
+} from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { ArrowLeft, AlertCircle } from "lucide-react";
 import { pushBranchServerFn } from "../api/ship-server-fns";
 import { useEpicDetail } from "../lib/hooks";
@@ -12,11 +19,17 @@ import { EpicTicketsList } from "../components/epics/EpicTicketsList";
 import { EpicLearnings } from "../components/epics/EpicLearnings";
 import { EpicInsights } from "../components/epics/EpicInsights";
 import { EpicCostPanel } from "../components/epics/EpicCostPanel";
+import { EpicCodeChangesSection } from "../components/epics/EpicCodeChangesSection";
 import { TicketDescription } from "../components/tickets/TicketDescription";
 import { ShipChangesModal } from "../components/tickets";
 import EpicModal from "../components/EpicModal";
 import { useToast } from "../components/Toast";
 import { queryKeys } from "../lib/query-keys";
+import {
+  applyCodeChangeSearchToObject,
+  parseCodeChangeRouteSearch,
+  type CodeChangeRouteSearchPatch,
+} from "../lib/code-change-route-search";
 
 export const Route = createFileRoute("/epic/$id")({
   loader: async ({ context, params }) => {
@@ -37,6 +50,21 @@ export const Route = createFileRoute("/epic/$id")({
   },
   component: EpicDetailPage,
   errorComponent: EpicDetailError,
+  // Normalize the code-changes panel state (open/close + selected ticket/source/
+  // file) into stable query params so the panel can be deep-linked and restored.
+  validateSearch: (search: Record<string, unknown>): Record<string, string> => {
+    const parsed = parseCodeChangeRouteSearch(search);
+    // Normalize code-change params on top of the existing search so any unrelated
+    // params are preserved rather than dropped.
+    return applyCodeChangeSearchToObject(search, {
+      open: parsed.open,
+      selectedTicketId: parsed.selectedTicketId,
+      selectedSourceId: parsed.selectedSourceId,
+      selectedFilePath: parsed.selectedFilePath,
+      wordWrap: parsed.wordWrap,
+      ignoreWhitespace: parsed.ignoreWhitespace,
+    });
+  },
 });
 
 function EpicDetailError({ error }: { error: Error }) {
@@ -192,6 +220,25 @@ function EpicDetailPage() {
   const canGoBack = useCanGoBack();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+
+  // Code-changes panel state lives in the URL so the panel can be deep-linked
+  // and restored. Parse once per search change into the shared route-search shape.
+  const rawSearch = useSearch({ from: "/epic/$id" });
+  const codeChangeSearch = useMemo(
+    () => parseCodeChangeRouteSearch(rawSearch as Record<string, unknown>),
+    [rawSearch]
+  );
+  const handleCodeChangeSearch = useCallback(
+    (patch: CodeChangeRouteSearchPatch) => {
+      void navigate({
+        to: ".",
+        search: (prev) => applyCodeChangeSearchToObject(prev as Record<string, unknown>, patch),
+        replace: true,
+      });
+    },
+    [navigate]
+  );
 
   const [showEditModal, setShowEditModal] = useState(false);
   const [showShipModal, setShowShipModal] = useState(false);
@@ -328,6 +375,15 @@ function EpicDetailPage() {
           currentTicketId={epicDetail.workflowState?.currentTicketId ?? null}
         />
       </section>
+
+      <EpicCodeChangesSection
+        epicId={epicDetail.epic.id}
+        branchName={epicDetail.workflowState?.epicBranchName}
+        prNumber={epicDetail.workflowState?.prNumber}
+        prUrl={epicDetail.workflowState?.prUrl}
+        search={codeChangeSearch}
+        onSearchChange={handleCodeChangeSearch}
+      />
 
       <div style={contentGridStyles}>
         <section style={sectionStyles}>

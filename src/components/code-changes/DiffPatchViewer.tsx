@@ -37,11 +37,16 @@ export function DiffPatchViewer({
 }: DiffPatchViewerProps) {
   const parentRef = useRef<HTMLDivElement | null>(null);
   const lines = useMemo(() => patch.split("\n"), [patch]);
+  // Rows are not a fixed height: a wrapped (word-wrap) line or a long unwrapped
+  // line is taller than the estimate. Measuring each rendered row keeps the
+  // absolute offsets in sync with real heights so lines never stack on top of
+  // one another. estimateSize is only the pre-measurement placeholder.
   const virtualizer = useVirtualizer({
     count: lines.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 22,
     overscan: 12,
+    measureElement: (element) => element.getBoundingClientRect().height,
   });
 
   if (!patch.trim()) {
@@ -84,6 +89,8 @@ export function DiffPatchViewer({
             return (
               <div
                 key={virtualRow.key}
+                data-index={virtualRow.index}
+                ref={virtualizer.measureElement}
                 className={`absolute left-0 top-0 flex min-w-full ${getLineClassName(line)}`}
                 style={{ transform: `translateY(${virtualRow.start}px)` }}
               >

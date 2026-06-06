@@ -132,6 +132,73 @@ function findSource(groups: TicketCodeChangeGroup[], sourceId: string): CodeChan
   return null;
 }
 
+/**
+ * Paths that appear in more than one ticket group. Used to flag files shared
+ * across tickets in an epic so the boundary is obvious even when several tickets
+ * touch the same file.
+ */
+function computeSharedFilePaths(groups: TicketCodeChangeGroup[]): Set<string> {
+  const ticketsByPath = new Map<string, Set<string>>();
+
+  for (const group of groups) {
+    for (const file of group.files) {
+      const tickets = ticketsByPath.get(file.path) ?? new Set<string>();
+      tickets.add(group.ticketId);
+      ticketsByPath.set(file.path, tickets);
+    }
+  }
+
+  const shared = new Set<string>();
+  for (const [path, tickets] of ticketsByPath) {
+    if (tickets.size > 1) {
+      shared.add(path);
+    }
+  }
+
+  return shared;
+}
+
+/**
+ * Short, human-readable source context for a ticket group (e.g. "Commit abc1234"
+ * or "Branch feature/x +1 more") shown on the ticket strip.
+ */
+function describeGroupSources(group: TicketCodeChangeGroup): string | null {
+  if (group.sources.length === 0) {
+    return null;
+  }
+
+  const [first, ...rest] = group.sources;
+  if (!first) {
+    return null;
+  }
+
+  return rest.length > 0 ? `${first.label} +${rest.length} more` : first.label;
+}
+
+function formatStatusLabel(status: string): string {
+  return status.replace(/_/g, " ");
+}
+
+function GroupStats({
+  files,
+  additions,
+  deletions,
+}: {
+  files: number;
+  additions: number;
+  deletions: number;
+}) {
+  return (
+    <span className="inline-flex items-center gap-2 text-xs tabular-nums">
+      <span className="text-[var(--text-tertiary)]">
+        {files} file{files === 1 ? "" : "s"}
+      </span>
+      <span className="text-[var(--success)]">+{additions}</span>
+      <span className="text-[var(--accent-danger)]">-{deletions}</span>
+    </span>
+  );
+}
+
 function SourcePill({ source }: { source: CodeChangeSource }) {
   return (
     <span className="inline-flex items-center gap-1 rounded-full border border-[var(--border-primary)] bg-[var(--bg-tertiary)] px-2 py-1 text-xs text-[var(--text-secondary)]">
@@ -194,6 +261,13 @@ export function CodeChangeReviewSurface({
     [summary?.groups, selection.selectedTicketId]
   );
   const visibleFiles = useMemo(() => flattenFiles(visibleGroups), [visibleGroups]);
+  // Shared paths are computed across the whole scope (not just visible groups)
+  // so the "shared" marker is stable, and only surfaced in the aggregate "All
+  // tickets" view where multiple groups are combined.
+  const sharedFilePaths = useMemo(
+    () => computeSharedFilePaths(summary?.groups ?? []),
+    [summary?.groups]
+  );
   const selectedFile = useMemo(
     () => findSelectedFile(visibleGroups, selection),
     [visibleGroups, selection]
@@ -268,13 +342,18 @@ export function CodeChangeReviewSurface({
       </div>
 
       {summary.groups.length > 1 && (
-        <div className="mb-4 flex flex-wrap gap-2" aria-label="Ticket code-change groups">
+        <div
+          className="mb-4 flex flex-wrap gap-2"
+          role="group"
+          aria-label="Ticket code-change groups"
+        >
           <button
             type="button"
-            className={`rounded-full px-3 py-1 text-xs font-medium ${
+            aria-pressed={!selection.selectedTicketId}
+            className={`flex flex-col items-start gap-1 rounded-lg border px-3 py-2 text-left focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]/40 ${
               !selection.selectedTicketId
-                ? "bg-[var(--accent-primary)] text-white"
-                : "bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+                ? "border-[var(--accent-primary)]/40 bg-[var(--accent-primary)]/10"
+                : "border-[var(--border-primary)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)]"
             }`}
             onClick={() =>
               onSelectionChange?.({
@@ -284,28 +363,67 @@ export function CodeChangeReviewSurface({
               })
             }
           >
-            All tickets
-          </button>
-          {summary.groups.map((group) => (
-            <button
-              key={group.ticketId}
-              type="button"
-              className={`rounded-full px-3 py-1 text-xs font-medium ${
-                selection.selectedTicketId === group.ticketId
-                  ? "bg-[var(--accent-primary)] text-white"
-                  : "bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+            <span
+              className={`text-xs font-semibold ${
+                !selection.selectedTicketId
+                  ? "text-[var(--accent-primary)]"
+                  : "text-[var(--text-primary)]"
               }`}
-              onClick={() =>
-                onSelectionChange?.({
-                  selectedTicketId: group.ticketId,
-                  selectedFilePath: null,
-                  selectedSourceId: null,
-                })
-              }
             >
-              {group.title} · {group.totals.files}
-            </button>
-          ))}
+              All tickets
+            </span>
+            <GroupStats
+              files={summary.totals.files}
+              additions={summary.totals.additions}
+              deletions={summary.totals.deletions}
+            />
+          </button>
+          {summary.groups.map((group) => {
+            const active = selection.selectedTicketId === group.ticketId;
+            const sourceLabel = describeGroupSources(group);
+            return (
+              <button
+                key={group.ticketId}
+                type="button"
+                aria-pressed={active}
+                className={`flex max-w-[18rem] flex-col items-start gap-1 rounded-lg border px-3 py-2 text-left focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]/40 ${
+                  active
+                    ? "border-[var(--accent-primary)]/40 bg-[var(--accent-primary)]/10"
+                    : "border-[var(--border-primary)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)]"
+                }`}
+                onClick={() =>
+                  onSelectionChange?.({
+                    selectedTicketId: group.ticketId,
+                    selectedFilePath: null,
+                    selectedSourceId: null,
+                  })
+                }
+              >
+                <span className="flex w-full items-center gap-2">
+                  <span
+                    className={`min-w-0 flex-1 truncate text-xs font-semibold ${
+                      active ? "text-[var(--accent-primary)]" : "text-[var(--text-primary)]"
+                    }`}
+                  >
+                    {group.title}
+                  </span>
+                  <span className="shrink-0 rounded-full bg-[var(--bg-tertiary)] px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-[var(--text-tertiary)]">
+                    {formatStatusLabel(group.status)}
+                  </span>
+                </span>
+                <GroupStats
+                  files={group.totals.files}
+                  additions={group.totals.additions}
+                  deletions={group.totals.deletions}
+                />
+                {sourceLabel && (
+                  <span className="max-w-full truncate text-[11px] text-[var(--text-tertiary)]">
+                    {sourceLabel}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -314,6 +432,7 @@ export function CodeChangeReviewSurface({
           files={visibleFiles}
           selectedFilePath={selection.selectedFilePath}
           selectedSourceId={selection.selectedSourceId}
+          sharedFilePaths={selection.selectedTicketId ? undefined : sharedFilePaths}
           onSelectFile={(file, sourceId) => {
             const group = visibleGroups.find((candidate) =>
               candidate.files.some((item) => item.path === file.path)

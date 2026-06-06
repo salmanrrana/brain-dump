@@ -8,6 +8,12 @@ export interface ChangedFilesTreeProps {
   selectedFilePath?: string | undefined;
   selectedSourceId?: string | undefined;
   onSelectFile?: ((file: CodeChangeFileSummary, sourceId: string) => void) | undefined;
+  /**
+   * Paths that appear in more than one ticket group. When provided, these files
+   * are flagged with a "shared" marker so reviewers can see at a glance that the
+   * file is touched by multiple tickets in the epic.
+   */
+  sharedFilePaths?: ReadonlySet<string> | undefined;
   className?: string;
 }
 
@@ -47,6 +53,7 @@ function TreeNode({
   expandedIds,
   selectedFilePath,
   selectedSourceId,
+  sharedFilePaths,
   onToggle,
   onSelectFile,
 }: {
@@ -55,6 +62,7 @@ function TreeNode({
   expandedIds: Set<string>;
   selectedFilePath?: string | undefined;
   selectedSourceId?: string | undefined;
+  sharedFilePaths?: ReadonlySet<string> | undefined;
   onToggle: (nodeId: string) => void;
   onSelectFile?: ((file: CodeChangeFileSummary, sourceId: string) => void) | undefined;
 }) {
@@ -90,6 +98,7 @@ function TreeNode({
                 expandedIds={expandedIds}
                 selectedFilePath={selectedFilePath}
                 selectedSourceId={selectedSourceId}
+                sharedFilePaths={sharedFilePaths}
                 onToggle={onToggle}
                 onSelectFile={onSelectFile}
               />
@@ -115,6 +124,7 @@ function TreeNode({
       ? selectedSourceId
       : (file?.sourceIds[0] ?? "");
   const isSelected = node.path === selectedFilePath;
+  const isShared = sharedFilePaths?.has(node.path) ?? false;
 
   return (
     <li>
@@ -135,6 +145,14 @@ function TreeNode({
       >
         <FileText size={14} />
         <span className="min-w-0 flex-1 truncate">{node.name}</span>
+        {isShared && (
+          <span
+            className="rounded-full bg-[var(--info-muted)] px-1.5 py-0.5 text-[10px] uppercase text-[var(--info)]"
+            title="This file is changed by more than one ticket in the epic."
+          >
+            shared
+          </span>
+        )}
         {file?.binary && (
           <span className="rounded-full bg-[var(--bg-tertiary)] px-1.5 py-0.5 text-[10px] uppercase text-[var(--text-tertiary)]">
             binary
@@ -152,6 +170,7 @@ export function ChangedFilesTree({
   selectedFilePath,
   selectedSourceId,
   onSelectFile,
+  sharedFilePaths,
   className = "",
 }: ChangedFilesTreeProps) {
   const tree = useMemo(() => buildCodeChangeFileTree(files), [files]);
@@ -206,6 +225,7 @@ export function ChangedFilesTree({
             expandedIds={expandedIds}
             selectedFilePath={selectedFilePath}
             selectedSourceId={selectedSourceId}
+            sharedFilePaths={sharedFilePaths}
             onToggle={(nodeId) => {
               setExpandedState((current) => {
                 const currentIds =
