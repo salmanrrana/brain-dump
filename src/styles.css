@@ -476,6 +476,16 @@ a.nav-item,
     animation: none !important;
   }
 
+  /* Disable the detail-page entrance reveal. The global duration collapse above
+     does not shorten animation-delay, so the staggered children (fill-mode:
+     both) would still sit at opacity 0 during their delay window — disable the
+     animation outright so content is visible immediately. */
+  .detail-page-full-bleed,
+  .detail-page-primary > *,
+  .detail-page-rail > * {
+    animation: none !important;
+  }
+
   /* Skip link transition - make instant */
   .skip-to-content {
     transition: none !important;
@@ -646,18 +656,6 @@ a.nav-item,
 .detail-page-primary > *:nth-child(n + 4),
 .detail-page-rail > *:nth-child(n + 4) {
   animation-delay: 180ms;
-}
-
-/* Reduced-motion: skip the reveal entirely. The global handler only collapses
-   animation-duration, which would still hold delayed children at opacity 0
-   during their delay window — so disable the animation outright here to
-   guarantee content is visible immediately. */
-@media (prefers-reduced-motion: reduce) {
-  .detail-page-full-bleed,
-  .detail-page-primary > *,
-  .detail-page-rail > * {
-    animation: none !important;
-  }
 }
 
 /* ============================================
