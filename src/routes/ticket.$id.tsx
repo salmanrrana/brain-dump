@@ -772,7 +772,6 @@ const fullBleedTopStyles: React.CSSProperties = {
 
 const backNavLinkStyles: React.CSSProperties = {
   display: "inline-flex",
-  // Sit at content width rather than stretching the full canvas in the column.
   alignSelf: "flex-start",
   alignItems: "center",
   gap: "var(--spacing-2)",

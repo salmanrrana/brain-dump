@@ -3,8 +3,6 @@ import { activitySectionStyles, metadataStyles } from "./ticket.$id";
 
 describe("Ticket detail workspace layout regression guards", () => {
   it("keeps the activity log in normal flow as primary reading (not a fixed/sticky widget)", () => {
-    // Activity is the primary reading log: it must flow naturally in the
-    // primary column at intrinsic height, never pinned or stretched.
     expect(activitySectionStyles.flex).toBe("0 0 auto");
     expect(activitySectionStyles.position).toBeUndefined();
   });
