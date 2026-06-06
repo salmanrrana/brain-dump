@@ -523,6 +523,95 @@ a.nav-item,
 }
 
 /* ============================================
+   DETAIL PAGE WORKSPACE LAYOUT
+   ============================================
+   Responsive shell shared by the ticket + epic detail pages. Implemented as
+   global classes (not inline styles) because the layout needs media queries
+   and a sticky rail breakpoint that React.CSSProperties cannot express.
+   See src/components/layout/DetailPageLayout.tsx for the component API.
+
+   Structure:
+     .detail-page-layout            -> page scroll container (full width)
+       .detail-page-layout__inner   -> centered, wide-but-bounded column
+         .detail-page-full-bleed    -> spans the bounded canvas
+         .detail-page-body          -> primary + rail grid
+           .detail-page-primary     -> main reading column
+             .detail-page-prose     -> caps long-form text measure
+           .detail-page-rail        -> sticky secondary rail (>=1024px)
+
+   Breakpoint: rail sits beside the primary column at >=1024px and stacks
+   below it under that width. No horizontal overflow at any width.
+*/
+
+.detail-page-layout {
+  height: 100%;
+  overflow-y: auto;
+}
+
+.detail-page-layout__inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+  width: 100%;
+  /* Use the canvas: wider than the old 1200px, bounded so ultra-wide displays
+     do not stretch content into an unreadable band. */
+  max-width: 1680px;
+  margin: 0 auto;
+  padding: var(--spacing-8);
+}
+
+.detail-page-full-bleed {
+  /* Spans the full bounded inner width. Children control their own layout. */
+  min-width: 0;
+}
+
+.detail-page-body {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--spacing-8);
+}
+
+.detail-page-primary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-5);
+  /* Allow grid/flex children to shrink instead of forcing overflow. */
+  min-width: 0;
+}
+
+.detail-page-prose {
+  /* Wide canvas, bounded prose: keep long-form text at a comfortable measure. */
+  max-width: 72ch;
+}
+
+.detail-page-rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-5);
+  min-width: 0;
+}
+
+@media (min-width: 1024px) {
+  .detail-page-body {
+    /* Primary takes the remaining space; rail is a fluid, bounded column. */
+    grid-template-columns: minmax(0, 1fr) clamp(300px, 26%, 380px);
+    /* align-items: start keeps the rail at intrinsic height so sticky has
+       room to scroll past it instead of stretching the full row. */
+    align-items: start;
+  }
+
+  .detail-page-rail {
+    position: sticky;
+    top: var(--spacing-8);
+    z-index: var(--z-sticky);
+    /* If the rail ever grows taller than the viewport, let it scroll
+       internally rather than trapping the page scroll. */
+    max-height: calc(100vh - var(--spacing-16));
+    overflow-y: auto;
+  }
+}
+
+/* ============================================
    HIDE SCROLLBARS WHILE MAINTAINING SCROLLABILITY
    ============================================
    Hide scrollbars for all scrollable elements while keeping scroll functionality.
