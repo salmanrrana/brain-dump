@@ -1,15 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { activitySectionStyles, metadataStyles } from "./ticket.$id";
 
-describe("Ticket detail Activity layout regression guards", () => {
-  it("keeps activity section in normal flow so metadata divider stays below content", () => {
+describe("Ticket detail workspace layout regression guards", () => {
+  it("keeps the activity log in normal flow as primary reading (not a fixed/sticky widget)", () => {
+    // Activity is the primary reading log: it must flow naturally in the
+    // primary column at intrinsic height, never pinned or stretched.
     expect(activitySectionStyles.flex).toBe("0 0 auto");
+    expect(activitySectionStyles.position).toBeUndefined();
   });
 
-  it("renders metadata as a regular footer card", () => {
-    expect(metadataStyles.border).toBe("1px solid var(--border-primary)");
-    expect(metadataStyles.padding).toBe("var(--spacing-5)");
-    expect(metadataStyles.display).toBe("flex");
-    expect(metadataStyles.position).toBeUndefined();
+  it("renders rail metadata as a quiet footnote, not another bordered card", () => {
+    // After the workspace re-layout the created/updated/completed metadata lives
+    // in the sticky rail as a compact footer. Guard against it regressing back
+    // into a heavy full card (which reintroduced the identical-card monotony).
+    expect(metadataStyles.border).toBeUndefined();
+    expect(metadataStyles.background).toBeUndefined();
+    expect(metadataStyles.borderTop).toBe("1px solid var(--border-primary)");
+    expect(metadataStyles.flexDirection).toBe("column");
   });
 });
