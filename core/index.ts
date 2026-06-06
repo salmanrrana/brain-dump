@@ -337,6 +337,22 @@ export {
   syncPrVerificationChecklist,
 } from "./ship.ts";
 
+export { getCodeChangeSummary, getCodeChangePatch, defaultCodeChangeDeps } from "./code-changes.ts";
+
+export type {
+  CodeChangeScope,
+  CodeChangeSourceKind,
+  CodeChangeStateKind,
+  CodeChangeState,
+  CodeChangeSource,
+  CodeChangeFileSummary,
+  TicketCodeChangeGroup,
+  CodeChangeSummaryResult,
+  CodeChangePatch,
+  CodeChangePatchResult,
+  CodeChangeDeps,
+} from "./code-changes.ts";
+
 export type {
   SyncPrVerificationChecklistInput,
   SyncPrVerificationChecklistDeps,

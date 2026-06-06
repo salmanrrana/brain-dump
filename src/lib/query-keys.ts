@@ -123,4 +123,15 @@ export const queryKeys = {
   gitCommits: (projectPath: string) => ["gitCommits", projectPath] as const,
   gitCommitFileStats: (projectPath: string, hash: string) =>
     ["gitCommitFileStats", projectPath, hash] as const,
+
+  // Code changes
+  codeChangeSummary: (scopeType: "ticket" | "epic", scopeId: string) =>
+    ["codeChanges", "summary", scopeType, scopeId] as const,
+  codeChangePatch: (params: {
+    scopeType: "ticket" | "epic";
+    scopeId: string;
+    ticketId?: string;
+    sourceId?: string;
+    filePath?: string;
+  }) => ["codeChanges", "patch", params] as const,
 };
