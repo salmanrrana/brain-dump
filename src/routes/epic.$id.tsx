@@ -664,7 +664,7 @@ const errorCardStyles: React.CSSProperties = {
   gap: "var(--spacing-5)",
   padding: "var(--spacing-10)",
   background: "var(--bg-card)",
-  borderRadius: "var(--radius-2xl)",
+  borderRadius: "var(--radius-xl)",
   border: "1px solid var(--border-primary)",
   textAlign: "center",
   maxWidth: "440px",
