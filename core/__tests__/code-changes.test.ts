@@ -114,25 +114,43 @@ describe("getCodeChangeSummary", () => {
     );
 
     const { execFileNoThrow, calls } = createRecordingExec({
-      [createCommandKey(["cat-file", "-e", "abcdef1234567890^{commit}"], repoPath)]:
-        createExecResult(),
       [createCommandKey(
-        ["show", "--numstat", "--format=", "--find-renames", "abcdef1234567890"],
+        ["cat-file", "-e", "--end-of-options", "abcdef1234567890^{commit}"],
+        repoPath
+      )]: createExecResult(),
+      [createCommandKey(
+        [
+          "show",
+          "--numstat",
+          "--format=",
+          "--find-renames",
+          "--end-of-options",
+          "abcdef1234567890",
+        ],
         repoPath
       )]: createExecResult({ stdout: "10\t2\tsrc/commit.ts\n" }),
       [createCommandKey(
-        ["show", "--name-status", "--format=", "--find-renames", "abcdef1234567890"],
+        [
+          "show",
+          "--name-status",
+          "--format=",
+          "--find-renames",
+          "--end-of-options",
+          "abcdef1234567890",
+        ],
         repoPath
       )]: createExecResult({ stdout: "M\tsrc/commit.ts\n" }),
-      [createCommandKey(["rev-parse", "--verify", "feature/ticket-1"], repoPath)]:
-        createExecResult(),
+      [createCommandKey(
+        ["rev-parse", "--verify", "--end-of-options", "feature/ticket-1"],
+        repoPath
+      )]: createExecResult(),
       [createCommandKey(["rev-parse", "--verify", "main"], repoPath)]: createExecResult(),
       [createCommandKey(
-        ["diff", "--numstat", "--find-renames", "main...feature/ticket-1"],
+        ["diff", "--numstat", "--find-renames", "--end-of-options", "main...feature/ticket-1"],
         repoPath
       )]: createExecResult({ stdout: "3\t1\tsrc/branch.ts\n" }),
       [createCommandKey(
-        ["diff", "--name-status", "--find-renames", "main...feature/ticket-1"],
+        ["diff", "--name-status", "--find-renames", "--end-of-options", "main...feature/ticket-1"],
         repoPath
       )]: createExecResult({ stdout: "A\tsrc/branch.ts\n" }),
     });
@@ -191,14 +209,30 @@ describe("getCodeChangeSummary", () => {
     linkCommits("ticket-2", ["1111111111111111"]);
 
     const results = {
-      [createCommandKey(["cat-file", "-e", "1111111111111111^{commit}"], repoPath)]:
-        createExecResult(),
       [createCommandKey(
-        ["show", "--numstat", "--format=", "--find-renames", "1111111111111111"],
+        ["cat-file", "-e", "--end-of-options", "1111111111111111^{commit}"],
+        repoPath
+      )]: createExecResult(),
+      [createCommandKey(
+        [
+          "show",
+          "--numstat",
+          "--format=",
+          "--find-renames",
+          "--end-of-options",
+          "1111111111111111",
+        ],
         repoPath
       )]: createExecResult({ stdout: "5\t1\tsrc/shared.ts\n" }),
       [createCommandKey(
-        ["show", "--name-status", "--format=", "--find-renames", "1111111111111111"],
+        [
+          "show",
+          "--name-status",
+          "--format=",
+          "--find-renames",
+          "--end-of-options",
+          "1111111111111111",
+        ],
         repoPath
       )]: createExecResult({ stdout: "M\tsrc/shared.ts\n" }),
     };
@@ -246,8 +280,10 @@ describe("getCodeChangeSummary", () => {
     seedTicket(db, { id: "ticket-1", projectId: "proj-1" });
     linkCommits("ticket-1", ["deadbeefdeadbeef"]);
     const { execFileNoThrow } = createRecordingExec({
-      [createCommandKey(["cat-file", "-e", "deadbeefdeadbeef^{commit}"], repoPath)]:
-        createExecResult({ success: false, exitCode: 128, stderr: "fatal: Not a valid object" }),
+      [createCommandKey(
+        ["cat-file", "-e", "--end-of-options", "deadbeefdeadbeef^{commit}"],
+        repoPath
+      )]: createExecResult({ success: false, exitCode: 128, stderr: "fatal: Not a valid object" }),
     });
 
     const summary = await getCodeChangeSummary(
@@ -269,14 +305,30 @@ describe("getCodeChangeSummary", () => {
     seedTicket(db, { id: "ticket-1", projectId: "proj-1" });
     linkCommits("ticket-1", ["abcdef1234567890"]);
     const { execFileNoThrow } = createRecordingExec({
-      [createCommandKey(["cat-file", "-e", "abcdef1234567890^{commit}"], repoPath)]:
-        createExecResult(),
       [createCommandKey(
-        ["show", "--numstat", "--format=", "--find-renames", "abcdef1234567890"],
+        ["cat-file", "-e", "--end-of-options", "abcdef1234567890^{commit}"],
+        repoPath
+      )]: createExecResult(),
+      [createCommandKey(
+        [
+          "show",
+          "--numstat",
+          "--format=",
+          "--find-renames",
+          "--end-of-options",
+          "abcdef1234567890",
+        ],
         repoPath
       )]: createExecResult({ stdout: "-\t-\tassets/logo.png\n100000\t4\tsrc/large.ts\n" }),
       [createCommandKey(
-        ["show", "--name-status", "--format=", "--find-renames", "abcdef1234567890"],
+        [
+          "show",
+          "--name-status",
+          "--format=",
+          "--find-renames",
+          "--end-of-options",
+          "abcdef1234567890",
+        ],
         repoPath
       )]: createExecResult({ stdout: "A\tassets/logo.png\nM\tsrc/large.ts\n" }),
     });
@@ -330,18 +382,42 @@ describe("getCodeChangePatch", () => {
     seedTicket(db, { id: "ticket-1", projectId: "proj-1" });
     linkCommits("ticket-1", ["abcdef1234567890"]);
     const { execFileNoThrow, calls } = createRecordingExec({
-      [createCommandKey(["cat-file", "-e", "abcdef1234567890^{commit}"], repoPath)]:
-        createExecResult(),
       [createCommandKey(
-        ["show", "--numstat", "--format=", "--find-renames", "abcdef1234567890"],
+        ["cat-file", "-e", "--end-of-options", "abcdef1234567890^{commit}"],
+        repoPath
+      )]: createExecResult(),
+      [createCommandKey(
+        [
+          "show",
+          "--numstat",
+          "--format=",
+          "--find-renames",
+          "--end-of-options",
+          "abcdef1234567890",
+        ],
         repoPath
       )]: createExecResult({ stdout: "10\t2\tsrc/commit.ts\n" }),
       [createCommandKey(
-        ["show", "--name-status", "--format=", "--find-renames", "abcdef1234567890"],
+        [
+          "show",
+          "--name-status",
+          "--format=",
+          "--find-renames",
+          "--end-of-options",
+          "abcdef1234567890",
+        ],
         repoPath
       )]: createExecResult({ stdout: "M\tsrc/commit.ts\n" }),
       [createCommandKey(
-        ["show", "--format=", "--find-renames", "abcdef1234567890", "--", "src/commit.ts"],
+        [
+          "show",
+          "--format=",
+          "--find-renames",
+          "--end-of-options",
+          "abcdef1234567890",
+          "--",
+          "src/commit.ts",
+        ],
         repoPath
       )]: createExecResult({ stdout: "diff --git a/src/commit.ts b/src/commit.ts\n+changed" }),
     });
@@ -366,7 +442,15 @@ describe("getCodeChangePatch", () => {
     });
     expect(calls.at(-1)).toMatchObject({
       command: "git",
-      args: ["show", "--format=", "--find-renames", "abcdef1234567890", "--", "src/commit.ts"],
+      args: [
+        "show",
+        "--format=",
+        "--find-renames",
+        "--end-of-options",
+        "abcdef1234567890",
+        "--",
+        "src/commit.ts",
+      ],
       maxBuffer: 16 * 1024 * 1024,
     });
   });

@@ -408,6 +408,7 @@ async function readCommitSource(
   const verifyResult = await runGit(deps, projectPath, [
     "cat-file",
     "-e",
+    "--end-of-options",
     `${commit.hash}^{commit}`,
   ]);
   if (!verifyResult.success) {
@@ -424,12 +425,20 @@ async function readCommitSource(
   }
 
   const [numstatResult, statusResult] = await Promise.all([
-    runGit(deps, projectPath, ["show", "--numstat", "--format=", "--find-renames", commit.hash]),
+    runGit(deps, projectPath, [
+      "show",
+      "--numstat",
+      "--format=",
+      "--find-renames",
+      "--end-of-options",
+      commit.hash,
+    ]),
     runGit(deps, projectPath, [
       "show",
       "--name-status",
       "--format=",
       "--find-renames",
+      "--end-of-options",
       commit.hash,
     ]),
   ]);
@@ -474,6 +483,7 @@ async function readBranchSource(
   const verifyResult = await runGit(deps, params.projectPath, [
     "rev-parse",
     "--verify",
+    "--end-of-options",
     params.branchName,
   ]);
   if (!verifyResult.success) {
@@ -505,8 +515,20 @@ async function readBranchSource(
 
   const range = `${baseBranch}...${params.branchName}`;
   const [numstatResult, statusResult] = await Promise.all([
-    runGit(deps, params.projectPath, ["diff", "--numstat", "--find-renames", range]),
-    runGit(deps, params.projectPath, ["diff", "--name-status", "--find-renames", range]),
+    runGit(deps, params.projectPath, [
+      "diff",
+      "--numstat",
+      "--find-renames",
+      "--end-of-options",
+      range,
+    ]),
+    runGit(deps, params.projectPath, [
+      "diff",
+      "--name-status",
+      "--find-renames",
+      "--end-of-options",
+      range,
+    ]),
   ]);
 
   if (!numstatResult.success) {
@@ -815,7 +837,7 @@ async function readPatchForSource(
 
   let args: string[];
   if (parsed.kind === "commit") {
-    args = ["show", "--format=", "--find-renames", parsed.value];
+    args = ["show", "--format=", "--find-renames", "--end-of-options", parsed.value];
   } else {
     const baseBranch = await resolveBaseBranch(deps, projectPath);
     if (!baseBranch) {
