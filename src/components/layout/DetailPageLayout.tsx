@@ -1,5 +1,10 @@
 import type { CSSProperties, ReactNode } from "react";
 
+/** Merge a base class with an optional caller-provided class. */
+function cx(base: string, extra?: string): string {
+  return extra ? `${base} ${extra}` : base;
+}
+
 /**
  * DetailPageLayout — a responsive workspace shell for the ticket and epic
  * detail pages.
@@ -76,10 +81,8 @@ interface DetailPageLayoutProps {
  * direct children.
  */
 export function DetailPageLayout({ children, className, style, testId }: DetailPageLayoutProps) {
-  const rootClassName = className ? `detail-page-layout ${className}` : "detail-page-layout";
-
   return (
-    <div className={rootClassName} style={style} data-testid={testId}>
+    <div className={cx("detail-page-layout", className)} style={style} data-testid={testId}>
       <div className="detail-page-layout__inner">{children}</div>
     </div>
   );
@@ -98,10 +101,8 @@ interface DetailPageRegionProps {
  * body as needed.
  */
 export function DetailPageFullBleed({ children, className, style, testId }: DetailPageRegionProps) {
-  const cls = className ? `detail-page-full-bleed ${className}` : "detail-page-full-bleed";
-
   return (
-    <div className={cls} style={style} data-testid={testId}>
+    <div className={cx("detail-page-full-bleed", className)} style={style} data-testid={testId}>
       {children}
     </div>
   );
@@ -112,10 +113,8 @@ export function DetailPageFullBleed({ children, className, style, testId }: Deta
  * wide screens, single column (rail stacked below) on narrow screens.
  */
 export function DetailPageBody({ children, className, style, testId }: DetailPageRegionProps) {
-  const cls = className ? `detail-page-body ${className}` : "detail-page-body";
-
   return (
-    <div className={cls} style={style} data-testid={testId}>
+    <div className={cx("detail-page-body", className)} style={style} data-testid={testId}>
       {children}
     </div>
   );
@@ -126,13 +125,20 @@ export function DetailPageBody({ children, className, style, testId }: DetailPag
  * width — wrap prose in {@link DetailPageProse} to cap its measure.
  */
 export function DetailPagePrimary({ children, className, style, testId }: DetailPageRegionProps) {
-  const cls = className ? `detail-page-primary ${className}` : "detail-page-primary";
-
   return (
-    <div className={cls} style={style} data-testid={testId}>
+    <div className={cx("detail-page-primary", className)} style={style} data-testid={testId}>
       {children}
     </div>
   );
+}
+
+interface DetailPageRailProps extends DetailPageRegionProps {
+  /**
+   * Accessible label for the rail's complementary landmark. Set this when a
+   * page renders more than one `<aside>` so screen-reader users can tell the
+   * rail apart when navigating by landmark.
+   */
+  ariaLabel?: string;
 }
 
 /**
@@ -140,11 +146,20 @@ export function DetailPagePrimary({ children, className, style, testId }: Detail
  * landmark (`<aside>`) and sticky on wide screens. Holds scan-and-monitor
  * panels (subtasks, findings, cost, telemetry, metadata).
  */
-export function DetailPageRail({ children, className, style, testId }: DetailPageRegionProps) {
-  const cls = className ? `detail-page-rail ${className}` : "detail-page-rail";
-
+export function DetailPageRail({
+  children,
+  className,
+  style,
+  testId,
+  ariaLabel,
+}: DetailPageRailProps) {
   return (
-    <aside className={cls} style={style} data-testid={testId}>
+    <aside
+      className={cx("detail-page-rail", className)}
+      style={style}
+      data-testid={testId}
+      aria-label={ariaLabel}
+    >
       {children}
     </aside>
   );
@@ -156,10 +171,8 @@ export function DetailPageRail({ children, className, style, testId }: DetailPag
  * other long-form text, not around full-width panels.
  */
 export function DetailPageProse({ children, className, style, testId }: DetailPageRegionProps) {
-  const cls = className ? `detail-page-prose ${className}` : "detail-page-prose";
-
   return (
-    <div className={cls} style={style} data-testid={testId}>
+    <div className={cx("detail-page-prose", className)} style={style} data-testid={testId}>
       {children}
     </div>
   );

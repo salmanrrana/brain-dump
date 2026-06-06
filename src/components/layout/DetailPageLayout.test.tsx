@@ -55,4 +55,21 @@ describe("DetailPageLayout", () => {
     expect(rail).toHaveTextContent("Rail content");
     expect(rail).not.toHaveTextContent("Primary content");
   });
+
+  it("labels the rail landmark when ariaLabel is provided", () => {
+    render(
+      <DetailPageLayout>
+        <DetailPageBody>
+          <DetailPagePrimary>
+            <p>Primary content</p>
+          </DetailPagePrimary>
+          <DetailPageRail ariaLabel="Ticket details">
+            <p>Rail content</p>
+          </DetailPageRail>
+        </DetailPageBody>
+      </DetailPageLayout>
+    );
+
+    expect(screen.getByRole("complementary", { name: "Ticket details" })).toBeInTheDocument();
+  });
 });
