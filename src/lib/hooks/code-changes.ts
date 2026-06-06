@@ -10,6 +10,13 @@ import type {
   CodeChangeSummaryResult,
 } from "../../../core/code-changes";
 import { queryKeys } from "../query-keys";
+import { createBrowserLogger } from "../browser-logger";
+
+const log = createBrowserLogger("code-changes");
+
+function toError(value: unknown): Error {
+  return value instanceof Error ? value : new Error(String(value));
+}
 
 export type {
   CodeChangeFileSummary,
@@ -63,12 +70,20 @@ export function useCodeChangeSummary(
   const query = useQuery<CodeChangeSummaryResult>({
     queryKey: queryKeys.codeChangeSummary(scope.type, scope.id),
     queryFn: async ({ signal }) => {
-      const result = await getCodeChangeSummaryServerFn({ data: scope });
-      if (signal.aborted) {
-        throw createAbortError();
-      }
+      try {
+        const result = await getCodeChangeSummaryServerFn({ data: scope });
+        if (signal.aborted) {
+          throw createAbortError();
+        }
 
-      return result;
+        return result;
+      } catch (error) {
+        const normalized = toError(error);
+        if (normalized.name !== "AbortError") {
+          log.error(`Failed to load ${scope.type} code-change summary (${scope.id})`, normalized);
+        }
+        throw normalized;
+      }
     },
     enabled: Boolean(scope.id) && (options.enabled ?? true),
     staleTime: 15 * 1000,
@@ -106,12 +121,20 @@ export function useCodeChangePatch(
   const query = useQuery<CodeChangePatchResult>({
     queryKey: queryKeys.codeChangePatch(describePatchKey(input)),
     queryFn: async ({ signal }) => {
-      const result = await getCodeChangePatchServerFn({ data: input });
-      if (signal.aborted) {
-        throw createAbortError();
-      }
+      try {
+        const result = await getCodeChangePatchServerFn({ data: input });
+        if (signal.aborted) {
+          throw createAbortError();
+        }
 
-      return result;
+        return result;
+      } catch (error) {
+        const normalized = toError(error);
+        if (normalized.name !== "AbortError") {
+          log.error("Failed to load code-change patch", normalized);
+        }
+        throw normalized;
+      }
     },
     enabled,
     staleTime: 60 * 1000,

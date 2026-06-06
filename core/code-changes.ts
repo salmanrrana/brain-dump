@@ -859,7 +859,13 @@ async function readPatchForSource(
         "Neither main nor master is available for branch comparison."
       );
     }
-    args = ["diff", "--find-renames", ...whitespaceArgs, `${baseBranch}...${parsed.value}`];
+    args = [
+      "diff",
+      "--find-renames",
+      ...whitespaceArgs,
+      "--end-of-options",
+      `${baseBranch}...${parsed.value}`,
+    ];
   }
 
   if (filePath) {
@@ -945,7 +951,7 @@ export async function getCodeChangePatch(
         summaryContext.project.path,
         source,
         input.filePath,
-        input.ignoreWhitespace ?? false
+        input.ignoreWhitespace
       )
     )
   );

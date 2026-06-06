@@ -524,4 +524,58 @@ describe("getCodeChangePatch", () => {
       "src/commit.ts",
     ]);
   });
+
+  it("guards the branch diff path with --end-of-options and honors ignoreWhitespace", async () => {
+    const repoPath = createRepoDir();
+    seedProject(db, { id: "proj-1", path: repoPath });
+    seedTicket(db, { id: "ticket-1", projectId: "proj-1", branchName: "feature/ticket-1" });
+    const { execFileNoThrow, calls } = createRecordingExec({
+      [createCommandKey(
+        ["rev-parse", "--verify", "--end-of-options", "feature/ticket-1"],
+        repoPath
+      )]: createExecResult(),
+      [createCommandKey(["rev-parse", "--verify", "main"], repoPath)]: createExecResult(),
+      [createCommandKey(
+        ["diff", "--numstat", "--find-renames", "--end-of-options", "main...feature/ticket-1"],
+        repoPath
+      )]: createExecResult({ stdout: "3\t1\tsrc/branch.ts\n" }),
+      [createCommandKey(
+        ["diff", "--name-status", "--find-renames", "--end-of-options", "main...feature/ticket-1"],
+        repoPath
+      )]: createExecResult({ stdout: "A\tsrc/branch.ts\n" }),
+      [createCommandKey(
+        [
+          "diff",
+          "--find-renames",
+          "--ignore-all-space",
+          "--end-of-options",
+          "main...feature/ticket-1",
+          "--",
+          "src/branch.ts",
+        ],
+        repoPath
+      )]: createExecResult({ stdout: "diff --git a/src/branch.ts b/src/branch.ts\n+changed" }),
+    });
+
+    const patch = await getCodeChangePatch(
+      {
+        scope: { type: "ticket", id: "ticket-1" },
+        sourceId: "ticket:ticket-1:branch:feature/ticket-1",
+        filePath: "src/branch.ts",
+        ignoreWhitespace: true,
+      },
+      { db, execFileNoThrow }
+    );
+
+    expect(patch.state.kind).toBe("available");
+    expect(calls.at(-1)?.args).toEqual([
+      "diff",
+      "--find-renames",
+      "--ignore-all-space",
+      "--end-of-options",
+      "main...feature/ticket-1",
+      "--",
+      "src/branch.ts",
+    ]);
+  });
 });

@@ -231,13 +231,15 @@ function EpicDetailPage() {
   );
   const handleCodeChangeSearch = useCallback(
     (patch: CodeChangeRouteSearchPatch) => {
-      void navigate({
+      navigate({
         to: ".",
         search: (prev) => applyCodeChangeSearchToObject(prev as Record<string, unknown>, patch),
         replace: true,
+      }).catch(() => {
+        showToast("error", "Failed to update the code changes panel. Please try again.");
       });
     },
-    [navigate]
+    [navigate, showToast]
   );
 
   const [showEditModal, setShowEditModal] = useState(false);

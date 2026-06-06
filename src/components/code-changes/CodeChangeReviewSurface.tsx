@@ -313,12 +313,16 @@ export function CodeChangeReviewSurface({
   return (
     <section
       className={`rounded-xl border border-[var(--border-primary)] bg-[var(--bg-primary)] p-4 ${className}`}
-      onKeyDown={(event) => {
-        if (event.key === "Escape" && onClose) {
-          event.stopPropagation();
-          onClose();
-        }
-      }}
+      onKeyDown={
+        onClose
+          ? (event) => {
+              if (event.key === "Escape") {
+                event.stopPropagation();
+                onClose();
+              }
+            }
+          : undefined
+      }
     >
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
