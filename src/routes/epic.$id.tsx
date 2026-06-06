@@ -56,6 +56,9 @@ export const Route = createFileRoute("/epic/$id")({
       }),
     ]);
   },
+  // Render the skeleton during loader suspension, matching the sibling ticket
+  // route so the two detail pages share the same loading behavior.
+  pendingComponent: EpicDetailSkeleton,
   component: EpicDetailPage,
   errorComponent: EpicDetailError,
   // Normalize the code-changes panel state (open/close + selected ticket/source/
@@ -565,14 +568,10 @@ const railCardStyles: React.CSSProperties = {
   borderRadius: "var(--radius-lg)",
 };
 
-const sectionStyles: React.CSSProperties = {
+const reviewRunsSectionStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   gap: "var(--spacing-4)",
-};
-
-const reviewRunsSectionStyles: React.CSSProperties = {
-  ...sectionStyles,
   padding: "var(--spacing-5)",
   background: "var(--bg-card)",
   borderRadius: "var(--radius-xl)",
