@@ -9,13 +9,16 @@ import { useToast } from "../Toast";
 const VIRTUALIZATION_THRESHOLD = 20;
 const COMMENT_HEIGHT_ESTIMATE = 80;
 
-// Comment type styling lookup objects
-const COMMENT_CONTAINER_STYLES: Record<string, string> = {
-  progress: "p-2 bg-[var(--info-muted)] border border-[var(--info)]/50",
-  work_summary: "p-3 bg-[var(--status-review)]/20 border border-[var(--status-review)]/50",
-  test_report: "p-3 bg-[var(--success-muted)] border border-[var(--success)]/50",
-  comment: "p-3 bg-[var(--bg-tertiary)]",
-};
+// Comments sit on a single neutral surface — no per-type rainbow tints or
+// side stripes. change_request is the one meaningful exception: a restrained
+// tint + full border because it's an action signal, not a category color.
+const COMMENT_CONTAINER_NEUTRAL = "p-3 bg-[var(--bg-tertiary)]";
+const COMMENT_CONTAINER_CHANGE_REQUEST =
+  "p-3 bg-[var(--warning-muted)] border border-[var(--warning)]/40";
+
+function getCommentContainerClass(type: string): string {
+  return type === "change_request" ? COMMENT_CONTAINER_CHANGE_REQUEST : COMMENT_CONTAINER_NEUTRAL;
+}
 
 const COMMENT_AUTHOR_STYLES: Record<string, string> = {
   ralph: "text-[var(--status-review)]",
@@ -30,16 +33,20 @@ const COMMENT_AUTHOR_STYLES: Record<string, string> = {
   user: "text-[var(--text-primary)]",
 };
 
-const COMMENT_BADGE_STYLES: Record<string, string> = {
-  progress: "bg-[var(--info)] text-white",
-  work_summary: "bg-[var(--status-review)] text-white",
-  test_report: "bg-[var(--success)] text-white",
-};
+// Single neutral chip for ordinary types; change_request keeps the one accent.
+const COMMENT_BADGE_NEUTRAL =
+  "bg-[var(--bg-hover)] text-[var(--text-secondary)] border border-[var(--border-primary)]";
+const COMMENT_BADGE_CHANGE_REQUEST = "bg-[var(--warning-muted)] text-[var(--warning)]";
+
+function getCommentBadgeClass(type: string): string {
+  return type === "change_request" ? COMMENT_BADGE_CHANGE_REQUEST : COMMENT_BADGE_NEUTRAL;
+}
 
 const COMMENT_BADGE_LABELS: Record<string, string> = {
   progress: "Working...",
   work_summary: "Work Summary",
   test_report: "Test Report",
+  change_request: "Changes Requested",
 };
 
 export interface ModalCommentsSectionProps {
@@ -192,13 +199,13 @@ function CommentsList({
     return (
       <div
         key={comment.id}
-        className={`rounded-lg text-sm ${COMMENT_CONTAINER_STYLES[comment.type] ?? COMMENT_CONTAINER_STYLES.comment}`}
+        className={`rounded-lg text-sm ${getCommentContainerClass(comment.type)}`}
       >
         <div className="flex items-center gap-2 mb-1">
           {comment.type === "progress" && (
             <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--info)] opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--info)]"></span>
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--text-secondary)] opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--text-secondary)]"></span>
             </span>
           )}
           <span
@@ -215,14 +222,14 @@ function CommentsList({
           <span className="text-[var(--text-tertiary)] text-xs">
             {new Date(comment.createdAt).toLocaleString()}
           </span>
-          {comment.type !== "comment" && COMMENT_BADGE_STYLES[comment.type] && (
-            <span className={`text-xs px-1.5 py-0.5 rounded ${COMMENT_BADGE_STYLES[comment.type]}`}>
+          {comment.type !== "comment" && COMMENT_BADGE_LABELS[comment.type] && (
+            <span className={`text-xs px-1.5 py-0.5 rounded ${getCommentBadgeClass(comment.type)}`}>
               {COMMENT_BADGE_LABELS[comment.type]}
             </span>
           )}
         </div>
         <p
-          className={`whitespace-pre-wrap ${comment.type === "progress" ? "text-[var(--info-text)] text-xs" : "text-[var(--text-primary)]"}`}
+          className={`whitespace-pre-wrap ${comment.type === "progress" ? "text-[var(--text-secondary)] text-xs" : "text-[var(--text-primary)]"}`}
         >
           {comment.content}
         </p>
