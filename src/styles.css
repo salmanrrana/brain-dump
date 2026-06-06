@@ -611,6 +611,55 @@ a.nav-item,
   }
 }
 
+/* Headings on the detail pages wrap evenly instead of leaving a lonely last
+   word, so long ticket/epic/section titles read as deliberate. Progressive
+   enhancement — browsers without text-wrap: balance fall back to normal wrap. */
+.detail-page-layout h1,
+.detail-page-layout h2,
+.detail-page-layout h3 {
+  text-wrap: balance;
+}
+
+/* Entrance motion — the page regions reveal in a gentle top-to-bottom stagger
+   so a detail page "assembles" rather than snapping in. Only the leaf regions
+   animate (not .detail-page-body or .detail-page-rail) so the sticky rail keeps
+   a clean containing block. This is time-based CSS, not a scroll/JS-gated
+   transition: the animation always plays to its visible end state, so content
+   is never left hidden on headless or inactive-tab renders. */
+.detail-page-full-bleed,
+.detail-page-primary > *,
+.detail-page-rail > * {
+  animation: reveal-up 0.45s var(--ease-out-expo) both;
+}
+
+/* Stagger the primary column and rail children for a little reading texture
+   (description → activity, panels top-to-bottom). Delays stay short so the
+   page settles quickly. */
+.detail-page-primary > *:nth-child(2),
+.detail-page-rail > *:nth-child(2) {
+  animation-delay: 60ms;
+}
+.detail-page-primary > *:nth-child(3),
+.detail-page-rail > *:nth-child(3) {
+  animation-delay: 120ms;
+}
+.detail-page-primary > *:nth-child(n + 4),
+.detail-page-rail > *:nth-child(n + 4) {
+  animation-delay: 180ms;
+}
+
+/* Reduced-motion: skip the reveal entirely. The global handler only collapses
+   animation-duration, which would still hold delayed children at opacity 0
+   during their delay window — so disable the animation outright here to
+   guarantee content is visible immediately. */
+@media (prefers-reduced-motion: reduce) {
+  .detail-page-full-bleed,
+  .detail-page-primary > *,
+  .detail-page-rail > * {
+    animation: none !important;
+  }
+}
+
 /* ============================================
    HIDE SCROLLBARS WHILE MAINTAINING SCROLLABILITY
    ============================================

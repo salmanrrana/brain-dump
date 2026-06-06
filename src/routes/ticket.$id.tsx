@@ -821,7 +821,9 @@ export const activitySectionStyles: React.CSSProperties = {
 
 // Metadata footer in the rail: a compact, column of timestamps separated from
 // the panels above by a hairline rule — not a heavy bordered card, so it reads
-// as a quiet footnote rather than another monitor widget.
+// as a quiet footnote rather than another monitor widget. Uses --text-secondary
+// (not --text-muted) so these timestamp values clear the 4.5:1 contrast bar for
+// content text while still reading as quiet metadata.
 export const metadataStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
@@ -830,7 +832,7 @@ export const metadataStyles: React.CSSProperties = {
   borderTop: "1px solid var(--border-primary)",
   fontSize: "var(--font-size-xs)",
   fontFamily: "var(--font-mono)",
-  color: "var(--text-muted)",
+  color: "var(--text-secondary)",
   letterSpacing: "0.01em",
 };
 

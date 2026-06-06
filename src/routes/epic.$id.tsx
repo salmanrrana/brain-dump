@@ -658,6 +658,8 @@ const reviewRunSteeringStyles: React.CSSProperties = {
 // Metadata footer in the rail: a compact column separated from the panels above
 // by a hairline rule — not a heavy bordered card, so it reads as a quiet
 // footnote rather than another monitor widget (matches the ticket-detail page).
+// Uses --text-secondary (not --text-muted) so the timestamp value clears the
+// 4.5:1 contrast bar for content text while still reading as quiet metadata.
 export const metadataStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
@@ -666,7 +668,7 @@ export const metadataStyles: React.CSSProperties = {
   borderTop: "1px solid var(--border-primary)",
   fontSize: "var(--font-size-xs)",
   fontFamily: "var(--font-mono)",
-  color: "var(--text-muted)",
+  color: "var(--text-secondary)",
   letterSpacing: "0.01em",
 };
 
