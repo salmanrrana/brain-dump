@@ -156,7 +156,13 @@ export function ChangedFilesTree({
 }: ChangedFilesTreeProps) {
   const tree = useMemo(() => buildCodeChangeFileTree(files), [files]);
   const allDirectoryIds = useMemo(() => collectDirectoryIds(tree), [tree]);
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set(allDirectoryIds));
+  const treeKey = allDirectoryIds.join("\0");
+  const [expandedState, setExpandedState] = useState<{ treeKey: string; ids: Set<string> }>(() => ({
+    treeKey,
+    ids: new Set(allDirectoryIds),
+  }));
+  const expandedIds =
+    expandedState.treeKey === treeKey ? expandedState.ids : new Set(allDirectoryIds);
 
   if (files.length === 0) {
     return (
@@ -178,14 +184,14 @@ export function ChangedFilesTree({
           <button
             type="button"
             className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]/40"
-            onClick={() => setExpandedIds(new Set(allDirectoryIds))}
+            onClick={() => setExpandedState({ treeKey, ids: new Set(allDirectoryIds) })}
           >
             Expand all
           </button>
           <button
             type="button"
             className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]/40"
-            onClick={() => setExpandedIds(new Set())}
+            onClick={() => setExpandedState({ treeKey, ids: new Set() })}
           >
             Collapse all
           </button>
@@ -201,14 +207,16 @@ export function ChangedFilesTree({
             selectedFilePath={selectedFilePath}
             selectedSourceId={selectedSourceId}
             onToggle={(nodeId) => {
-              setExpandedIds((current) => {
-                const next = new Set(current);
+              setExpandedState((current) => {
+                const currentIds =
+                  current.treeKey === treeKey ? current.ids : new Set(allDirectoryIds);
+                const next = new Set(currentIds);
                 if (next.has(nodeId)) {
                   next.delete(nodeId);
                 } else {
                   next.add(nodeId);
                 }
-                return next;
+                return { treeKey, ids: next };
               });
             }}
             onSelectFile={onSelectFile}

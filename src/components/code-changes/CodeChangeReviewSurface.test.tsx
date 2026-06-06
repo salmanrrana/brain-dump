@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { ChangedFilesTree } from "./ChangedFilesTree";
@@ -111,6 +111,38 @@ describe("ChangedFilesTree", () => {
 
     expect(screen.getByText("Changed files")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /src\/large/i })).toBeInTheDocument();
+  });
+
+  it("resets expanded directory state when files change", async () => {
+    const firstFiles = [
+      {
+        path: "src/first/file.ts",
+        additions: 1,
+        deletions: 0,
+        binary: false,
+        status: "M",
+        sourceIds: ["ticket:ticket-1:commit:abc123"],
+      },
+    ];
+    const secondFiles = [
+      {
+        path: "src/second/next.ts",
+        additions: 2,
+        deletions: 0,
+        binary: false,
+        status: "A",
+        sourceIds: ["ticket:ticket-2:commit:def456"],
+      },
+    ];
+
+    const { rerender } = render(<ChangedFilesTree files={firstFiles} />);
+    await userEvent.click(screen.getByRole("button", { name: /collapse all/i }));
+
+    rerender(<ChangedFilesTree files={secondFiles} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /next\.ts/i })).toBeInTheDocument();
+    });
   });
 });
 
