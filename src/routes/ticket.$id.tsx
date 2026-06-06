@@ -95,17 +95,16 @@ export const Route = createFileRoute("/ticket/$id")({
   // into stable query params so the panel can be deep-linked and restored.
   validateSearch: (search: Record<string, unknown>): Record<string, string> => {
     const parsed = parseCodeChangeRouteSearch(search);
-    return applyCodeChangeSearchToObject(
-      {},
-      {
-        open: parsed.open,
-        selectedTicketId: parsed.selectedTicketId,
-        selectedSourceId: parsed.selectedSourceId,
-        selectedFilePath: parsed.selectedFilePath,
-        wordWrap: parsed.wordWrap,
-        ignoreWhitespace: parsed.ignoreWhitespace,
-      }
-    );
+    // Normalize code-change params on top of the existing search so any unrelated
+    // params are preserved rather than dropped.
+    return applyCodeChangeSearchToObject(search, {
+      open: parsed.open,
+      selectedTicketId: parsed.selectedTicketId,
+      selectedSourceId: parsed.selectedSourceId,
+      selectedFilePath: parsed.selectedFilePath,
+      wordWrap: parsed.wordWrap,
+      ignoreWhitespace: parsed.ignoreWhitespace,
+    });
   },
 });
 

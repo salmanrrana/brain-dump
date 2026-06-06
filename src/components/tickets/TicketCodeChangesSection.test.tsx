@@ -190,6 +190,40 @@ describe("TicketCodeChangesSection", () => {
     expect(mockUseCodeChangePatch).not.toHaveBeenCalled();
   });
 
+  it("lets the user open the panel and retry when the summary fails to load", async () => {
+    const refetch = vi.fn();
+    setSummary(null, { error: "git command failed" });
+    mockUseTicketCodeChangeSummary.mockReturnValue({
+      summary: null,
+      loading: false,
+      fetching: false,
+      error: "git command failed",
+      refetch,
+    });
+
+    // With an error, the header toggle stays enabled so the user can reach Retry.
+    const { rerender } = render(
+      <TicketCodeChangesSection
+        ticketId="ticket-1"
+        search={closedSearch()}
+        onSearchChange={vi.fn()}
+      />
+    );
+    expect(screen.getByRole("button", { name: /code changes/i })).toBeEnabled();
+
+    rerender(
+      <TicketCodeChangesSection
+        ticketId="ticket-1"
+        search={closedSearch({ open: true })}
+        onSearchChange={vi.fn()}
+      />
+    );
+
+    const retry = await screen.findByRole("button", { name: /retry/i });
+    await userEvent.click(retry);
+    expect(refetch).toHaveBeenCalled();
+  });
+
   it("opens the panel via the toggle and reports the new open state", async () => {
     setSummary(createSummary());
     const onSearchChange = vi.fn();

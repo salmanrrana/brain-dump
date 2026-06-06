@@ -87,6 +87,9 @@ export function TicketCodeChangesSection({
   const totals = summary?.totals;
   const hasChanges = (totals?.files ?? 0) > 0;
   const open = search.open;
+  // Opening is allowed when there are changes to review, or when the summary
+  // failed to load so the user can reach the review surface's Retry affordance.
+  const canOpen = hasChanges || Boolean(error);
 
   // For a single-ticket scope there is only ever one group, so the surface must
   // not filter by a (possibly stale) selectedTicketId. We pass it through as
@@ -134,7 +137,7 @@ export function TicketCodeChangesSection({
           aria-expanded={open}
           aria-controls="ticket-code-changes-surface"
           onClick={handleToggleOpen}
-          disabled={!hasChanges}
+          disabled={!canOpen}
         >
           <span className="mt-0.5 text-[var(--text-tertiary)]">
             {open ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
@@ -142,12 +145,12 @@ export function TicketCodeChangesSection({
           <span className="min-w-0">
             <span className="flex items-center gap-2">
               <FileDiff size={16} className="text-[var(--text-secondary)]" />
-              <h2
+              <span
                 id="ticket-code-changes-heading"
                 className="text-base font-semibold text-[var(--text-primary)]"
               >
                 Code changes
-              </h2>
+              </span>
               {fetching && !loading && (
                 <Loader2 size={14} className="animate-spin text-[var(--text-tertiary)]" />
               )}
