@@ -222,7 +222,7 @@ function CommentsList({
           <span className="text-[var(--text-tertiary)] text-xs">
             {new Date(comment.createdAt).toLocaleString()}
           </span>
-          {comment.type !== "comment" && COMMENT_BADGE_LABELS[comment.type] && (
+          {COMMENT_BADGE_LABELS[comment.type] && (
             <span className={`text-xs px-1.5 py-0.5 rounded ${getCommentBadgeClass(comment.type)}`}>
               {COMMENT_BADGE_LABELS[comment.type]}
             </span>

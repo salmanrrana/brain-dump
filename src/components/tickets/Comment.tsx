@@ -217,10 +217,11 @@ function renderMarkdown(content: string): React.ReactNode {
 // =============================================================================
 
 /**
- * Comment - Individual comment display with type-specific styling.
+ * Comment - Individual comment display.
  *
  * Features:
- * - Type-specific borders: Different colors for comment, progress, work_summary, test_report
+ * - Flat surface: a single neutral background for every type; change_request
+ *   gets one restrained warning tint + border as an action signal (no stripes)
  * - Author avatar: Color-coded by author type
  * - Markdown rendering: Supports bold, italic, code, lists, links (safely, no innerHTML)
  * - Expandable content: Truncates long content with "Show more" button
@@ -275,9 +276,9 @@ export const Comment = memo(function Comment({
     padding: "var(--spacing-3)",
     borderRadius: "var(--radius-md)",
     background: isChangeRequest ? "var(--warning-muted)" : "var(--bg-primary)",
-    ...(isChangeRequest && {
-      border: "1px solid color-mix(in srgb, var(--warning) 40%, transparent)",
-    }),
+    border: isChangeRequest
+      ? "1px solid color-mix(in srgb, var(--warning) 40%, transparent)"
+      : undefined,
   };
 
   const contentContainerStyles: React.CSSProperties = {
