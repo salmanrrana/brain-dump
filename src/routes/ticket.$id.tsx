@@ -1,6 +1,13 @@
-import { createFileRoute, useParams, useRouter, useCanGoBack } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  useParams,
+  useRouter,
+  useCanGoBack,
+  useNavigate,
+  useSearch,
+} from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { ArrowLeft, AlertCircle } from "lucide-react";
 import { getTicket } from "../api/tickets";
 import { getWorkflowDisplayState } from "../api/workflow";
@@ -17,6 +24,7 @@ import {
   getRalphAutonomousUiLaunchProvider,
 } from "../lib/ui-launch-registry";
 import { ActivitySection } from "../components/tickets/ActivitySection";
+import { TicketCodeChangesSection } from "../components/tickets/TicketCodeChangesSection";
 import { TicketDetailHeader } from "../components/tickets/TicketDetailHeader";
 import { EditTicketModal } from "../components/tickets/EditTicketModal";
 import { ShipChangesModal, TicketDescription, SubtasksProgress } from "../components/tickets";
@@ -31,6 +39,11 @@ import { type LaunchType } from "../components/tickets/LaunchActions";
 import type { LaunchModelSelection } from "../lib/launch-model-catalog";
 import { POLLING_INTERVALS } from "../lib/constants";
 import { queryKeys } from "../lib/query-keys";
+import {
+  applyCodeChangeSearchToObject,
+  parseCodeChangeRouteSearch,
+  type CodeChangeRouteSearchPatch,
+} from "../lib/code-change-route-search";
 import { markLoaderStart, markLoaderEnd, timedFetch } from "../lib/navigation-timing";
 import {
   useProjects,
@@ -78,6 +91,22 @@ export const Route = createFileRoute("/ticket/$id")({
   },
   component: TicketDetailPage,
   errorComponent: TicketDetailError,
+  // Normalize the code-changes panel state (open/close + selected source/file)
+  // into stable query params so the panel can be deep-linked and restored.
+  validateSearch: (search: Record<string, unknown>): Record<string, string> => {
+    const parsed = parseCodeChangeRouteSearch(search);
+    return applyCodeChangeSearchToObject(
+      {},
+      {
+        open: parsed.open,
+        selectedTicketId: parsed.selectedTicketId,
+        selectedSourceId: parsed.selectedSourceId,
+        selectedFilePath: parsed.selectedFilePath,
+        wordWrap: parsed.wordWrap,
+        ignoreWhitespace: parsed.ignoreWhitespace,
+      }
+    );
+  },
 });
 
 // =============================================================================
@@ -276,6 +305,25 @@ function TicketDetailPage() {
   const { settings } = useSettings();
   const launchRalphMutation = useLaunchRalphForTicket();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+
+  // Code-changes panel state lives in the URL so the panel can be deep-linked
+  // and restored. Parse once per search change into the shared route-search shape.
+  const rawSearch = useSearch({ from: "/ticket/$id" });
+  const codeChangeSearch = useMemo(
+    () => parseCodeChangeRouteSearch(rawSearch as Record<string, unknown>),
+    [rawSearch]
+  );
+  const handleCodeChangeSearch = useCallback(
+    (patch: CodeChangeRouteSearchPatch) => {
+      void navigate({
+        to: ".",
+        search: (prev) => applyCodeChangeSearchToObject(prev as Record<string, unknown>, patch),
+        replace: true,
+      });
+    },
+    [navigate]
+  );
 
   // Modal and launch state
   const [showEditModal, setShowEditModal] = useState(false);
@@ -585,6 +633,16 @@ function TicketDetailPage() {
           />
         </section>
       )}
+
+      {/* Code Changes - lazy summary + in-page diff review surface */}
+      <TicketCodeChangesSection
+        ticketId={ticket.id}
+        branchName={ticket.branchName}
+        prNumber={ticket.prNumber}
+        prUrl={ticket.prUrl}
+        search={codeChangeSearch}
+        onSearchChange={handleCodeChangeSearch}
+      />
 
       {/* Content Grid */}
       <div style={contentGridStyles}>

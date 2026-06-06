@@ -19,6 +19,7 @@ vi.mock("@tanstack/react-router", () => ({
     navigate: vi.fn(),
   }),
   useNavigate: () => vi.fn(),
+  useSearch: () => ({}),
   useCanGoBack: () => true,
 }));
 
@@ -114,6 +115,10 @@ vi.mock("../components/tickets", () => ({
 
 vi.mock("../components/tickets/ActivitySection", () => ({
   ActivitySection: () => <div>Activity</div>,
+}));
+
+vi.mock("../components/tickets/TicketCodeChangesSection", () => ({
+  TicketCodeChangesSection: () => <div>Code changes</div>,
 }));
 
 vi.mock("../components/tickets/TicketDetailHeader", () => ({

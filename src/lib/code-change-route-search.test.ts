@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applyCodeChangeRouteSearch,
+  applyCodeChangeSearchToObject,
   parseCodeChangeRouteSearch,
   serializeCodeChangeRouteSearch,
 } from "./code-change-route-search";
@@ -46,5 +47,32 @@ describe("code-change route search helpers", () => {
     );
 
     expect(cleared.toString()).toBe("tab=details");
+  });
+
+  it("applies a patch to a plain object and preserves unrelated params (TanStack navigate shape)", () => {
+    const next = applyCodeChangeSearchToObject(
+      { tab: "details" },
+      {
+        open: true,
+        selectedSourceId: "ticket:ticket-1:commit:abc123",
+        selectedFilePath: "src/file.ts",
+      }
+    );
+
+    expect(next).toMatchObject({
+      tab: "details",
+      codeChanges: "1",
+      changeSource: "ticket:ticket-1:commit:abc123",
+      changeFile: "src/file.ts",
+    });
+  });
+
+  it("clears code-change params on close while keeping unrelated params", () => {
+    const next = applyCodeChangeSearchToObject(
+      { tab: "details", codeChanges: "1", changeFile: "src/file.ts" },
+      { open: false }
+    );
+
+    expect(next).toEqual({ tab: "details" });
   });
 });

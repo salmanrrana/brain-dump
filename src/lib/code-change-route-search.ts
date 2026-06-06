@@ -138,6 +138,25 @@ export function clearCodeChangeRouteSearch(params: URLSearchParams): URLSearchPa
   return params;
 }
 
+/**
+ * Apply a patch to a plain search-param object and return the next plain object.
+ *
+ * TanStack Router's `navigate({ search })` works with validated plain objects, not
+ * `URLSearchParams`. This adapter keeps the open/close + selection rules in one place
+ * so both the ticket and epic detail routes reconcile search state identically.
+ */
+export function applyCodeChangeSearchToObject(
+  current: Record<string, unknown>,
+  patch: CodeChangeRouteSearchPatch
+): Record<string, string> {
+  const params = applyCodeChangeRouteSearch(current, patch);
+  const result: Record<string, string> = {};
+  for (const [key, value] of params.entries()) {
+    result[key] = value;
+  }
+  return result;
+}
+
 export function serializeCodeChangeRouteSearch(state: CodeChangeRouteSearchState): string {
   return applyCodeChangeRouteSearch(new URLSearchParams(), {
     open: state.open,

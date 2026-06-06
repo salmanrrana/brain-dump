@@ -36,7 +36,12 @@ const STATUS_CONFIG: Record<DemoStepStatus, { bgClass: string; textClass: string
   },
 };
 
-const TYPE_CONFIG: Record<DemoStepSchema["type"], { label: string; badgeClass: string }> = {
+interface TypeConfigEntry {
+  label: string;
+  badgeClass: string;
+}
+
+const TYPE_CONFIG: Record<DemoStepSchema["type"], TypeConfigEntry> = {
   manual: {
     label: "Manual",
     badgeClass: "bg-[var(--info-muted)] text-[var(--info)]",
@@ -50,6 +55,16 @@ const TYPE_CONFIG: Record<DemoStepSchema["type"], { label: string; badgeClass: s
     badgeClass: "bg-[var(--success-muted)] text-[var(--success)]",
   },
 };
+
+// Fallbacks guard against legacy/unknown step type or status values persisted by
+// older demo scripts. Without them, indexing the config maps returns undefined and
+// reading `.badgeClass`/`.bgClass` throws ("Cannot read properties of undefined").
+const DEFAULT_TYPE_CONFIG: TypeConfigEntry = {
+  label: "Step",
+  badgeClass: "bg-[var(--bg-tertiary)] text-[var(--text-secondary)]",
+};
+
+const DEFAULT_STATUS_CONFIG = STATUS_CONFIG.pending;
 
 /**
  * DemoStep - A single step in the demo verification process.
@@ -69,8 +84,8 @@ export const DemoStep: React.FC<DemoStepProps> = ({
   isExpanded = false,
   onToggleExpand,
 }) => {
-  const statusConfig = STATUS_CONFIG[status];
-  const typeConfig = TYPE_CONFIG[step.type];
+  const statusConfig = STATUS_CONFIG[status] ?? DEFAULT_STATUS_CONFIG;
+  const typeConfig = TYPE_CONFIG[step.type] ?? DEFAULT_TYPE_CONFIG;
 
   return (
     <div
