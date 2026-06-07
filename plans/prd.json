@@ -9,156 +9,163 @@
   ],
   "userStories": [
     {
-      "id": "530333ed-3186-4bef-bbaf-95a14c790b7f",
-      "title": "Tune SQLite connection PRAGMAs for a local read-heavy app",
-      "passes": false,
-      "overview": "Both connection setups only set `journal_mode=WAL` (+ `foreign_keys` in src/lib). Best-practice PRAGMAs that materially reduce write latency and eliminate busy errors are missing.",
+      "id": "daeb49be-61ec-47a2-b5fc-1aecd22e8271",
+      "title": "Audit and remove remaining AI visual tells across the detail pages",
+      "passes": true,
+      "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "All listed PRAGMAs set at both connection sites with a rationale comment.",
-        "Measured write/query improvement recorded; no busy errors under concurrent access.",
-        "`pnpm check` passes; relevant DB tests pass."
+        "Findings list posted, then each item resolved or explicitly justified.",
+        "No side-stripe accents, gradient text, decorative glassmorphism, >16px card radii, or ghost-card border+shadow pairs remain on either detail page or its panels.",
+        "The uniform identical-card stack is broken up (this overlaps the layout tickets — coordinate, don't duplicate).",
+        "`pnpm check` passes; before/after screenshots captured."
       ],
       "references": [
-        "src/lib/db.ts:44-45",
-        "src/lib/db.ts"
+        "src/routes/ticket.$id.tsx",
+        "src/routes/epic.$id.tsx"
       ],
-      "description": "> 🌿 **Branch:** Implement on the existing `chore/project-validation-discovery` branch — do NOT create a per-ticket branch. **Planning only:** do not start work until explicitly requested.\n\n## Problem\nBoth connection setups only set `journal_mode=WAL` (+ `foreign_keys` in src/lib). Best-practice PRAGMAs that materially reduce write latency and eliminate busy errors are missing.\n\n## Evidence\n`src/lib/db.ts:44-45`; `core/db.ts:1003,1020`.\n\n## Fix — add after WAL at all connection sites\n- `synchronous = NORMAL` — biggest write-latency win; still crash-safe under WAL.\n- `busy_timeout = 5000` — avoids `SQLITE_BUSY` under concurrent UI + MCP + CLI access.\n- `cache_size = -32000` (~32MB) — fewer page reads on board/analytics.\n- `mmap_size = 268435456` (256MB) — memory-mapped reads.\n- `temp_store = MEMORY` — keep GROUP BY/ORDER BY temp data off disk (analytics).\n\nApply at BOTH `src/lib/db.ts` and `core/db.ts` (CLI/MCP path). Verify values are sensible cross-platform.\n\n## Hot paths\nEvery SQLite read/write; especially board load, analytics, status writes.\n\n## Validation\nFocused timing of a representative write (status update) and an analytics query before/after; confirm no `SQLITE_BUSY` under simultaneous UI + MCP access. Record numbers.\n\n## Acceptance criteria\n- All listed PRAGMAs set at both connection sites with a rationale comment.\n- Measured write/query improvement recorded; no busy errors under concurrent access.\n- `pnpm check` passes; relevant DB tests pass.",
-      "priority": "high",
-      "tags": [
-        "performance",
-        "sqlite",
-        "pragma"
-      ]
-    },
-    {
-      "id": "2c2fc1a5-d30d-412d-9aa1-834c138c77c1",
-      "title": "Add missing hot-path indexes: tickets.position and tickets.completed_at",
-      "passes": false,
-      "overview": "Two hot-path queries sort/filter on unindexed columns:\n- The board's `getTicketSummaries`/`getTickets` do `ORDER BY tickets.position` (`src/api/tickets.ts:444,98`) but `position` is not indexed — SQLite filesorts matching rows on every board load and reorder.\n- Dashboard analytics filter/sort on `completed_at` in 5+ queries (`src/api/analytics.ts:88-96,123-130,248-252`) but `completed_at` is unindexed → repeated full scans.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Both indexes added to schema + migration generated/applied.",
-        "Query plans use the new indexes (no filesort on board ORDER BY position).",
-        "`pnpm db:generate`/`pnpm db:migrate` clean; `pnpm check` passes."
-      ],
-      "references": [
-        "src/api/tickets.ts:444,98",
-        "src/api/analytics.ts:88-96,123-130,248-252",
-        "src/lib/schema.ts:70-78",
-        "src/lib/db.ts"
-      ],
-      "description": "> 🌿 **Branch:** Implement on the existing `chore/project-validation-discovery` branch — do NOT create a per-ticket branch. **Planning only:** do not start work until explicitly requested.\n\n## Problem\nTwo hot-path queries sort/filter on unindexed columns:\n- The board's `getTicketSummaries`/`getTickets` do `ORDER BY tickets.position` (`src/api/tickets.ts:444,98`) but `position` is not indexed — SQLite filesorts matching rows on every board load and reorder.\n- Dashboard analytics filter/sort on `completed_at` in 5+ queries (`src/api/analytics.ts:88-96,123-130,248-252`) but `completed_at` is unindexed → repeated full scans.\n\n## Evidence\n`src/lib/schema.ts:70-78` (existing ticket indexes; no `position`, no `completed_at`).\n\n## Fix\n- Add `index(\"idx_tickets_project_position\").on(projectId, position)` (covers board filter+sort together).\n- Add `index(\"idx_tickets_completed_at\").on(completedAt)`.\n- Generate + run the migration: `pnpm db:generate` then `pnpm db:migrate`. Also add to any imperative `CREATE INDEX IF NOT EXISTS` init in `src/lib/db.ts` for existing DBs.\n\n## Hot paths\nBoard load/reorder; dashboard analytics.\n\n## Validation\n`EXPLAIN QUERY PLAN` before/after shows index use instead of `SCAN ... USING TEMP B-TREE`; focused timing of the board summary + analytics queries. Record before/after.\n\n## Acceptance criteria\n- Both indexes added to schema + migration generated/applied.\n- Query plans use the new indexes (no filesort on board ORDER BY position).\n- `pnpm db:generate`/`pnpm db:migrate` clean; `pnpm check` passes.",
-      "priority": "high",
-      "tags": [
-        "performance",
-        "sqlite",
-        "index",
-        "schema"
-      ]
-    },
-    {
-      "id": "e8f8f66f-0291-44f0-99a2-dac952fedf6d",
-      "title": "Enable foreign_keys in core/db.ts (CLI/MCP path)",
-      "passes": false,
-      "overview": "`src/lib/db.ts` sets `foreign_keys = ON`, but `core/db.ts` (the connection used by the CLI and MCP server) sets only `journal_mode = WAL` — it does NOT enable foreign keys (`core/db.ts:1003-1004,1020-1021`). On the CLI/MCP path, cascades and FK constraints are silently unenforced, and the FK indexes go unused. This is primarily a correctness/reliability issue but also means inconsistent behavior between the web app and CLI/MCP writers.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "`foreign_keys = ON` set at both `core/db.ts` connection sites.",
-        "CLI/MCP delete cascades behave consistently with the web app.",
-        "`pnpm check` and relevant core/MCP tests pass."
-      ],
-      "references": [
-        "src/lib/db.ts",
-        "src/lib/db.ts:45"
-      ],
-      "description": "> 🌿 **Branch:** Implement on the existing `chore/project-validation-discovery` branch — do NOT create a per-ticket branch. **Planning only:** do not start work until explicitly requested.\n\n## Problem\n`src/lib/db.ts` sets `foreign_keys = ON`, but `core/db.ts` (the connection used by the CLI and MCP server) sets only `journal_mode = WAL` — it does NOT enable foreign keys (`core/db.ts:1003-1004,1020-1021`). On the CLI/MCP path, cascades and FK constraints are silently unenforced, and the FK indexes go unused. This is primarily a correctness/reliability issue but also means inconsistent behavior between the web app and CLI/MCP writers.\n\n## Fix\n- Add `db.pragma(\"foreign_keys = ON\")` at both `core/db.ts` connection sites, matching `src/lib/db.ts`.\n- Verify existing CLI/MCP tests still pass (some may have relied on cascades NOT firing — fix those if they were masking a bug).\n\n## Evidence\n`core/db.ts:1003-1004,1020-1021` vs `src/lib/db.ts:45`.\n\n## Hot paths\nMCP tool dispatch, CLI operations (writes/deletes).\n\n## Validation\nConfirm a cascade-dependent delete behaves identically via CLI/MCP and the web app. Run core + MCP tests.\n\n## Acceptance criteria\n- `foreign_keys = ON` set at both `core/db.ts` connection sites.\n- CLI/MCP delete cascades behave consistently with the web app.\n- `pnpm check` and relevant core/MCP tests pass.",
+      "description": "# Why\nThe comment side-stripe (handled in its own ticket) is the worst offender, but the detail pages likely carry other generic-AI signatures. This ticket is a focused sweep so the whole surface reads as deliberate human craft, not a template.\n\n# What to look for (impeccable \"Absolute bans\" + Codex defects)\nAudit `src/routes/ticket.$id.tsx`, `src/routes/epic.$id.tsx`, and every component they compose (`TicketDetailHeader`, `WorkflowProgress`, `TicketCodeChangesSection`/`EpicCodeChangesSection`, `SubtasksProgress`, `ReviewFindingsPanel`, `ClaudeTasks`, `TicketCostPanel`/`EpicCostPanel`, `TelemetryPanel`, `ActivitySection`, `EpicProgressOverview`, `EpicTicketsList`, `EpicInsights`, `EpicLearnings`, `EpicDetailHeader`) for:\n- **Other side-stripe borders** (`borderLeft`/`borderRight` > 1px as a colored accent) on cards, list items, callouts, alerts.\n- **Gradient text** (`background-clip: text` over a gradient). Replace with a solid color; emphasis via weight/size.\n- **Glassmorphism used decoratively** (blur/backdrop-filter glass cards) — keep only if genuinely purposeful.\n- **Identical card grids** — same-sized icon+heading+text cards repeated. The detail pages currently wrap many regions in identical `cardSectionStyles` boxes (`ticket.$id.tsx:815`); that uniform-card stack is itself a tell.\n- **Tiny uppercase tracked eyebrows** above sections; **numbered section markers** (01/02/03) as scaffolding.\n- **Over-rounded cards** (`border-radius` > 16px on cards/sections/inputs — cap at 12–16px; pills fine for tags/buttons).\n- **Ghost cards**: `border: 1px solid` paired with `box-shadow` blur ≥16px on the same element — pick one.\n- **The hero-metric template** (big number + small label + gradient accent) in cost/telemetry/progress panels.\n\n# What to do\n1. Produce a short findings list (file:line + which tell) as a comment on this ticket before editing.\n2. Fix each finding with the impeccable-recommended rewrite (full border/bg tint/leading icon instead of stripe; solid color instead of gradient; reduce radius; remove redundant eyebrows; differentiate cards by role/size instead of cloning).\n3. Don't over-correct into blandness — keep intentional hierarchy and the project's existing CSS-variable theming.\n\n# Acceptance criteria\n- Findings list posted, then each item resolved or explicitly justified.\n- No side-stripe accents, gradient text, decorative glassmorphism, >16px card radii, or ghost-card border+shadow pairs remain on either detail page or its panels.\n- The uniform identical-card stack is broken up (this overlaps the layout tickets — coordinate, don't duplicate).\n- `pnpm check` passes; before/after screenshots captured.",
       "priority": "medium",
       "tags": [
-        "performance",
-        "sqlite",
-        "correctness"
+        "ui",
+        "ticket-detail",
+        "epic-detail",
+        "ai-tells",
+        "audit"
       ]
     },
     {
-      "id": "7a6d2110-be8b-4a1b-b30c-4a5c9645784d",
-      "title": "Use summary column projection for board/list (stop getTickets SELECT *)",
-      "passes": false,
-      "overview": "`getTickets` does `db.select().from(tickets)` — a full `SELECT *` returning `description`, `linked_files`, `attachments`, `subtasks` (potentially large JSON blobs) for every ticket (`src/api/tickets.ts:98`). Board/list views only need summary fields, and a `getTicketSummaries` endpoint with a `TICKET_SUMMARY_COLUMNS` projection already exists (`src/api/tickets.ts:401-421,444`). Using the full-row endpoint for summary views wastes serialization + transfer on every board render and status change.",
+      "id": "1fd46f6d-3540-436a-ac2f-cd2bbc9fb773",
+      "title": "Build a responsive detail-page workspace layout shell",
+      "passes": true,
+      "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Board/list summary views use the projected `getTicketSummaries` (no `SELECT *`).",
-        "Detail views still get full data.",
-        "Measured payload/time reduction recorded; `pnpm check` passes."
+        "A reusable `DetailPageLayout` (or equivalent) exists with documented props for full-bleed / primary / rail regions.",
+        "It is responsive: multi-column with sticky rail on wide screens, single column on narrow, no overflow at any breakpoint.",
+        "Primary column constrains prose width while the overall container uses more horizontal space than the current 1200px.",
+        "Uses existing design tokens; `pnpm check` and `pnpm build` pass (touches client/layout boundaries).",
+        "API documented in a ticket comment for the consuming tickets."
       ],
       "references": [
-        "src/api/tickets.ts:98",
-        "src/api/tickets.ts:401-421,444",
-        "src/api/tickets.ts:98,401-421,444"
+        "src/components/layout/DetailPageLayout.tsx"
       ],
-      "description": "> 🌿 **Branch:** Implement on the existing `chore/project-validation-discovery` branch — do NOT create a per-ticket branch. **Planning only:** do not start work until explicitly requested.\n\n## Problem\n`getTickets` does `db.select().from(tickets)` — a full `SELECT *` returning `description`, `linked_files`, `attachments`, `subtasks` (potentially large JSON blobs) for every ticket (`src/api/tickets.ts:98`). Board/list views only need summary fields, and a `getTicketSummaries` endpoint with a `TICKET_SUMMARY_COLUMNS` projection already exists (`src/api/tickets.ts:401-421,444`). Using the full-row endpoint for summary views wastes serialization + transfer on every board render and status change.\n\n## Fix\n- Audit UI call sites of `getTickets`; migrate board/list/summary consumers to `getTicketSummaries` (projected columns).\n- Keep `getTickets`/full-row fetch only for detail surfaces that actually need description/attachments/subtasks.\n- Ensure query keys/types line up so components get the right shape.\n\n## Evidence\n`src/api/tickets.ts:98,401-421,444`.\n\n## Hot paths\nBoard/list load and re-render after status change.\n\n## Validation\nMeasure payload size + query time for the board data path before/after. Confirm board/list render identically.\n\n## Acceptance criteria\n- Board/list summary views use the projected `getTicketSummaries` (no `SELECT *`).\n- Detail views still get full data.\n- Measured payload/time reduction recorded; `pnpm check` passes.",
-      "priority": "medium",
+      "description": "# Why\nBoth detail pages hardcode their own `containerStyles` with `maxWidth: 1200px; margin: 0 auto` (`ticket.$id.tsx:750-759`, `epic.$id.tsx` equivalent) and an identical `contentGridStyles` (`3fr 2fr`). On wide displays this leaves the content as a narrow centered ribbon, and everything below the one grid is a single stacked column. Before redesigning either page we need ONE shared layout primitive so ticket + epic stay consistent and the wasted-canvas problem is fixed in one place.\n\nThis is the foundational ticket. The ticket-detail and epic-detail redesign tickets build on top of it.\n\n# What to do\n1. Create a small, reusable layout component (e.g. `src/components/layout/DetailPageLayout.tsx`) that defines:\n   - A responsive outer container: fluid width that **uses the available canvas** with a sensible upper bound (wider than today's 1200px — e.g. a `clamp()`/`min()` cap around 1600–1760px), generous but rhythmic gutters, and graceful narrowing on smaller viewports.\n   - A **primary / rail** region system: a main content column and an optional secondary rail. The rail should be **sticky** within the viewport on wide screens and collapse below the main column on narrow screens (single column under a breakpoint).\n   - Slots/props so each page can declare: full-bleed regions (header, code changes), primary-column content, and rail content.\n   - The primary reading column caps text at ~65–75ch even when the page is wide (wide canvas ≠ wide prose).\n2. Use the project's existing CSS variables / spacing tokens. Follow existing styling conventions in these route files (they use inline `React.CSSProperties`); match that or introduce Tailwind only if consistent with the file you touch — don't mix arbitrarily.\n3. Define a semantic z-index/stacking approach for the sticky rail (no arbitrary 9999).\n4. Do NOT migrate the pages in this ticket — just build + unit/visual-smoke the shell with a throwaway harness or Storybook-style usage, and document the API in the ticket. The page migrations are separate tickets.\n\n# Design guardrails\n- Wide canvas, bounded prose. No identical-card scaffolding baked into the shell — the shell is structure, not decoration.\n- Sticky rail must not overlap content or trap scroll; respect `prefers-reduced-motion` for any scroll/transition behavior.\n- Test the breakpoint behavior: rail → stacked, no horizontal overflow at any width.\n\n# Acceptance criteria\n- A reusable `DetailPageLayout` (or equivalent) exists with documented props for full-bleed / primary / rail regions.\n- It is responsive: multi-column with sticky rail on wide screens, single column on narrow, no overflow at any breakpoint.\n- Primary column constrains prose width while the overall container uses more horizontal space than the current 1200px.\n- Uses existing design tokens; `pnpm check` and `pnpm build` pass (touches client/layout boundaries).\n- API documented in a ticket comment for the consuming tickets.",
+      "priority": "high",
       "tags": [
-        "performance",
-        "sqlite",
-        "over-fetch"
+        "ui",
+        "layout",
+        "ticket-detail",
+        "epic-detail",
+        "architecture"
       ]
     },
     {
-      "id": "fcdd4257-4190-4856-8669-495203391de4",
-      "title": "Eliminate N+1 query loops in cost computation paths",
-      "passes": false,
-      "overview": "Several cost paths issue a query per row inside a loop:\n- `getCostExplorerData` calls `getTicketCostDetail(db, row.ticket_id)` per ticket; each does ~4 queries → ~`1 + 4N` queries (`core/cost.ts:1502-1503,1584-1585,1610-1611`).\n- `recalculateCosts` calls `computeCostFromTokens` per `token_usage` row, and each does 2 `cost_models` lookups → ~`2 * rows` queries inside the transaction (`core/cost.ts:1141-1175`).\n- `sessionHasUsage` runs a `COUNT(*)` per session in the deep recalculate backfills (`core/deep-cost-recalculate.ts:202,351,522`).",
+      "id": "5bc261bd-c3af-40ed-9060-b373a99e53ff",
+      "title": "Re-lay-out the ticket detail page on the new workspace shell",
+      "passes": true,
+      "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Cost explorer, recalculate, and deep-recalculate no longer issue per-row/per-session queries.",
-        "Cost numbers unchanged (verified against current output).",
-        "`pnpm check` and cost tests pass."
+        "`ticket.$id.tsx` uses `DetailPageLayout`; the 1200px hardcoded container and the lone `3fr 2fr` grid are gone.",
+        "On a wide viewport the page uses the canvas: primary reading column + sticky secondary rail; no vast empty margins.",
+        "Secondary/monitoring panels live in the rail; description + activity are primary.",
+        "Narrow viewport collapses cleanly to a single column with no overflow.",
+        "All status-gated sections, polling, and modals behave exactly as before.",
+        "`pnpm check` passes; `pnpm build:analyze` run (route-chunk/bundle-sensitive) with result recorded; before/after screenshots at desktop + narrow widths."
       ],
       "references": [],
-      "description": "> 🌿 **Branch:** Implement on the existing `chore/project-validation-discovery` branch — do NOT create a per-ticket branch. **Planning only:** do not start work until explicitly requested.\n\n## Problem\nSeveral cost paths issue a query per row inside a loop:\n- `getCostExplorerData` calls `getTicketCostDetail(db, row.ticket_id)` per ticket; each does ~4 queries → ~`1 + 4N` queries (`core/cost.ts:1502-1503,1584-1585,1610-1611`).\n- `recalculateCosts` calls `computeCostFromTokens` per `token_usage` row, and each does 2 `cost_models` lookups → ~`2 * rows` queries inside the transaction (`core/cost.ts:1141-1175`).\n- `sessionHasUsage` runs a `COUNT(*)` per session in the deep recalculate backfills (`core/deep-cost-recalculate.ts:202,351,522`).\n\n## Fix\n- `getCostExplorerData`: pre-fetch ralph_sessions + token_usage aggregates for ALL ticket IDs in one query each, then join in memory in `buildTicketNode`.\n- `recalculateCosts`: load `cost_models` into a `Map` once before the loop; resolve pricing in memory (no per-row DB query).\n- Deep recalculate: pre-fetch the set of session IDs that already have usage via one `GROUP BY`/`IN (...)` query → build a Set.\n\n## Hot paths\nCost Explorer page; cost recalculate / backfill commands.\n\n## Validation\nCount queries (or time) for cost explorer on an epic with ~20 tickets before/after; recalculate on a large token_usage set. Record before/after.\n\n## Acceptance criteria\n- Cost explorer, recalculate, and deep-recalculate no longer issue per-row/per-session queries.\n- Cost numbers unchanged (verified against current output).\n- `pnpm check` and cost tests pass.",
+      "description": "# Why\nToday `ticket.$id.tsx` renders a 1200px-centered column: header → workflow → code changes → one `3fr 2fr` grid (description | subtasks+findings) → then a long vertical stack of identical full-width cards (Demo → Claude Tasks → Cost → Telemetry → Activity → metadata footer). On a wide screen it's a narrow ribbon and an endless scroll. Rebuild it on the shared `DetailPageLayout` so a ticket reads at a glance.\n\nDepends on: \"Build a responsive detail-page workspace layout shell.\"\n\n# Target composition (use judgment, this is the intent)\n- **Full-bleed top:** `TicketDetailHeader`, then `WorkflowProgress`, then `TicketCodeChangesSection` (the diff surface genuinely wants the full width).\n- **Primary column:** `TicketDescription` (prose, width-capped) + `ActivitySection` (the activity log is primary reading, not a footnote).\n- **Sticky rail:** the at-a-glance/secondary panels — `SubtasksProgress`, `ReviewFindingsPanel`, `TicketCostPanel`, `TelemetryPanel`, `ClaudeTasks`, and the created/updated/completed metadata (currently the footer). These are scan-and-monitor, perfect for a sticky rail.\n- `DemoPanel` (human_review/done) — place where it reads best; likely full-bleed or primary, since it's interactive.\n- Keep all conditional rendering rules and props exactly as today (status gating, polling intervals, modals). This is layout only.\n\n# Design guardrails\n- Break the identical-card monotony: differentiate panels by role and weight, not by cloning `cardSectionStyles`. Not every region needs to be a bordered card. Nested cards are banned.\n- Prose stays 65–75ch even though the page is now wider.\n- The rail collapses below the primary column on narrow screens; no overflow at any width.\n- Preserve all existing behavior, query invalidation, and accessibility (keyboard, ARIA) — verify the full chain still works end to end.\n\n# Acceptance criteria\n- `ticket.$id.tsx` uses `DetailPageLayout`; the 1200px hardcoded container and the lone `3fr 2fr` grid are gone.\n- On a wide viewport the page uses the canvas: primary reading column + sticky secondary rail; no vast empty margins.\n- Secondary/monitoring panels live in the rail; description + activity are primary.\n- Narrow viewport collapses cleanly to a single column with no overflow.\n- All status-gated sections, polling, and modals behave exactly as before.\n- `pnpm check` passes; `pnpm build:analyze` run (route-chunk/bundle-sensitive) with result recorded; before/after screenshots at desktop + narrow widths.",
       "priority": "medium",
       "tags": [
-        "performance",
-        "sqlite",
-        "n+1",
-        "cost"
+        "ui",
+        "ticket-detail",
+        "layout"
       ]
     },
     {
-      "id": "305c1f00-c7e8-4034-8147-66c2cb600ae9",
-      "title": "Cheapen startup & search DB checks (user_version gating, FTS cache, integrity_check(1))",
-      "passes": false,
-      "overview": "Startup runs ~25 synchronous `sqlite_master`/`PRAGMA table_info` checks on every boot (`src/lib/db.ts:82-758`, `src/lib/db-bootstrap.ts:3-25`), adding ~10-50ms to first-request latency even when no migration is needed. Two smaller repeat-cost checks: `hasFts5Table` queries `sqlite_master` on every search keystroke (`core/search.ts:33-38`), and `verifyBackup` uses full `integrity_check` instead of the cheaper `integrity_check(1)` (`src/lib/backup.ts:179`).",
+      "id": "b2e0ad72-2076-4542-bc77-c2d781dacdf8",
+      "title": "Re-lay-out the epic detail page on the new workspace shell",
+      "passes": true,
+      "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Migration checks skipped via `user_version` when DB is current.",
-        "`hasFts5Table` cached; `verifyBackup` uses `integrity_check(1)`.",
-        "No migration/correctness regression; `pnpm check` + DB/backup tests pass."
+        "`epic.$id.tsx` uses `DetailPageLayout`; hardcoded 1200px container and lone `3fr 2fr` grid removed.",
+        "Tickets list is the visual focus; cost/insights/learnings live in a scannable rail/band; review-runs grid retained and placed in the wider canvas.",
+        "Wide viewport uses horizontal space; narrow viewport collapses cleanly with no overflow.",
+        "Ticket and epic detail pages read as a consistent family.",
+        "All existing behavior and conditional sections preserved; `pnpm check` passes; `pnpm build:analyze` recorded; before/after screenshots at desktop + narrow widths."
+      ],
+      "references": [],
+      "description": "# Why\n`epic.$id.tsx` mirrors the ticket page's problem: 1200px-centered, a single `3fr 2fr` grid (description | tickets list), then a stack of sections (cost → insights → learnings → review runs → footer). An epic is a portfolio of work and should feel like a dashboard that uses the canvas, not a tall scroll. Rebuild it on the shared `DetailPageLayout`.\n\nDepends on: \"Build a responsive detail-page workspace layout shell.\" Coordinate with the ticket-detail redesign so the two pages feel like siblings.\n\n# Target composition (use judgment, this is the intent)\n- **Full-bleed top:** `EpicDetailHeader`, then `EpicProgressOverview`, then `EpicCodeChangesSection` (aggregated diff wants width).\n- **Primary column:** `EpicTicketsList` is the heart of an epic — give it the prominent primary region. `TicketDescription` (epic description) reads above it, width-capped.\n- **Sticky rail:** `EpicCostPanel`, `EpicInsights`, `EpicLearnings` — scan/monitor content. Consider a 2-up arrangement within the rail or a secondary band rather than a tall single stack.\n- **Review Runs:** the existing `auto-fit minmax(260px, 1fr)` grid of run cards is a good pattern — keep that grid but host it in a region that uses the new width.\n- The epic detail page has no comments/activity section today — do not add one.\n\n# Design guardrails\n- Same anti-AI guardrails: no side stripes, no identical-card scaffolding, cards ≤16px radius, no ghost cards, no gradient text.\n- Differentiate the tickets list (primary) from the insight/learning panels (secondary) by weight and placement, not by uniform cards.\n- Prose width-capped; responsive collapse with no overflow; preserve all conditional rendering (e.g. review runs only when present).\n\n# Acceptance criteria\n- `epic.$id.tsx` uses `DetailPageLayout`; hardcoded 1200px container and lone `3fr 2fr` grid removed.\n- Tickets list is the visual focus; cost/insights/learnings live in a scannable rail/band; review-runs grid retained and placed in the wider canvas.\n- Wide viewport uses horizontal space; narrow viewport collapses cleanly with no overflow.\n- Ticket and epic detail pages read as a consistent family.\n- All existing behavior and conditional sections preserved; `pnpm check` passes; `pnpm build:analyze` recorded; before/after screenshots at desktop + narrow widths.",
+      "priority": "medium",
+      "tags": [
+        "ui",
+        "epic-detail",
+        "layout"
+      ]
+    },
+    {
+      "id": "abeae4cd-4cda-4b3f-91be-7217f417e3b6",
+      "title": "Polish and verify the redesigned detail pages",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Both pages pass an accessibility walkthrough (keyboard + ARIA + focus-visible) and contrast checks.",
+        "Motion is present, purposeful, and fully reduced-motion-safe; no reveal hides content on headless/inactive-tab renders.",
+        "No overflow or broken wrapping at any tested breakpoint.",
+        "Before/after performance numbers recorded (bundle + render counts); no regression vs. baseline, perf budgets respected/ratcheted if improved.",
+        "`pnpm check` and `pnpm build` pass; final before/after screenshots of both pages at multiple widths attached."
+      ],
+      "references": [],
+      "description": "# Why\nFinal craft + verification pass once the comment cleanup, AI-tell sweep, layout shell, and both page redesigns have landed. This is where the redesign earns \"impeccable\": rhythm, motion, accessibility, contrast, responsiveness, and measured performance.\n\nDepends on: the ticket-detail and epic-detail redesign tickets.\n\n# What to do\n1. **Spacing & rhythm:** vary spacing for hierarchy (don't use one uniform gap everywhere); verify alignment across the primary column and rail on both pages.\n2. **Motion (intentional, not reflexive):** add restrained motion where it helps — e.g. a subtle staggered reveal for the activity log or tickets list, smooth sticky-rail behavior. No bounce/elastic; ease-out curves. Every animation has a `@media (prefers-reduced-motion: reduce)` alternative. Do not gate content visibility on a transition.\n3. **Accessibility:** keyboard navigation through all interactive regions, focus order sane with the new rail, ARIA labels intact, focus-visible styles present. Run the `web-design-guidelines` checks if available.\n4. **Contrast:** verify body text ≥4.5:1 and large text ≥3:1 against the new surfaces, including the neutralized comment badges.\n5. **Responsive:** walk desktop-wide → laptop → tablet → mobile. No horizontal overflow, no text overflowing containers, rail collapses correctly, headings wrap (`text-wrap: balance`).\n6. **Performance:** these are hot paths (ticket modal/detail open, route chunks). Run `pnpm build:analyze` and the render-count check (`pnpm test:e2e perf-renders`) where relevant; record before/after numbers per the perf runbook. Ensure no extra re-renders introduced by the layout change.\n\n# Acceptance criteria\n- Both pages pass an accessibility walkthrough (keyboard + ARIA + focus-visible) and contrast checks.\n- Motion is present, purposeful, and fully reduced-motion-safe; no reveal hides content on headless/inactive-tab renders.\n- No overflow or broken wrapping at any tested breakpoint.\n- Before/after performance numbers recorded (bundle + render counts); no regression vs. baseline, perf budgets respected/ratcheted if improved.\n- `pnpm check` and `pnpm build` pass; final before/after screenshots of both pages at multiple widths attached.",
+      "priority": "medium",
+      "tags": [
+        "ui",
+        "polish",
+        "accessibility",
+        "performance",
+        "verification"
+      ]
+    },
+    {
+      "id": "c8fab265-ff88-4a5d-8e57-d04e755628bc",
+      "title": "Remove the colored side-stripe and type-color badges from comments",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "No comment renders a colored left border in either renderer.",
+        "Ordinary comment types (progress/work_summary/test_report/comment) use a single neutral badge style; the rainbow per-type coloring is gone.",
+        "`change_request` remains visually distinct via a single restrained, non-stripe treatment.",
+        "Both `Comment.tsx` and `ModalCommentsSection.tsx` are updated and visually consistent.",
+        "Dead color-map constants removed; `pnpm check` passes.",
+        "Manual: open a ticket with multiple comment types at localhost:4242 — confirm the activity log reads as a clean human log; capture before/after screenshots."
       ],
       "references": [
-        "src/lib/db.ts:82-758",
-        "src/lib/db-bootstrap.ts:3-25",
-        "src/lib/backup.ts:179"
+        "src/components/tickets/Comment.tsx",
+        "src/components/tickets/ModalCommentsSection.tsx"
       ],
-      "description": "> 🌿 **Branch:** Implement on the existing `chore/project-validation-discovery` branch — do NOT create a per-ticket branch. **Planning only:** do not start work until explicitly requested.\n\n## Problem\nStartup runs ~25 synchronous `sqlite_master`/`PRAGMA table_info` checks on every boot (`src/lib/db.ts:82-758`, `src/lib/db-bootstrap.ts:3-25`), adding ~10-50ms to first-request latency even when no migration is needed. Two smaller repeat-cost checks: `hasFts5Table` queries `sqlite_master` on every search keystroke (`core/search.ts:33-38`), and `verifyBackup` uses full `integrity_check` instead of the cheaper `integrity_check(1)` (`src/lib/backup.ts:179`).\n\n## Fix\n- Gate the migration/column checks behind `PRAGMA user_version`: bump `user_version` after migrations; skip all checks when it matches the current version (standard SQLite migration pattern).\n- Cache the `hasFts5Table` boolean (module-level / per-DB WeakMap) — it never changes at runtime.\n- Change `verifyBackup` to `integrity_check(1)` (stop at first error), matching the startup path.\n- Where multiple `PRAGMA table_info(<table>)` calls hit the same table, fetch once and reuse.\n\n## Hot paths\nApp/server startup; search keystrokes; backup creation/restore.\n\n## Validation\nTime cold startup (first-request DB init) before/after with an already-migrated DB; confirm search and backup verify still correct. Record before/after.\n\n## Acceptance criteria\n- Migration checks skipped via `user_version` when DB is current.\n- `hasFts5Table` cached; `verifyBackup` uses `integrity_check(1)`.\n- No migration/correctness regression; `pnpm check` + DB/backup tests pass.",
-      "priority": "low",
+      "description": "# Why\nThe colored vertical stripe down the left edge of every comment is the single most obvious \"an AI built this\" tell on the ticket detail page. The impeccable skill lists side-stripe borders (`border-left` > 1px as a colored accent) as an *Absolute ban* — \"never intentional.\" Color-coding the type badge by category reinforces the machine-sorted feeling. Comments should read like a human activity log.\n\n# Current state\n- `src/components/tickets/Comment.tsx`\n  - `:26-32` `TYPE_BORDER_COLORS` map (gray/teal/purple/green/orange per type)\n  - `:287` `borderLeft: \\`3px solid ${borderColor}\\`` applied to EVERY comment container\n  - `:313-319` `typeBadgeStyles` uses `background: ${borderColor}15; color: borderColor` — colored pills per type\n- `src/components/tickets/ModalCommentsSection.tsx`\n  - `:13-18` `COMMENT_CONTAINER_STYLES` — colored full borders + tinted backgrounds per type\n  - `:33-43` `COMMENT_BADGE_STYLES` — colored badge pills\n\nThere are TWO comment renderers (CLAUDE.md: \"Identify ALL instances before modifying shared patterns\"). Both must be updated so board-modal and detail-page comments match.\n\n# What to do\n1. Remove the `borderLeft` side-stripe from `Comment.tsx`. Comments sit on a flat, consistent surface differentiated by avatar + author, not by a stripe.\n2. Drop per-type accent colors for the ordinary types (`progress`, `work_summary`, `test_report`, `comment`). Keep the small text label (e.g. \"Work Summary\") but render the badge in a single neutral token (`--text-muted` text on a `--bg-tertiary`/transparent chip) — no per-type rainbow.\n3. Keep exactly ONE meaningful exception: `change_request` (\"Changes Requested\") still needs to stand out because it's an action signal. Use a single restrained treatment (subtle full border + faint tint already present at `Comment.tsx:285-286`), NOT a side stripe and NOT the rainbow.\n4. Apply the same neutralization to `ModalCommentsSection.tsx` so both renderers agree.\n5. Delete now-dead constants/maps once unreferenced.\n\n# Design guardrails\n- No side stripes anywhere. No gradient text. Badge chips ≤ one neutral color (plus the single change_request accent).\n- Verify the badge/label text still hits ≥4.5:1 contrast on its chip.\n- Don't lose information: the type label text stays so users still know what a comment is.\n\n# Acceptance criteria\n- No comment renders a colored left border in either renderer.\n- Ordinary comment types (progress/work_summary/test_report/comment) use a single neutral badge style; the rainbow per-type coloring is gone.\n- `change_request` remains visually distinct via a single restrained, non-stripe treatment.\n- Both `Comment.tsx` and `ModalCommentsSection.tsx` are updated and visually consistent.\n- Dead color-map constants removed; `pnpm check` passes.\n- Manual: open a ticket with multiple comment types at localhost:4242 — confirm the activity log reads as a clean human log; capture before/after screenshots.",
+      "priority": "high",
       "tags": [
-        "performance",
-        "sqlite",
-        "startup"
+        "ui",
+        "ticket-detail",
+        "comments",
+        "ai-tells"
       ]
     }
   ],
@@ -275,9 +282,9 @@
       }
     ],
     "verificationSteps": [
-      "Run `pnpm type-check` - must pass with no errors",
-      "Run `pnpm lint` - must pass with no errors",
-      "Run `pnpm test` - all tests must pass",
+      "Run this project's validation commands (`pnpm check` for Brain Dump itself)",
+      "Record exact pass/fail/skipped results in a test_report comment",
+      "If no automated validation command is discoverable, record the manual smoke check performed",
       "Added tests for new functionality (ONLY tests that verify real user behavior - see Testing Philosophy above)",
       "Used typed error classes (not generic `Error`)",
       "Used Drizzle ORM (not raw SQL) - see DO/DON'T table above",
@@ -299,13 +306,17 @@
       "Verified error responses are informative (see DO/DON'T table)",
       "Updated tool documentation if interface changed",
       "Added Zod schema for input validation",
+      "Followed the measure → fix → re-measure → prove loop in [`docs/performance/validating-optimizations.md`](docs/performance/validating-optimizations.md)",
+      "Ran the matching gate: `pnpm perf:check` (bundle), `pnpm test:perf` (browser flow), and/or `pnpm test:e2e perf-renders` (render counts)",
+      "Recorded the before/after result (command + numbers) in the ticket completion summary using the template in the runbook",
+      "Ratcheted the relevant ceiling in `docs/performance/perf-budgets.json` if the change locked in a win",
       "All acceptance criteria from ticket met",
       "Work summary added via `comment` tool, `action: \"add\"` (for Ralph sessions)",
       "Session completed with appropriate outcome (for Ralph sessions)",
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-06-01T21:42:34.092Z",
-  "epicTitle": "⚡ SQLite Data Layer Speed (PRAGMAs, indexes, N+1)",
-  "epicDescription": "## Why this epic exists\n\nEvery UI interaction ultimately reads/writes local SQLite. If the data layer isn't tuned, the whole app inherits avoidable latency. Investigation found missing connection PRAGMAs, missing indexes on hot-path sort/filter columns, several N+1 query loops, and over-fetching on the board.\n\n## Root causes found (with evidence)\n\n- **Missing PRAGMAs** (`src/lib/db.ts:44-45`, `core/db.ts:1003,1020`): only `journal_mode=WAL` + `foreign_keys` are set. Missing `synchronous=NORMAL` (biggest write-latency win), `busy_timeout` (causes SQLITE_BUSY under UI+MCP+CLI contention), `cache_size`, `mmap_size`, `temp_store=MEMORY`.\n- **`core/db.ts` does not set `foreign_keys=ON`** — CLI/MCP path silently bypasses cascades.\n- **Missing index on `tickets.position`** — the board's `ORDER BY position` falls back to filesort on every load/reorder (`src/lib/schema.ts:70-78`, `src/api/tickets.ts:444`).\n- **Missing index on `tickets.completed_at`** — dashboard analytics does 5+ full scans (`src/api/analytics.ts:88-130,248`).\n- **N+1 queries**: `getCostExplorerData` ~4 queries/ticket (`core/cost.ts:1502,1584,1610`); `recalculateCosts` 2 cost-model queries/row (`core/cost.ts:1166`); `sessionHasUsage` per session (`core/deep-cost-recalculate.ts`).\n- **Over-fetch**: `getTickets` does `SELECT *` (description/attachments/subtasks JSON) for board views instead of the existing `getTicketSummaries` projection (`src/api/tickets.ts:98`).\n- **Startup**: ~25 uncached `PRAGMA table_info`/`sqlite_master` checks run every boot; could be gated behind `PRAGMA user_version`. `hasFts5Table` queries `sqlite_master` on every search keystroke. `verifyBackup` uses full `integrity_check` instead of `integrity_check(1)`.\n\n## Goal\n\nConnection tuned for a local read-heavy app, hot-path queries index-backed, no N+1 loops, board fetches only summary columns, startup checks cheap. Prove with focused query timing.\n\n## 🌿 BRANCH REQUIREMENT\n\nAll tickets in this epic MUST be implemented on the existing branch **`chore/project-validation-discovery`** (no per-ticket branches). PLANNING ONLY — do not start work until requested. DB schema changes require `pnpm db:generate`/`pnpm db:migrate` per CLAUDE.md. See the ⚡ Performance North Star epic for validation methodology."
+  "generatedAt": "2026-06-06T22:26:45.759Z",
+  "epicTitle": "Detail pages: remove the AI tells, use the full canvas",
+  "epicDescription": "# Goal\n\nMake the **ticket detail** and **epic detail** pages look like a human craftsperson built them, and lay them out so they actually use the screen.\n\nTwo problems, one epic:\n\n## 1. The \"an AI made this\" tells\nCertain visual habits have become instantly-recognizable AI signatures. We carry several of them, the worst being the **colored vertical stripe down the left edge of every comment** in the ticket activity log (`Comment.tsx:287`, `borderLeft: 3px solid <typeColor>`). This is on the impeccable skill's *Absolute bans* list — \"side-stripe borders… never intentional.\" We also color-code comment type badges, which reinforces the machine-categorized feel. We will remove these and replace type differentiation (where it carries real meaning, e.g. \"Changes Requested\") with quieter, human conventions.\n\n## 2. Wasted canvas\nBoth detail pages hardcode `maxWidth: 1200px; margin: 0 auto` and then stack nearly everything in a single vertical column (after one `3fr 2fr` grid). On any wide display the content is a narrow ribbon floating in a sea of empty space, and the page becomes an endless scroll of full-width cards (Claude Tasks → Cost → Telemetry → Activity). We will introduce a responsive workspace layout that uses horizontal space deliberately — a primary reading column plus a persistent, scannable rail — so an epic or ticket reads at a glance instead of by scrolling.\n\n# Design north stars (from the impeccable skill)\n- **No side-stripe accents. No gradient text. No glassmorphism-by-default. No identical card grids. No tiny uppercase tracked eyebrows above every section. Cards top out at 12–16px radius. Never pair a 1px border with a >16px-blur shadow (\"ghost card\").**\n- Hierarchy comes from **scale, weight, and spacing rhythm** — not from boxing every region in its own card. Nested cards are always wrong.\n- Use the canvas: `flex`/`grid` that breathes, a sticky secondary rail for metadata, a wider-but-bounded primary column (cap prose at 65–75ch even if the page is wide).\n- Verify contrast (body ≥4.5:1). Every change has a `prefers-reduced-motion` path. Test every breakpoint — text must never overflow its container.\n\n# Scope\n- `src/routes/ticket.$id.tsx`, `src/routes/epic.$id.tsx`\n- `src/components/tickets/Comment.tsx`, `src/components/tickets/ModalCommentsSection.tsx` (BOTH comment renderers — see CLAUDE.md \"Identify ALL instances\")\n- A shared detail-page layout primitive (new) so ticket + epic stay consistent\n- The panel components composed into both pages (header, code changes, subtasks, review findings, cost, telemetry, activity, epic progress/insights/learnings/tickets-list)\n\n# Out of scope\n- Backend / data changes. This is presentational only.\n- The kanban board, modals' core behavior, search.\n\n# Validation\n`pnpm check` must pass per ticket. UI tickets require manual verification at localhost:4242 with before/after screenshots at desktop + narrow widths, plus a `pnpm build:analyze` check on any bundle-sensitive change."
 }
