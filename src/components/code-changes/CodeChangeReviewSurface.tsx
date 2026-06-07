@@ -1,5 +1,6 @@
 import { useMemo, type ReactNode } from "react";
-import { AlertCircle, GitBranch, Loader2, RotateCw } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { AlertCircle, ExternalLink, GitBranch, Loader2, RotateCw } from "lucide-react";
 import { ChangedFilesTree } from "./ChangedFilesTree";
 import { DiffPatchViewer } from "./DiffPatchViewer";
 import { useCodeChangePatch } from "../../lib/hooks/code-changes";
@@ -313,9 +314,33 @@ function GroupTags({
 }
 
 function ticketGroupRowClass(active: boolean): string {
-  return `grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 border-b border-[var(--border-primary)] px-3 py-2.5 text-left transition-colors last:border-b-0 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[var(--accent-primary)]/40 lg:grid-cols-[minmax(0,1.25fr)_7.5rem_minmax(8rem,0.8fr)_5rem_7rem_minmax(0,12rem)] ${
+  return `grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 border-b border-[var(--border-primary)] px-3 py-2.5 transition-colors last:border-b-0 lg:grid-cols-[minmax(0,1.25fr)_7.5rem_minmax(8rem,0.8fr)_5rem_7rem_minmax(0,12rem)_5.5rem] ${
     active ? "bg-[var(--accent-primary)]/10" : "bg-transparent hover:bg-[var(--bg-hover)]"
   }`;
+}
+
+function ticketGroupSelectButtonClass(active: boolean): string {
+  return `rounded-sm text-left focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]/40 ${
+    active
+      ? "text-[var(--accent-primary)]"
+      : "text-[var(--text-primary)] hover:text-[var(--accent-primary)]"
+  }`;
+}
+
+function TicketDetailsLink({ ticketId, title }: { ticketId: string; title: string }) {
+  return (
+    <Link
+      to="/ticket/$id"
+      params={{ id: ticketId }}
+      preload="intent"
+      className="col-start-2 inline-flex items-center justify-self-end gap-1 rounded-md border border-[var(--border-primary)] px-2 py-1 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]/40 lg:col-auto lg:justify-self-start"
+      aria-label={`Open ticket details for ${title}`}
+      title={`Open ticket details for ${title}`}
+    >
+      <ExternalLink size={12} aria-hidden="true" />
+      <span>Open</span>
+    </Link>
+  );
 }
 
 function SourcePill({ source }: { source: CodeChangeSource }) {
@@ -486,36 +511,33 @@ export function CodeChangeReviewSurface({
           role="group"
           aria-label="Epic tickets and code-change groups"
         >
-          <div className="hidden grid-cols-[minmax(0,1.25fr)_7.5rem_minmax(8rem,0.8fr)_5rem_7rem_minmax(0,12rem)] gap-x-3 border-b border-[var(--border-primary)] bg-[var(--bg-tertiary)] px-3 py-2 text-[11px] font-medium text-[var(--text-tertiary)] lg:grid">
+          <div className="hidden grid-cols-[minmax(0,1.25fr)_7.5rem_minmax(8rem,0.8fr)_5rem_7rem_minmax(0,12rem)_5.5rem] gap-x-3 border-b border-[var(--border-primary)] bg-[var(--bg-tertiary)] px-3 py-2 text-[11px] font-medium text-[var(--text-tertiary)] lg:grid">
             <span>Ticket</span>
             <span>Status</span>
             <span>Tags</span>
             <span>Files</span>
             <span>Changes</span>
             <span>Source</span>
+            <span>Details</span>
           </div>
           {showAggregateRow && (
-            <button
-              type="button"
-              aria-pressed={!selection.selectedTicketId}
-              className={ticketGroupRowClass(!selection.selectedTicketId)}
-              onClick={() =>
-                onSelectionChange?.({
-                  selectedTicketId: null,
-                  selectedFilePath: null,
-                  selectedSourceId: null,
-                })
-              }
-            >
-              <span
-                className={`col-start-1 min-w-0 truncate text-sm font-semibold lg:col-auto ${
+            <div className={ticketGroupRowClass(!selection.selectedTicketId)}>
+              <button
+                type="button"
+                aria-pressed={!selection.selectedTicketId}
+                className={`col-start-1 min-w-0 truncate text-sm font-semibold lg:col-auto ${ticketGroupSelectButtonClass(
                   !selection.selectedTicketId
-                    ? "text-[var(--accent-primary)]"
-                    : "text-[var(--text-primary)]"
-                }`}
+                )}`}
+                onClick={() =>
+                  onSelectionChange?.({
+                    selectedTicketId: null,
+                    selectedFilePath: null,
+                    selectedSourceId: null,
+                  })
+                }
               >
                 All tickets
-              </span>
+              </button>
               <span className="col-start-2 justify-self-end lg:col-auto lg:justify-self-start">
                 <GroupStatusBadge status="aggregate" />
               </span>
@@ -534,40 +556,36 @@ export function CodeChangeReviewSurface({
               <span className="hidden min-w-0 truncate text-xs text-[var(--text-tertiary)] lg:block">
                 All linked sources
               </span>
-            </button>
+              <span className="hidden lg:block" />
+            </div>
           )}
           {summary.groups.map((group) => {
             const active = selection.selectedTicketId === group.ticketId;
             const sourceLabel = describeGroupSources(group);
             const meta = ticketMetaById?.[group.ticketId];
             return (
-              <button
-                key={group.ticketId}
-                type="button"
-                aria-pressed={active}
-                className={ticketGroupRowClass(active)}
-                onClick={() =>
-                  onSelectionChange?.({
-                    selectedTicketId: group.ticketId,
-                    selectedFilePath: null,
-                    selectedSourceId: null,
-                  })
-                }
-              >
-                <span className="col-start-1 min-w-0 lg:col-auto">
-                  <span
-                    className={`block truncate text-sm font-semibold ${
-                      active ? "text-[var(--accent-primary)]" : "text-[var(--text-primary)]"
-                    }`}
-                  >
-                    {group.title}
-                  </span>
+              <div key={group.ticketId} className={ticketGroupRowClass(active)}>
+                <button
+                  type="button"
+                  aria-pressed={active}
+                  className={`col-start-1 min-w-0 lg:col-auto ${ticketGroupSelectButtonClass(
+                    active
+                  )}`}
+                  onClick={() =>
+                    onSelectionChange?.({
+                      selectedTicketId: group.ticketId,
+                      selectedFilePath: null,
+                      selectedSourceId: null,
+                    })
+                  }
+                >
+                  <span className="block truncate text-sm font-semibold">{group.title}</span>
                   {sourceLabel && (
                     <span className="mt-0.5 block truncate text-[11px] text-[var(--text-tertiary)] lg:hidden">
                       {sourceLabel}
                     </span>
                   )}
-                </span>
+                </button>
                 <span className="col-start-2 justify-self-end lg:col-auto lg:justify-self-start">
                   <GroupStatusBadge status={group.status} />
                 </span>
@@ -586,7 +604,8 @@ export function CodeChangeReviewSurface({
                 <span className="hidden min-w-0 truncate text-xs text-[var(--text-tertiary)] lg:block">
                   {sourceLabel ?? "No linked source"}
                 </span>
-              </button>
+                <TicketDetailsLink ticketId={group.ticketId} title={group.title} />
+              </div>
             );
           })}
         </div>

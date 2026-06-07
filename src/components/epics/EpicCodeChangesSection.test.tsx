@@ -1,3 +1,4 @@
+import type { AnchorHTMLAttributes } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -7,6 +8,24 @@ import type { CodeChangeRouteSearchState } from "../../lib/code-change-route-sea
 
 const mockUseEpicCodeChangeSummary = vi.hoisted(() => vi.fn());
 const mockUseCodeChangePatch = vi.hoisted(() => vi.fn());
+
+type RouterLinkProps = AnchorHTMLAttributes<HTMLAnchorElement> & {
+  to?: string;
+  params?: { id?: string };
+  preload?: string;
+};
+
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({ children, to, params, preload: _preload, ...props }: RouterLinkProps) => {
+    const href = to === "/ticket/$id" && params?.id ? `/ticket/${params.id}` : "#";
+
+    return (
+      <a {...props} href={href}>
+        {children}
+      </a>
+    );
+  },
+}));
 
 vi.mock("../../lib/hooks/code-changes", async () => {
   const actual = await vi.importActual<typeof import("../../lib/hooks/code-changes")>(
@@ -184,6 +203,10 @@ describe("EpicCodeChangesSection", () => {
     // Statuses are surfaced for each group.
     expect(screen.getByText("In Progress")).toBeInTheDocument();
     expect(screen.getByText("AI Review")).toBeInTheDocument();
+    expect(screen.getByText("Details")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Open ticket details for Ticket one" })
+    ).toHaveAttribute("href", "/ticket/ticket-1");
   });
 
   it("surfaces ticket metadata tags in the consolidated work ledger", async () => {

@@ -1,3 +1,4 @@
+import type { AnchorHTMLAttributes } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi, beforeEach } from "vitest";
@@ -8,6 +9,24 @@ import { DiffPatchViewer } from "./DiffPatchViewer";
 import type { CodeChangeSummaryResult } from "../../lib/hooks/code-changes";
 
 const mockUseCodeChangePatch = vi.hoisted(() => vi.fn());
+
+type RouterLinkProps = AnchorHTMLAttributes<HTMLAnchorElement> & {
+  to?: string;
+  params?: { id?: string };
+  preload?: string;
+};
+
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({ children, to, params, preload: _preload, ...props }: RouterLinkProps) => {
+    const href = to === "/ticket/$id" && params?.id ? `/ticket/${params.id}` : "#";
+
+    return (
+      <a {...props} href={href}>
+        {children}
+      </a>
+    );
+  },
+}));
 
 vi.mock("../../lib/hooks/code-changes", async () => {
   const actual = await vi.importActual<typeof import("../../lib/hooks/code-changes")>(
@@ -296,6 +315,37 @@ describe("CodeChangeReviewSurface", () => {
     fireEvent.keyDown(screen.getByText("Select a file to load its diff."), { key: "Escape" });
 
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("links epic work ledger rows to ticket detail pages while title buttons filter changes", async () => {
+    const onSelectionChange = vi.fn();
+
+    render(
+      <CodeChangeReviewSurface
+        scope={{ type: "epic", id: "epic-1" }}
+        summary={createSummary({ scope: { type: "epic", id: "epic-1" } })}
+        open={true}
+        selection={{ wordWrap: true, ignoreWhitespace: false }}
+        onSelectionChange={onSelectionChange}
+      />
+    );
+
+    expect(screen.getByText("Details")).toBeInTheDocument();
+
+    const ticketDetailsLink = screen.getByRole("link", {
+      name: "Open ticket details for Ticket one",
+    });
+    expect(ticketDetailsLink).toHaveAttribute("href", "/ticket/ticket-1");
+    expect(ticketDetailsLink.closest("button")).toBeNull();
+    expect(onSelectionChange).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole("button", { name: /Ticket one/i }));
+
+    expect(onSelectionChange).toHaveBeenCalledWith({
+      selectedTicketId: "ticket-1",
+      selectedFilePath: null,
+      selectedSourceId: null,
+    });
   });
 });
 
