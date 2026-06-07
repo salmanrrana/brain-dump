@@ -15,7 +15,6 @@ import { getEpicDetail } from "../api/epics";
 import { getEpicCost } from "../api/cost";
 import { EpicDetailHeader } from "../components/epics/EpicDetailHeader";
 import { EpicProgressOverview } from "../components/epics/EpicProgressOverview";
-import { EpicTicketsList } from "../components/epics/EpicTicketsList";
 import { EpicLearnings } from "../components/epics/EpicLearnings";
 import { EpicInsights } from "../components/epics/EpicInsights";
 import { EpicCostPanel } from "../components/epics/EpicCostPanel";
@@ -173,6 +172,9 @@ function EpicDetailSkeleton() {
           />
           <div style={{ ...skeletonStyles, width: "100%", height: "12px" }} />
         </div>
+
+        {/* Tickets and changes skeleton */}
+        <div style={{ ...skeletonStyles, width: "100%", height: "180px" }} />
       </DetailPageFullBleed>
 
       <DetailPageBody>
@@ -189,12 +191,9 @@ function EpicDetailSkeleton() {
             />
             <div style={{ ...skeletonStyles, width: "100%", height: "120px" }} />
           </DetailPageProse>
-
-          {/* Tickets list skeleton */}
-          <div style={{ ...skeletonStyles, width: "100%", height: "240px" }} />
         </DetailPagePrimary>
 
-        <DetailPageRail ariaLabel="Epic cost, insights, and learnings">
+        <DetailPageRail ariaLabel="Epic cost and insights">
           <div style={railCardStyles}>
             <div
               style={{
@@ -359,8 +358,8 @@ function EpicDetailPage() {
 
   return (
     <DetailPageLayout>
-      {/* Full-bleed top: back nav, header, progress overview, and the aggregated
-          diff surface all want the full bounded canvas width. */}
+      {/* Full-bleed top: back nav, header, progress overview, and the consolidated
+          tickets/changes ledger all want the full bounded canvas width. */}
       <DetailPageFullBleed style={fullBleedTopStyles}>
         <button
           type="button"
@@ -400,13 +399,15 @@ function EpicDetailPage() {
           branchName={epicDetail.workflowState?.epicBranchName}
           prNumber={epicDetail.workflowState?.prNumber}
           prUrl={epicDetail.workflowState?.prUrl}
+          tickets={epicDetail.tickets}
+          currentTicketId={epicDetail.workflowState?.currentTicketId ?? null}
           search={codeChangeSearch}
           onSearchChange={handleCodeChangeSearch}
         />
       </DetailPageFullBleed>
 
-      {/* Two-column body: the epic description and tickets list are the primary
-          reading column; the scan-and-monitor panels live in the sticky rail. */}
+      {/* Two-column body: the epic description is the primary reading column; the
+          scan-and-monitor panels live in the sticky rail. */}
       <DetailPageBody>
         <DetailPagePrimary>
           {/* Epic description - prose-capped even though the page is wide. */}
@@ -416,23 +417,15 @@ function EpicDetailPage() {
               testId="epic-detail-description"
             />
           </DetailPageProse>
-
-          {/* Tickets list - the heart of an epic, given the prominent primary
-              region. Self-carded; rendered on the page surface (no clone wrapper). */}
-          <EpicTicketsList tickets={epicDetail.tickets} />
         </DetailPagePrimary>
 
-        <DetailPageRail ariaLabel="Epic cost, insights, and learnings">
-          {/* Cost / Insights / Learnings - each self-carded scan-and-monitor
-              panel; no extra wrapper so we avoid nested-card scaffolding. */}
+        <DetailPageRail ariaLabel="Epic cost and insights">
+          {/* Cost / Insights - self-carded scan-and-monitor panels; no extra
+              wrapper so we avoid nested-card scaffolding. */}
           <EpicCostPanel epicId={epicDetail.epic.id} />
           <EpicInsights
             insights={epicDetail.workflowState?.insights ?? []}
             analyzedAt={epicDetail.workflowState?.analyzedAt ?? null}
-          />
-          <EpicLearnings
-            epicId={epicDetail.epic.id}
-            learnings={epicDetail.workflowState?.learnings ?? []}
           />
 
           {/* Metadata - compact footer-style block, not a heavy card. */}
@@ -441,6 +434,13 @@ function EpicDetailPage() {
           </footer>
         </DetailPageRail>
       </DetailPageBody>
+
+      <DetailPageFullBleed style={learningsSectionStyles}>
+        <EpicLearnings
+          epicId={epicDetail.epic.id}
+          learnings={epicDetail.workflowState?.learnings ?? []}
+        />
+      </DetailPageFullBleed>
 
       {/* Review Runs - the auto-fit grid wants the full canvas width, so it
           hosts in a full-bleed region below the body. Only when present. */}
@@ -557,6 +557,11 @@ const progressSectionStyles: React.CSSProperties = {
   background: "var(--bg-card)",
   borderRadius: "var(--radius-xl)",
   border: "1px solid var(--border-primary)",
+};
+
+const learningsSectionStyles: React.CSSProperties = {
+  width: "100%",
+  maxWidth: "1120px",
 };
 
 // Subtle anchor for skeleton placeholders in the rail, mirroring the

@@ -105,9 +105,17 @@ export function applyCodeChangeRouteSearch(
     params.set(OPEN_PARAM, "1");
   }
 
-  writeOptionalParam(params, TICKET_PARAM, patch.selectedTicketId);
-  writeOptionalParam(params, SOURCE_PARAM, patch.selectedSourceId);
-  writeOptionalParam(params, FILE_PARAM, patch.selectedFilePath);
+  if ("selectedTicketId" in patch) {
+    writeOptionalParam(params, TICKET_PARAM, patch.selectedTicketId);
+  }
+
+  if ("selectedSourceId" in patch) {
+    writeOptionalParam(params, SOURCE_PARAM, patch.selectedSourceId);
+  }
+
+  if ("selectedFilePath" in patch) {
+    writeOptionalParam(params, FILE_PARAM, patch.selectedFilePath);
+  }
 
   if (patch.wordWrap !== undefined) {
     if (patch.wordWrap) {
