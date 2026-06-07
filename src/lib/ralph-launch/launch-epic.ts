@@ -31,6 +31,7 @@ import {
 } from "../../api/ralph-launchers";
 import { epics, projects, settings, tickets } from "../schema";
 import { getHumanRequestedChangesByTicketId } from "./change-request-context";
+import { ensureRalphArtifactsIgnored } from "./gitignore";
 import type {
   EpicLaunchPreparation,
   LaunchEpicInput,
@@ -333,6 +334,8 @@ export async function launchRalphForEpicCore(
       summary: `Launching focused review for ${reviewLaunches.length} ticket${reviewLaunches.length === 1 ? "" : "s"}.`,
     });
 
+    ensureRalphArtifactsIgnored(project.path);
+
     const scriptDir = join(homedir(), ".brain-dump", "scripts");
     mkdirSync(scriptDir, { recursive: true });
 
@@ -542,6 +545,8 @@ export async function launchRalphForEpicCore(
       warnings: sshWarnings,
     };
   }
+
+  ensureRalphArtifactsIgnored(project.path);
 
   const plansDir = join(project.path, "plans");
   mkdirSync(plansDir, { recursive: true });

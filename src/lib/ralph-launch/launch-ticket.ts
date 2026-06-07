@@ -24,6 +24,7 @@ import {
 import { projects, settings, tickets } from "../schema";
 import type { LaunchTicketInput, RalphLaunchDb, RalphLaunchDependencies } from "./types";
 import { getHumanRequestedChangesByTicketId } from "./change-request-context";
+import { ensureRalphArtifactsIgnored } from "./gitignore";
 
 const coreGit = createRealGitOperations();
 
@@ -100,6 +101,8 @@ export async function launchRalphForTicketCore(
     const { getDockerHostEnvValue } = await import("../../api/docker-utils");
     dockerHostEnv = await getDockerHostEnvValue();
   }
+
+  ensureRalphArtifactsIgnored(project.path);
 
   const plansDir = join(project.path, "plans");
   mkdirSync(plansDir, { recursive: true });
