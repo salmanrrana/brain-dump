@@ -7,7 +7,7 @@ import {
   useSearch,
 } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, useCallback, useMemo, useRef } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { ArrowLeft, AlertCircle } from "lucide-react";
 import { getTicket } from "../api/tickets";
 import { getWorkflowDisplayState } from "../api/workflow";
@@ -27,7 +27,7 @@ import { ActivitySection } from "../components/tickets/ActivitySection";
 import { TicketCodeChangesSection } from "../components/tickets/TicketCodeChangesSection";
 import { TicketDetailHeader } from "../components/tickets/TicketDetailHeader";
 import { EditTicketModal } from "../components/tickets/EditTicketModal";
-import { ShipChangesModal, TicketDescription, SubtasksProgress } from "../components/tickets";
+import { ShipChangesModal, TicketDescription } from "../components/tickets";
 import { WorkflowProgress } from "../components/tickets/WorkflowProgress";
 import { ReviewFindingsPanel } from "../components/tickets/ReviewFindingsPanel";
 import { ClaudeTasks } from "../components/tickets/ClaudeTasks";
@@ -42,7 +42,6 @@ import {
   DetailPageRail,
   DetailPageProse,
 } from "../components/layout/DetailPageLayout";
-import type { Subtask } from "../components/tickets/SubtasksProgress";
 import { type LaunchType } from "../components/tickets/LaunchActions";
 import type { LaunchModelSelection } from "../lib/launch-model-catalog";
 import { POLLING_INTERVALS } from "../lib/constants";
@@ -242,7 +241,7 @@ function TicketDetailSkeleton() {
         </DetailPagePrimary>
 
         <DetailPageRail ariaLabel="Ticket details and status">
-          {/* Subtasks section skeleton */}
+          {/* Rail panel skeleton */}
           <div style={railCardStyles}>
             <div
               style={{
@@ -290,10 +289,8 @@ function TicketDetailSkeleton() {
  * │ Ticket Title                                [Edit] [Start]  │
  * │ Status: In Progress  Priority: High  Epic: Auth            │
  * ├─────────────────────────────────────────────────────────────┤
- * │ Description                     │ Subtasks (2/4)           │
- * │ Add login/logout...             │ ☑ Database schema        │
- * │                                 │ ☑ API endpoints          │
- * │                                 │ ☐ UI components          │
+ * │ Description                     │ Cost / telemetry         │
+ * │ Add login/logout...             │ Provider and run data    │
  * ├─────────────────────────────────────────────────────────────┤
  * │ Activity (full timeline)                                    │
  * └─────────────────────────────────────────────────────────────┘
@@ -362,41 +359,6 @@ function TicketDetailPage() {
         ? POLLING_INTERVALS.COMMENTS_ACTIVE
         : 0,
   });
-
-  // Subtask state - parse from ticket when available
-  const [localSubtasks, setLocalSubtasks] = useState<Subtask[]>([]);
-
-  // Sync localSubtasks with ticket data when it changes
-  // Using useEffect to avoid stale closure issues
-  const ticketSubtasks = ticket?.subtasks;
-  const prevTicketSubtasks = useRef(ticketSubtasks);
-  if (ticketSubtasks !== prevTicketSubtasks.current) {
-    prevTicketSubtasks.current = ticketSubtasks;
-    let parsed: Subtask[] = [];
-    if (ticketSubtasks) {
-      try {
-        parsed = JSON.parse(ticketSubtasks) as Subtask[];
-      } catch (error) {
-        // Invalid JSON in subtasks field - log error and use empty array
-        console.error("Failed to parse ticket subtasks:", error);
-        showToast("error", "Failed to load subtasks. Please refresh the page.");
-        parsed = [];
-      }
-    }
-    if (JSON.stringify(parsed) !== JSON.stringify(localSubtasks)) {
-      setLocalSubtasks(parsed);
-    }
-  }
-
-  // Handle subtask updates - optimistic update + invalidate query
-  const handleSubtaskUpdate = useCallback(
-    (updatedSubtasks: Subtask[]) => {
-      setLocalSubtasks(updatedSubtasks);
-      // Invalidate the ticket query to refresh data after mutation completes
-      queryClient.invalidateQueries({ queryKey: queryKeys.ticket(id) });
-    },
-    [queryClient, id]
-  );
 
   // Find the epic for this ticket
   const epic: Epic | null = ticket
@@ -691,18 +653,6 @@ function TicketDetailPage() {
         </DetailPagePrimary>
 
         <DetailPageRail ariaLabel="Ticket details and status">
-          {/* Subtasks - bare component, anchored on a subtle rail card so it
-              sits consistently beside the self-carded monitor panels. */}
-          <div style={railCardStyles}>
-            <SubtasksProgress
-              ticketId={ticket.id}
-              subtasks={localSubtasks}
-              onUpdate={handleSubtaskUpdate}
-              disabled={ticket.status === "done"}
-              testId="ticket-detail-subtasks"
-            />
-          </div>
-
           {/* Review Findings Panel - shows during AI review phase. Self-carded. */}
           {showFindings && (
             <ReviewFindingsPanel
@@ -779,7 +729,7 @@ const backNavLinkStyles: React.CSSProperties = {
   fontSize: "var(--font-size-xs)",
   fontFamily: "var(--font-mono)",
   fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
-  letterSpacing: "var(--tracking-wide)",
+  letterSpacing: "0",
   padding: "var(--spacing-2) var(--spacing-3)",
   borderRadius: "var(--radius-lg)",
   border: "1px solid transparent",
@@ -803,9 +753,7 @@ const workflowSectionStyles: React.CSSProperties = {
   border: "1px solid var(--border-primary)",
 };
 
-// Subtle anchor for the otherwise-bare SubtasksProgress in the rail, so it sits
-// consistently next to the self-carded monitor panels (Cost/Telemetry/Tasks)
-// without nesting a card inside a card.
+// Subtle anchor for skeleton placeholders in the rail.
 const railCardStyles: React.CSSProperties = {
   padding: "var(--spacing-4)",
   background: "var(--bg-card)",
@@ -833,7 +781,7 @@ export const metadataStyles: React.CSSProperties = {
   fontSize: "var(--font-size-xs)",
   fontFamily: "var(--font-mono)",
   color: "var(--text-secondary)",
-  letterSpacing: "0.01em",
+  letterSpacing: "0",
 };
 
 // Error styles
@@ -861,7 +809,7 @@ const errorCardStyles: React.CSSProperties = {
 const errorTitleStyles: React.CSSProperties = {
   fontSize: "var(--font-size-2xl)",
   fontWeight: "var(--font-weight-bold)" as React.CSSProperties["fontWeight"],
-  letterSpacing: "var(--tracking-tight)",
+  letterSpacing: "0",
   color: "var(--text-primary)",
   margin: 0,
 };

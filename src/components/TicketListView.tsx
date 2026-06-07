@@ -16,7 +16,7 @@ import { CopyableTag } from "./board/CopyableTag";
 
 const VIRTUALIZATION_THRESHOLD = 20;
 const ROW_HEIGHT_ESTIMATE = 45;
-const TABLE_COLUMN_COUNT = 8;
+const TABLE_COLUMN_COUNT = 7;
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
@@ -26,8 +26,6 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
 interface ParsedTicketRow {
   ticket: TicketSummary;
   tags: string[];
-  subtaskCount: number;
-  completedSubtaskCount: number;
   createdAtMs: number;
   createdAtLabel: string;
   epicTitle: string | null;
@@ -77,14 +75,11 @@ export default function TicketListView({ tickets, epics, onTicketClick }: Ticket
   const parsedRows = useMemo(() => {
     const rows: ParsedTicketRow[] = tickets.map((ticket) => {
       const tags = safeJsonParse<string[]>(ticket.tags, []);
-      const subtasks = safeJsonParse<{ completed: boolean }[]>(ticket.subtasks, []);
       const createdAtMs = new Date(ticket.createdAt).getTime();
       const epic = ticket.epicId ? epicMap.get(ticket.epicId) : null;
       return {
         ticket,
         tags,
-        subtaskCount: subtasks.length,
-        completedSubtaskCount: subtasks.filter((s) => s.completed).length,
         createdAtMs,
         createdAtLabel: dateFormatter.format(createdAtMs),
         epicTitle: epic?.title ?? null,
@@ -184,9 +179,6 @@ export default function TicketListView({ tickets, epics, onTicketClick }: Ticket
         <th className="text-left px-4 py-3 text-sm font-medium text-[var(--text-secondary)]">
           Branch / PR
         </th>
-        <th className="text-left px-4 py-3 text-sm font-medium text-[var(--text-secondary)]">
-          Subtasks
-        </th>
         <th
           className="text-left px-4 py-3 text-sm font-medium text-[var(--text-secondary)] cursor-pointer hover:text-[var(--text-primary)]"
           onClick={() => handleSort("createdAt")}
@@ -259,7 +251,7 @@ const TicketTableRow = memo(function TicketTableRow({
   row: ParsedTicketRow;
   onTicketClick: (ticket: TicketSummary) => void;
 }) {
-  const { ticket, tags, subtaskCount, completedSubtaskCount, createdAtLabel, epicTitle } = row;
+  const { ticket, tags, createdAtLabel, epicTitle } = row;
 
   const handleClick = useCallback(() => {
     onTicketClick(ticket);
@@ -341,13 +333,6 @@ const TicketTableRow = memo(function TicketTableRow({
             </span>
           )}
         </div>
-      </td>
-      <td className="px-4 py-3">
-        {subtaskCount > 0 && (
-          <span className="text-xs text-[var(--text-secondary)]">
-            {completedSubtaskCount}/{subtaskCount}
-          </span>
-        )}
       </td>
       <td className="px-4 py-3 text-sm text-[var(--text-secondary)]">{createdAtLabel}</td>
     </tr>

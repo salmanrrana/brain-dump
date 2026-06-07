@@ -2,7 +2,6 @@ import { type FC, useMemo } from "react";
 import { Target, Zap, Clock } from "lucide-react";
 import type { Ticket } from "../../lib/hooks";
 import type { ActiveRalphSession } from "../../api/ralph";
-import { type Subtask } from "../../api/tickets";
 import {
   sectionStyles,
   sectionHeaderStyles,
@@ -26,9 +25,8 @@ export interface CurrentFocusCardProps {
  * CurrentFocusCard - Displays the currently active/focused ticket.
  *
  * Features:
- * - Shows ticket title, description preview, and progress
+ * - Shows ticket title and description preview
  * - AI activity indicator (glow animation when Ralph is active)
- * - Subtask progress bar with completion count
  * - Time since work started
  * - Click navigates to ticket detail
  * - Empty state when no active focus
@@ -40,29 +38,11 @@ export interface CurrentFocusCardProps {
  * ├────────────────────────────────────┤
  * │ Implement dark mode toggle    ⚡   │
  * │ Adding theme switching...          │
- * │ ████████░░░░ 3/5 subtasks         │
  * │ Started 2h ago                     │
  * └────────────────────────────────────┘
  * ```
  */
 export const CurrentFocusCard: FC<CurrentFocusCardProps> = ({ ticket, session, onClick }) => {
-  // Parse subtasks from JSON string - log errors for debugging malformed data
-  const subtasksJson = ticket?.subtasks ?? null;
-  const ticketId = ticket?.id;
-  const subtasks = useMemo<Subtask[]>(() => {
-    if (!subtasksJson) return [];
-    try {
-      return JSON.parse(subtasksJson) as Subtask[];
-    } catch (err) {
-      console.error("Failed to parse subtasks JSON:", err, { ticketId });
-      return [];
-    }
-  }, [subtasksJson, ticketId]);
-
-  const completedSubtasks = subtasks.filter((s) => s.completed).length;
-  const totalSubtasks = subtasks.length;
-  const progressPercent = totalSubtasks > 0 ? (completedSubtasks / totalSubtasks) * 100 : 0;
-
   // Calculate time since started - validate date to prevent NaN display
   const sessionStartedAt = session?.startedAt ?? null;
   const timeAgo = useMemo(() => {
@@ -145,24 +125,6 @@ export const CurrentFocusCard: FC<CurrentFocusCardProps> = ({ ticket, session, o
               </p>
             )}
 
-            {totalSubtasks > 0 && (
-              <div style={progressContainerStyles} data-testid="subtask-progress">
-                <div style={progressBarContainerStyles}>
-                  <div
-                    style={{ ...progressBarFillStyles, width: `${progressPercent}%` }}
-                    role="progressbar"
-                    aria-valuenow={progressPercent}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-label={`${completedSubtasks} of ${totalSubtasks} subtasks completed`}
-                  />
-                </div>
-                <span style={progressTextStyles}>
-                  {completedSubtasks}/{totalSubtasks} subtasks
-                </span>
-              </div>
-            )}
-
             {timeAgo && (
               <div style={timeStyles} data-testid="time-started">
                 <Clock size={12} style={{ opacity: 0.6 }} aria-hidden="true" />
@@ -224,35 +186,6 @@ const focusTicketDescStyles: React.CSSProperties = {
   fontSize: "var(--font-size-sm)",
   color: "var(--text-secondary)",
   lineHeight: 1.5,
-};
-
-const progressContainerStyles: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: "var(--spacing-2)",
-  marginTop: "var(--spacing-3)",
-};
-
-const progressBarContainerStyles: React.CSSProperties = {
-  flex: 1,
-  height: "6px",
-  background: "var(--bg-primary)",
-  borderRadius: "var(--radius-full)",
-  overflow: "hidden",
-};
-
-const progressBarFillStyles: React.CSSProperties = {
-  height: "100%",
-  background: "var(--gradient-accent)",
-  borderRadius: "var(--radius-full)",
-  transition: "width var(--transition-fast)",
-  boxShadow: "0 0 10px var(--accent-glow)",
-};
-
-const progressTextStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-xs)",
-  color: "var(--text-tertiary)",
-  whiteSpace: "nowrap",
 };
 
 const timeStyles: React.CSSProperties = {

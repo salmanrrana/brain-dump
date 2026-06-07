@@ -78,7 +78,7 @@ const DEFAULT_CONFIG: LearningConfig = {
   icon: Lightbulb,
 };
 
-const TRUNCATE_LENGTH = 120;
+const TRUNCATE_LENGTH = 220;
 
 function TruncatedText({ text }: { text: string }) {
   const [expanded, setExpanded] = React.useState(false);
@@ -205,7 +205,14 @@ export function EpicLearnings({ epicId, learnings = [] }: EpicLearningsProps) {
   const isPending = analysisMutation.isPending || refreshMutation.isPending;
 
   const renderActionButtons = () => (
-    <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-2)" }}>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "var(--spacing-2)",
+        flexWrap: "wrap",
+      }}
+    >
       <button
         type="button"
         onClick={() => analysisMutation.mutate()}
@@ -297,14 +304,19 @@ export function EpicLearnings({ epicId, learnings = [] }: EpicLearningsProps) {
         }}
         className="hover:bg-[var(--bg-hover)]"
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-3)" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--spacing-3)",
+            minWidth: 0,
+          }}
+        >
           <span
             style={{
-              fontSize: "var(--font-size-xs)",
-              fontFamily: "var(--font-mono)",
+              fontSize: "var(--font-size-sm)",
+              fontFamily: "var(--font-sans)",
               fontWeight: 600,
-              letterSpacing: "var(--tracking-wider)",
-              textTransform: "uppercase",
               color: "var(--text-secondary)",
             }}
           >
@@ -348,13 +360,21 @@ export function EpicLearnings({ epicId, learnings = [] }: EpicLearningsProps) {
               key={entry.ticketId}
               style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-3)" }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-2)" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "var(--spacing-2)",
+                  flexWrap: "wrap",
+                }}
+              >
                 <FileText size={13} style={{ color: "var(--text-muted)" }} />
                 <span
                   style={{
                     fontSize: "var(--font-size-sm)",
                     fontWeight: 500,
                     color: "var(--text-primary)",
+                    minWidth: 0,
                   }}
                 >
                   {entry.ticketTitle}
@@ -373,10 +393,9 @@ export function EpicLearnings({ epicId, learnings = [] }: EpicLearningsProps) {
               </div>
               <div
                 style={{
-                  marginLeft: "var(--spacing-5)",
                   display: "flex",
                   flexDirection: "column",
-                  gap: "var(--spacing-2)",
+                  gap: "var(--spacing-1)",
                 }}
               >
                 {(entry.learnings ?? []).map((learning, idx) => {
@@ -386,10 +405,8 @@ export function EpicLearnings({ epicId, learnings = [] }: EpicLearningsProps) {
                     <div
                       key={idx}
                       style={{
-                        borderRadius: "var(--radius-xl)",
-                        background: "var(--bg-primary)",
-                        border: "1px solid var(--border-primary)",
-                        padding: "var(--spacing-3) var(--spacing-4)",
+                        borderTop: idx === 0 ? undefined : "1px solid var(--border-subtle)",
+                        padding: "var(--spacing-3) 0",
                       }}
                     >
                       <div

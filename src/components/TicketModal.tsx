@@ -611,10 +611,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                 <span className="truncate">{selectedEpic.title}</span>
               </button>
             )}
-            <h2
-              id="modal-title"
-              className="text-lg font-semibold tracking-tight text-[var(--text-primary)]"
-            >
+            <h2 id="modal-title" className="text-lg font-semibold text-[var(--text-primary)]">
               Edit Ticket
             </h2>
           </div>
@@ -650,7 +647,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                 name="title"
                 children={(field) => (
                   <div>
-                    <label className="block text-xs font-medium text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">
+                    <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
                       Title
                     </label>
                     <input
@@ -658,7 +655,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                       value={field.state.value}
                       onChange={(e) => field.handleChange(e.target.value)}
                       onBlur={field.handleBlur}
-                      className={`w-full px-3 py-2.5 bg-[var(--bg-card)] border rounded-xl text-[var(--text-primary)] text-lg font-medium tracking-tight focus:border-[var(--accent-primary)] focus:ring-1 focus:ring-[var(--accent-primary)]/30 transition-colors ${
+                      className={`w-full px-3 py-2.5 bg-[var(--bg-card)] border rounded-xl text-[var(--text-primary)] text-lg font-medium focus:border-[var(--accent-primary)] focus:ring-1 focus:ring-[var(--accent-primary)]/30 transition-colors ${
                         field.state.meta.errors.length > 0
                           ? "border-[var(--accent-danger)]"
                           : "border-[var(--border-primary)]"
@@ -676,9 +673,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
               {/* Ralph Status */}
               {ralphSession && (
                 <div className="flex items-center gap-2 p-3 bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl">
-                  <span className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">
-                    Ralph
-                  </span>
+                  <span className="text-xs font-medium text-[var(--text-secondary)]">Ralph</span>
                   <RalphStatusBadge session={ralphSession} size="md" />
                   <span className="text-xs text-[var(--text-muted)] ml-auto font-mono">
                     {new Date(ralphSession.startedAt).toLocaleTimeString()}
@@ -691,7 +686,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                 name="description"
                 children={(field) => (
                   <div>
-                    <label className="block text-xs font-medium text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">
+                    <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
                       Description
                     </label>
                     <textarea
@@ -708,9 +703,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
               {/* Git/PR Info */}
               {(ticket.branchName || ticket.prNumber) && (
                 <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl p-3 space-y-2">
-                  <div className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">
-                    Git / PR
-                  </div>
+                  <div className="text-xs font-medium text-[var(--text-secondary)]">Git / PR</div>
                   {ticket.branchName && (
                     <div className="flex items-center gap-2">
                       <GitBranch size={14} className="text-[var(--accent-primary)] flex-shrink-0" />
@@ -770,7 +763,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                 name="status"
                 children={(field) => (
                   <div>
-                    <label className="block text-xs font-medium text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">
+                    <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
                       Status
                     </label>
                     <div className="relative">
@@ -799,7 +792,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                 name="priority"
                 children={(field) => (
                   <div>
-                    <label className="block text-xs font-medium text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">
+                    <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
                       Priority
                     </label>
                     <div className="relative">
@@ -832,7 +825,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                 name="epicId"
                 children={(field) => (
                   <div>
-                    <label className="block text-xs font-medium text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">
+                    <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
                       Epic
                     </label>
                     <div className="relative">
@@ -859,7 +852,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
 
               {/* Tags */}
               <div className="border-t border-[var(--border-primary)] pt-4">
-                <label className="block text-xs font-medium text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">
+                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
                   Tags
                 </label>
                 {formTags.length > 0 && (
@@ -983,7 +976,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
 
           {/* Acceptance Criteria */}
           <div>
-            <label className="block text-xs font-medium text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">
+            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
               Acceptance Criteria
               {formCriteria.length > 0 && (
                 <span className="ml-2 text-[var(--text-tertiary)]">

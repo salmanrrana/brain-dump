@@ -41,7 +41,6 @@ function cx(base: string, extra?: string): string {
  *     </DetailPagePrimary>
  *
  *     <DetailPageRail>
- *       <SubtasksProgress … />
  *       <TicketCostPanel … />
  *     </DetailPageRail>
  *   </DetailPageBody>
@@ -55,10 +54,10 @@ function cx(base: string, extra?: string): string {
  *   sticky within the page scroll container. Below 1024px it collapses to a
  *   single column with the rail stacked under the primary content.
  * - The primary reading column stays full-width; only `DetailPageProse` caps
- *   text at ~72ch (wide canvas ≠ wide prose).
+ *   text at a generous spec-reading measure.
  * - Sticky rail uses the semantic `--z-sticky` token (no arbitrary 9999) and
- *   scrolls internally if it ever grows taller than the viewport, so it never
- *   traps the page scroll.
+ *   stays in normal page flow vertically, so long rail content remains
+ *   reachable through the page scroll.
  *
  * All responsive rules live in `src/styles.css` under
  * "DETAIL PAGE WORKSPACE LAYOUT" because inline styles cannot express media
@@ -144,7 +143,7 @@ interface DetailPageRailProps extends DetailPageRegionProps {
 /**
  * The secondary rail inside {@link DetailPageBody}. Rendered as a complementary
  * landmark (`<aside>`) and sticky on wide screens. Holds scan-and-monitor
- * panels (subtasks, findings, cost, telemetry, metadata).
+ * panels (findings, cost, telemetry, metadata).
  */
 export function DetailPageRail({
   children,

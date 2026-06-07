@@ -343,12 +343,11 @@ const containerStyles: React.CSSProperties = {
 };
 
 const sectionTitleStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-xs)",
-  fontFamily: "var(--font-mono)",
+  fontSize: "var(--font-size-sm)",
+  fontFamily: "var(--font-sans)",
   fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
-  letterSpacing: "var(--tracking-wider)",
-  textTransform: "uppercase",
-  color: "var(--text-muted)",
+  letterSpacing: "0",
+  color: "var(--text-secondary)",
   margin: 0,
 };
 
@@ -373,7 +372,7 @@ const emptyStateStyles: React.CSSProperties = {
   color: "var(--text-muted)",
   fontSize: "var(--font-size-xs)",
   fontFamily: "var(--font-mono)",
-  letterSpacing: "var(--tracking-wide)",
+  letterSpacing: "0",
 };
 
 const inlineCodeStyles: React.CSSProperties = {
@@ -407,9 +406,9 @@ const listItemStyles: React.CSSProperties = {
 const blockquoteStyles: React.CSSProperties = {
   margin: "var(--spacing-3) 0",
   padding: "var(--spacing-3) var(--spacing-4)",
-  borderLeft: "2px solid var(--accent-primary)",
+  border: "1px solid var(--border-primary)",
   background: "var(--accent-surface)",
-  borderRadius: "0 var(--radius-lg) var(--radius-lg) 0",
+  borderRadius: "var(--radius-lg)",
   color: "var(--text-secondary)",
   fontStyle: "italic",
 };

@@ -16,7 +16,6 @@ import DeleteConfirmationModal from "../DeleteConfirmationModal";
 import { useToast } from "../Toast";
 import { TagInput } from "./TagInput";
 import { EpicSelect } from "./EpicSelect";
-import { SubtaskList } from "./SubtaskList";
 import { LaunchActions, type LaunchType } from "./LaunchActions";
 import type { LaunchModelSelection } from "../../lib/launch-model-catalog";
 import { CreateEpicModal } from "../epics/CreateEpicModal";
@@ -29,7 +28,7 @@ import {
   getInteractiveUiLaunchProvider,
   getRalphAutonomousUiLaunchProvider,
 } from "../../lib/ui-launch-registry";
-import type { TicketStatus, Subtask } from "../../api/tickets";
+import type { TicketStatus } from "../../api/tickets";
 import { safeJsonParse } from "../../lib/utils";
 
 /** Priority options for ticket editing */
@@ -67,7 +66,6 @@ export interface EditTicketModalProps {
  * Extends the CreateTicketModal pattern with additional sections:
  * - Status dropdown for changing ticket status
  * - Blocked toggle with reason
- * - Subtasks list with add/edit/delete/toggle
  * - Delete button with confirmation modal
  *
  * Features:
@@ -85,7 +83,6 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
   const navigate = useNavigate();
   // Parse JSON fields from ticket - use safeJsonParse to handle corrupted data gracefully
   const initialTags = safeJsonParse<string[]>(ticket.tags, []);
-  const initialSubtasks = safeJsonParse<Subtask[]>(ticket.subtasks, []);
 
   // Form state - initialized from ticket data
   const [title, setTitle] = useState(ticket.title);
@@ -97,7 +94,6 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
   const [status, setStatus] = useState<TicketStatus>(ticket.status as TicketStatus);
   const [isBlocked, setIsBlocked] = useState(ticket.isBlocked ?? false);
   const [blockedReason, setBlockedReason] = useState(ticket.blockedReason ?? "");
-  const [subtasks, setSubtasks] = useState<Subtask[]>(initialSubtasks);
 
   // Sync form state when ticket changes (defensive against stale state without remount)
   useEffect(() => {
@@ -110,11 +106,9 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
     setStatus(ticket.status as TicketStatus);
     setIsBlocked(ticket.isBlocked ?? false);
     setBlockedReason(ticket.blockedReason ?? "");
-    setSubtasks(safeJsonParse<Subtask[]>(ticket.subtasks, []));
   }, [
     ticket.id,
     ticket.tags,
-    ticket.subtasks,
     ticket.title,
     ticket.description,
     ticket.projectId,
@@ -172,7 +166,6 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
   // key={ticket.id} to force a clean remount and avoid stale state
   const resetForm = useCallback(() => {
     const ticketTags = safeJsonParse<string[]>(ticket.tags, []);
-    const ticketSubtasks = safeJsonParse<Subtask[]>(ticket.subtasks, []);
 
     setTitle(ticket.title);
     setDescription(ticket.description ?? "");
@@ -183,7 +176,6 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
     setStatus(ticket.status as TicketStatus);
     setIsBlocked(ticket.isBlocked ?? false);
     setBlockedReason(ticket.blockedReason ?? "");
-    setSubtasks(ticketSubtasks);
     setTouched({ title: false });
   }, [ticket]);
 
@@ -287,11 +279,6 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
     if (blockedReason !== (ticket.blockedReason ?? "")) {
       updates.blockedReason = blockedReason || null;
     }
-    if (
-      JSON.stringify(subtasks) !== JSON.stringify(safeJsonParse<Subtask[]>(ticket.subtasks, []))
-    ) {
-      updates.subtasks = subtasks;
-    }
 
     updateMutation.mutate(
       { id: ticket.id, updates },
@@ -316,7 +303,6 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
     status,
     isBlocked,
     blockedReason,
-    subtasks,
     ticket,
     updateMutation,
     showToast,
@@ -522,7 +508,7 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
     color: "var(--text-primary)",
     fontSize: "var(--font-size-lg)",
     fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
-    letterSpacing: "var(--tracking-tight)",
+    letterSpacing: "0",
     margin: 0,
   };
 
@@ -576,11 +562,10 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
 
   const labelStyles: React.CSSProperties = {
     display: "block",
-    color: "var(--text-muted)",
+    color: "var(--text-secondary)",
     fontSize: "var(--font-size-xs)",
     fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
-    letterSpacing: "var(--tracking-wider)",
-    textTransform: "uppercase",
+    letterSpacing: "0",
     marginBottom: "6px",
   };
 
@@ -734,7 +719,7 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
           {/* Error display */}
           {error && <div style={{ ...errorStyles, gridColumn: "1 / -1" }}>{error.message}</div>}
 
-          {/* LEFT PANEL: Content (Title, Description, Subtasks) */}
+          {/* LEFT PANEL: Content */}
           <div
             style={{
               display: "flex",
@@ -761,7 +746,7 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
                   ...inputStyles,
                   fontSize: "var(--font-size-lg)",
                   fontWeight: 600,
-                  letterSpacing: "var(--tracking-tight)",
+                  letterSpacing: "0",
                   padding: "var(--spacing-3) var(--spacing-4)",
                   border: touched.title && errors.title ? invalidBorderStyle : inputStyles.border,
                 }}
@@ -791,11 +776,6 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
                 style={{ ...textareaStyles, minHeight: "160px" }}
                 className="focus:border-[var(--accent-primary)]"
               />
-            </div>
-
-            {/* Subtasks */}
-            <div>
-              <SubtaskList value={subtasks} onChange={setSubtasks} />
             </div>
           </div>
 

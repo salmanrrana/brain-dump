@@ -535,7 +535,7 @@ const backNavLinkStyles: React.CSSProperties = {
   fontSize: "var(--font-size-xs)",
   fontFamily: "var(--font-mono)",
   fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
-  letterSpacing: "var(--tracking-wide)",
+  letterSpacing: "0",
   padding: "var(--spacing-2) var(--spacing-3)",
   borderRadius: "var(--radius-lg)",
   border: "1px solid transparent",
@@ -588,10 +588,9 @@ const reviewRunsHeaderStyles: React.CSSProperties = {
 const reviewRunsTitleStyles: React.CSSProperties = {
   margin: 0,
   fontSize: "var(--font-size-sm)",
-  fontFamily: "var(--font-mono)",
+  fontFamily: "var(--font-sans)",
   fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
-  letterSpacing: "var(--tracking-wide)",
-  textTransform: "uppercase" as const,
+  letterSpacing: "0",
   color: "var(--text-secondary)",
 };
 
@@ -669,7 +668,7 @@ export const metadataStyles: React.CSSProperties = {
   fontSize: "var(--font-size-xs)",
   fontFamily: "var(--font-mono)",
   color: "var(--text-secondary)",
-  letterSpacing: "0.01em",
+  letterSpacing: "0",
 };
 
 const errorContainerStyles: React.CSSProperties = {
@@ -696,7 +695,7 @@ const errorCardStyles: React.CSSProperties = {
 const errorTitleStyles: React.CSSProperties = {
   fontSize: "var(--font-size-2xl)",
   fontWeight: "var(--font-weight-bold)" as React.CSSProperties["fontWeight"],
-  letterSpacing: "var(--tracking-tight)",
+  letterSpacing: "0",
   color: "var(--text-primary)",
   margin: 0,
 };
