@@ -22,15 +22,6 @@ export interface CommentProps {
 // Constants
 // =============================================================================
 
-/** Border colors for each comment type */
-const TYPE_BORDER_COLORS: Record<CommentType, string> = {
-  comment: "#6b7280", // gray
-  progress: "#14b8a6", // teal
-  work_summary: "#a855f7", // purple
-  test_report: "#22c55e", // green
-  change_request: "#f97316", // orange
-};
-
 /** Type labels for display */
 const TYPE_LABELS: Record<CommentType, string | null> = {
   comment: null, // No badge for regular comments
@@ -226,10 +217,11 @@ function renderMarkdown(content: string): React.ReactNode {
 // =============================================================================
 
 /**
- * Comment - Individual comment display with type-specific styling.
+ * Comment - Individual comment display.
  *
  * Features:
- * - Type-specific borders: Different colors for comment, progress, work_summary, test_report
+ * - Flat surface: a single neutral background for every type; change_request
+ *   gets one restrained warning tint + border as an action signal (no stripes)
  * - Author avatar: Color-coded by author type
  * - Markdown rendering: Supports bold, italic, code, lists, links (safely, no innerHTML)
  * - Expandable content: Truncates long content with "Show more" button
@@ -249,8 +241,7 @@ export const Comment = memo(function Comment({
   const lineCount = useMemo(() => comment.content.split("\n").length, [comment.content]);
   const needsExpansion = maxLines > 0 && lineCount > maxLines;
 
-  // Get colors
-  const borderColor = TYPE_BORDER_COLORS[comment.type as CommentType] ?? TYPE_BORDER_COLORS.comment;
+  // Get author + type metadata
   const authorDisplayName = getCommentAuthorDisplayName(comment.author);
   const authorColor = getCommentAuthorStyle(comment.author).textColor;
   const typeLabel = TYPE_LABELS[comment.type as CommentType];
@@ -276,15 +267,18 @@ export const Comment = memo(function Comment({
   // Memoize relative timestamp — only recompute when createdAt changes
   const relativeTimestamp = useMemo(() => formatTimestamp(comment.createdAt), [comment.createdAt]);
 
-  // Styles
+  // Styles — comments sit on a flat, consistent surface (no side stripe).
+  // change_request keeps a single restrained accent (faint tint + full border)
+  // because it's an action signal, not a category color.
   const containerStyles: React.CSSProperties = {
     display: "flex",
     gap: "var(--spacing-3)",
     padding: "var(--spacing-3)",
     borderRadius: "var(--radius-md)",
-    background: isChangeRequest ? "rgba(249, 115, 22, 0.1)" : "var(--bg-primary)",
-    ...(isChangeRequest && { border: "1px solid rgba(249, 115, 22, 0.35)" }),
-    borderLeft: `3px solid ${borderColor}`,
+    background: isChangeRequest ? "var(--warning-muted)" : "var(--bg-primary)",
+    border: isChangeRequest
+      ? "1px solid color-mix(in srgb, var(--warning) 40%, transparent)"
+      : undefined,
   };
 
   const contentContainerStyles: React.CSSProperties = {
@@ -310,12 +304,15 @@ export const Comment = memo(function Comment({
     color: "var(--text-muted)",
   };
 
+  // Single neutral chip for ordinary types; change_request gets the one
+  // meaningful accent so the "Changes Requested" action signal still stands out.
   const typeBadgeStyles: React.CSSProperties = {
     fontSize: "var(--font-size-xs)",
     padding: "2px 6px",
     borderRadius: "var(--radius-sm)",
-    background: `${borderColor}15`,
-    color: borderColor,
+    background: isChangeRequest ? "var(--warning-muted)" : "var(--bg-tertiary)",
+    color: isChangeRequest ? "var(--warning)" : "var(--text-secondary)",
+    border: isChangeRequest ? "none" : "1px solid var(--border-primary)",
   };
 
   const contentStyles: React.CSSProperties = {

@@ -65,7 +65,8 @@ describe("TicketListView", () => {
     expect(screen.getByText("First ticket")).toBeInTheDocument();
     expect(screen.getByText("Performance epic")).toBeInTheDocument();
     expect(screen.getByText("Apr 1, 2026")).toBeInTheDocument();
-    expect(screen.getByText("1/2")).toBeInTheDocument();
+    expect(screen.queryByText("Subtasks")).not.toBeInTheDocument();
+    expect(screen.queryByText("1/2")).not.toBeInTheDocument();
 
     await user.click(screen.getByText("First ticket"));
 

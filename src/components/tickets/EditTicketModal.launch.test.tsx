@@ -64,10 +64,6 @@ vi.mock("./EpicSelect", () => ({
   EpicSelect: () => <div data-testid="epic-select" />,
 }));
 
-vi.mock("./SubtaskList", () => ({
-  SubtaskList: () => <div data-testid="subtask-list" />,
-}));
-
 vi.mock("../epics/CreateEpicModal", () => ({
   CreateEpicModal: () => null,
 }));

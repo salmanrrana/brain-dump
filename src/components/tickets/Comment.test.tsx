@@ -86,8 +86,14 @@ describe("Comment", () => {
     );
 
     expect(screen.getByText("Changes Requested")).toBeInTheDocument();
-    expect(screen.getByTestId("comment")).toHaveStyle({
-      background: "rgba(249, 115, 22, 0.1)",
+    const comment = screen.getByTestId("comment");
+    expect(comment).toHaveStyle({
+      background: "var(--warning-muted)",
+    });
+    expect(comment.getAttribute("style")).toContain(
+      "border: 1px solid color-mix(in srgb, var(--warning) 40%, transparent)"
+    );
+    expect(comment).not.toHaveStyle({
       borderLeft: "3px solid #f97316",
     });
   });

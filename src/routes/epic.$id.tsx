@@ -15,13 +15,20 @@ import { getEpicDetail } from "../api/epics";
 import { getEpicCost } from "../api/cost";
 import { EpicDetailHeader } from "../components/epics/EpicDetailHeader";
 import { EpicProgressOverview } from "../components/epics/EpicProgressOverview";
-import { EpicTicketsList } from "../components/epics/EpicTicketsList";
 import { EpicLearnings } from "../components/epics/EpicLearnings";
 import { EpicInsights } from "../components/epics/EpicInsights";
 import { EpicCostPanel } from "../components/epics/EpicCostPanel";
 import { EpicCodeChangesSection } from "../components/epics/EpicCodeChangesSection";
 import { TicketDescription } from "../components/tickets/TicketDescription";
 import { ShipChangesModal } from "../components/tickets";
+import {
+  DetailPageLayout,
+  DetailPageFullBleed,
+  DetailPageBody,
+  DetailPagePrimary,
+  DetailPageRail,
+  DetailPageProse,
+} from "../components/layout/DetailPageLayout";
 import EpicModal from "../components/EpicModal";
 import { useToast } from "../components/Toast";
 import { queryKeys } from "../lib/query-keys";
@@ -48,6 +55,9 @@ export const Route = createFileRoute("/epic/$id")({
       }),
     ]);
   },
+  // Render the skeleton during loader suspension, matching the sibling ticket
+  // route so the two detail pages share the same loading behavior.
+  pendingComponent: EpicDetailSkeleton,
   component: EpicDetailPage,
   errorComponent: EpicDetailError,
   // Normalize the code-changes panel state (open/close + selected ticket/source/
@@ -107,110 +117,113 @@ function EpicDetailError({ error }: { error: Error }) {
 
 function EpicDetailSkeleton() {
   return (
-    <div style={containerStyles}>
-      <div style={backNavStyles}>
+    <DetailPageLayout>
+      <DetailPageFullBleed style={fullBleedTopStyles}>
+        {/* Back navigation skeleton */}
         <div style={{ ...skeletonStyles, width: "120px", height: "20px" }} />
-      </div>
 
-      <div style={headerSectionStyles}>
-        <div
-          style={{
-            ...skeletonStyles,
-            width: "60%",
-            height: "32px",
-            marginBottom: "var(--spacing-3)",
-          }}
-        />
-        <div style={{ display: "flex", gap: "var(--spacing-2)" }}>
+        {/* Header skeleton */}
+        <div style={headerSectionStyles}>
           <div
             style={{
               ...skeletonStyles,
-              width: "80px",
-              height: "24px",
-              borderRadius: "var(--radius-full)",
-            }}
-          />
-          <div
-            style={{
-              ...skeletonStyles,
-              width: "80px",
-              height: "24px",
-              borderRadius: "var(--radius-full)",
-            }}
-          />
-          <div
-            style={{
-              ...skeletonStyles,
-              width: "100px",
-              height: "24px",
-              borderRadius: "var(--radius-full)",
-            }}
-          />
-        </div>
-      </div>
-
-      <div style={progressSectionStyles}>
-        <div
-          style={{
-            ...skeletonStyles,
-            width: "100%",
-            height: "24px",
-            marginBottom: "var(--spacing-3)",
-          }}
-        />
-        <div style={{ ...skeletonStyles, width: "100%", height: "12px" }} />
-      </div>
-
-      <div style={contentGridStyles}>
-        <div style={sectionStyles}>
-          <div
-            style={{
-              ...skeletonStyles,
-              width: "100px",
-              height: "20px",
+              width: "60%",
+              height: "32px",
               marginBottom: "var(--spacing-3)",
             }}
           />
-          <div style={{ ...skeletonStyles, width: "100%", height: "120px" }} />
+          <div style={{ display: "flex", gap: "var(--spacing-2)" }}>
+            <div
+              style={{
+                ...skeletonStyles,
+                width: "80px",
+                height: "24px",
+                borderRadius: "var(--radius-full)",
+              }}
+            />
+            <div
+              style={{
+                ...skeletonStyles,
+                width: "80px",
+                height: "24px",
+                borderRadius: "var(--radius-full)",
+              }}
+            />
+            <div
+              style={{
+                ...skeletonStyles,
+                width: "100px",
+                height: "24px",
+                borderRadius: "var(--radius-full)",
+              }}
+            />
+          </div>
         </div>
 
-        <div style={sectionStyles}>
-          <div
-            style={{
-              ...skeletonStyles,
-              width: "140px",
-              height: "20px",
-              marginBottom: "var(--spacing-3)",
-            }}
-          />
+        {/* Progress overview skeleton */}
+        <div style={progressSectionStyles}>
           <div
             style={{
               ...skeletonStyles,
               width: "100%",
               height: "24px",
-              marginBottom: "var(--spacing-2)",
+              marginBottom: "var(--spacing-3)",
             }}
           />
-          <div
-            style={{
-              ...skeletonStyles,
-              width: "80%",
-              height: "20px",
-              marginBottom: "var(--spacing-2)",
-            }}
-          />
-          <div
-            style={{
-              ...skeletonStyles,
-              width: "90%",
-              height: "20px",
-              marginBottom: "var(--spacing-2)",
-            }}
-          />
-          <div style={{ ...skeletonStyles, width: "70%", height: "20px" }} />
+          <div style={{ ...skeletonStyles, width: "100%", height: "12px" }} />
         </div>
-      </div>
-    </div>
+
+        {/* Tickets and changes skeleton */}
+        <div style={{ ...skeletonStyles, width: "100%", height: "180px" }} />
+      </DetailPageFullBleed>
+
+      <DetailPageBody>
+        <DetailPagePrimary>
+          {/* Description skeleton */}
+          <DetailPageProse>
+            <div
+              style={{
+                ...skeletonStyles,
+                width: "100px",
+                height: "20px",
+                marginBottom: "var(--spacing-3)",
+              }}
+            />
+            <div style={{ ...skeletonStyles, width: "100%", height: "120px" }} />
+          </DetailPageProse>
+        </DetailPagePrimary>
+
+        <DetailPageRail ariaLabel="Epic cost and insights">
+          <div style={railCardStyles}>
+            <div
+              style={{
+                ...skeletonStyles,
+                width: "140px",
+                height: "20px",
+                marginBottom: "var(--spacing-3)",
+              }}
+            />
+            <div
+              style={{
+                ...skeletonStyles,
+                width: "100%",
+                height: "24px",
+                marginBottom: "var(--spacing-2)",
+              }}
+            />
+            <div
+              style={{
+                ...skeletonStyles,
+                width: "80%",
+                height: "20px",
+                marginBottom: "var(--spacing-2)",
+              }}
+            />
+            <div style={{ ...skeletonStyles, width: "70%", height: "20px" }} />
+          </div>
+        </DetailPageRail>
+      </DetailPageBody>
+    </DetailPageLayout>
   );
 }
 
@@ -344,122 +357,133 @@ function EpicDetailPage() {
   const ticketsDone = epicDetail.ticketsByStatus["done"] ?? 0;
 
   return (
-    <div style={containerStyles}>
-      <button
-        type="button"
-        onClick={handleBackNavigation}
-        style={backNavLinkStyles}
-        className="hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-      >
-        <ArrowLeft size={16} />
-        Back to Board
-      </button>
+    <DetailPageLayout>
+      {/* Full-bleed top: back nav, header, progress overview, and the consolidated
+          tickets/changes ledger all want the full bounded canvas width. */}
+      <DetailPageFullBleed style={fullBleedTopStyles}>
+        <button
+          type="button"
+          onClick={handleBackNavigation}
+          style={backNavLinkStyles}
+          className="hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+        >
+          <ArrowLeft size={16} />
+          Back to Board
+        </button>
 
-      <EpicDetailHeader
-        epic={epicDetail.epic}
-        project={epicDetail.project}
-        ticketsByStatus={epicDetail.ticketsByStatus}
-        workflowState={epicDetail.workflowState}
-        tickets={epicDetail.tickets}
-        findingsSummary={epicDetail.findingsSummary}
-        criticalFindings={epicDetail.criticalFindings}
-        onShipChanges={() => setShowShipModal(true)}
-        onPushChanges={handlePushChanges}
-        isPushingChanges={isPushingChanges}
-        onEdit={handleEdit}
-      />
-
-      <section style={progressSectionStyles}>
-        <EpicProgressOverview
+        <EpicDetailHeader
+          epic={epicDetail.epic}
+          project={epicDetail.project}
           ticketsByStatus={epicDetail.ticketsByStatus}
-          ticketsTotal={ticketsTotal}
-          ticketsDone={ticketsDone}
-          currentTicketId={epicDetail.workflowState?.currentTicketId ?? null}
+          workflowState={epicDetail.workflowState}
+          tickets={epicDetail.tickets}
+          findingsSummary={epicDetail.findingsSummary}
+          criticalFindings={epicDetail.criticalFindings}
+          onShipChanges={() => setShowShipModal(true)}
+          onPushChanges={handlePushChanges}
+          isPushingChanges={isPushingChanges}
+          onEdit={handleEdit}
         />
-      </section>
 
-      <EpicCodeChangesSection
-        epicId={epicDetail.epic.id}
-        branchName={epicDetail.workflowState?.epicBranchName}
-        prNumber={epicDetail.workflowState?.prNumber}
-        prUrl={epicDetail.workflowState?.prUrl}
-        search={codeChangeSearch}
-        onSearchChange={handleCodeChangeSearch}
-      />
-
-      <div style={contentGridStyles}>
-        <section style={sectionStyles}>
-          <TicketDescription
-            description={epicDetail.epic.description}
-            testId="epic-detail-description"
+        <section style={progressSectionStyles}>
+          <EpicProgressOverview
+            ticketsByStatus={epicDetail.ticketsByStatus}
+            ticketsTotal={ticketsTotal}
+            ticketsDone={ticketsDone}
+            currentTicketId={epicDetail.workflowState?.currentTicketId ?? null}
           />
         </section>
 
-        <section style={sectionStyles}>
-          <EpicTicketsList tickets={epicDetail.tickets} />
-        </section>
-      </div>
-
-      <section style={sectionStyles}>
-        <EpicCostPanel epicId={epicDetail.epic.id} />
-      </section>
-
-      <section style={sectionStyles}>
-        <EpicInsights
-          insights={epicDetail.workflowState?.insights ?? []}
-          analyzedAt={epicDetail.workflowState?.analyzedAt ?? null}
+        <EpicCodeChangesSection
+          epicId={epicDetail.epic.id}
+          branchName={epicDetail.workflowState?.epicBranchName}
+          prNumber={epicDetail.workflowState?.prNumber}
+          prUrl={epicDetail.workflowState?.prUrl}
+          tickets={epicDetail.tickets}
+          currentTicketId={epicDetail.workflowState?.currentTicketId ?? null}
+          search={codeChangeSearch}
+          onSearchChange={handleCodeChangeSearch}
         />
-      </section>
+      </DetailPageFullBleed>
 
-      <section style={sectionStyles}>
+      {/* Two-column body: the epic description is the primary reading column; the
+          scan-and-monitor panels live in the sticky rail. */}
+      <DetailPageBody>
+        <DetailPagePrimary>
+          {/* Epic description - prose-capped even though the page is wide. */}
+          <DetailPageProse>
+            <TicketDescription
+              description={epicDetail.epic.description}
+              testId="epic-detail-description"
+            />
+          </DetailPageProse>
+        </DetailPagePrimary>
+
+        <DetailPageRail ariaLabel="Epic cost and insights">
+          {/* Cost / Insights - self-carded scan-and-monitor panels; no extra
+              wrapper so we avoid nested-card scaffolding. */}
+          <EpicCostPanel epicId={epicDetail.epic.id} />
+          <EpicInsights
+            insights={epicDetail.workflowState?.insights ?? []}
+            analyzedAt={epicDetail.workflowState?.analyzedAt ?? null}
+          />
+
+          {/* Metadata - compact footer-style block, not a heavy card. */}
+          <footer style={metadataStyles}>
+            <span>Created: {new Date(epicDetail.epic.createdAt).toLocaleString()}</span>
+          </footer>
+        </DetailPageRail>
+      </DetailPageBody>
+
+      <DetailPageFullBleed style={learningsSectionStyles}>
         <EpicLearnings
           epicId={epicDetail.epic.id}
           learnings={epicDetail.workflowState?.learnings ?? []}
         />
-      </section>
+      </DetailPageFullBleed>
 
+      {/* Review Runs - the auto-fit grid wants the full canvas width, so it
+          hosts in a full-bleed region below the body. Only when present. */}
       {epicDetail.reviewRuns.length > 0 ? (
-        <section style={reviewRunsSectionStyles} data-testid="epic-review-runs">
-          <div style={reviewRunsHeaderStyles}>
-            <h2 style={reviewRunsTitleStyles}>Focused Review Runs</h2>
-            <span style={reviewRunsMetaStyles}>
-              {epicDetail.reviewRuns.length} run{epicDetail.reviewRuns.length === 1 ? "" : "s"}
-            </span>
-          </div>
+        <DetailPageFullBleed>
+          <section style={reviewRunsSectionStyles} data-testid="epic-review-runs">
+            <div style={reviewRunsHeaderStyles}>
+              <h2 style={reviewRunsTitleStyles}>Focused Review Runs</h2>
+              <span style={reviewRunsMetaStyles}>
+                {epicDetail.reviewRuns.length} run{epicDetail.reviewRuns.length === 1 ? "" : "s"}
+              </span>
+            </div>
 
-          <div style={reviewRunsListStyles}>
-            {epicDetail.reviewRuns.slice(0, 3).map((run) => (
-              <article key={run.id} style={reviewRunCardStyles}>
-                <div style={reviewRunCardHeaderStyles}>
-                  <strong style={reviewRunCardTitleStyles}>Run {run.id.slice(0, 8)}</strong>
-                  <span style={reviewRunStatusStyles}>{run.status}</span>
-                </div>
-                <div style={reviewRunMetaStyles}>
-                  {run.selectedTickets
-                    .map((ticket) =>
-                      ticket.summary
-                        ? `${ticket.title} (${ticket.status}: ${ticket.summary})`
-                        : `${ticket.title} (${ticket.status})`
-                    )
-                    .join(", ")}
-                </div>
-                <div style={reviewRunMetaStyles}>
-                  {run.findingsTotal} finding{run.findingsTotal === 1 ? "" : "s"} •{" "}
-                  {run.findingsFixed} fixed • Demo {run.demoGenerated ? "generated" : "pending"}
-                </div>
-                {run.summary ? <div style={reviewRunSummaryStyles}>{run.summary}</div> : null}
-                {run.steeringPrompt ? (
-                  <div style={reviewRunSteeringStyles}>Steering: {run.steeringPrompt}</div>
-                ) : null}
-              </article>
-            ))}
-          </div>
-        </section>
+            <div style={reviewRunsListStyles}>
+              {epicDetail.reviewRuns.slice(0, 3).map((run) => (
+                <article key={run.id} style={reviewRunCardStyles}>
+                  <div style={reviewRunCardHeaderStyles}>
+                    <strong style={reviewRunCardTitleStyles}>Run {run.id.slice(0, 8)}</strong>
+                    <span style={reviewRunStatusStyles}>{run.status}</span>
+                  </div>
+                  <div style={reviewRunMetaStyles}>
+                    {run.selectedTickets
+                      .map((ticket) =>
+                        ticket.summary
+                          ? `${ticket.title} (${ticket.status}: ${ticket.summary})`
+                          : `${ticket.title} (${ticket.status})`
+                      )
+                      .join(", ")}
+                  </div>
+                  <div style={reviewRunMetaStyles}>
+                    {run.findingsTotal} finding{run.findingsTotal === 1 ? "" : "s"} •{" "}
+                    {run.findingsFixed} fixed • Demo {run.demoGenerated ? "generated" : "pending"}
+                  </div>
+                  {run.summary ? <div style={reviewRunSummaryStyles}>{run.summary}</div> : null}
+                  {run.steeringPrompt ? (
+                    <div style={reviewRunSteeringStyles}>Steering: {run.steeringPrompt}</div>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+          </section>
+        </DetailPageFullBleed>
       ) : null}
-
-      <footer style={metadataStyles}>
-        <span>Created: {new Date(epicDetail.epic.createdAt).toLocaleString()}</span>
-      </footer>
 
       {showEditModal && (
         <EpicModal
@@ -488,34 +512,30 @@ function EpicDetailPage() {
           onSuccess={handleShipSuccess}
         />
       )}
-    </div>
+    </DetailPageLayout>
   );
 }
 
-const containerStyles: React.CSSProperties = {
+// Full-bleed top region: stacks back-nav, header, progress overview, and the
+// aggregated code-changes diff with rhythmic spacing. The outer canvas
+// width/centering is owned by DetailPageLayout, so this only controls vertical
+// flow. Mirrors the ticket-detail page so the two read as a consistent family.
+const fullBleedTopStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  gap: "var(--spacing-8)",
-  padding: "var(--spacing-8)",
-  maxWidth: "1200px",
-  margin: "0 auto",
-  height: "100%",
-  overflowY: "auto",
-};
-
-const backNavStyles: React.CSSProperties = {
-  marginBottom: "var(--spacing-1)",
+  gap: "var(--spacing-6)",
 };
 
 const backNavLinkStyles: React.CSSProperties = {
   display: "inline-flex",
+  alignSelf: "flex-start",
   alignItems: "center",
   gap: "var(--spacing-2)",
   color: "var(--text-muted)",
   fontSize: "var(--font-size-xs)",
   fontFamily: "var(--font-mono)",
   fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
-  letterSpacing: "var(--tracking-wide)",
+  letterSpacing: "0",
   padding: "var(--spacing-2) var(--spacing-3)",
   borderRadius: "var(--radius-lg)",
   border: "1px solid transparent",
@@ -539,20 +559,24 @@ const progressSectionStyles: React.CSSProperties = {
   border: "1px solid var(--border-primary)",
 };
 
-const contentGridStyles: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "3fr 2fr",
-  gap: "var(--spacing-8)",
+const learningsSectionStyles: React.CSSProperties = {
+  width: "100%",
+  maxWidth: "1120px",
 };
 
-const sectionStyles: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "var(--spacing-4)",
+// Subtle anchor for skeleton placeholders in the rail, mirroring the
+// ticket-detail page so the loading state of both pages matches.
+const railCardStyles: React.CSSProperties = {
+  padding: "var(--spacing-4)",
+  background: "var(--bg-card)",
+  border: "1px solid var(--border-primary)",
+  borderRadius: "var(--radius-lg)",
 };
 
 const reviewRunsSectionStyles: React.CSSProperties = {
-  ...sectionStyles,
+  display: "flex",
+  flexDirection: "column",
+  gap: "var(--spacing-4)",
   padding: "var(--spacing-5)",
   background: "var(--bg-card)",
   borderRadius: "var(--radius-xl)",
@@ -569,10 +593,9 @@ const reviewRunsHeaderStyles: React.CSSProperties = {
 const reviewRunsTitleStyles: React.CSSProperties = {
   margin: 0,
   fontSize: "var(--font-size-sm)",
-  fontFamily: "var(--font-mono)",
+  fontFamily: "var(--font-sans)",
   fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
-  letterSpacing: "var(--tracking-wide)",
-  textTransform: "uppercase" as const,
+  letterSpacing: "0",
   color: "var(--text-secondary)",
 };
 
@@ -636,17 +659,21 @@ const reviewRunSteeringStyles: React.CSSProperties = {
   color: "var(--text-muted)",
 };
 
-const metadataStyles: React.CSSProperties = {
+// Metadata footer in the rail: a compact column separated from the panels above
+// by a hairline rule — not a heavy bordered card, so it reads as a quiet
+// footnote rather than another monitor widget (matches the ticket-detail page).
+// Uses --text-secondary (not --text-muted) so the timestamp value clears the
+// 4.5:1 contrast bar for content text while still reading as quiet metadata.
+export const metadataStyles: React.CSSProperties = {
   display: "flex",
-  gap: "var(--spacing-6)",
-  flexWrap: "wrap",
-  padding: "var(--spacing-5)",
-  background: "var(--bg-card)",
-  borderRadius: "var(--radius-xl)",
-  border: "1px solid var(--border-primary)",
+  flexDirection: "column",
+  gap: "var(--spacing-1)",
+  paddingTop: "var(--spacing-4)",
+  borderTop: "1px solid var(--border-primary)",
   fontSize: "var(--font-size-xs)",
   fontFamily: "var(--font-mono)",
-  color: "var(--text-muted)",
+  color: "var(--text-secondary)",
+  letterSpacing: "0",
 };
 
 const errorContainerStyles: React.CSSProperties = {
@@ -664,7 +691,7 @@ const errorCardStyles: React.CSSProperties = {
   gap: "var(--spacing-5)",
   padding: "var(--spacing-10)",
   background: "var(--bg-card)",
-  borderRadius: "var(--radius-2xl)",
+  borderRadius: "var(--radius-xl)",
   border: "1px solid var(--border-primary)",
   textAlign: "center",
   maxWidth: "440px",
@@ -673,7 +700,7 @@ const errorCardStyles: React.CSSProperties = {
 const errorTitleStyles: React.CSSProperties = {
   fontSize: "var(--font-size-2xl)",
   fontWeight: "var(--font-weight-bold)" as React.CSSProperties["fontWeight"],
-  letterSpacing: "var(--tracking-tight)",
+  letterSpacing: "0",
   color: "var(--text-primary)",
   margin: 0,
 };

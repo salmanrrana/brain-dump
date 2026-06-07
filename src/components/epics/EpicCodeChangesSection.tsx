@@ -8,6 +8,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { useEpicCodeChangeSummary } from "../../lib/hooks/code-changes";
+import type { CodeChangeTicketMeta } from "../code-changes";
 import type {
   CodeChangeRouteSearchPatch,
   CodeChangeRouteSearchState,
@@ -36,6 +37,17 @@ export interface EpicCodeChangesSectionProps {
   prUrl?: string | null | undefined;
   prNumber?: number | null | undefined;
   branchName?: string | null | undefined;
+  tickets?: Array<{
+    id: string;
+    priority?: string | null | undefined;
+    isBlocked?: boolean | null | undefined;
+    blockedReason?: string | null | undefined;
+    branchName?: string | null | undefined;
+    prNumber?: number | null | undefined;
+    prUrl?: string | null | undefined;
+    prStatus?: string | null | undefined;
+  }>;
+  currentTicketId?: string | null | undefined;
   search: CodeChangeRouteSearchState;
   onSearchChange: (patch: CodeChangeRouteSearchPatch) => void;
 }
@@ -54,11 +66,31 @@ export function EpicCodeChangesSection({
   prUrl,
   prNumber,
   branchName,
+  tickets = [],
+  currentTicketId,
   search,
   onSearchChange,
 }: EpicCodeChangesSectionProps) {
   const scope = useMemo(() => ({ type: "epic" as const, id: epicId }), [epicId]);
   const { summary, loading, fetching, error, refetch } = useEpicCodeChangeSummary(epicId);
+  const ticketMetaById = useMemo<Record<string, CodeChangeTicketMeta>>(
+    () =>
+      Object.fromEntries(
+        tickets.map((ticket) => [
+          ticket.id,
+          {
+            priority: ticket.priority,
+            isBlocked: ticket.isBlocked,
+            blockedReason: ticket.blockedReason,
+            branchName: ticket.branchName,
+            prNumber: ticket.prNumber,
+            prUrl: ticket.prUrl,
+            prStatus: ticket.prStatus,
+          },
+        ])
+      ),
+    [tickets]
+  );
 
   // Reconcile stale selection when navigating between epics. A deep-linked or
   // carried-over ticket/file/source selection from a different epic must not
@@ -89,9 +121,9 @@ export function EpicCodeChangesSection({
   const hasChanges = (totals?.files ?? 0) > 0;
   const ticketCount = summary?.groups.length ?? 0;
   const open = search.open;
-  // Opening is allowed when there are changes to review, or when the summary
-  // failed to load so the user can reach the review surface's Retry affordance.
-  const canOpen = hasChanges || Boolean(error);
+  // Opening is allowed for the ticket ledger even before a ticket has linked
+  // file diffs. If the summary failed, keep the retry affordance reachable.
+  const canOpen = ticketCount > 0 || hasChanges || Boolean(error);
 
   // Unlike a ticket scope (single group), an epic aggregates multiple ticket
   // groups, so the selected ticket filter is forwarded to the surface.
@@ -126,6 +158,9 @@ export function EpicCodeChangesSection({
       const fileLabel = `${totals?.files} changed file${totals?.files === 1 ? "" : "s"}`;
       return ticketCount > 1 ? `${fileLabel} across ${ticketCount} tickets` : fileLabel;
     }
+    if (ticketCount > 0) {
+      return `${ticketCount} ticket${ticketCount === 1 ? "" : "s"}, no linked file changes yet`;
+    }
     return summary.state?.message ?? "No linked code changes are available for this epic.";
   }, [loading, error, summary, hasChanges, totals?.files, ticketCount]);
 
@@ -158,7 +193,7 @@ export function EpicCodeChangesSection({
                 id="epic-code-changes-heading"
                 className="text-base font-semibold text-[var(--text-primary)]"
               >
-                Code changes
+                Tickets and changes
               </span>
               {fetching && !loading && (
                 <Loader2 size={14} className="animate-spin text-[var(--text-tertiary)]" />
@@ -200,7 +235,16 @@ export function EpicCodeChangesSection({
               className="rounded-md border border-[var(--border-primary)] px-3 py-1.5 text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--bg-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]/40"
               onClick={handleToggleOpen}
             >
-              {open ? "Hide diff" : "Review changes"}
+              {open ? "Hide details" : "Review changes"}
+            </button>
+          )}
+          {!hasChanges && canOpen && (
+            <button
+              type="button"
+              className="rounded-md border border-[var(--border-primary)] px-3 py-1.5 text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--bg-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]/40"
+              onClick={handleToggleOpen}
+            >
+              {open ? "Hide details" : "Show tickets"}
             </button>
           )}
         </div>
@@ -216,6 +260,8 @@ export function EpicCodeChangesSection({
               selection={selection}
               loading={loading}
               error={error}
+              ticketMetaById={ticketMetaById}
+              currentTicketId={currentTicketId}
               onSelectionChange={onSearchChange}
               onRetrySummary={() => void refetch()}
               onClose={() => onSearchChange({ open: false })}

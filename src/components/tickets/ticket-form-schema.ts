@@ -11,13 +11,6 @@ export const ticketStatusSchema = z.enum([
 
 export const ticketPrioritySchema = z.enum(["low", "medium", "high"]);
 
-/** @deprecated Use acceptanceCriterionSchema instead */
-export const subtaskSchema = z.object({
-  id: z.string(),
-  text: z.string(),
-  completed: z.boolean(),
-});
-
 /** Status for acceptance criteria verification */
 export const acceptanceCriterionStatusSchema = z.enum(["pending", "passed", "failed", "skipped"]);
 
@@ -62,8 +55,6 @@ export const ticketFormSchema = z.object({
 export type TicketFormData = z.infer<typeof ticketFormSchema>;
 export type TicketStatus = z.infer<typeof ticketStatusSchema>;
 export type TicketPriority = z.infer<typeof ticketPrioritySchema>;
-/** @deprecated Use AcceptanceCriterion instead */
-export type Subtask = z.infer<typeof subtaskSchema>;
 export type AcceptanceCriterionStatus = z.infer<typeof acceptanceCriterionStatusSchema>;
 export type AcceptanceCriterionVerifier = z.infer<typeof acceptanceCriterionVerifierSchema>;
 export type AcceptanceCriterion = z.infer<typeof acceptanceCriterionSchema>;

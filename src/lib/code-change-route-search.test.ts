@@ -75,4 +75,26 @@ describe("code-change route search helpers", () => {
 
     expect(next).toEqual({ tab: "details" });
   });
+
+  it("preserves selection params when only display preferences change", () => {
+    const next = applyCodeChangeSearchToObject(
+      {
+        tab: "details",
+        codeChanges: "1",
+        changeTicket: "ticket-1",
+        changeSource: "source-1",
+        changeFile: "src/file.ts",
+      },
+      { wordWrap: false }
+    );
+
+    expect(next).toMatchObject({
+      tab: "details",
+      codeChanges: "1",
+      changeTicket: "ticket-1",
+      changeSource: "source-1",
+      changeFile: "src/file.ts",
+      diffWrap: "0",
+    });
+  });
 });

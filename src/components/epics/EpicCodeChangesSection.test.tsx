@@ -1,3 +1,4 @@
+import type { AnchorHTMLAttributes } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -7,6 +8,24 @@ import type { CodeChangeRouteSearchState } from "../../lib/code-change-route-sea
 
 const mockUseEpicCodeChangeSummary = vi.hoisted(() => vi.fn());
 const mockUseCodeChangePatch = vi.hoisted(() => vi.fn());
+
+type RouterLinkProps = AnchorHTMLAttributes<HTMLAnchorElement> & {
+  to?: string;
+  params?: { id?: string };
+  preload?: string;
+};
+
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({ children, to, params, preload: _preload, ...props }: RouterLinkProps) => {
+    const href = to === "/ticket/$id" && params?.id ? `/ticket/${params.id}` : "#";
+
+    return (
+      <a {...props} href={href}>
+        {children}
+      </a>
+    );
+  },
+}));
 
 vi.mock("../../lib/hooks/code-changes", async () => {
   const actual = await vi.importActual<typeof import("../../lib/hooks/code-changes")>(
@@ -182,8 +201,42 @@ describe("EpicCodeChangesSection", () => {
     expect(screen.getByRole("button", { name: /Ticket one/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Ticket two/i })).toBeInTheDocument();
     // Statuses are surfaced for each group.
-    expect(screen.getByText("in progress")).toBeInTheDocument();
-    expect(screen.getByText("ai review")).toBeInTheDocument();
+    expect(screen.getByText("In Progress")).toBeInTheDocument();
+    expect(screen.getByText("AI Review")).toBeInTheDocument();
+    expect(screen.getByText("Details")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Open ticket details for Ticket one" })
+    ).toHaveAttribute("href", "/ticket/ticket-1");
+  });
+
+  it("surfaces ticket metadata tags in the consolidated work ledger", async () => {
+    setSummary(createSummary());
+
+    render(
+      <EpicCodeChangesSection
+        epicId="epic-1"
+        tickets={[
+          {
+            id: "ticket-1",
+            priority: "high",
+            isBlocked: true,
+            blockedReason: "Waiting on review",
+            branchName: "feature/ticket-1",
+            prNumber: 17,
+            prUrl: "https://example.com/pr/17",
+            prStatus: "draft",
+          },
+        ]}
+        currentTicketId="ticket-1"
+        search={closedSearch({ open: true })}
+        onSearchChange={vi.fn()}
+      />
+    );
+
+    expect(await screen.findByText("High")).toBeInTheDocument();
+    expect(screen.getByText("Current")).toBeInTheDocument();
+    expect(screen.getByText("Blocked")).toHaveAttribute("title", "Waiting on review");
+    expect(screen.getByText("PR #17")).toBeInTheDocument();
   });
 
   it("flags files that are shared across multiple tickets in the aggregate view", async () => {
@@ -223,6 +276,73 @@ describe("EpicCodeChangesSection", () => {
     });
   });
 
+  it("keeps the aggregate ticket filter when a file is selected from All tickets", async () => {
+    setSummary(createSummary());
+    const onSearchChange = vi.fn();
+
+    render(
+      <EpicCodeChangesSection
+        epicId="epic-1"
+        search={closedSearch({ open: true })}
+        onSearchChange={onSearchChange}
+      />
+    );
+
+    await userEvent.click(await screen.findByRole("button", { name: /util\.ts.*shared/i }));
+
+    expect(onSearchChange).toHaveBeenCalledWith({
+      selectedTicketId: null,
+      selectedFilePath: "src/common/util.ts",
+      selectedSourceId: "ticket:ticket-1:commit:abc123",
+    });
+  });
+
+  it("loads a deep-linked shared file diff from the source's owning ticket", async () => {
+    setSummary(createSummary());
+    mockUseCodeChangePatch.mockReturnValue({
+      patch: {
+        scope: { type: "epic", id: "epic-1" },
+        ticketId: "ticket-2",
+        filePath: "src/common/util.ts",
+        state: { kind: "available", message: "Patch is available." },
+        patches: [
+          {
+            sourceId: "ticket:ticket-2:commit:def456",
+            sourceLabel: "Commit def4567",
+            patch: "@@ -1 +1 @@\n-old\n+new",
+          },
+        ],
+      },
+      loading: false,
+      fetching: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    render(
+      <EpicCodeChangesSection
+        epicId="epic-1"
+        search={closedSearch({
+          open: true,
+          selectedFilePath: "src/common/util.ts",
+          selectedSourceId: "ticket:ticket-2:commit:def456",
+        })}
+        onSearchChange={vi.fn()}
+      />
+    );
+
+    expect(await screen.findByLabelText("Unified diff")).toBeInTheDocument();
+    expect(mockUseCodeChangePatch).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        scope: { type: "epic", id: "epic-1" },
+        ticketId: "ticket-2",
+        sourceId: "ticket:ticket-2:commit:def456",
+        filePath: "src/common/util.ts",
+      }),
+      { enabled: true }
+    );
+  });
+
   it("explains when the epic has no tickets", () => {
     setSummary(unavailableSummary("no_linked_changes", "No tickets are available in this scope."));
 
@@ -260,9 +380,56 @@ describe("EpicCodeChangesSection", () => {
       <EpicCodeChangesSection epicId="epic-1" search={closedSearch()} onSearchChange={vi.fn()} />
     );
 
-    expect(
-      screen.getByText(/no linked commits, branch, or pull request metadata/i)
-    ).toBeInTheDocument();
+    expect(screen.getByText("1 ticket, no linked file changes yet")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /show tickets/i })).toBeInTheDocument();
+  });
+
+  it("opens the ticket ledger even before a ticket has file diffs", async () => {
+    setSummary(
+      unavailableSummary(
+        "no_linked_changes",
+        "No linked commits, branch, or pull request metadata is available for this ticket.",
+        [
+          {
+            ticketId: "ticket-1",
+            title: "Ticket one",
+            status: "ready",
+            state: {
+              kind: "no_linked_changes",
+              message: "No linked commits, branch, or pull request metadata is available.",
+            },
+            sources: [],
+            files: [],
+            totals: { files: 0, additions: 0, deletions: 0 },
+          },
+        ]
+      )
+    );
+
+    const onSearchChange = vi.fn();
+    const { rerender } = render(
+      <EpicCodeChangesSection
+        epicId="epic-1"
+        search={closedSearch()}
+        onSearchChange={onSearchChange}
+      />
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /show tickets/i }));
+
+    expect(onSearchChange).toHaveBeenCalledWith({ open: true });
+
+    rerender(
+      <EpicCodeChangesSection
+        epicId="epic-1"
+        search={closedSearch({ open: true })}
+        onSearchChange={onSearchChange}
+      />
+    );
+
+    expect(await screen.findByText("Work ledger")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Ticket one/i })).toBeInTheDocument();
+    expect(screen.getByText("No source")).toBeInTheDocument();
   });
 
   it("explains when the project is not a git repository", () => {

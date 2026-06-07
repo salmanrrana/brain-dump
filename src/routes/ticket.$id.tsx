@@ -7,7 +7,7 @@ import {
   useSearch,
 } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, useCallback, useMemo, useRef } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { ArrowLeft, AlertCircle } from "lucide-react";
 import { getTicket } from "../api/tickets";
 import { getWorkflowDisplayState } from "../api/workflow";
@@ -27,14 +27,21 @@ import { ActivitySection } from "../components/tickets/ActivitySection";
 import { TicketCodeChangesSection } from "../components/tickets/TicketCodeChangesSection";
 import { TicketDetailHeader } from "../components/tickets/TicketDetailHeader";
 import { EditTicketModal } from "../components/tickets/EditTicketModal";
-import { ShipChangesModal, TicketDescription, SubtasksProgress } from "../components/tickets";
+import { ShipChangesModal, TicketDescription } from "../components/tickets";
 import { WorkflowProgress } from "../components/tickets/WorkflowProgress";
 import { ReviewFindingsPanel } from "../components/tickets/ReviewFindingsPanel";
 import { ClaudeTasks } from "../components/tickets/ClaudeTasks";
 import { DemoPanel } from "../components/tickets/DemoPanel";
 import { TelemetryPanel } from "../components/TelemetryPanel";
 import { TicketCostPanel } from "../components/tickets/TicketCostPanel";
-import type { Subtask } from "../components/tickets/SubtasksProgress";
+import {
+  DetailPageLayout,
+  DetailPageFullBleed,
+  DetailPageBody,
+  DetailPagePrimary,
+  DetailPageRail,
+  DetailPageProse,
+} from "../components/layout/DetailPageLayout";
 import { type LaunchType } from "../components/tickets/LaunchActions";
 import type { LaunchModelSelection } from "../lib/launch-model-catalog";
 import { POLLING_INTERVALS } from "../lib/constants";
@@ -160,116 +167,111 @@ function TicketDetailError({ error }: { error: Error }) {
 
 function TicketDetailSkeleton() {
   return (
-    <div style={containerStyles}>
-      {/* Back navigation skeleton */}
-      <div style={backNavStyles}>
+    <DetailPageLayout>
+      <DetailPageFullBleed style={fullBleedTopStyles}>
+        {/* Back navigation skeleton */}
         <div style={{ ...skeletonStyles, width: "120px", height: "20px" }} />
-      </div>
 
-      {/* Header skeleton */}
-      <div style={headerSectionStyles}>
-        <div
-          style={{
-            ...skeletonStyles,
-            width: "60%",
-            height: "32px",
-            marginBottom: "var(--spacing-3)",
-          }}
-        />
-        <div style={{ display: "flex", gap: "var(--spacing-2)" }}>
+        {/* Header skeleton */}
+        <div style={headerSectionStyles}>
           <div
             style={{
               ...skeletonStyles,
-              width: "80px",
-              height: "24px",
-              borderRadius: "var(--radius-full)",
-            }}
-          />
-          <div
-            style={{
-              ...skeletonStyles,
-              width: "80px",
-              height: "24px",
-              borderRadius: "var(--radius-full)",
-            }}
-          />
-          <div
-            style={{
-              ...skeletonStyles,
-              width: "100px",
-              height: "24px",
-              borderRadius: "var(--radius-full)",
-            }}
-          />
-        </div>
-      </div>
-
-      {/* Content skeleton */}
-      <div style={contentGridStyles}>
-        {/* Description section */}
-        <div style={sectionStyles}>
-          <div
-            style={{
-              ...skeletonStyles,
-              width: "100px",
-              height: "20px",
+              width: "60%",
+              height: "32px",
               marginBottom: "var(--spacing-3)",
             }}
           />
-          <div style={{ ...skeletonStyles, width: "100%", height: "120px" }} />
+          <div style={{ display: "flex", gap: "var(--spacing-2)" }}>
+            <div
+              style={{
+                ...skeletonStyles,
+                width: "80px",
+                height: "24px",
+                borderRadius: "var(--radius-full)",
+              }}
+            />
+            <div
+              style={{
+                ...skeletonStyles,
+                width: "80px",
+                height: "24px",
+                borderRadius: "var(--radius-full)",
+              }}
+            />
+            <div
+              style={{
+                ...skeletonStyles,
+                width: "100px",
+                height: "24px",
+                borderRadius: "var(--radius-full)",
+              }}
+            />
+          </div>
         </div>
+      </DetailPageFullBleed>
 
-        {/* Subtasks section */}
-        <div style={sectionStyles}>
-          <div
-            style={{
-              ...skeletonStyles,
-              width: "140px",
-              height: "20px",
-              marginBottom: "var(--spacing-3)",
-            }}
-          />
-          <div
-            style={{
-              ...skeletonStyles,
-              width: "100%",
-              height: "24px",
-              marginBottom: "var(--spacing-2)",
-            }}
-          />
-          <div
-            style={{
-              ...skeletonStyles,
-              width: "80%",
-              height: "20px",
-              marginBottom: "var(--spacing-2)",
-            }}
-          />
-          <div
-            style={{
-              ...skeletonStyles,
-              width: "90%",
-              height: "20px",
-              marginBottom: "var(--spacing-2)",
-            }}
-          />
-          <div style={{ ...skeletonStyles, width: "70%", height: "20px" }} />
-        </div>
-      </div>
+      <DetailPageBody>
+        <DetailPagePrimary>
+          {/* Description section */}
+          <DetailPageProse>
+            <div
+              style={{
+                ...skeletonStyles,
+                width: "100px",
+                height: "20px",
+                marginBottom: "var(--spacing-3)",
+              }}
+            />
+            <div style={{ ...skeletonStyles, width: "100%", height: "120px" }} />
+          </DetailPageProse>
 
-      {/* Activity section skeleton */}
-      <div style={sectionStyles}>
-        <div
-          style={{
-            ...skeletonStyles,
-            width: "80px",
-            height: "20px",
-            marginBottom: "var(--spacing-3)",
-          }}
-        />
-        <div style={{ ...skeletonStyles, width: "100%", height: "200px" }} />
-      </div>
-    </div>
+          {/* Activity section skeleton */}
+          <div>
+            <div
+              style={{
+                ...skeletonStyles,
+                width: "80px",
+                height: "20px",
+                marginBottom: "var(--spacing-3)",
+              }}
+            />
+            <div style={{ ...skeletonStyles, width: "100%", height: "200px" }} />
+          </div>
+        </DetailPagePrimary>
+
+        <DetailPageRail ariaLabel="Ticket details and status">
+          {/* Rail panel skeleton */}
+          <div style={railCardStyles}>
+            <div
+              style={{
+                ...skeletonStyles,
+                width: "140px",
+                height: "20px",
+                marginBottom: "var(--spacing-3)",
+              }}
+            />
+            <div
+              style={{
+                ...skeletonStyles,
+                width: "100%",
+                height: "24px",
+                marginBottom: "var(--spacing-2)",
+              }}
+            />
+            <div
+              style={{
+                ...skeletonStyles,
+                width: "80%",
+                height: "20px",
+                marginBottom: "var(--spacing-2)",
+              }}
+            />
+            <div style={{ ...skeletonStyles, width: "70%", height: "20px" }} />
+          </div>
+        </DetailPageRail>
+      </DetailPageBody>
+    </DetailPageLayout>
   );
 }
 
@@ -287,10 +289,8 @@ function TicketDetailSkeleton() {
  * │ Ticket Title                                [Edit] [Start]  │
  * │ Status: In Progress  Priority: High  Epic: Auth            │
  * ├─────────────────────────────────────────────────────────────┤
- * │ Description                     │ Subtasks (2/4)           │
- * │ Add login/logout...             │ ☑ Database schema        │
- * │                                 │ ☑ API endpoints          │
- * │                                 │ ☐ UI components          │
+ * │ Description                     │ Cost / telemetry         │
+ * │ Add login/logout...             │ Provider and run data    │
  * ├─────────────────────────────────────────────────────────────┤
  * │ Activity (full timeline)                                    │
  * └─────────────────────────────────────────────────────────────┘
@@ -359,41 +359,6 @@ function TicketDetailPage() {
         ? POLLING_INTERVALS.COMMENTS_ACTIVE
         : 0,
   });
-
-  // Subtask state - parse from ticket when available
-  const [localSubtasks, setLocalSubtasks] = useState<Subtask[]>([]);
-
-  // Sync localSubtasks with ticket data when it changes
-  // Using useEffect to avoid stale closure issues
-  const ticketSubtasks = ticket?.subtasks;
-  const prevTicketSubtasks = useRef(ticketSubtasks);
-  if (ticketSubtasks !== prevTicketSubtasks.current) {
-    prevTicketSubtasks.current = ticketSubtasks;
-    let parsed: Subtask[] = [];
-    if (ticketSubtasks) {
-      try {
-        parsed = JSON.parse(ticketSubtasks) as Subtask[];
-      } catch (error) {
-        // Invalid JSON in subtasks field - log error and use empty array
-        console.error("Failed to parse ticket subtasks:", error);
-        showToast("error", "Failed to load subtasks. Please refresh the page.");
-        parsed = [];
-      }
-    }
-    if (JSON.stringify(parsed) !== JSON.stringify(localSubtasks)) {
-      setLocalSubtasks(parsed);
-    }
-  }
-
-  // Handle subtask updates - optimistic update + invalidate query
-  const handleSubtaskUpdate = useCallback(
-    (updatedSubtasks: Subtask[]) => {
-      setLocalSubtasks(updatedSubtasks);
-      // Invalidate the ticket query to refresh data after mutation completes
-      queryClient.invalidateQueries({ queryKey: queryKeys.ticket(id) });
-    },
-    [queryClient, id]
-  );
 
   // Find the epic for this ticket
   const epic: Epic | null = ticket
@@ -595,76 +560,101 @@ function TicketDetailPage() {
     );
   }
 
+  const showWorkflow =
+    ticket.status === "in_progress" ||
+    ticket.status === "ai_review" ||
+    ticket.status === "human_review" ||
+    ticket.status === "done";
+  const showFindings =
+    ticket.status === "ai_review" || ticket.status === "human_review" || ticket.status === "done";
+  const showDemo = ticket.status === "human_review" || ticket.status === "done";
+
   return (
-    <div style={containerStyles}>
-      {/* Back Navigation - uses browser history to preserve filter state */}
-      <button
-        type="button"
-        onClick={handleBackNavigation}
-        style={backNavLinkStyles}
-        className="hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-      >
-        <ArrowLeft size={16} />
-        Back to Board
-      </button>
+    <DetailPageLayout>
+      {/* Full-bleed top: back nav, header, workflow, and the diff surface all
+          want the full bounded canvas width. */}
+      <DetailPageFullBleed style={fullBleedTopStyles}>
+        {/* Back Navigation - uses browser history to preserve filter state */}
+        <button
+          type="button"
+          onClick={handleBackNavigation}
+          style={backNavLinkStyles}
+          className="hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+        >
+          <ArrowLeft size={16} />
+          Back to Board
+        </button>
 
-      {/* Header Section - using TicketDetailHeader component */}
-      <TicketDetailHeader
-        ticket={ticket as Ticket}
-        epic={epic}
-        onShip={() => setShowShipModal(true)}
-        onPush={handlePushChanges}
-        isPushing={isPushingChanges}
-        onEdit={handleEdit}
-        onLaunch={handleLaunch}
-        isLaunching={isLaunching}
-        launchingType={launchingType}
-      />
+        {/* Header Section - using TicketDetailHeader component */}
+        <TicketDetailHeader
+          ticket={ticket as Ticket}
+          epic={epic}
+          onShip={() => setShowShipModal(true)}
+          onPush={handlePushChanges}
+          isPushing={isPushingChanges}
+          onEdit={handleEdit}
+          onLaunch={handleLaunch}
+          isLaunching={isLaunching}
+          launchingType={launchingType}
+        />
 
-      {/* Workflow Progress Indicator - shows current phase in the workflow */}
-      {(ticket.status === "in_progress" ||
-        ticket.status === "ai_review" ||
-        ticket.status === "human_review" ||
-        ticket.status === "done") && (
-        <section style={workflowSectionStyles}>
-          <WorkflowProgress
-            workflowState={workflowState}
-            loading={workflowLoading}
-            error={workflowError}
-          />
-        </section>
-      )}
+        {/* Workflow Progress Indicator - shows current phase in the workflow */}
+        {showWorkflow && (
+          <section style={workflowSectionStyles}>
+            <WorkflowProgress
+              workflowState={workflowState}
+              loading={workflowLoading}
+              error={workflowError}
+            />
+          </section>
+        )}
 
-      {/* Code Changes - lazy summary + in-page diff review surface */}
-      <TicketCodeChangesSection
-        ticketId={ticket.id}
-        branchName={ticket.branchName}
-        prNumber={ticket.prNumber}
-        prUrl={ticket.prUrl}
-        search={codeChangeSearch}
-        onSearchChange={handleCodeChangeSearch}
-      />
+        {/* Code Changes - lazy summary + in-page diff review surface */}
+        <TicketCodeChangesSection
+          ticketId={ticket.id}
+          branchName={ticket.branchName}
+          prNumber={ticket.prNumber}
+          prUrl={ticket.prUrl}
+          search={codeChangeSearch}
+          onSearchChange={handleCodeChangeSearch}
+        />
+      </DetailPageFullBleed>
 
-      {/* Content Grid */}
-      <div style={contentGridStyles}>
-        {/* Description Section */}
-        <TicketDescription description={ticket.description} testId="ticket-detail-description" />
+      {/* Two-column body: description + activity read as the primary column;
+          the scan-and-monitor panels live in the sticky rail. */}
+      <DetailPageBody>
+        <DetailPagePrimary>
+          {/* Description - prose-capped even though the page is wide. */}
+          <DetailPageProse>
+            <TicketDescription
+              description={ticket.description}
+              testId="ticket-detail-description"
+            />
+          </DetailPageProse>
 
-        {/* Right Column - Subtasks and Review Findings */}
-        <div style={rightColumnStyles}>
-          {/* Subtasks Section - using SubtasksProgress component */}
-          <SubtasksProgress
-            ticketId={ticket.id}
-            subtasks={localSubtasks}
-            onUpdate={handleSubtaskUpdate}
-            disabled={ticket.status === "done"}
-            testId="ticket-detail-subtasks"
-          />
+          {/* Demo Review Panel - interactive in human_review, read-only after
+              completion. Lives in the primary column because it is interactive
+              reading, not at-a-glance monitoring. */}
+          {showDemo && <DemoPanel ticketId={ticket.id} />}
 
-          {/* Review Findings Panel - shows during AI review phase */}
-          {(ticket.status === "ai_review" ||
-            ticket.status === "human_review" ||
-            ticket.status === "done") && (
+          {/* Activity Section - the activity log is primary reading, rendered
+              on the page surface (not boxed in a clone card) so it reads as the
+              ticket's narrative rather than a footnote widget. */}
+          <section style={activitySectionStyles} data-testid="ticket-detail-activity-region">
+            <ActivitySection
+              ticketId={ticket.id}
+              pollingInterval={
+                ticket.status === "in_progress" ? POLLING_INTERVALS.COMMENTS_ACTIVE : 0
+              }
+              maxHeight="none"
+              testId="ticket-detail-activity"
+            />
+          </section>
+        </DetailPagePrimary>
+
+        <DetailPageRail ariaLabel="Ticket details and status">
+          {/* Review Findings Panel - shows during AI review phase. Self-carded. */}
+          {showFindings && (
             <ReviewFindingsPanel
               workflowState={workflowState}
               loading={workflowLoading}
@@ -674,49 +664,23 @@ function TicketDetailPage() {
               }}
             />
           )}
-        </div>
-      </div>
 
-      {/* Demo Review Panel - interactive in human_review, read-only after completion */}
-      {(ticket.status === "human_review" || ticket.status === "done") && (
-        <section style={sectionStyles}>
-          <DemoPanel ticketId={ticket.id} />
-        </section>
-      )}
+          {/* Cost / Telemetry / Claude Tasks - each self-carded; no extra wrapper
+              so we avoid nested-card scaffolding. */}
+          <TicketCostPanel ticketId={ticket.id} />
+          <TelemetryPanel ticketId={ticket.id} />
+          <ClaudeTasks ticketId={ticket.id} ticketStatus={ticket.status} defaultExpanded={true} />
 
-      {/* Claude Tasks Section */}
-      <section style={cardSectionStyles}>
-        <ClaudeTasks ticketId={ticket.id} ticketStatus={ticket.status} defaultExpanded={true} />
-      </section>
-
-      {/* Cost Panel */}
-      <section style={cardSectionStyles}>
-        <TicketCostPanel ticketId={ticket.id} />
-      </section>
-
-      {/* Telemetry Panel */}
-      <section style={cardSectionStyles}>
-        <TelemetryPanel ticketId={ticket.id} />
-      </section>
-
-      {/* Activity Section */}
-      <section style={cardSectionStyles}>
-        <ActivitySection
-          ticketId={ticket.id}
-          pollingInterval={ticket.status === "in_progress" ? POLLING_INTERVALS.COMMENTS_ACTIVE : 0}
-          maxHeight="none"
-          testId="ticket-detail-activity"
-        />
-      </section>
-
-      {/* Metadata */}
-      <footer style={metadataStyles}>
-        <span>Created: {new Date(ticket.createdAt).toLocaleString()}</span>
-        <span>Updated: {new Date(ticket.updatedAt).toLocaleString()}</span>
-        {ticket.completedAt && (
-          <span>Completed: {new Date(ticket.completedAt).toLocaleString()}</span>
-        )}
-      </footer>
+          {/* Metadata - compact footer-style block, not a heavy card. */}
+          <footer style={metadataStyles}>
+            <span>Created: {new Date(ticket.createdAt).toLocaleString()}</span>
+            <span>Updated: {new Date(ticket.updatedAt).toLocaleString()}</span>
+            {ticket.completedAt && (
+              <span>Completed: {new Date(ticket.completedAt).toLocaleString()}</span>
+            )}
+          </footer>
+        </DetailPageRail>
+      </DetailPageBody>
 
       {/* Edit Modal */}
       <EditTicketModal
@@ -739,7 +703,7 @@ function TicketDetailPage() {
           onSuccess={handleShipSuccess}
         />
       )}
-    </div>
+    </DetailPageLayout>
   );
 }
 
@@ -747,30 +711,25 @@ function TicketDetailPage() {
 // Styles
 // =============================================================================
 
-const containerStyles: React.CSSProperties = {
+// Full-bleed top region: stacks back-nav, header, workflow, and code changes
+// with rhythmic spacing. The outer canvas width/centering is owned by
+// DetailPageLayout, so this only controls vertical flow.
+const fullBleedTopStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  gap: "var(--spacing-8)",
-  padding: "var(--spacing-8)",
-  maxWidth: "1200px",
-  margin: "0 auto",
-  height: "100%",
-  overflowY: "auto",
-};
-
-const backNavStyles: React.CSSProperties = {
-  marginBottom: "var(--spacing-1)",
+  gap: "var(--spacing-6)",
 };
 
 const backNavLinkStyles: React.CSSProperties = {
   display: "inline-flex",
+  alignSelf: "flex-start",
   alignItems: "center",
   gap: "var(--spacing-2)",
   color: "var(--text-muted)",
   fontSize: "var(--font-size-xs)",
   fontFamily: "var(--font-mono)",
   fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
-  letterSpacing: "var(--tracking-wide)",
+  letterSpacing: "0",
   padding: "var(--spacing-2) var(--spacing-3)",
   borderRadius: "var(--radius-lg)",
   border: "1px solid transparent",
@@ -787,18 +746,6 @@ const headerSectionStyles: React.CSSProperties = {
   borderBottom: "1px solid var(--border-primary)",
 };
 
-const contentGridStyles: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "3fr 2fr",
-  gap: "var(--spacing-8)",
-};
-
-const sectionStyles: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "var(--spacing-3)",
-};
-
 const workflowSectionStyles: React.CSSProperties = {
   padding: "var(--spacing-5)",
   background: "var(--bg-card)",
@@ -806,36 +753,35 @@ const workflowSectionStyles: React.CSSProperties = {
   border: "1px solid var(--border-primary)",
 };
 
-const rightColumnStyles: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "var(--spacing-5)",
-};
-
-const cardSectionStyles: React.CSSProperties = {
-  padding: "var(--spacing-5)",
+// Subtle anchor for skeleton placeholders in the rail.
+const railCardStyles: React.CSSProperties = {
+  padding: "var(--spacing-4)",
   background: "var(--bg-card)",
   border: "1px solid var(--border-primary)",
-  borderRadius: "var(--radius-xl)",
+  borderRadius: "var(--radius-lg)",
 };
 
+// Activity is the primary reading log: rendered on the page surface (no clone
+// card) and kept at intrinsic height so it flows naturally in the column.
 export const activitySectionStyles: React.CSSProperties = {
-  // Keep Activity at intrinsic height so metadata divider renders strictly below it.
   flex: "0 0 auto",
 };
 
+// Metadata footer in the rail: a compact, column of timestamps separated from
+// the panels above by a hairline rule — not a heavy bordered card, so it reads
+// as a quiet footnote rather than another monitor widget. Uses --text-secondary
+// (not --text-muted) so these timestamp values clear the 4.5:1 contrast bar for
+// content text while still reading as quiet metadata.
 export const metadataStyles: React.CSSProperties = {
   display: "flex",
-  gap: "var(--spacing-6)",
-  flexWrap: "wrap",
-  padding: "var(--spacing-5)",
-  background: "var(--bg-card)",
-  borderRadius: "var(--radius-xl)",
-  border: "1px solid var(--border-primary)",
+  flexDirection: "column",
+  gap: "var(--spacing-1)",
+  paddingTop: "var(--spacing-4)",
+  borderTop: "1px solid var(--border-primary)",
   fontSize: "var(--font-size-xs)",
   fontFamily: "var(--font-mono)",
-  color: "var(--text-muted)",
-  letterSpacing: "0.01em",
+  color: "var(--text-secondary)",
+  letterSpacing: "0",
 };
 
 // Error styles
@@ -854,7 +800,7 @@ const errorCardStyles: React.CSSProperties = {
   gap: "var(--spacing-5)",
   padding: "var(--spacing-10)",
   background: "var(--bg-card)",
-  borderRadius: "var(--radius-2xl)",
+  borderRadius: "var(--radius-xl)",
   border: "1px solid var(--border-primary)",
   textAlign: "center",
   maxWidth: "440px",
@@ -863,7 +809,7 @@ const errorCardStyles: React.CSSProperties = {
 const errorTitleStyles: React.CSSProperties = {
   fontSize: "var(--font-size-2xl)",
   fontWeight: "var(--font-weight-bold)" as React.CSSProperties["fontWeight"],
-  letterSpacing: "var(--tracking-tight)",
+  letterSpacing: "0",
   color: "var(--text-primary)",
   margin: 0,
 };

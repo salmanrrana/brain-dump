@@ -6,4 +6,5 @@ export {
   type CodeChangeReviewSurfaceProps,
   type CodeChangeSelection,
   type CodeChangeSelectionPatch,
+  type CodeChangeTicketMeta,
 } from "./CodeChangeReviewSurface";

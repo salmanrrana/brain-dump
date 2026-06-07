@@ -87,6 +87,69 @@ code {
   letter-spacing: -0.01em;
 }
 
+.code-token-comment {
+  color: var(--code-comment);
+  font-style: italic;
+}
+
+.code-token-function {
+  color: var(--code-function);
+}
+
+.code-token-hunk {
+  color: var(--code-hunk);
+  font-weight: var(--font-weight-medium);
+}
+
+.code-token-keyword {
+  color: var(--code-keyword);
+}
+
+.code-token-literal {
+  color: var(--code-literal);
+}
+
+.code-token-number {
+  color: var(--code-number);
+}
+
+.code-token-operator {
+  color: var(--code-operator);
+}
+
+.code-token-property {
+  color: var(--code-property);
+}
+
+.code-token-punctuation {
+  color: var(--code-punctuation);
+}
+
+.code-token-string {
+  color: var(--code-string);
+}
+
+.code-token-type {
+  color: var(--code-type);
+}
+
+.code-diff-marker {
+  display: inline-block;
+  width: 1rem;
+  margin-right: 0.5rem;
+  color: var(--code-line-number);
+  text-align: center;
+  user-select: none;
+}
+
+.code-diff-marker-addition {
+  color: var(--code-diff-add-text);
+}
+
+.code-diff-marker-deletion {
+  color: var(--code-diff-delete-text);
+}
+
 /* Heading typography - Bricolage looks best heavier with tight tracking */
 h1,
 h2,
@@ -476,6 +539,16 @@ a.nav-item,
     animation: none !important;
   }
 
+  /* Disable the detail-page entrance reveal. The global duration collapse above
+     does not shorten animation-delay, so the staggered children (fill-mode:
+     both) would still sit at opacity 0 during their delay window — disable the
+     animation outright so content is visible immediately. */
+  .detail-page-full-bleed,
+  .detail-page-primary > *,
+  .detail-page-rail > * {
+    animation: none !important;
+  }
+
   /* Skip link transition - make instant */
   .skip-to-content {
     transition: none !important;
@@ -520,6 +593,132 @@ a.nav-item,
     grid-template-columns: repeat(4, 1fr);
     gap: var(--spacing-6);
   }
+}
+
+/* ============================================
+   DETAIL PAGE WORKSPACE LAYOUT
+   ============================================
+   Responsive shell shared by the ticket + epic detail pages. Implemented as
+   global classes (not inline styles) because the layout needs media queries
+   and a sticky rail breakpoint that React.CSSProperties cannot express.
+   See src/components/layout/DetailPageLayout.tsx for the component API.
+
+   Structure:
+     .detail-page-layout            -> page scroll container (full width)
+       .detail-page-layout__inner   -> centered, wide-but-bounded column
+         .detail-page-full-bleed    -> spans the bounded canvas
+         .detail-page-body          -> primary + rail grid
+           .detail-page-primary     -> main content column
+             .detail-page-prose     -> fills the primary track
+           .detail-page-rail        -> sticky secondary rail (>=1024px)
+
+   Breakpoint: rail sits beside the primary column at >=1024px and stacks
+   below it under that width. No horizontal overflow at any width.
+*/
+
+.detail-page-layout {
+  height: 100%;
+  overflow-y: auto;
+}
+
+.detail-page-layout__inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+  width: 100%;
+  /* Use the canvas: wider than the old 1200px, bounded so ultra-wide displays
+     do not stretch content into an unreadable band. */
+  max-width: 1760px;
+  margin: 0 auto;
+  padding: var(--spacing-8);
+}
+
+.detail-page-full-bleed {
+  /* Spans the full bounded inner width. Children control their own layout. */
+  min-width: 0;
+}
+
+.detail-page-body {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--spacing-8);
+}
+
+.detail-page-primary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-5);
+  /* Allow grid/flex children to shrink instead of forcing overflow. */
+  min-width: 0;
+}
+
+.detail-page-prose {
+  /* Detail descriptions should use the full primary track instead of leaving
+     a dead gutter between the prose surface and the rail. */
+  width: 100%;
+  max-width: none;
+}
+
+.detail-page-rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-5);
+  min-width: 0;
+}
+
+@media (min-width: 1024px) {
+  .detail-page-body {
+    /* Primary takes the remaining space; rail is wider so cost/learnings panels
+       do not feel like a cramped sidebar on detail pages. */
+    grid-template-columns: minmax(0, 1fr) clamp(360px, 30%, 520px);
+    /* align-items: start keeps the rail at intrinsic height so sticky has
+       room to scroll past it instead of stretching the full row. */
+    align-items: start;
+  }
+
+  .detail-page-rail {
+    position: sticky;
+    top: var(--spacing-8);
+    z-index: var(--z-sticky);
+    align-self: start;
+  }
+}
+
+/* Headings on the detail pages wrap evenly instead of leaving a lonely last
+   word, so long ticket/epic/section titles read as deliberate. Progressive
+   enhancement — browsers without text-wrap: balance fall back to normal wrap. */
+.detail-page-layout h1,
+.detail-page-layout h2,
+.detail-page-layout h3 {
+  text-wrap: balance;
+}
+
+/* Entrance motion — the page regions reveal in a gentle top-to-bottom stagger
+   so a detail page "assembles" rather than snapping in. Only the leaf regions
+   animate (not .detail-page-body or .detail-page-rail) so the sticky rail keeps
+   a clean containing block. This is time-based CSS, not a scroll/JS-gated
+   transition: the animation always plays to its visible end state, so content
+   is never left hidden on headless or inactive-tab renders. */
+.detail-page-full-bleed,
+.detail-page-primary > *,
+.detail-page-rail > * {
+  animation: reveal-up 0.45s var(--ease-out-expo) both;
+}
+
+/* Stagger the primary column and rail children for a little reading texture
+   (description → activity, panels top-to-bottom). Delays stay short so the
+   page settles quickly. */
+.detail-page-primary > *:nth-child(2),
+.detail-page-rail > *:nth-child(2) {
+  animation-delay: 60ms;
+}
+.detail-page-primary > *:nth-child(3),
+.detail-page-rail > *:nth-child(3) {
+  animation-delay: 120ms;
+}
+.detail-page-primary > *:nth-child(n + 4),
+.detail-page-rail > *:nth-child(n + 4) {
+  animation-delay: 180ms;
 }
 
 /* ============================================

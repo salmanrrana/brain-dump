@@ -17,13 +17,7 @@ const mockTicket: Ticket = {
   projectId: "project-1",
   epicId: null,
   tags: null,
-  subtasks: JSON.stringify([
-    { id: "1", text: "Add theme context", completed: true },
-    { id: "2", text: "Create toggle component", completed: true },
-    { id: "3", text: "Style dark mode", completed: true },
-    { id: "4", text: "Persist preference", completed: false },
-    { id: "5", text: "Add tests", completed: false },
-  ]),
+  subtasks: null,
   isBlocked: false,
   blockedReason: null,
   linkedFiles: null,
@@ -81,36 +75,18 @@ describe("CurrentFocusCard", () => {
       expect(screen.queryByTestId("ticket-description")).not.toBeInTheDocument();
     });
 
-    it("displays subtask progress bar", () => {
-      render(<CurrentFocusCard ticket={mockTicket} />);
-
-      const progress = screen.getByTestId("subtask-progress");
-      expect(progress).toBeInTheDocument();
-      expect(progress).toHaveTextContent("3/5 subtasks");
-    });
-
-    it("has accessible progressbar role", () => {
-      render(<CurrentFocusCard ticket={mockTicket} />);
-
-      const progressBar = screen.getByRole("progressbar");
-      expect(progressBar).toHaveAttribute("aria-valuenow", "60");
-      expect(progressBar).toHaveAttribute("aria-valuemin", "0");
-      expect(progressBar).toHaveAttribute("aria-valuemax", "100");
-    });
-
-    it("does not show progress bar when no subtasks", () => {
-      const ticketWithoutSubtasks = { ...mockTicket, subtasks: null };
-      render(<CurrentFocusCard ticket={ticketWithoutSubtasks} />);
+    it("does not render subtask progress", () => {
+      const ticketWithLegacySubtasks = {
+        ...mockTicket,
+        subtasks: JSON.stringify([
+          { id: "1", text: "Legacy task", completed: true },
+          { id: "2", text: "Legacy task two", completed: false },
+        ]),
+      };
+      render(<CurrentFocusCard ticket={ticketWithLegacySubtasks} />);
 
       expect(screen.queryByTestId("subtask-progress")).not.toBeInTheDocument();
-    });
-
-    it("handles malformed subtasks JSON gracefully", () => {
-      const ticketWithBadJson = { ...mockTicket, subtasks: "not-valid-json" };
-      render(<CurrentFocusCard ticket={ticketWithBadJson} />);
-
-      // Should not crash and should not show progress
-      expect(screen.queryByTestId("subtask-progress")).not.toBeInTheDocument();
+      expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
     });
   });
 

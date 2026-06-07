@@ -116,7 +116,6 @@ vi.mock("../components/tickets", () => ({
   TicketDescription: ({ description }: { description: string | null }) => (
     <div>{description ?? "No description"}</div>
   ),
-  SubtasksProgress: () => <div>Subtasks</div>,
 }));
 
 vi.mock("../components/tickets/ActivitySection", () => ({

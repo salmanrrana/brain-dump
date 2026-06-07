@@ -224,3 +224,7 @@
       5k-row table scanned 1k×); not representative of cold/larger production reads.
 - Gates: pnpm type-check clean; pnpm lint 0 errors (16 pre-existing warnings, none in core/db.ts);
   core+db tests 423 passed.
+[2026-06-06T14:50:04-05:00] STALLED: No progress for 3 iterations. 6/6 incomplete.
+[2026-06-06T16:11:20-05:00] ITERATION TIMEOUT: Claude hung for >1800s on iteration 3 (killed, exit code: 124)
+[2026-06-06T16:13:06-05:00] STALLED: No progress for 3 iterations. 2/5 incomplete.
+[2026-06-06T16:48:05-05:00] STALLED: No progress for 3 iterations. 1/1 incomplete.
