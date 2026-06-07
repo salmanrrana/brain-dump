@@ -516,7 +516,13 @@ export function CodeChangeReviewSurface({
                 !patchQuery.fetching &&
                 !patchQuery.error &&
                 patchState?.kind === "available" &&
-                patch && <DiffPatchViewer patch={patch} wordWrap={selection.wordWrap} />}
+                patch && (
+                  <DiffPatchViewer
+                    patch={patch}
+                    filePath={selectedFile.file.path}
+                    wordWrap={selection.wordWrap}
+                  />
+                )}
             </div>
           )}
         </div>

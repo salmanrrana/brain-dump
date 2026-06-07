@@ -1,5 +1,6 @@
-import { useState, useCallback, useRef, useEffect, memo } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo, memo } from "react";
 import { Copy, Check } from "lucide-react";
+import { renderHighlightedCodeLine } from "../../lib/syntax-highlight";
 
 // =============================================================================
 // Types
@@ -76,7 +77,7 @@ const LANGUAGE_DISPLAY_NAMES: Record<string, string> = {
  * Features:
  * - **Language indicator**: Shows language badge in top-right corner
  * - **Copy button**: Click to copy code to clipboard with visual feedback
- * - **Dark theme**: Dark background optimized for code readability
+ * - **Theme-aware syntax**: Uses shared code token colors for readability
  * - **Horizontal scroll**: Long lines scroll instead of wrapping
  *
  * @example
@@ -108,6 +109,15 @@ export const CodeBlock = memo(function CodeBlock({
   const languageDisplay = language
     ? LANGUAGE_DISPLAY_NAMES[language.toLowerCase()] || language
     : null;
+  const highlightedLines = useMemo(
+    () =>
+      code
+        .split("\n")
+        .map((line, lineIndex) =>
+          renderHighlightedCodeLine(line, language, `${testId}-${lineIndex}`)
+        ),
+    [code, language, testId]
+  );
 
   // Handle copy to clipboard with proper error handling
   const handleCopy = useCallback(async () => {
@@ -144,71 +154,24 @@ export const CodeBlock = memo(function CodeBlock({
     }
   }, [code]);
 
-  // Styles
-  const containerStyles: React.CSSProperties = {
-    position: "relative",
-    margin: "var(--spacing-2) 0",
-    borderRadius: "var(--radius-md)",
-    overflow: "hidden",
-  };
-
-  const headerStyles: React.CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "var(--spacing-2) var(--spacing-3)",
-    background: "var(--bg-tertiary)",
-    borderBottom: "1px solid var(--border-primary)",
-    minHeight: "32px",
-  };
-
-  const languageBadgeStyles: React.CSSProperties = {
-    fontSize: "var(--font-size-xs)",
-    color: "var(--text-muted)",
-    fontFamily: "var(--font-mono)",
-    textTransform: "lowercase",
-  };
-
-  const copyButtonStyles: React.CSSProperties = {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: "var(--spacing-1)",
-    padding: "4px 8px",
-    background: "transparent",
-    border: "1px solid var(--border-primary)",
-    borderRadius: "var(--radius-sm)",
-    color: copied ? "#22c55e" : "var(--text-muted)",
-    fontSize: "var(--font-size-xs)",
-    cursor: "pointer",
-    transition: "all var(--transition-fast)",
-  };
-
-  const preStyles: React.CSSProperties = {
-    margin: 0,
-    padding: "var(--spacing-3)",
-    background: "#1e1e1e", // Dark code background
-    overflowX: "auto",
-    fontSize: "var(--font-size-sm)",
-    fontFamily: "var(--font-mono)",
-    lineHeight: 1.6,
-    color: "#d4d4d4", // Light text for dark background
-  };
-
-  const codeStyles: React.CSSProperties = {
-    display: "block",
-    whiteSpace: "pre",
-  };
-
   return (
-    <div style={containerStyles} data-testid={testId}>
+    <div
+      className="relative my-2 overflow-hidden rounded-md border border-[var(--code-border)] bg-[var(--code-surface)]"
+      data-testid={testId}
+    >
       {/* Header with language and copy button */}
-      <div style={headerStyles}>
-        <span style={languageBadgeStyles}>{languageDisplay || "code"}</span>
+      <div className="flex min-h-8 items-center justify-between border-b border-[var(--code-border)] bg-[var(--code-header-bg)] px-3 py-2">
+        <span className="font-mono text-xs lowercase text-[var(--code-muted)]">
+          {languageDisplay || "code"}
+        </span>
         <button
           type="button"
           onClick={handleCopy}
-          style={copyButtonStyles}
-          className="hover:border-[var(--accent-primary)] hover:text-[var(--text-primary)]"
+          className={`inline-flex cursor-pointer items-center gap-1 rounded-sm border px-2 py-1 text-xs transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]/40 ${
+            copied
+              ? "border-[var(--success)]/40 text-[var(--success)]"
+              : "border-[var(--code-border)] text-[var(--code-muted)] hover:border-[var(--accent-primary)]/50 hover:text-[var(--code-text)]"
+          }`}
           aria-label={copied ? "Copied!" : "Copy code"}
           data-testid={`${testId}-copy`}
         >
@@ -227,8 +190,14 @@ export const CodeBlock = memo(function CodeBlock({
       </div>
 
       {/* Code content */}
-      <pre style={preStyles}>
-        <code style={codeStyles}>{code}</code>
+      <pre className="m-0 overflow-x-auto bg-[var(--code-surface)] p-3 font-mono text-sm leading-relaxed text-[var(--code-text)]">
+        <code className="block whitespace-pre">
+          {highlightedLines.map((nodes, lineIndex) => (
+            <span className="block min-h-[1.5em]" key={`${testId}-line-${lineIndex}`}>
+              {nodes}
+            </span>
+          ))}
+        </code>
       </pre>
     </div>
   );

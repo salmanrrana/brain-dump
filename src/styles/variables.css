@@ -84,6 +84,33 @@
   --info: #4b8df8;
   --info-muted: rgba(75, 141, 248, 0.12);
 
+  /* Code surfaces and syntax tokens */
+  --code-surface: color-mix(in srgb, var(--bg-primary) 88%, #101827);
+  --code-header-bg: color-mix(in srgb, var(--bg-tertiary) 86%, #020617);
+  --code-border: color-mix(in srgb, var(--border-primary) 86%, var(--text-primary));
+  --code-text: #d8dee9;
+  --code-muted: #7b8497;
+  --code-line-number: #697386;
+  --code-line-number-bg: color-mix(in srgb, var(--code-surface) 82%, var(--bg-secondary));
+  --code-line-hover: color-mix(in srgb, var(--code-surface) 92%, var(--text-primary));
+  --code-keyword: #c792ea;
+  --code-type: #82aaff;
+  --code-function: #82aaff;
+  --code-property: #89ddff;
+  --code-string: #c3e88d;
+  --code-number: #f78c6c;
+  --code-literal: #ffcb6b;
+  --code-comment: #697386;
+  --code-operator: #ffcb6b;
+  --code-punctuation: #9aa4b5;
+  --code-hunk: #7dd3fc;
+  --code-diff-add-bg: color-mix(in srgb, var(--code-surface) 88%, var(--success));
+  --code-diff-add-text: color-mix(in srgb, var(--success) 78%, var(--code-text));
+  --code-diff-delete-bg: color-mix(in srgb, var(--code-surface) 88%, var(--error));
+  --code-diff-delete-text: color-mix(in srgb, var(--error) 78%, var(--code-text));
+  --code-diff-hunk-bg: color-mix(in srgb, var(--code-surface) 86%, var(--info));
+  --code-diff-meta-bg: color-mix(in srgb, var(--code-surface) 92%, var(--text-tertiary));
+
   /* Accent semantic aliases */
   --accent-danger: var(--error);
   --accent-warning: var(--warning);
@@ -201,6 +228,42 @@
   --z-popover: 60;
   --z-tooltip: 70;
   --z-toast: 80;
+}
+
+[data-theme="daylight"],
+[data-theme="frost"],
+[data-theme="paper"],
+[data-theme="harbor"],
+[data-theme="grove"],
+[data-theme="horizon"],
+[data-theme="petal"],
+[data-theme="linen"],
+[data-theme="oasis"] {
+  --code-surface: color-mix(in srgb, var(--bg-card) 82%, var(--bg-secondary));
+  --code-header-bg: color-mix(in srgb, var(--bg-secondary) 84%, var(--bg-card));
+  --code-border: color-mix(in srgb, var(--border-primary) 88%, var(--text-primary));
+  --code-text: #273244;
+  --code-muted: #667085;
+  --code-line-number: #7a8496;
+  --code-line-number-bg: color-mix(in srgb, var(--code-surface) 84%, var(--bg-tertiary));
+  --code-line-hover: color-mix(in srgb, var(--code-surface) 88%, var(--text-primary));
+  --code-keyword: #7c3aed;
+  --code-type: #2563eb;
+  --code-function: #2563eb;
+  --code-property: #0e7490;
+  --code-string: #047857;
+  --code-number: #b45309;
+  --code-literal: #b45309;
+  --code-comment: #6b7280;
+  --code-operator: #9333ea;
+  --code-punctuation: #4b5563;
+  --code-hunk: #0369a1;
+  --code-diff-add-bg: color-mix(in srgb, var(--code-surface) 88%, var(--success));
+  --code-diff-add-text: color-mix(in srgb, var(--success) 78%, var(--code-text));
+  --code-diff-delete-bg: color-mix(in srgb, var(--code-surface) 88%, var(--error));
+  --code-diff-delete-text: color-mix(in srgb, var(--error) 78%, var(--code-text));
+  --code-diff-hunk-bg: color-mix(in srgb, var(--code-surface) 86%, var(--info));
+  --code-diff-meta-bg: color-mix(in srgb, var(--code-surface) 90%, var(--text-tertiary));
 }
 
 /* ============================================

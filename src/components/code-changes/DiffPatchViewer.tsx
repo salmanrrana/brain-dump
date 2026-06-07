@@ -1,8 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import {
+  getDiffLineKind,
+  languageFromFilePath,
+  renderHighlightedDiffLine,
+  type DiffLineKind,
+} from "../../lib/syntax-highlight";
 
 export interface DiffPatchViewerProps {
   patch: string;
+  filePath?: string | undefined;
   wordWrap?: boolean;
   maxHeight?: number;
 }
@@ -24,34 +31,50 @@ function formatBytes(bytes: number): string {
   return `${bytes} B`;
 }
 
-function getLineClassName(line: string): string {
-  if (line.startsWith("+") && !line.startsWith("+++")) {
-    return "bg-[var(--success-muted)] text-[var(--text-primary)]";
+function getLineClassName(lineKind: DiffLineKind): string {
+  switch (lineKind) {
+    case "addition":
+      return "bg-[var(--code-diff-add-bg)] text-[var(--code-text)]";
+    case "deletion":
+      return "bg-[var(--code-diff-delete-bg)] text-[var(--code-text)]";
+    case "hunk":
+      return "bg-[var(--code-diff-hunk-bg)] text-[var(--code-hunk)]";
+    case "metadata":
+      return "bg-[var(--code-diff-meta-bg)] text-[var(--code-muted)]";
+    case "context":
+      return "text-[var(--code-text)] hover:bg-[var(--code-line-hover)]";
   }
+}
 
-  if (line.startsWith("-") && !line.startsWith("---")) {
-    return "bg-[var(--accent-danger)]/10 text-[var(--text-primary)]";
+function getLineNumberClassName(lineKind: DiffLineKind): string {
+  switch (lineKind) {
+    case "addition":
+      return "text-[var(--code-diff-add-text)]";
+    case "deletion":
+      return "text-[var(--code-diff-delete-text)]";
+    case "hunk":
+      return "text-[var(--code-hunk)]";
+    case "metadata":
+      return "text-[var(--code-muted)]";
+    case "context":
+      return "text-[var(--code-line-number)]";
   }
-
-  if (line.startsWith("@@")) {
-    return "bg-[var(--info-muted)] text-[var(--info)]";
-  }
-
-  return "text-[var(--text-secondary)]";
 }
 
 function isBinaryPatch(patch: string): boolean {
   return patch.includes("Binary files ") || patch.includes("GIT binary patch");
 }
 
-export function DiffPatchViewer({
+export const DiffPatchViewer = memo(function DiffPatchViewer({
   patch,
+  filePath,
   wordWrap = true,
   maxHeight = DEFAULT_MAX_HEIGHT,
 }: DiffPatchViewerProps) {
   const parentRef = useRef<HTMLDivElement | null>(null);
   const isOversized = patch.length > OVERSIZED_PATCH_BYTES;
   const [forceRender, setForceRender] = useState(false);
+  const language = useMemo(() => languageFromFilePath(filePath), [filePath]);
 
   // Reset the opt-in render whenever the selected patch changes, so switching to
   // another oversized file always re-shows the guard instead of silently
@@ -118,7 +141,7 @@ export function DiffPatchViewer({
   const virtualItems = virtualizer.getVirtualItems();
 
   return (
-    <div className="rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)]">
+    <div className="rounded-lg border border-[var(--code-border)] bg-[var(--code-surface)]">
       {patch.length > LARGE_PATCH_BYTES && (
         <div className="border-b border-[var(--border-primary)] bg-[var(--warning-muted)] px-3 py-2 text-xs text-[var(--warning)]">
           Large patch rendered with virtualization to keep scrolling responsive.
@@ -127,27 +150,34 @@ export function DiffPatchViewer({
       <div
         ref={parentRef}
         className="overflow-auto font-mono text-xs leading-5"
-        style={{ maxHeight }}
+        style={{ maxHeight, contain: "layout paint" }}
         aria-label="Unified diff"
       >
         <div className="relative w-full" style={{ height: `${virtualizer.getTotalSize()}px` }}>
           {virtualItems.map((virtualRow) => {
             const line = lines[virtualRow.index] ?? "";
+            const lineKind = getDiffLineKind(line);
             return (
               <div
                 key={virtualRow.key}
                 data-index={virtualRow.index}
                 ref={virtualizer.measureElement}
-                className={`absolute left-0 top-0 flex min-w-full ${getLineClassName(line)}`}
+                className={`absolute left-0 top-0 flex min-w-full ${getLineClassName(lineKind)}`}
                 style={{ transform: `translateY(${virtualRow.start}px)` }}
               >
-                <span className="w-12 shrink-0 select-none border-r border-[var(--border-primary)] px-2 text-right text-[var(--text-tertiary)]">
+                <span
+                  className={`w-12 shrink-0 select-none border-r border-[var(--code-border)] bg-[var(--code-line-number-bg)] px-2 text-right ${getLineNumberClassName(lineKind)}`}
+                >
                   {virtualRow.index + 1}
                 </span>
                 <code
                   className={`block px-3 py-0.5 ${wordWrap ? "whitespace-pre-wrap break-words" : "whitespace-pre"}`}
                 >
-                  {line || " "}
+                  {renderHighlightedDiffLine(
+                    line,
+                    language,
+                    `diff-${virtualRow.index}-${lineKind}`
+                  )}
                 </code>
               </div>
             );
@@ -156,4 +186,4 @@ export function DiffPatchViewer({
       </div>
     </div>
   );
-}
+});

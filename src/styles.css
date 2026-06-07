@@ -87,6 +87,69 @@ code {
   letter-spacing: -0.01em;
 }
 
+.code-token-comment {
+  color: var(--code-comment);
+  font-style: italic;
+}
+
+.code-token-function {
+  color: var(--code-function);
+}
+
+.code-token-hunk {
+  color: var(--code-hunk);
+  font-weight: var(--font-weight-medium);
+}
+
+.code-token-keyword {
+  color: var(--code-keyword);
+}
+
+.code-token-literal {
+  color: var(--code-literal);
+}
+
+.code-token-number {
+  color: var(--code-number);
+}
+
+.code-token-operator {
+  color: var(--code-operator);
+}
+
+.code-token-property {
+  color: var(--code-property);
+}
+
+.code-token-punctuation {
+  color: var(--code-punctuation);
+}
+
+.code-token-string {
+  color: var(--code-string);
+}
+
+.code-token-type {
+  color: var(--code-type);
+}
+
+.code-diff-marker {
+  display: inline-block;
+  width: 1rem;
+  margin-right: 0.5rem;
+  color: var(--code-line-number);
+  text-align: center;
+  user-select: none;
+}
+
+.code-diff-marker-addition {
+  color: var(--code-diff-add-text);
+}
+
+.code-diff-marker-deletion {
+  color: var(--code-diff-delete-text);
+}
+
 /* Heading typography - Bricolage looks best heavier with tight tracking */
 h1,
 h2,
