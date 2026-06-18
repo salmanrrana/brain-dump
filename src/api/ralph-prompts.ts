@@ -470,7 +470,7 @@ export function generateEnhancedPRD(
     return {
       id: ticket.id,
       title: ticket.title,
-      passes: ticket.status === "done",
+      passes: ticket.status === "human_review" || ticket.status === "done",
       ...(humanRequestedChanges ? { humanRequestedChanges } : {}),
       overview,
       types,

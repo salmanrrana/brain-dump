@@ -18,9 +18,11 @@ import {
   markFixed,
   getFindings,
   checkComplete,
+  validateGenerateDemo,
   generateDemo,
   getDemo,
   updateDemoStep,
+  validateSubmitFeedback,
   submitFeedback,
 } from "../../core/review.ts";
 import type { MarkFixedStatus, DemoStepStatus } from "../../core/review.ts";
@@ -28,6 +30,7 @@ import type { FindingAgent, FindingSeverity, FindingStatus } from "../../core/ty
 import { addComment, type CommentAuthor } from "../../core/comment.ts";
 import { detectAuthor } from "../lib/environment.js";
 import { execFileNoThrow, syncPrVerificationChecklist } from "../../core/index.ts";
+import { updatePrdForDbTicketIfPresent } from "../../core/prd-sync.ts";
 
 const SEVERITY_ICONS: Record<string, string> = {
   critical: "🔴",
@@ -53,6 +56,32 @@ const FINDING_STATUSES = ["open", "fixed", "wont_fix", "duplicate"] as const;
 const MARK_FIXED_STATUSES = ["fixed", "wont_fix", "duplicate"] as const;
 const DEMO_STEP_STATUSES = ["pending", "passed", "failed", "skipped"] as const;
 const DEMO_STEP_TYPES = ["manual", "visual", "automated"] as const;
+
+type PrdSyncResult = ReturnType<typeof updatePrdForDbTicketIfPresent>;
+
+function syncPrdPassMarker(
+  db: Database.Database,
+  ticketId: string,
+  passes: boolean
+): PrdSyncResult {
+  const result = updatePrdForDbTicketIfPresent(db, ticketId, passes);
+  if (result.required && !result.success) {
+    log.warn(`PRD sync failed for ticket ${ticketId}`, new Error(result.message));
+  }
+  return result;
+}
+
+function formatPrdSyncNote(result: PrdSyncResult): string {
+  return result.success ? result.message : `PRD sync warning: ${result.message}`;
+}
+
+function requirePrdSyncForFeedback(result: PrdSyncResult, passed: boolean): string {
+  if (passed || result.success) {
+    return result.message;
+  }
+
+  throw new Error(`Cannot submit demo feedback because PRD sync failed: ${result.message}`);
+}
 
 /**
  * Register the consolidated review tool with the MCP server.
@@ -252,8 +281,16 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
             const ticketId = requireParam(params.ticketId, "ticketId", "generate-demo");
             const steps = requireParam(params.steps, "steps", "generate-demo");
 
-            const demo = generateDemo(db, { ticketId, steps });
+            const demoParams = { ticketId, steps };
+            validateGenerateDemo(db, demoParams);
+            const prdSync = syncPrdPassMarker(db, ticketId, true);
+            if (prdSync.required && !prdSync.success) {
+              throw new Error(`Cannot generate demo because PRD sync failed: ${prdSync.message}`);
+            }
+
+            const demo = generateDemo(db, demoParams);
             let syncNote = "PR checklist sync skipped: no linked PR found for this ticket.";
+            const prdNote = formatPrdSyncNote(prdSync);
 
             const syncResult = await syncPrVerificationChecklist(
               { ticketId },
@@ -284,7 +321,7 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
             log.info(`Generated demo script for ticket ${ticketId} with ${steps.length} steps`);
             return formatResult(
               demo,
-              `Demo script generated! Ticket moved to human_review.\n\n${syncNote}`
+              `Demo script generated! Ticket moved to human_review.\n\n${prdNote}\n\n${syncNote}`
             );
           }
 
@@ -323,7 +360,7 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
             const passed = requireParam(params.passed, "passed", "submit-feedback");
             const feedback = requireParam(params.feedback, "feedback", "submit-feedback");
 
-            const result = submitFeedback(db, {
+            const feedbackParams = {
               ticketId,
               passed,
               feedback,
@@ -336,14 +373,20 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
                     })),
                   }
                 : {}),
-            });
+            };
+            validateSubmitFeedback(db, feedbackParams);
+            const prdNote = requirePrdSyncForFeedback(
+              syncPrdPassMarker(db, ticketId, passed),
+              passed
+            );
+            const result = submitFeedback(db, feedbackParams);
 
             log.info(`Demo feedback for ${ticketId}: ${passed ? "PASSED" : "REJECTED"}`);
             return formatResult(
               result,
               passed
-                ? "Demo approved! Ticket moved to done."
-                : "Demo rejected. Ticket moved to ready for rework."
+                ? `Demo approved! Ticket moved to done.\n\n${prdNote}`
+                : `Demo rejected. Ticket moved to ready for rework.\n\n${prdNote}`
             );
           }
         }

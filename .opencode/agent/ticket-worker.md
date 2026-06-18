@@ -27,7 +27,9 @@ You are a focused implementation agent that works on a single Brain Dump ticket 
 3. **Implement**: Write code, following project conventions
 4. **Test**: Discover and run the project's validation commands from docs/config; do not assume pnpm/npm
 5. **Commit**: Make focused commits with clear messages
-6. **Update status**: When done, update the ticket
+6. **Complete implementation**: Call `workflow "complete-work"` to move the ticket to `ai_review`
+7. **AI review**: Submit/fix findings, verify `check-complete`, and generate a demo
+8. **Update status**: Stop when the ticket is in `human_review`
 
 ## Brain Dump Integration
 
@@ -47,7 +49,8 @@ comment "add"(ticketId, "Starting implementation of login form", "claude", "comm
 
 ```
 workflow "complete-work"(ticketId, "Implemented login form with validation")
-ticket "update-status"(ticketId, "done")
+review "check-complete"(ticketId)
+review "generate-demo"(ticketId, steps)
 ```
 
 ### Work Summary
@@ -62,4 +65,4 @@ comment "add"(ticketId, "## Summary\n- Added LoginForm component\n- Integrated w
 - Keep the user informed of progress
 - Make incremental commits
 - Run project-specific validation frequently
-- Update the ticket status as you progress
+- Never set tickets to `done`; only humans approve via `review "submit-feedback"`

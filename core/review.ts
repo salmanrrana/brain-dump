@@ -369,22 +369,26 @@ export interface GenerateDemoParams {
   }>;
 }
 
-/**
- * Generate a demo script for human review.
- *
- * Validates that:
- * 1. The ticket is in ai_review status
- * 2. All critical/major findings are fixed
- *
- * Transitions the ticket to human_review status.
- *
- * @throws TicketNotFoundError if the ticket doesn't exist
- * @throws InvalidStateError if the ticket is not in ai_review
- * @throws ValidationError if there are unresolved critical/major findings
- */
-export function generateDemo(db: DbHandle, params: GenerateDemoParams): DemoScript {
-  const { ticketId, steps } = params;
+function validateDemoSteps(steps: GenerateDemoParams["steps"]): void {
+  if (!Array.isArray(steps)) {
+    throw new ValidationError("Demo steps must be an array.");
+  }
 
+  for (const [index, step] of steps.entries()) {
+    if (
+      typeof step !== "object" ||
+      step === null ||
+      typeof step.order !== "number" ||
+      typeof step.description !== "string" ||
+      typeof step.expectedOutcome !== "string" ||
+      !["manual", "visual", "automated"].includes(step.type)
+    ) {
+      throw new ValidationError(`Demo step at index ${index} is invalid.`);
+    }
+  }
+}
+
+function validateDemoGeneration(db: DbHandle, ticketId: string): void {
   const ticket = getTicketRow(db, ticketId);
 
   if (ticket.status !== "ai_review") {
@@ -410,6 +414,34 @@ export function generateDemo(db: DbHandle, params: GenerateDemoParams): DemoScri
       }
     );
   }
+}
+
+/**
+ * Validate demo generation without mutating database state.
+ */
+export function validateGenerateDemo(db: DbHandle, params: GenerateDemoParams): void {
+  validateDemoSteps(params.steps);
+  validateDemoGeneration(db, params.ticketId);
+}
+
+/**
+ * Generate a demo script for human review.
+ *
+ * Validates that:
+ * 1. The ticket is in ai_review status
+ * 2. All critical/major findings are fixed
+ *
+ * Transitions the ticket to human_review status.
+ *
+ * @throws TicketNotFoundError if the ticket doesn't exist
+ * @throws InvalidStateError if the ticket is not in ai_review
+ * @throws ValidationError if there are unresolved critical/major findings
+ */
+export function generateDemo(db: DbHandle, params: GenerateDemoParams): DemoScript {
+  const { ticketId, steps } = params;
+
+  validateDemoSteps(steps);
+  validateDemoGeneration(db, ticketId);
 
   const now = new Date().toISOString();
   const epicReviewRunId = findLatestActiveEpicReviewRunIdForTicket(db, ticketId);
@@ -564,19 +596,10 @@ export interface SubmitFeedbackParams {
   }>;
 }
 
-/**
- * Submit final demo feedback from human reviewer.
- *
- * If passed: transitions ticket to "done".
- * If rejected: transitions ticket to "ready", resets demo_generated flag, and preserves demo feedback.
- *
- * @throws TicketNotFoundError if the ticket doesn't exist
- * @throws InvalidStateError if the ticket is not in human_review
- * @throws ValidationError if no demo script exists for the ticket
- */
-export function submitFeedback(db: DbHandle, params: SubmitFeedbackParams): FeedbackResult {
-  const { ticketId, passed, feedback, stepResults } = params;
-
+function prepareFeedbackSubmission(
+  db: DbHandle,
+  ticketId: string
+): { ticket: DbTicketRow; demo: DbDemoScriptRow; steps: DemoStep[] } {
   const ticket = getTicketRow(db, ticketId);
 
   if (ticket.status !== "human_review") {
@@ -590,16 +613,54 @@ export function submitFeedback(db: DbHandle, params: SubmitFeedbackParams): Feed
     throw new ValidationError(`No demo script found for ticket ${ticketId}.`);
   }
 
-  const now = new Date().toISOString();
-  let steps: DemoStep[];
-
   try {
-    steps = JSON.parse(demo.steps || "[]");
-  } catch {
+    const parsedSteps = JSON.parse(demo.steps || "[]") as unknown;
+    if (!Array.isArray(parsedSteps)) {
+      throw new ValidationError(
+        `Demo script for ticket ${ticketId} has invalid step data. Cannot apply feedback.`
+      );
+    }
+
+    return {
+      ticket,
+      demo,
+      steps: parsedSteps as DemoStep[],
+    };
+  } catch (err) {
+    if (err instanceof ValidationError) {
+      throw err;
+    }
     throw new ValidationError(
       `Demo script for ticket ${ticketId} has corrupted step data. Cannot apply feedback.`
     );
   }
+}
+
+/**
+ * Validate final demo feedback without mutating database state.
+ *
+ * Adapters that must coordinate external state, such as `plans/prd.json`, use
+ * this as a preflight before touching that external state.
+ */
+export function validateSubmitFeedback(db: DbHandle, params: SubmitFeedbackParams): void {
+  prepareFeedbackSubmission(db, params.ticketId);
+}
+
+/**
+ * Submit final demo feedback from human reviewer.
+ *
+ * If passed: transitions ticket to "done".
+ * If rejected: transitions ticket to "ready", resets demo_generated flag, and preserves demo feedback.
+ *
+ * @throws TicketNotFoundError if the ticket doesn't exist
+ * @throws InvalidStateError if the ticket is not in human_review
+ * @throws ValidationError if no demo script exists for the ticket
+ */
+export function submitFeedback(db: DbHandle, params: SubmitFeedbackParams): FeedbackResult {
+  const { ticketId, passed, feedback, stepResults } = params;
+
+  const { steps } = prepareFeedbackSubmission(db, ticketId);
+  const now = new Date().toISOString();
 
   // Update demo script
   db.prepare(

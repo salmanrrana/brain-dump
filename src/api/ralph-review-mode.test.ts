@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EnhancedPRDDocument } from "../lib/prd-extraction";
-import { generateVSCodeContext, getRalphPrompt } from "./ralph-prompts";
+import { generateEnhancedPRD, generateVSCodeContext, getRalphPrompt } from "./ralph-prompts";
 import { prepareEpicLaunch } from "../lib/ralph-launch/launch-epic";
 
 type LaunchTicket = Parameters<typeof prepareEpicLaunch>[0][number];
@@ -171,6 +171,30 @@ describe("prepareEpicLaunch", () => {
 });
 
 describe("review-mode prompt builders", () => {
+  it("keeps ai_review tickets incomplete but treats human_review as handed off", () => {
+    const prd = generateEnhancedPRD("Brain Dump", "/tmp/brain-dump", [
+      {
+        id: "ticket-ai-review",
+        title: "Needs review",
+        status: "ai_review",
+        description: "",
+        priority: "high",
+        tags: "[]",
+      },
+      {
+        id: "ticket-human-review",
+        title: "Ready for humans",
+        status: "human_review",
+        description: "",
+        priority: "high",
+        tags: "[]",
+      },
+    ] as Parameters<typeof generateEnhancedPRD>[2]);
+
+    expect(prd.userStories.find((story) => story.id === "ticket-ai-review")?.passes).toBe(false);
+    expect(prd.userStories.find((story) => story.id === "ticket-human-review")?.passes).toBe(true);
+  });
+
   it("builds implementation gates around project-native verification commands", () => {
     const prompt = getRalphPrompt();
 

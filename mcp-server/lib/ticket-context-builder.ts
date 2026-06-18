@@ -176,7 +176,7 @@ ${acceptanceCriteria.map((c) => `- ${c}`).join("\n")}
 
   contextText += `---
 
-Focus on implementation. When done, call \`workflow({ action: "complete-work", ticketId: "<ticketId>", summary: "..." })\`.`;
+Focus on implementation first. When validation is recorded, call \`workflow({ action: "complete-work", ticketId: "<ticketId>", summary: "..." })\`, then continue the required AI review and demo handoff before starting another ticket.`;
 
   return {
     type: "text",

@@ -187,15 +187,25 @@ export type {
   GetActivityLogParams,
 } from "./comment.ts";
 
+export {
+  updatePrdForTicket,
+  updatePrdForTicketIfPresent,
+  updatePrdForDbTicketIfPresent,
+} from "./prd-sync.ts";
+
+export type { UpdatePrdResult, OptionalUpdatePrdResult } from "./prd-sync.ts";
+
 // Review & demo business logic
 export {
   submitFinding,
   markFixed,
   getFindings,
   checkComplete,
+  validateGenerateDemo,
   generateDemo,
   getDemo,
   updateDemoStep,
+  validateSubmitFeedback,
   submitFeedback,
 } from "./review.ts";
 
