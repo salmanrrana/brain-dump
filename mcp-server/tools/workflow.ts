@@ -357,7 +357,7 @@ function handleStartWork(
 
 /**
  * Handle complete-work action: delegates to core, then adds MCP-layer presentation
- * (PRD update, conversation sessions, telemetry, AI review instructions).
+ * (PRD sync, conversation sessions, telemetry, AI review instructions).
  */
 function handleCompleteWork(
   db: Database.Database,
@@ -376,21 +376,23 @@ function handleCompleteWork(
     )
     .get(ticketId) as { project_path: string; project_name: string; title: string } | undefined;
 
-  // Update PRD file
+  // Keep PRD incomplete until review.generate-demo moves the ticket to human_review.
+  // Otherwise Ralph sees passes:true after implementation and skips the required
+  // AI review/demo handoff in the next loop iteration.
   let prdWarning = "";
   if (ticketRow) {
-    const prdResult = updatePrdForTicket(ticketRow.project_path, ticketId);
+    const prdResult = updatePrdForTicket(ticketRow.project_path, ticketId, false);
     if (!prdResult.success) {
-      log.error(`PRD update failed for ticket ${ticketId}: ${prdResult.message}`);
-      prdWarning = `## WARNING: PRD Update Failed
+      log.error(`PRD sync failed for ticket ${ticketId}: ${prdResult.message}`);
+      prdWarning = `## WARNING: PRD Sync Failed
 
-**The PRD file was NOT updated.** This will cause Ralph's iteration loop to malfunction.
+**The PRD file was NOT synchronized.** This can cause Ralph's iteration loop to skip or repeat the wrong phase.
 
 **Problem:** \`${prdResult.message}\`
 
 **Action Required:** Manually update \`plans/prd.json\`:
 1. Find the ticket with ID containing \`${ticketId.substring(0, 8)}\`
-2. Set \`"passes": true\` for that ticket
+2. Keep \`"passes": false\` for that ticket while it is in \`ai_review\`
 3. Save the file
 
 ---
@@ -507,7 +509,8 @@ ${prDescription}
 
   if (result.suggestedNextTicket) {
     sections.push(
-      `### Suggested Next Ticket\n- **${result.suggestedNextTicket.title}** (\`${result.suggestedNextTicket.id}\`)`
+      `### Next Ticket Deferred
+Brain Dump found **${result.suggestedNextTicket.title}** (\`${result.suggestedNextTicket.id}\`) as a later candidate, but do not start it yet. Finish AI review and generate the demo for the current ticket first.`
     );
   }
 

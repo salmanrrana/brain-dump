@@ -6,7 +6,7 @@
  */
 
 import { execFile } from "child_process";
-import { mkdtempSync, mkdirSync, rmSync } from "fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join, resolve } from "path";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
@@ -505,7 +505,11 @@ describe("epic", () => {
 // ── Review Commands ─────────────────────────────────────────────
 
 describe("review", () => {
-  async function setupTicket(): Promise<{ projectId: string; ticketId: string }> {
+  async function setupTicket(): Promise<{
+    projectId: string;
+    projectPath: string;
+    ticketId: string;
+  }> {
     const projPath = makeProjDir("review-test");
     const p = (await runOk(
       "project",
@@ -529,7 +533,39 @@ describe("review", () => {
     await runOk("ticket", "update-status", "--ticket", t.id as string, "--status", "in_progress");
     await runOk("ticket", "update-status", "--ticket", t.id as string, "--status", "ai_review");
 
-    return { projectId: p.id as string, ticketId: t.id as string };
+    return { projectId: p.id as string, projectPath: projPath, ticketId: t.id as string };
+  }
+
+  function writePrd(projectPath: string, ticketId: string, passes: boolean): void {
+    mkdirSync(join(projectPath, "plans"), { recursive: true });
+    writeFileSync(
+      join(projectPath, "plans", "prd.json"),
+      JSON.stringify(
+        {
+          userStories: [
+            {
+              id: ticketId,
+              title: "Review Ticket",
+              passes,
+            },
+          ],
+        },
+        null,
+        2
+      )
+    );
+  }
+
+  function writeMalformedPrd(projectPath: string): void {
+    mkdirSync(join(projectPath, "plans"), { recursive: true });
+    writeFileSync(join(projectPath, "plans", "prd.json"), "{bad json");
+  }
+
+  function readPrdPasses(projectPath: string): boolean {
+    const prd = JSON.parse(readFileSync(join(projectPath, "plans", "prd.json"), "utf8")) as {
+      userStories: Array<{ passes: boolean }>;
+    };
+    return prd.userStories[0]?.passes ?? false;
   }
 
   it("submit-finding and get-findings", async () => {
@@ -563,6 +599,104 @@ describe("review", () => {
       unknown
     >;
     expect(result).toHaveProperty("canProceedToHumanReview");
+  });
+
+  it("generate-demo and rejected feedback keep the scoped PRD marker aligned", async () => {
+    const { projectPath, ticketId } = await setupTicket();
+    writePrd(projectPath, ticketId, false);
+
+    const stepsFile = join(tempDir, "demo-steps.json");
+    writeFileSync(
+      stepsFile,
+      JSON.stringify([
+        {
+          order: 1,
+          description: "Review the CLI demo",
+          expectedOutcome: "The reviewer can request changes.",
+          type: "manual",
+        },
+      ])
+    );
+
+    const demo = (await runOk(
+      "review",
+      "generate-demo",
+      "--ticket",
+      ticketId,
+      "--steps-file",
+      stepsFile
+    )) as Record<string, unknown>;
+
+    expect((demo.prdSync as Record<string, unknown>).applied).toBe(true);
+    expect(readPrdPasses(projectPath)).toBe(true);
+
+    const feedback = (await runOk(
+      "review",
+      "submit-feedback",
+      "--ticket",
+      ticketId,
+      "--feedback",
+      "Please tighten the demo copy."
+    )) as Record<string, unknown>;
+
+    expect(feedback.newStatus).toBe("ready");
+    expect((feedback.prdSync as Record<string, unknown>).applied).toBe(true);
+    expect(readPrdPasses(projectPath)).toBe(false);
+  });
+
+  it("generate-demo fails before status change when the scoped PRD is malformed", async () => {
+    const { projectPath, ticketId } = await setupTicket();
+    writeMalformedPrd(projectPath);
+
+    const stepsFile = join(tempDir, "demo-steps.json");
+    writeFileSync(
+      stepsFile,
+      JSON.stringify([
+        {
+          order: 1,
+          description: "Review the CLI demo",
+          expectedOutcome: "The reviewer can request changes.",
+          type: "manual",
+        },
+      ])
+    );
+
+    const err = await runErr(
+      "review",
+      "generate-demo",
+      "--ticket",
+      ticketId,
+      "--steps-file",
+      stepsFile
+    );
+
+    expect(err.message).toContain("Cannot generate demo because PRD sync failed");
+
+    const ticket = (await runOk("ticket", "get", "--ticket", ticketId)) as Record<string, unknown>;
+    expect(ticket.status).toBe("ai_review");
+  });
+
+  it("generate-demo fails before PRD sync when the steps file is not an array", async () => {
+    const { projectPath, ticketId } = await setupTicket();
+    writePrd(projectPath, ticketId, false);
+
+    const stepsFile = join(tempDir, "demo-steps.json");
+    writeFileSync(stepsFile, JSON.stringify({ order: 1 }));
+
+    const err = await runErr(
+      "review",
+      "generate-demo",
+      "--ticket",
+      ticketId,
+      "--steps-file",
+      stepsFile
+    );
+
+    expect(err.message).toContain("Demo steps must be an array");
+    expect(readPrdPasses(projectPath)).toBe(false);
+
+    const ticket = (await runOk("ticket", "get", "--ticket", ticketId)) as Record<string, unknown>;
+    expect(ticket.status).toBe("ai_review");
   });
 
   it("submit-finding missing required flags errors", async () => {

@@ -55,23 +55,33 @@ When these priorities conflict with convenience, choose correctness, observabili
 
 ### Instructions
 
-You are Ralph, an autonomous coding agent. Focus on implementation - MCP tools handle workflow.
+You are Ralph, an autonomous coding agent. MCP tools handle workflow state; you must complete the full implementation, AI review, and demo handoff before moving to another ticket.
 
 #### Your Task
 
-1. Read `plans/prd.json` to see incomplete tickets (passes: false)
+1. Read `plans/prd.json` to see scoped tickets. Treat `passes: false` as "Ralph may still need to work this ticket."
 2. Read `plans/progress.txt` for context from previous work
-3. Strategically pick ONE ticket (consider priority, dependencies, foundation work)
-4. Call `workflow "start-work"({ ticketId })` - this creates branch and posts progress
-5. Implement the feature:
+3. For each `passes: false` candidate, call `ticket "get"({ ticketId })` to check live status.
+4. If a candidate is already in `ai_review`, resume that ticket first. Do not call `start-work` or `complete-work`; run review, fix critical/major findings, call `review "check-complete"`, then call `review "generate-demo"`.
+5. Otherwise strategically pick ONE ticket in `backlog`, `ready`, or `in_progress`.
+6. Call `workflow "start-work"({ ticketId })` - this creates branch and posts progress
+7. Implement the feature:
    - Write the code
    - Run the project-specific validation commands discovered from docs/config
    - For Brain Dump itself, run `pnpm check`
    - Run additional focused tests/builds when the touched area requires them
    - Verify acceptance criteria
-6. Git commit: `git commit -m "feat(<ticket-id>): <description>"`
-7. Call `workflow "complete-work"({ ticketId, summary: "summary of changes" })` - this updates PRD and posts summary
-8. If all tickets complete, output: `PRD_COMPLETE`
+   - Add a `comment "add"` entry with `commentType: "test_report"` summarizing exact commands and results
+8. Git commit: `git commit -m "feat(<ticket-id>): <description>"`
+9. Call `workflow "complete-work"({ ticketId, summary: "summary of changes" })` - this moves the ticket to `ai_review`
+10. Complete AI review:
+    - Review your own diff for bugs, regressions, silent failures, and simplification opportunities
+    - Submit findings with `review "submit-finding"`
+    - Fix critical/major findings and mark them with `review "mark-fixed"`
+    - Call `review "check-complete"` until `canProceedToHumanReview: true`
+11. Call `review "generate-demo"({ ticketId, steps })` with at least 3 manual test steps - this moves the ticket to `human_review`
+12. Stop. Do not call `review "submit-feedback"` and do not move tickets to `done`.
+13. If all scoped tickets are in `human_review` or `done`, output: `PRD_COMPLETE`
 
 #### Rules
 
@@ -79,7 +89,8 @@ You are Ralph, an autonomous coding agent. Focus on implementation - MCP tools h
 - Run discovered project-specific validation before completing
 - Keep changes minimal and focused
 - Record performance measurements when changing a hot path
-- If stuck, note in progress.txt and move on
+- If stuck, note in progress.txt and move on only after the ticket cannot be advanced safely
+- A ticket in `ai_review` is not complete; resume it before starting backlog/ready work
 
 ---
 
@@ -111,7 +122,8 @@ You are a focused implementation agent that works on a single Brain Dump ticket 
 3. **Implement**: Write code, following project conventions
 4. **Test**: Run the project's own validation commands plus focused tests for the touched area
 5. **Commit**: Make focused commits with clear messages
-6. **Update status**: When done, update the ticket
+6. **AI review**: Submit/fix findings, verify `check-complete`, and generate a demo
+7. **Update status**: Stop when the ticket is in `human_review`
 
 #### Brain Dump Integration
 
@@ -131,7 +143,8 @@ comment "add"({ ticketId, text: "Starting implementation of login form", type: "
 
 ```
 workflow "complete-work"({ ticketId, summary: "Implemented login form with validation" })
-ticket "update-status"({ ticketId, status: "done" })
+review "check-complete"({ ticketId })
+review "generate-demo"({ ticketId, steps: [...] })
 ```
 
 **Work Summary:**

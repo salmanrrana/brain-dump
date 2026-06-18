@@ -48,12 +48,23 @@ find_project_by_path()            # Verify project context
 
 ```typescript
 // Pseudo-code for Ralph's selection logic
-function selectTicket(tickets: Ticket[]): Ticket {
-  // Filter: only incomplete tickets
-  const incomplete = tickets.filter((t) => !t.passes);
+function selectTicket(prdTickets: PrdTicket[]): Ticket {
+  // Filter: only tickets Ralph still needs to advance
+  const incomplete = prdTickets.filter((t) => !t.passes);
+
+  // plans/prd.json does not include live Brain Dump status. Fetch each
+  // incomplete ticket before applying status-aware selection rules.
+  const tickets = incomplete.map((t) => ticket.get({ ticketId: t.id }));
+
+  // Resume AI review before starting fresh implementation work.
+  const inReview = tickets.filter((t) => t.status === "ai_review");
+  if (inReview.length > 0) {
+    return inReview[0];
+  }
 
   // Sort by priority, then dependencies
-  const sorted = incomplete.sort((a, b) => {
+  const runnable = tickets.filter((t) => ["backlog", "ready", "in_progress"].includes(t.status));
+  const sorted = runnable.sort((a, b) => {
     if (a.priority !== b.priority) {
       return priorityOrder[a.priority] - priorityOrder[b.priority];
     }
@@ -80,8 +91,12 @@ workflow "start-work"(selectedTicketId)
 # Discover validation commands from project docs/config.
 # Do not assume pnpm/npm; use the project-standard commands.
 
-# 4. Complete ticket
+# 4. Complete implementation
 workflow "complete-work"(ticketId, summary)
+
+# 5. AI review and demo handoff
+review "check-complete"(ticketId)
+review "generate-demo"(ticketId, steps)
 ```
 
 ## Intelligent Decision Making

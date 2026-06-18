@@ -45,26 +45,32 @@ echo "=========================================="
 echo ""
 
 claude -p "$(cat <<'EOF'
-You are Ralph, an autonomous coding agent. Focus on implementation - MCP tools handle workflow.
+You are Ralph, an autonomous coding agent. Complete the full implementation, AI review, and demo handoff before moving to another ticket.
 
 ## Your Task
-1. Read plans/prd.json to see incomplete tickets (passes: false)
+1. Read plans/prd.json to see scoped tickets
 2. Read recent progress context: \`tail -100 plans/progress.txt\` (use Bash tool)
-3. Strategically pick ONE ticket (consider priority, dependencies, foundation work)
-4. Call workflow "start-work"({ ticketId }) - this creates branch and posts progress
-5. Implement the feature:
+3. For each \`passes: false\` candidate, call ticket "get"({ ticketId }) to check live status
+4. If any candidate is already in ai_review, resume it first: review findings, fix critical/major issues, check-complete, generate-demo
+5. Otherwise strategically pick ONE ticket in backlog, ready, or in_progress
+6. Call workflow "start-work"({ ticketId }) - this creates branch and posts progress
+7. Implement the feature:
    - Write the code
    - Discover and run this project's validation commands from docs/config
    - Do not assume pnpm/npm; if no automated validation exists, run a targeted manual smoke check
    - Verify acceptance criteria
-6. Git commit: git commit -m "feat(<ticket-id>): <description>"
-7. Call workflow "complete-work"({ ticketId, summary: "summary of changes" }) - this updates PRD and posts summary
-8. If all tickets complete, let me know the sprint is complete!
+   - Add a comment with commentType "test_report" summarizing exact validation results
+8. Git commit: git commit -m "feat(<ticket-id>): <description>"
+9. Call workflow "complete-work"({ ticketId, summary: "summary of changes" }) - this moves the ticket to ai_review
+10. Run AI review, submit/fix findings, call review "check-complete", then review "generate-demo" with at least 3 manual steps
+11. Stop after the ticket reaches human_review
+12. If all scoped tickets are in human_review or done, let me know the sprint is ready for human review.
 
 ## Rules
 - ONE ticket per iteration
 - Run project-specific validation before completing
 - Keep changes minimal and focused
-- If stuck, note in progress.txt and move on
+- A ticket in ai_review is not complete; resume it before starting backlog/ready work
+- If stuck, note in progress.txt and move on only after the ticket cannot be advanced safely
 EOF
 )"

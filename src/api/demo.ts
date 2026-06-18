@@ -2,9 +2,10 @@ import { createServerFn } from "@tanstack/react-start";
 import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
 // NOTE: db is imported dynamically inside handlers to prevent bundling server code in client
-import { submitFeedback } from "../../core/review";
 import { demoScripts } from "../lib/schema";
 import type { DemoStep } from "../lib/schema";
+
+const demoStepStatusSchema = z.enum(["pending", "passed", "failed", "skipped"]);
 
 /**
  * Safely parse JSON steps with descriptive error messages.
@@ -127,7 +128,7 @@ export const submitDemoFeedback = createServerFn({ method: "POST" })
         .array(
           z.object({
             order: z.number(),
-            status: z.enum(["pending", "passed", "failed", "skipped"]),
+            status: demoStepStatusSchema,
             notes: z.string().optional(),
           })
         )
@@ -136,17 +137,6 @@ export const submitDemoFeedback = createServerFn({ method: "POST" })
   )
   .handler(async ({ data: input }) => {
     const { sqlite } = await import("../lib/db");
-    const { ticketId, passed, feedback, stepResults } = input;
-    const result = submitFeedback(sqlite, {
-      ticketId,
-      passed,
-      feedback,
-      ...(stepResults !== undefined ? { stepResults } : {}),
-    });
-
-    return {
-      success: true,
-      ticketStatus: result.newStatus,
-      ticketId: result.ticketId,
-    };
+    const { submitDemoFeedbackForDatabase } = await import("./demo-feedback");
+    return submitDemoFeedbackForDatabase(sqlite, input);
   });

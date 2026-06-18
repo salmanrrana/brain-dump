@@ -65,7 +65,7 @@ function createMockPRD(options: {
       : [],
     priority: ticket.priority || null,
     tags: ticket.tags || [],
-    passes: ticket.status === "done",
+    passes: ticket.status === "human_review" || ticket.status === "done",
   }));
 
   const result: PRDDocument = {
@@ -196,19 +196,21 @@ describe("VS Code Working Method Flow", () => {
       expect(story2?.passes).toBe(false);
     });
 
-    it("should mark tickets as passes:true when done", () => {
+    it("should mark tickets as passes:true when ready for human review or done", () => {
       const prd = createMockPRD({
         projectName: "Test Project",
         projectPath: testDir,
         tickets: [
-          { id: "ticket-1", title: "Add login form", status: "done" },
-          { id: "ticket-2", title: "Add logout button", status: "backlog" },
+          { id: "ticket-1", title: "Add login form", status: "human_review" },
+          { id: "ticket-2", title: "Add logout button", status: "done" },
+          { id: "ticket-3", title: "Add profile page", status: "backlog" },
         ],
       });
 
       // User expectation: Ralph sees which tasks are complete
-      expect(prd.userStories).toHaveLength(2);
-      const [doneStory, pendingStory] = prd.userStories;
+      expect(prd.userStories).toHaveLength(3);
+      const [humanReviewStory, doneStory, pendingStory] = prd.userStories;
+      expect(humanReviewStory?.passes).toBe(true);
       expect(doneStory?.passes).toBe(true);
       expect(pendingStory?.passes).toBe(false);
     });

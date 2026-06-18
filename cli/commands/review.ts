@@ -7,11 +7,14 @@ import {
   submitFinding,
   markFixed,
   checkComplete,
+  validateGenerateDemo,
   generateDemo,
   getDemo,
+  validateSubmitFeedback,
   submitFeedback,
   getFindings,
   updateDemoStep,
+  updatePrdForDbTicketIfPresent,
   InvalidActionError,
   ValidationError,
 } from "../../core/index.ts";
@@ -120,8 +123,16 @@ export function handle(action: string, args: string[]): void {
           const msg = e instanceof Error ? e.message : String(e);
           throw new ValidationError(`Failed to read steps file "${stepsFile}": ${msg}`);
         }
-        const result = generateDemo(db, { ticketId, steps });
-        outputResult(result, pretty);
+        const demoParams = { ticketId, steps };
+        validateGenerateDemo(db, demoParams);
+        const prdSync = updatePrdForDbTicketIfPresent(db, ticketId, true);
+        if (prdSync.required && !prdSync.success) {
+          throw new ValidationError(
+            `Cannot generate demo because PRD sync failed: ${prdSync.message}`
+          );
+        }
+        const result = generateDemo(db, demoParams);
+        outputResult({ ...result, prdSync }, pretty);
         break;
       }
 
@@ -154,8 +165,16 @@ export function handle(action: string, args: string[]): void {
         const ticketId = requireFlag(flags, "ticket");
         const passed = boolFlag(flags, "passed");
         const feedback = optionalFlag(flags, "feedback") ?? "";
-        const result = submitFeedback(db, { ticketId, passed, feedback });
-        outputResult(result, pretty);
+        const feedbackParams = { ticketId, passed, feedback };
+        validateSubmitFeedback(db, feedbackParams);
+        const prdSync = updatePrdForDbTicketIfPresent(db, ticketId, passed);
+        if (!passed && prdSync.required && !prdSync.success) {
+          throw new ValidationError(
+            `Cannot submit demo feedback because PRD sync failed: ${prdSync.message}`
+          );
+        }
+        const result = submitFeedback(db, feedbackParams);
+        outputResult({ ...result, prdSync }, pretty);
         break;
       }
 
