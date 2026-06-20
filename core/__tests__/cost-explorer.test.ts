@@ -7,6 +7,7 @@ import {
   getTicketCostDetail,
   listCostModels,
   recalculateCosts,
+  repairTokenUsageAttribution,
   seedCostModels,
   recordUsage,
   syncDefaultCostModels,
@@ -43,6 +44,13 @@ function seedEpic(id = "epic-1", projectId = "proj-1") {
     new Date().toISOString()
   );
   return id;
+}
+
+function seedTelemetrySession(id: string, ticketId: string, startedAt: string, endedAt: string) {
+  db.prepare(
+    `INSERT INTO telemetry_sessions (id, ticket_id, project_id, environment, started_at, ended_at)
+     VALUES (?, ?, 'proj-1', 'claude-code', ?, ?)`
+  ).run(id, ticketId, startedAt, endedAt);
 }
 
 function seedRalphSession(
@@ -373,6 +381,111 @@ describe("cost model defaults", () => {
     expect(rowCount.count).toBe(1);
     expect(totals.inputTokens).toBe(1000);
     expect(totals.outputTokens).toBe(500);
+  });
+
+  it("repairs Notion-style transcript rows across seven matching ticket sessions", () => {
+    const finalSessionId = "telemetry-7";
+    for (let i = 1; i <= 7; i++) {
+      const ticketId = seedTicket(`ticket-${i}`);
+      const minute = String(i).padStart(2, "0");
+      seedTelemetrySession(
+        `telemetry-${i}`,
+        ticketId,
+        `2026-01-01T00:${minute}:00.000Z`,
+        `2026-01-01T00:${minute}:30.000Z`
+      );
+    }
+
+    for (let i = 1; i <= 7; i++) {
+      const minute = String(i).padStart(2, "0");
+      recordUsage(db, {
+        telemetrySessionId: finalSessionId,
+        model: "claude-sonnet-4",
+        inputTokens: 100 * i,
+        outputTokens: 10 * i,
+        source: "claude-jsonl-backfill",
+        sourceRef: `/notion/transcript-${i}.jsonl`,
+        providerEventStart: `2026-01-01T00:${minute}:05.000Z`,
+        providerEventEnd: `2026-01-01T00:${minute}:10.000Z`,
+      });
+    }
+
+    const dryRun = repairTokenUsageAttribution(db);
+
+    expect(dryRun.mode).toBe("dry-run");
+    expect(dryRun.inspectedRows).toBe(7);
+    expect(dryRun.proposedMoves).toHaveLength(6);
+    expect(dryRun.appliedMoves).toBe(0);
+
+    const applied = repairTokenUsageAttribution(db, { apply: true });
+
+    expect(applied.appliedMoves).toBe(6);
+    expect(applied.sessionsUpdated).toBe(7);
+
+    const distribution = db
+      .prepare(
+        `SELECT telemetry_session_id as telemetrySessionId, ticket_id as ticketId, COUNT(*) as rows
+         FROM token_usage
+         GROUP BY telemetry_session_id, ticket_id
+         ORDER BY telemetry_session_id`
+      )
+      .all() as Array<{ telemetrySessionId: string; ticketId: string; rows: number }>;
+
+    expect(distribution).toEqual(
+      Array.from({ length: 7 }, (_, index) => ({
+        telemetrySessionId: `telemetry-${index + 1}`,
+        ticketId: `ticket-${index + 1}`,
+        rows: 1,
+      }))
+    );
+
+    const finalTotals = db
+      .prepare(
+        `SELECT total_input_tokens as inputTokens, total_output_tokens as outputTokens
+         FROM telemetry_sessions WHERE id = ?`
+      )
+      .get(finalSessionId) as { inputTokens: number; outputTokens: number };
+    expect(finalTotals).toEqual({ inputTokens: 700, outputTokens: 70 });
+  });
+
+  it("refuses ambiguous attribution repair candidates", () => {
+    const ticketId = seedTicket("ticket-ambiguous");
+    seedTelemetrySession(
+      "telemetry-a",
+      ticketId,
+      "2026-01-01T00:01:00.000Z",
+      "2026-01-01T00:03:00.000Z"
+    );
+    seedTelemetrySession(
+      "telemetry-b",
+      ticketId,
+      "2026-01-01T00:01:00.000Z",
+      "2026-01-01T00:03:00.000Z"
+    );
+    recordUsage(db, {
+      telemetrySessionId: "telemetry-a",
+      model: "claude-sonnet-4",
+      inputTokens: 100,
+      outputTokens: 10,
+      source: "claude-jsonl-backfill",
+      sourceRef: "/ambiguous/transcript.jsonl",
+      providerEventStart: "2026-01-01T00:01:30.000Z",
+      providerEventEnd: "2026-01-01T00:02:00.000Z",
+    });
+
+    const result = repairTokenUsageAttribution(db, { apply: true });
+
+    expect(result.proposedMoves).toHaveLength(0);
+    expect(result.appliedMoves).toBe(0);
+    expect(result.refusedRows).toEqual([
+      {
+        tokenUsageId: expect.any(String),
+        sourceRef: "/ambiguous/transcript.jsonl",
+        model: "claude-sonnet-4",
+        reason: "ambiguous-match",
+        candidateSessionIds: ["telemetry-a", "telemetry-b"],
+      },
+    ]);
   });
 });
 

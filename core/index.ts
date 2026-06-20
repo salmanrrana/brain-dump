@@ -266,6 +266,7 @@ export {
   deleteCostModel,
   seedCostModels,
   recalculateCosts,
+  repairTokenUsageAttribution,
   computeStageCosts,
   getTicketCostDetail,
   getCostExplorerData,
@@ -278,6 +279,10 @@ export type {
   UpsertCostModelParams,
   CostTrendParams,
   RecalculateResult,
+  RepairTokenUsageAttributionParams,
+  RepairTokenUsageAttributionResult,
+  TokenUsageAttributionRepairProposal,
+  TokenUsageAttributionRepairRefusal,
 } from "./cost.ts";
 
 export { deepRecalculateCosts } from "./deep-cost-recalculate.ts";
