@@ -11,6 +11,7 @@ import {
   logPrompt,
   logContext,
   recordUsage,
+  resolveTokenUsageAttribution,
   recalculateCosts,
   deepRecalculateCosts,
   detectActiveTicket,
@@ -20,6 +21,7 @@ import type { TelemetryOutcome, ToolEventType, RecordUsageParams } from "../../c
 import { parseFlags, requireFlag, optionalFlag, boolFlag, numericFlag } from "../lib/args.ts";
 import { outputResult, outputError, showResourceHelp } from "../lib/output.ts";
 import { getDb } from "../lib/db.ts";
+import { statSync } from "fs";
 import { resolve } from "path";
 
 const ACTIONS = [
@@ -34,6 +36,19 @@ const ACTIONS = [
   "recalculate-costs",
   "deep-recalculate-costs",
 ];
+
+function transcriptMtimeIso(transcriptPath: string | undefined): string | undefined {
+  if (!transcriptPath) return undefined;
+  try {
+    return statSync(transcriptPath).mtime.toISOString();
+  } catch {
+    return undefined;
+  }
+}
+
+function warnAttribution(message: string): void {
+  console.error(`[brain-dump] WARNING: ${message}`);
+}
 
 export async function handle(action: string, args: string[]): Promise<void> {
   if (!action || action === "--help" || action === "help") {
@@ -166,16 +181,22 @@ export async function handle(action: string, args: string[]): Promise<void> {
         const source = optionalFlag(flags, "source") ?? "jsonl-hook";
         const sessionIdFlag = optionalFlag(flags, "session");
         const ticketIdFlag = optionalFlag(flags, "ticket");
+        const projectPathFlag = optionalFlag(flags, "project-path");
+        const transcriptPathFlag = optionalFlag(flags, "transcript");
+        const eventTimeFlag = optionalFlag(flags, "event-time");
+        const eventStartFlag = optionalFlag(flags, "event-start");
+        const eventEndFlag = optionalFlag(flags, "event-end");
+        const projectPath = projectPathFlag ? resolve(projectPathFlag) : undefined;
+        const transcriptPath = transcriptPathFlag ? resolve(transcriptPathFlag) : undefined;
+        const inferredEventTime = eventTimeFlag ?? transcriptMtimeIso(transcriptPath);
 
-        // Auto-detect session from ralph-state.json if not provided
         let resolvedSessionId = sessionIdFlag;
         let resolvedTicketId = ticketIdFlag;
 
-        if (!resolvedSessionId) {
-          const detection = detectActiveTicket(resolve(process.cwd()));
+        if (!resolvedSessionId && !resolvedTicketId) {
+          const detection = detectActiveTicket(projectPath ?? resolve(process.cwd()));
           if (detection.ticketId) {
-            resolvedTicketId = resolvedTicketId || detection.ticketId;
-            // Find most recent active telemetry session for this ticket
+            resolvedTicketId = detection.ticketId;
             const activeSession = db
               .prepare(
                 `SELECT id FROM telemetry_sessions
@@ -183,32 +204,35 @@ export async function handle(action: string, args: string[]): Promise<void> {
                  ORDER BY started_at DESC LIMIT 1`
               )
               .get(detection.ticketId) as { id: string } | undefined;
-            if (activeSession) {
-              resolvedSessionId = activeSession.id;
-            }
-          }
-
-          // Fallback: find any active telemetry session
-          if (!resolvedSessionId) {
-            const anyActive = db
-              .prepare(
-                `SELECT id FROM telemetry_sessions
-                 WHERE ended_at IS NULL
-                 ORDER BY started_at DESC LIMIT 1`
-              )
-              .get() as { id: string } | undefined;
-            if (anyActive) {
-              resolvedSessionId = anyActive.id;
-            }
+            if (activeSession) resolvedSessionId = activeSession.id;
           }
         }
 
-        if (!resolvedSessionId && !resolvedTicketId) {
-          throw new Error(
-            "No active telemetry session found. Provide --session or --ticket, " +
-              "or ensure a Ralph session is active (.claude/ralph-state.json)."
+        const attribution = resolveTokenUsageAttribution(db, {
+          ...(resolvedSessionId ? { telemetrySessionId: resolvedSessionId } : {}),
+          ...(resolvedTicketId ? { ticketId: resolvedTicketId } : {}),
+          ...(projectPath ? { projectPath } : {}),
+          ...(transcriptPath ? { transcriptPath } : {}),
+          ...(inferredEventTime ? { eventTime: inferredEventTime } : {}),
+          ...(eventStartFlag ? { eventStart: eventStartFlag } : {}),
+          ...(eventEndFlag ? { eventEnd: eventEndFlag } : {}),
+        });
+
+        if (attribution.warning) warnAttribution(attribution.warning);
+        if (attribution.skipped) {
+          outputResult(
+            {
+              recorded: false,
+              skipped: true,
+              warning: attribution.warning,
+            },
+            pretty
           );
+          break;
         }
+
+        resolvedSessionId = attribution.telemetrySessionId;
+        resolvedTicketId = attribution.ticketId;
 
         const usageParams: RecordUsageParams = {
           model,

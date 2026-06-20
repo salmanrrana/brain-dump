@@ -91,13 +91,34 @@ if [ -z "$PARSER_OUTPUT" ] || [ "$PARSER_OUTPUT" = "[]" ]; then
     exit 0
 fi
 
-# --- Detect active Ralph session (optional) ---
-SESSION_ARGS=()
+# --- Build deterministic attribution context ---
+ATTRIBUTION_ARGS=(--project-path "$PROJECT_DIR" --transcript "$TRANSCRIPT_PATH")
 RALPH_STATE="$PROJECT_DIR/.claude/ralph-state.json"
 if [ -f "$RALPH_STATE" ]; then
-    SESSION_ID=$(jq -r '.sessionId // ""' "$RALPH_STATE" 2>/dev/null || echo "")
-    if [ -n "$SESSION_ID" ]; then
-        SESSION_ARGS=(--session "$SESSION_ID")
+    TICKET_ID=$(jq -r '.ticketId // ""' "$RALPH_STATE" 2>/dev/null || echo "")
+    if [ -n "$TICKET_ID" ]; then
+        ATTRIBUTION_ARGS+=(--ticket "$TICKET_ID")
+    fi
+fi
+
+FIRST_EVENT_TIME=""
+LAST_EVENT_TIME=""
+while IFS= read -r EVENT_TIME; do
+    if [ -z "$EVENT_TIME" ] || [ "$EVENT_TIME" = "null" ]; then
+        continue
+    fi
+    if [ -z "$FIRST_EVENT_TIME" ]; then
+        FIRST_EVENT_TIME="$EVENT_TIME"
+    fi
+    LAST_EVENT_TIME="$EVENT_TIME"
+done < <(jq -r '(.timestamp // .created_at // .time // empty)' "$TRANSCRIPT_PATH" 2>/dev/null || true)
+
+if [ -n "$FIRST_EVENT_TIME" ] && [ -n "$LAST_EVENT_TIME" ]; then
+    ATTRIBUTION_ARGS+=(--event-start "$FIRST_EVENT_TIME" --event-end "$LAST_EVENT_TIME")
+else
+    TRANSCRIPT_MTIME=$(date -u -r "$TRANSCRIPT_PATH" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || echo "")
+    if [ -n "$TRANSCRIPT_MTIME" ]; then
+        ATTRIBUTION_ARGS+=(--event-time "$TRANSCRIPT_MTIME")
     fi
 fi
 
@@ -117,9 +138,7 @@ for i in $(seq 0 $((MODEL_COUNT - 1))); do
     # Build args array — no eval, no shell injection
     ARGS=(telemetry record-usage --model "$MODEL" --input "$INPUT_TOKENS" --output "$OUTPUT_TOKENS" --source jsonl-hook)
 
-    if [ ${#SESSION_ARGS[@]} -gt 0 ]; then
-        ARGS+=("${SESSION_ARGS[@]}")
-    fi
+    ARGS+=("${ATTRIBUTION_ARGS[@]}")
 
     if [ "$CACHE_READ" != "0" ]; then
         ARGS+=(--cache-read "$CACHE_READ")

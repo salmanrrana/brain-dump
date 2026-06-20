@@ -255,6 +255,7 @@ export type {
 // Cost tracking business logic
 export {
   recordUsage,
+  resolveTokenUsageAttribution,
   getTicketCost,
   getEpicCost,
   getProjectCost,
@@ -272,6 +273,8 @@ export {
 
 export type {
   RecordUsageParams,
+  ResolveTokenUsageAttributionParams,
+  TokenUsageAttributionResult,
   UpsertCostModelParams,
   CostTrendParams,
   RecalculateResult,

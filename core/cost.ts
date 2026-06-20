@@ -46,6 +46,38 @@ export interface RecordUsageParams {
   recordedAt?: string;
 }
 
+export interface ResolveTokenUsageAttributionParams {
+  telemetrySessionId?: string;
+  ticketId?: string;
+  projectPath?: string;
+  transcriptPath?: string;
+  eventTime?: string;
+  eventStart?: string;
+  eventEnd?: string;
+}
+
+export interface TokenUsageAttributionResult {
+  telemetrySessionId?: string;
+  ticketId?: string;
+  source: "explicit" | "project-event-window" | "project-active-session" | "skipped";
+  skipped: boolean;
+  warning?: string;
+}
+
+interface TokenUsageAttributionCandidate {
+  telemetrySessionId: string;
+  ticketId: string | null;
+  startedAt: string;
+  endedAt: string | null;
+  firstEventAt: string | null;
+  lastEventAt: string | null;
+}
+
+interface AttributionWindow {
+  startMs: number;
+  endMs: number;
+}
+
 export interface UpsertCostModelParams {
   id?: string;
   provider: string;
@@ -736,6 +768,225 @@ function resolveCostModelRow(models: DbCostModelRow[], model: string): DbCostMod
     }
   }
   return best;
+}
+
+function parseAttributionTime(value: string | undefined | null): number | null {
+  if (!value) return null;
+  const ms = Date.parse(value);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function getAttributionWindow(
+  params: ResolveTokenUsageAttributionParams
+): AttributionWindow | null {
+  const pointMs = parseAttributionTime(params.eventTime);
+  const startMs = parseAttributionTime(params.eventStart) ?? pointMs;
+  const endMs = parseAttributionTime(params.eventEnd) ?? pointMs ?? startMs;
+
+  if (startMs === null || endMs === null) return null;
+  return {
+    startMs: Math.min(startMs, endMs),
+    endMs: Math.max(startMs, endMs),
+  };
+}
+
+function getSessionEventWindow(
+  candidate: TokenUsageAttributionCandidate
+): AttributionWindow | null {
+  const startedMs = parseAttributionTime(candidate.startedAt);
+  if (startedMs === null) return null;
+
+  const firstEventMs = parseAttributionTime(candidate.firstEventAt);
+  const endedMs = parseAttributionTime(candidate.endedAt);
+  const lastEventMs = parseAttributionTime(candidate.lastEventAt);
+  const startMs = firstEventMs === null ? startedMs : Math.min(startedMs, firstEventMs);
+  const endCandidates = [endedMs, lastEventMs, startedMs].filter((ms): ms is number => ms !== null);
+  const endMs = Math.max(...endCandidates);
+
+  return { startMs, endMs: Math.max(startMs, endMs) };
+}
+
+function overlapMs(left: AttributionWindow, right: AttributionWindow): number {
+  return Math.max(0, Math.min(left.endMs, right.endMs) - Math.max(left.startMs, right.startMs));
+}
+
+function pointInWindow(pointMs: number, window: AttributionWindow): boolean {
+  return pointMs >= window.startMs && pointMs <= window.endMs;
+}
+
+function windowsMatch(left: AttributionWindow, right: AttributionWindow): boolean {
+  if (left.startMs === left.endMs) return pointInWindow(left.startMs, right);
+  if (right.startMs === right.endMs) return pointInWindow(right.startMs, left);
+  return overlapMs(left, right) > 0;
+}
+
+function loadProjectAttributionCandidates(
+  db: DbHandle,
+  projectPath: string
+): TokenUsageAttributionCandidate[] {
+  return db
+    .prepare(
+      `SELECT
+         ts.id as telemetrySessionId,
+         ts.ticket_id as ticketId,
+         ts.started_at as startedAt,
+         ts.ended_at as endedAt,
+         MIN(te.created_at) as firstEventAt,
+         MAX(te.created_at) as lastEventAt
+       FROM telemetry_sessions ts
+       LEFT JOIN telemetry_events te ON te.session_id = ts.id
+       LEFT JOIN tickets t ON t.id = ts.ticket_id
+       LEFT JOIN projects p ON p.id = COALESCE(ts.project_id, t.project_id)
+       WHERE p.path = ?
+       GROUP BY ts.id
+       ORDER BY ts.started_at`
+    )
+    .all(projectPath) as TokenUsageAttributionCandidate[];
+}
+
+function findBestWindowCandidate(
+  candidates: TokenUsageAttributionCandidate[],
+  transcriptWindow: AttributionWindow
+): TokenUsageAttributionCandidate | "ambiguous" | null {
+  const matches = candidates
+    .map((candidate) => {
+      const sessionWindow = getSessionEventWindow(candidate);
+      if (!sessionWindow || !windowsMatch(transcriptWindow, sessionWindow)) return null;
+      return {
+        candidate,
+        overlap: overlapMs(transcriptWindow, sessionWindow),
+      };
+    })
+    .filter((match): match is { candidate: TokenUsageAttributionCandidate; overlap: number } =>
+      Boolean(match)
+    )
+    .sort((left, right) => right.overlap - left.overlap);
+
+  if (matches.length === 0) return null;
+  if (matches.length === 1) return matches[0]!.candidate;
+
+  const [best, second] = matches;
+  if (best && second && best.overlap > second.overlap) return best.candidate;
+  return "ambiguous";
+}
+
+function activeCandidatesForWindow(
+  candidates: TokenUsageAttributionCandidate[],
+  transcriptWindow: AttributionWindow | null
+): TokenUsageAttributionCandidate[] {
+  return candidates.filter((candidate) => {
+    const startedMs = parseAttributionTime(candidate.startedAt);
+    const endedMs = parseAttributionTime(candidate.endedAt);
+    if (startedMs === null) return false;
+    if (!transcriptWindow) return endedMs === null;
+    return (
+      startedMs <= transcriptWindow.endMs &&
+      (endedMs === null || endedMs >= transcriptWindow.startMs)
+    );
+  });
+}
+
+function attributionResult(
+  candidate: TokenUsageAttributionCandidate,
+  source: TokenUsageAttributionResult["source"]
+): TokenUsageAttributionResult {
+  return {
+    telemetrySessionId: candidate.telemetrySessionId,
+    ...(candidate.ticketId ? { ticketId: candidate.ticketId } : {}),
+    source,
+    skipped: false,
+  };
+}
+
+function skippedAttribution(warning: string): TokenUsageAttributionResult {
+  return {
+    source: "skipped",
+    skipped: true,
+    warning,
+  };
+}
+
+/**
+ * Resolve token usage attribution without falling back to an arbitrary global
+ * active session. Explicit session/ticket flags always win; otherwise callers
+ * must provide project context plus transcript/event timing. Ambiguous matches
+ * return a skipped result so hooks can log and avoid charging the wrong ticket.
+ */
+export function resolveTokenUsageAttribution(
+  db: DbHandle,
+  params: ResolveTokenUsageAttributionParams
+): TokenUsageAttributionResult {
+  if (params.telemetrySessionId) {
+    return {
+      telemetrySessionId: params.telemetrySessionId,
+      ...(params.ticketId ? { ticketId: params.ticketId } : {}),
+      source: "explicit",
+      skipped: false,
+    };
+  }
+
+  if (!params.projectPath) {
+    if (params.ticketId) {
+      return {
+        ticketId: params.ticketId,
+        source: "explicit",
+        skipped: false,
+      };
+    }
+    return skippedAttribution(
+      "Token usage attribution skipped: provide --session/--ticket or --project-path with transcript/event timing."
+    );
+  }
+
+  let candidates = loadProjectAttributionCandidates(db, params.projectPath);
+  if (params.ticketId) {
+    candidates = candidates.filter((candidate) => candidate.ticketId === params.ticketId);
+  }
+  if (candidates.length === 0) {
+    if (params.ticketId) {
+      return {
+        ticketId: params.ticketId,
+        source: "explicit",
+        skipped: false,
+      };
+    }
+    return skippedAttribution(
+      `Token usage attribution skipped: no telemetry sessions found for project ${params.projectPath}.`
+    );
+  }
+
+  const transcriptWindow = getAttributionWindow(params);
+  if (transcriptWindow) {
+    const eventWindowMatch = findBestWindowCandidate(candidates, transcriptWindow);
+    if (eventWindowMatch === "ambiguous") {
+      return skippedAttribution(
+        `Token usage attribution skipped: transcript ${params.transcriptPath ?? "<unknown>"} overlaps multiple telemetry sessions for project ${params.projectPath}.`
+      );
+    }
+    if (eventWindowMatch) return attributionResult(eventWindowMatch, "project-event-window");
+  }
+
+  const activeMatches = activeCandidatesForWindow(candidates, transcriptWindow);
+  if (activeMatches.length === 1)
+    return attributionResult(activeMatches[0]!, "project-active-session");
+
+  if (activeMatches.length > 1) {
+    return skippedAttribution(
+      `Token usage attribution skipped: ${activeMatches.length} active telemetry sessions match project ${params.projectPath}; pass --session or --ticket explicitly.`
+    );
+  }
+
+  if (params.ticketId) {
+    return {
+      ticketId: params.ticketId,
+      source: "explicit",
+      skipped: false,
+    };
+  }
+
+  return skippedAttribution(
+    `Token usage attribution skipped: no telemetry session window matched transcript ${params.transcriptPath ?? "<unknown>"} for project ${params.projectPath}.`
+  );
 }
 
 // ============================================
