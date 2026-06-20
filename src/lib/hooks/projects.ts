@@ -10,6 +10,7 @@ import {
   createProject,
   updateProject,
   deleteProject,
+  updateProjectPosition,
 } from "../../api/projects";
 import { createEpic, updateEpic, deleteEpic, getEpicDetail } from "../../api/epics";
 import {
@@ -21,6 +22,7 @@ import {
 import { getGitProjectInfo, getGitCommits, getCommitFileStats } from "../../api/git-info";
 import type { GitCommitsPage, CommitFileStatsResult } from "../../api/git-info";
 import { getProjectTicketCounts, getEpicTicketCounts } from "../../api/tickets";
+import { useToast } from "../../components/Toast";
 import { createBrowserLogger } from "../browser-logger";
 import { queryKeys } from "../query-keys";
 import type { Epic, Project } from "../schema";
@@ -217,6 +219,59 @@ export function useUpdateProject() {
       };
     }) => updateProject({ data }),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectsWithEpics });
+    },
+  });
+}
+
+export function useUpdateProjectPosition() {
+  const queryClient = useQueryClient();
+  const { showToast } = useToast();
+
+  return useMutation({
+    mutationFn: ({ id, position }: { id: string; position: number }) =>
+      updateProjectPosition({ data: { id, position } }),
+    onMutate: async ({ id, position }) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.projectsWithEpics });
+
+      const previousProjects = queryClient.getQueryData<ProjectWithEpics[]>(
+        queryKeys.projectsWithEpics
+      );
+
+      if (!previousProjects) {
+        return { previousProjects };
+      }
+
+      queryClient.setQueryData<ProjectWithEpics[]>(queryKeys.projectsWithEpics, (projects) => {
+        if (!projects) {
+          return previousProjects;
+        }
+
+        return projects
+          .map((project) => (project.id === id ? { ...project, position } : project))
+          .sort((a, b) => a.position - b.position);
+      });
+
+      return { previousProjects };
+    },
+    onError: (error, variables, context) => {
+      logger.error(
+        `Failed to update project position: id="${variables.id}", position=${variables.position}`,
+        error instanceof Error ? error : new Error(String(error))
+      );
+
+      showToast(
+        "error",
+        error instanceof Error
+          ? `Unable to reorder project: ${error.message}`
+          : "Unable to reorder project. Please try again."
+      );
+
+      if (context?.previousProjects) {
+        queryClient.setQueryData(queryKeys.projectsWithEpics, context.previousProjects);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.projectsWithEpics });
     },
   });

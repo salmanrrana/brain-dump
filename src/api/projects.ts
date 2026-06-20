@@ -44,7 +44,7 @@ const VALID_WORKING_METHODS: Array<NonNullable<UpdateProjectInput["workingMethod
 
 // Get all projects
 export const getProjects = createServerFn({ method: "GET" }).handler(async () => {
-  const allProjects = db.select().from(projects).all();
+  const allProjects = db.select().from(projects).orderBy(projects.position, projects.name).all();
   return allProjects;
 });
 
@@ -58,6 +58,7 @@ export const getProjectsWithEpics = createServerFn({ method: "GET" }).handler(as
       projectColor: projects.color,
       projectWorkingMethod: projects.workingMethod,
       projectCreatedAt: projects.createdAt,
+      projectPosition: projects.position,
       epicId: epics.id,
       epicTitle: epics.title,
       epicDescription: epics.description,
@@ -66,6 +67,7 @@ export const getProjectsWithEpics = createServerFn({ method: "GET" }).handler(as
     })
     .from(projects)
     .leftJoin(epics, eq(epics.projectId, projects.id))
+    .orderBy(projects.position, projects.name)
     .all();
 
   // Group rows by project, collecting epics
@@ -77,6 +79,7 @@ export const getProjectsWithEpics = createServerFn({ method: "GET" }).handler(as
       path: string;
       color: string | null;
       workingMethod: string | null;
+      position: number;
       createdAt: string;
       epics: Array<{
         id: string;
@@ -98,6 +101,7 @@ export const getProjectsWithEpics = createServerFn({ method: "GET" }).handler(as
         path: row.projectPath,
         color: row.projectColor,
         workingMethod: row.projectWorkingMethod,
+        position: row.projectPosition,
         createdAt: row.projectCreatedAt,
         epics: [],
       };
@@ -136,16 +140,44 @@ export const createProject = createServerFn({ method: "POST" })
     return input;
   })
   .handler(async ({ data: input }) => {
+    const maxPosition = db
+      .select({ maxPos: sql<number>`MAX(${projects.position})` })
+      .from(projects)
+      .get();
+
+    const nextPosition = (maxPosition?.maxPos ?? 0) + 1;
+
     const id = randomUUID();
     const newProject = {
       id,
       name: input.name.trim(),
       path: input.path.trim(),
       color: input.color ?? null,
+      position: nextPosition,
       workingMethod: input.workingMethod ?? "auto",
     };
 
     db.insert(projects).values(newProject).run();
+
+    return db.select().from(projects).where(eq(projects.id, id)).get();
+  });
+
+// Update project position for reorder operations
+export const updateProjectPosition = createServerFn({ method: "POST" })
+  .inputValidator((input: { id: string; position: number }) => {
+    if (!input.id) {
+      throw new Error("Project ID is required");
+    }
+    if (typeof input.position !== "number" || Number.isNaN(input.position)) {
+      throw new Error("Position must be a number");
+    }
+    return input;
+  })
+  .handler(async ({ data: { id, position } }) => {
+    const existingResult = db.select().from(projects).where(eq(projects.id, id)).get();
+    ensureExists(existingResult, "Project", id);
+
+    db.update(projects).set({ position }).where(eq(projects.id, id)).run();
 
     return db.select().from(projects).where(eq(projects.id, id)).get();
   });
