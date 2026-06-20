@@ -1,6 +1,7 @@
-import type { CSSProperties, FC, MouseEvent } from "react";
-import { FileText, Folder, Bot, Settings } from "lucide-react";
-import { createEnterSpaceHandler } from "../../lib/keyboard-utils";
+import type { CSSProperties, FC, KeyboardEvent, MouseEvent } from "react";
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { FileText, Folder, Bot, GripVertical, Settings } from "lucide-react";
 import type { ProjectWithAIActivity } from "../../lib/hooks/projects";
 
 export interface ProjectListItemProps {
@@ -14,6 +15,8 @@ export interface ProjectListItemProps {
   onClick: () => void;
   /** Handler when the settings button is clicked */
   onSettings: () => void;
+  /** Whether drag reordering is currently enabled */
+  reorderEnabled?: boolean;
 }
 
 interface MetadataBadgeProps {
@@ -48,23 +51,49 @@ function ProjectListItem({
   epicCount,
   onClick,
   onSettings,
+  reorderEnabled = true,
 }: ProjectListItemProps): React.JSX.Element {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: project.id,
+    disabled: !reorderEnabled,
+  });
+
   function handleSettingsClick(e: MouseEvent<HTMLButtonElement>): void {
     e.stopPropagation();
     onSettings();
   }
 
-  const handleKeyDown = createEnterSpaceHandler(onClick);
+  function handleDragHandleClick(e: MouseEvent<HTMLButtonElement>): void {
+    e.stopPropagation();
+  }
 
-  const containerStyle: CSSProperties = project.hasActiveAI
-    ? {
-        ...baseContainerStyles,
-        boxShadow: "0 0 8px var(--accent-ai), inset 0 0 1px var(--accent-ai)",
-      }
-    : baseContainerStyles;
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
+    if (event.target instanceof HTMLElement && event.target.closest("[data-project-drag-handle]")) {
+      return;
+    }
+
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onClick();
+    }
+  }
+
+  const containerStyle: CSSProperties = {
+    ...(project.hasActiveAI
+      ? {
+          ...baseContainerStyles,
+          boxShadow: "0 0 8px var(--accent-ai), inset 0 0 1px var(--accent-ai)",
+        }
+      : baseContainerStyles),
+    transform: CSS.Transform.toString(transform),
+    transition: transition ?? baseContainerStyles.transition,
+    opacity: isDragging ? 0.55 : 1,
+    zIndex: isDragging ? 1 : undefined,
+  };
 
   return (
     <div
+      ref={setNodeRef}
       style={containerStyle}
       onClick={onClick}
       onKeyDown={handleKeyDown}
@@ -74,6 +103,23 @@ function ProjectListItem({
       data-testid={`project-list-item-${project.id}`}
       className="group hover:border-[var(--border-secondary)] hover:bg-[var(--bg-hover)] hover:[&_h3]:text-[var(--accent-primary)] hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent-primary)]"
     >
+      <button
+        type="button"
+        style={dragHandleStyles}
+        onClick={handleDragHandleClick}
+        {...attributes}
+        {...listeners}
+        aria-label={`Reorder ${project.name?.trim() || "project"}`}
+        aria-disabled={!reorderEnabled}
+        title={
+          reorderEnabled ? "Drag or use keyboard to reorder" : "Clear search to reorder projects"
+        }
+        data-project-drag-handle="true"
+        className="hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
+      >
+        <GripVertical size={16} aria-hidden="true" />
+      </button>
+
       <span
         style={{
           ...colorDotStyles,
@@ -135,6 +181,22 @@ const baseContainerStyles: CSSProperties = {
   cursor: "pointer",
   transition: "all var(--transition-normal)",
   textAlign: "left",
+};
+
+const dragHandleStyles: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: "28px",
+  height: "28px",
+  background: "transparent",
+  border: "none",
+  borderRadius: "var(--radius-md)",
+  color: "var(--text-muted)",
+  cursor: "grab",
+  touchAction: "none",
+  transition: "all var(--transition-fast)",
+  flexShrink: 0,
 };
 
 const colorDotStyles: CSSProperties = {
