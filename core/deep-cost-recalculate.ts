@@ -1,5 +1,6 @@
 import Database from "better-sqlite3";
 import { createReadStream, existsSync, readdirSync, statSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
@@ -68,6 +69,15 @@ interface CodexTranscript {
   usage: UsageCounts[];
   firstEventMs: number | null;
   lastEventMs: number | null;
+}
+
+interface RalphSessionWithoutTelemetry {
+  ticketId: string;
+  projectId: string;
+  branchName: string | null;
+  startedAt: string;
+  completedAt: string | null;
+  outcome: string | null;
 }
 
 function backfillResult(
@@ -187,6 +197,69 @@ function insertUsageRows(
   return insertedRows;
 }
 
+/**
+ * Older Ralph runs can have ralph_sessions without a matching telemetry_session.
+ * Provider-log backfills need a telemetry session window to attach usage to, so
+ * synthesize the missing adapter row from Ralph's authoritative ticket timeline.
+ */
+export function seedTelemetrySessionsFromRalph(db: DbHandle): BackfillSourceResult {
+  const rows = db
+    .prepare(
+      `SELECT
+         rs.ticket_id as ticketId,
+         COALESCE(rs.project_id, t.project_id) as projectId,
+         t.branch_name as branchName,
+         rs.started_at as startedAt,
+         rs.completed_at as completedAt,
+         rs.outcome
+       FROM ralph_sessions rs
+       JOIN tickets t ON t.id = rs.ticket_id
+       JOIN projects p ON p.id = COALESCE(rs.project_id, t.project_id)
+       WHERE rs.started_at IS NOT NULL
+         AND NOT EXISTS (
+           SELECT 1
+           FROM telemetry_sessions ts
+           WHERE ts.ticket_id = rs.ticket_id
+         )
+       ORDER BY rs.started_at`
+    )
+    .all() as RalphSessionWithoutTelemetry[];
+
+  if (rows.length === 0) {
+    return backfillResult(
+      "ralph-telemetry-sessions",
+      true,
+      "No Ralph sessions need telemetry session backfill."
+    );
+  }
+
+  const insertStmt = db.prepare(
+    `INSERT INTO telemetry_sessions
+     (id, ticket_id, project_id, environment, branch_name, started_at, ended_at, outcome)
+     VALUES (?, ?, ?, 'claude-code', ?, ?, ?, ?)`
+  );
+
+  const run = db.transaction(() => {
+    for (const row of rows) {
+      insertStmt.run(
+        randomUUID(),
+        row.ticketId,
+        row.projectId,
+        row.branchName,
+        row.startedAt,
+        row.completedAt,
+        row.outcome
+      );
+    }
+  });
+  run();
+
+  return backfillResult("ralph-telemetry-sessions", true, null, {
+    insertedRows: rows.length,
+    matchedSessions: rows.length,
+  });
+}
+
 function backfillOpenCode(db: DbHandle): BackfillSourceResult {
   const dbPath = join(homedir(), ".local", "share", "opencode", "opencode.db");
   if (!existsSync(dbPath)) {
@@ -292,8 +365,8 @@ function backfillOpenCode(db: DbHandle): BackfillSourceResult {
   }
 }
 
-function claudeProjectDir(projectPath: string): string {
-  return join(homedir(), ".claude", "projects", projectPath.replace(/\//g, "-"));
+export function claudeProjectDir(projectPath: string): string {
+  return join(homedir(), ".claude", "projects", projectPath.replace(/[/_]/g, "-"));
 }
 
 async function parseClaudeTranscript(filePath: string): Promise<ClaudeTranscript> {
@@ -628,6 +701,7 @@ export async function deepRecalculateCosts(db: DbHandle): Promise<DeepRecalculat
   syncDefaultCostModels(db);
 
   const backfills = [
+    seedTelemetrySessionsFromRalph(db),
     backfillOpenCode(db),
     await backfillClaudeCode(db),
     await backfillCodexCli(db),
