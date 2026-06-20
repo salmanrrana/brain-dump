@@ -8,13 +8,19 @@ import {
   upsertCostModel as coreUpsertCostModel,
   deleteCostModel as coreDeleteCostModel,
   recalculateCosts as coreRecalculateCosts,
+  repairTokenUsageAttribution as coreRepairTokenUsageAttribution,
+  getCostAttributionDiagnostics as coreGetCostAttributionDiagnostics,
   getCostExplorerData as coreGetCostExplorerData,
   getTicketCostDetail as coreGetTicketCostDetail,
   syncDefaultCostModels as coreSyncDefaultCostModels,
 } from "../../core/cost.ts";
 import { deepRecalculateCosts as coreDeepRecalculateCosts } from "../../core/deep-cost-recalculate.ts";
 import type { CostModel, CostExplorerParams, CostExplorerNode } from "../../core/types.ts";
-import type { RecalculateResult } from "../../core/cost.ts";
+import type {
+  RecalculateResult,
+  RepairTokenUsageAttributionResult,
+  CostAttributionDiagnosticsResult,
+} from "../../core/cost.ts";
 import type { DeepRecalculateResult } from "../../core/deep-cost-recalculate.ts";
 
 // =============================================================================
@@ -296,6 +302,24 @@ export const deepRecalculateCosts = createServerFn({ method: "POST" }).handler(
   }
 );
 
+/**
+ * Report cost attribution issues and high-confidence repair proposals.
+ */
+export const getCostAttributionDiagnostics = createServerFn({ method: "GET" }).handler(
+  async (): Promise<CostAttributionDiagnosticsResult> => {
+    return coreGetCostAttributionDiagnostics(sqlite);
+  }
+);
+
+/**
+ * Apply high-confidence token usage attribution repairs.
+ */
+export const repairTokenUsageAttribution = createServerFn({ method: "POST" }).handler(
+  async (): Promise<RepairTokenUsageAttributionResult> => {
+    return coreRepairTokenUsageAttribution(sqlite, { apply: true });
+  }
+);
+
 // =============================================================================
 // Cost Explorer
 // =============================================================================
@@ -352,7 +376,11 @@ export type {
   CostExplorerParams,
   TicketCostDetail,
 } from "../../core/types.ts";
-export type { RecalculateResult } from "../../core/cost.ts";
+export type {
+  RecalculateResult,
+  RepairTokenUsageAttributionResult,
+  CostAttributionDiagnosticsResult,
+} from "../../core/cost.ts";
 export type {
   BackfillSourceResult,
   DeepRecalculateResult,

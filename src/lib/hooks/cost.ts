@@ -16,6 +16,8 @@ import {
   deleteCostModel,
   recalculateCosts,
   deepRecalculateCosts,
+  getCostAttributionDiagnostics,
+  repairTokenUsageAttribution,
   getCostExplorerData,
   getTicketCostDetail,
   type UpdateCostModelInput,
@@ -135,6 +137,41 @@ export function useDeepRecalculateCosts() {
     onError: (err) => {
       logger.error(
         "Failed to deep recalculate costs",
+        err instanceof Error ? err : new Error(String(err))
+      );
+    },
+  });
+}
+
+/**
+ * Mutation hook for running cost attribution diagnostics without applying repairs.
+ */
+export function useCostAttributionDiagnostics() {
+  return useMutation({
+    mutationFn: () => getCostAttributionDiagnostics(),
+    onError: (err) => {
+      logger.error(
+        "Failed to run cost attribution diagnostics",
+        err instanceof Error ? err : new Error(String(err))
+      );
+    },
+  });
+}
+
+/**
+ * Mutation hook for applying high-confidence token usage attribution repairs.
+ * Invalidates all cost-related queries on success.
+ */
+export function useRepairTokenUsageAttribution() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => repairTokenUsageAttribution(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.cost.all });
+    },
+    onError: (err) => {
+      logger.error(
+        "Failed to repair token usage attribution",
         err instanceof Error ? err : new Error(String(err))
       );
     },

@@ -267,6 +267,7 @@ export {
   seedCostModels,
   recalculateCosts,
   repairTokenUsageAttribution,
+  getCostAttributionDiagnostics,
   computeStageCosts,
   getTicketCostDetail,
   getCostExplorerData,
@@ -283,6 +284,10 @@ export type {
   RepairTokenUsageAttributionResult,
   TokenUsageAttributionRepairProposal,
   TokenUsageAttributionRepairRefusal,
+  CostAttributionDiagnosticsResult,
+  CostAttributionDiagnosticSession,
+  CostAttributionDiagnosticMismatch,
+  CostAttributionDuplicateSourceRef,
 } from "./cost.ts";
 
 export { deepRecalculateCosts } from "./deep-cost-recalculate.ts";

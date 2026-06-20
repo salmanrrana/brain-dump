@@ -3,6 +3,7 @@ import type Database from "better-sqlite3";
 import { createTestDatabase } from "../db.ts";
 import {
   computeStageCosts,
+  getCostAttributionDiagnostics,
   getCostExplorerData,
   getTicketCostDetail,
   listCostModels,
@@ -446,6 +447,86 @@ describe("cost model defaults", () => {
       )
       .get(finalSessionId) as { inputTokens: number; outputTokens: number };
     expect(finalTotals).toEqual({ inputTokens: 700, outputTokens: 70 });
+  });
+
+  it("reports UI repair diagnostics without applying moves", () => {
+    const sourceTicketId = seedTicket("ticket-source");
+    const targetTicketId = seedTicket("ticket-target");
+    seedTelemetrySession(
+      "telemetry-source",
+      sourceTicketId,
+      "2026-01-01T00:00:00.000Z",
+      "2026-01-01T00:01:00.000Z"
+    );
+    seedTelemetrySession(
+      "telemetry-target",
+      targetTicketId,
+      "2026-01-01T00:02:00.000Z",
+      "2026-01-01T00:03:00.000Z"
+    );
+    seedTelemetrySession(
+      "telemetry-empty",
+      seedTicket("ticket-empty"),
+      "2026-01-01T00:04:00.000Z",
+      "2026-01-01T00:05:00.000Z"
+    );
+    db.prepare(
+      `INSERT INTO telemetry_events (id, session_id, event_type, created_at)
+       VALUES ('event-empty', 'telemetry-empty', 'prompt', '2026-01-01T00:04:30.000Z')`
+    ).run();
+
+    recordUsage(db, {
+      telemetrySessionId: "telemetry-source",
+      ticketId: sourceTicketId,
+      model: "claude-sonnet-4",
+      inputTokens: 100,
+      outputTokens: 10,
+      source: "claude-jsonl-backfill",
+      sourceRef: "/diagnostics/transcript.jsonl",
+      providerEventStart: "2026-01-01T00:02:15.000Z",
+      providerEventEnd: "2026-01-01T00:02:30.000Z",
+    });
+    recordUsage(db, {
+      telemetrySessionId: "telemetry-target",
+      ticketId: targetTicketId,
+      model: "claude-opus-4-6",
+      inputTokens: 100,
+      outputTokens: 10,
+      source: "claude-jsonl-backfill",
+      sourceRef: "/diagnostics/duplicate.jsonl",
+    });
+    recordUsage(db, {
+      telemetrySessionId: "telemetry-source",
+      ticketId: sourceTicketId,
+      model: "claude-opus-4-6",
+      inputTokens: 200,
+      outputTokens: 20,
+      source: "claude-jsonl-backfill",
+      sourceRef: "/diagnostics/duplicate.jsonl",
+    });
+
+    const diagnostics = getCostAttributionDiagnostics(db);
+
+    expect(diagnostics.sessionsWithTelemetryNoTokenUsage).toEqual([
+      expect.objectContaining({ telemetrySessionId: "telemetry-empty", eventCount: 1 }),
+    ]);
+    expect(diagnostics.duplicateSourceRefs).toEqual([
+      expect.objectContaining({ sourceRef: "/diagnostics/duplicate.jsonl", rowCount: 2 }),
+    ]);
+    expect(diagnostics.repair.mode).toBe("dry-run");
+    expect(diagnostics.repair.proposedMoves).toEqual([
+      expect.objectContaining({
+        fromTelemetrySessionId: "telemetry-source",
+        toTelemetrySessionId: "telemetry-target",
+      }),
+    ]);
+
+    const originalRow = db
+      .prepare(
+        "SELECT telemetry_session_id as telemetrySessionId FROM token_usage WHERE source_ref = ?"
+      )
+      .get("/diagnostics/transcript.jsonl") as { telemetrySessionId: string };
+    expect(originalRow.telemetrySessionId).toBe("telemetry-source");
   });
 
   it("refuses ambiguous attribution repair candidates", () => {

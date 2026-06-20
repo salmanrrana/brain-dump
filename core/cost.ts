@@ -1492,6 +1492,37 @@ export interface RepairTokenUsageAttributionResult {
   sessionsUpdated: number;
 }
 
+export interface CostAttributionDiagnosticSession {
+  telemetrySessionId: string;
+  ticketId: string | null;
+  projectId: string | null;
+  startedAt: string;
+  eventCount: number;
+}
+
+export interface CostAttributionDiagnosticMismatch {
+  tokenUsageId: string;
+  tokenUsageTicketId: string | null;
+  telemetrySessionId: string | null;
+  telemetrySessionTicketId: string | null;
+  sourceRef: string | null;
+  model: string;
+}
+
+export interface CostAttributionDuplicateSourceRef {
+  sourceRef: string;
+  model: string;
+  rowCount: number;
+  telemetrySessionIds: string[];
+}
+
+export interface CostAttributionDiagnosticsResult {
+  sessionsWithTelemetryNoTokenUsage: CostAttributionDiagnosticSession[];
+  suspiciousAttributionRows: CostAttributionDiagnosticMismatch[];
+  duplicateSourceRefs: CostAttributionDuplicateSourceRef[];
+  repair: RepairTokenUsageAttributionResult;
+}
+
 /**
  * Recalculate cost_usd for all token_usage rows using current cost_models pricing.
  * Also rebuilds telemetry_sessions aggregate totals.
@@ -1642,6 +1673,81 @@ function windowOverlapMs(
     return 1;
   }
   return Math.max(0, Math.min(left.endMs, right.endMs) - Math.max(left.startMs, right.startMs));
+}
+
+function splitDistinctList(value: string | null): string[] {
+  if (!value) return [];
+  return value.split(",").filter(Boolean);
+}
+
+export function getCostAttributionDiagnostics(db: DbHandle): CostAttributionDiagnosticsResult {
+  const sessionsWithTelemetryNoTokenUsage = db
+    .prepare(
+      `SELECT
+         ts.id as telemetrySessionId,
+         ts.ticket_id as ticketId,
+         ts.project_id as projectId,
+         ts.started_at as startedAt,
+         COUNT(te.id) as eventCount
+       FROM telemetry_sessions ts
+       LEFT JOIN telemetry_events te ON te.session_id = ts.id
+       LEFT JOIN token_usage tu ON tu.telemetry_session_id = ts.id
+       GROUP BY ts.id
+       HAVING COUNT(te.id) > 0 AND COUNT(tu.id) = 0
+       ORDER BY ts.started_at DESC
+       LIMIT 100`
+    )
+    .all() as CostAttributionDiagnosticSession[];
+
+  const suspiciousAttributionRows = db
+    .prepare(
+      `SELECT
+         tu.id as tokenUsageId,
+         tu.ticket_id as tokenUsageTicketId,
+         tu.telemetry_session_id as telemetrySessionId,
+         ts.ticket_id as telemetrySessionTicketId,
+         tu.source_ref as sourceRef,
+         tu.model
+       FROM token_usage tu
+       LEFT JOIN telemetry_sessions ts ON ts.id = tu.telemetry_session_id
+       WHERE tu.telemetry_session_id IS NOT NULL
+         AND tu.ticket_id IS NOT NULL
+         AND ts.ticket_id IS NOT NULL
+         AND tu.ticket_id != ts.ticket_id
+       ORDER BY tu.recorded_at DESC
+       LIMIT 100`
+    )
+    .all() as CostAttributionDiagnosticMismatch[];
+
+  const duplicateRows = db
+    .prepare(
+      `SELECT
+         source_ref as sourceRef,
+         model,
+         COUNT(*) as rowCount,
+         GROUP_CONCAT(DISTINCT telemetry_session_id) as telemetrySessionIds
+       FROM token_usage
+       WHERE source_ref IS NOT NULL
+       GROUP BY source_ref, model
+       HAVING COUNT(*) > 1
+       ORDER BY rowCount DESC, source_ref
+       LIMIT 100`
+    )
+    .all() as Array<
+    Omit<CostAttributionDuplicateSourceRef, "telemetrySessionIds"> & {
+      telemetrySessionIds: string | null;
+    }
+  >;
+
+  return {
+    sessionsWithTelemetryNoTokenUsage,
+    suspiciousAttributionRows,
+    duplicateSourceRefs: duplicateRows.map((row) => ({
+      ...row,
+      telemetrySessionIds: splitDistinctList(row.telemetrySessionIds),
+    })),
+    repair: repairTokenUsageAttribution(db),
+  };
 }
 
 function rebuildTelemetryAggregates(db: DbHandle, sessionIds: Set<string>): number {
