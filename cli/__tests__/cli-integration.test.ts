@@ -878,6 +878,121 @@ describe("telemetry", () => {
     expect(list.length).toBeGreaterThanOrEqual(1);
   });
 
+  it("record-usage skips ambiguous project attribution instead of using newest active session", async () => {
+    const projPath = makeProjDir("telemetry-attribution");
+    const project = (await runOk(
+      "project",
+      "create",
+      "--name",
+      "TelemetryAttribution",
+      "--path",
+      projPath
+    )) as Record<string, unknown>;
+    const ticketOne = (await runOk(
+      "ticket",
+      "create",
+      "--project",
+      project.id as string,
+      "--title",
+      "Ticket One"
+    )) as Record<string, unknown>;
+    const ticketTwo = (await runOk(
+      "ticket",
+      "create",
+      "--project",
+      project.id as string,
+      "--title",
+      "Ticket Two"
+    )) as Record<string, unknown>;
+
+    await runOk("telemetry", "start", "--ticket", ticketOne.id as string);
+    await runOk("telemetry", "start", "--ticket", ticketTwo.id as string);
+
+    const result = await run(
+      "telemetry",
+      "record-usage",
+      "--project-path",
+      projPath,
+      "--transcript",
+      join(projPath, "transcript.jsonl"),
+      "--event-time",
+      new Date().toISOString(),
+      "--model",
+      "claude-opus-4-6",
+      "--input",
+      "1000",
+      "--output",
+      "500"
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toContain("WARNING");
+    expect(parseJson(result)).toMatchObject({ recorded: false, skipped: true });
+  });
+
+  it("record-usage persists transcript source references for idempotent replay", async () => {
+    const projPath = makeProjDir("telemetry-source-ref");
+    const project = (await runOk(
+      "project",
+      "create",
+      "--name",
+      "TelemetrySourceRef",
+      "--path",
+      projPath
+    )) as Record<string, unknown>;
+    const ticket = (await runOk(
+      "ticket",
+      "create",
+      "--project",
+      project.id as string,
+      "--title",
+      "Ticket One"
+    )) as Record<string, unknown>;
+    const session = (await runOk("telemetry", "start", "--ticket", ticket.id as string)) as Record<
+      string,
+      unknown
+    >;
+
+    const args = [
+      "telemetry",
+      "record-usage",
+      "--session",
+      session.id as string,
+      "--transcript",
+      join(projPath, "transcript.jsonl"),
+      "--event-start",
+      "2026-01-01T00:00:00.000Z",
+      "--event-end",
+      "2026-01-01T00:00:05.000Z",
+      "--model",
+      "claude-opus-4-6",
+      "--input",
+      "1000",
+      "--output",
+      "500",
+    ];
+
+    const first = (await runOk(...args)) as Record<string, unknown>;
+    const replayed = (await runOk(...args)) as Record<string, unknown>;
+
+    expect(first.sourceRef).toBe(join(projPath, "transcript.jsonl"));
+    expect(first.providerEventStart).toBe("2026-01-01T00:00:00.000Z");
+    expect(first.providerEventEnd).toBe("2026-01-01T00:00:05.000Z");
+    expect(replayed.id).toBe(first.id);
+  });
+
+  it("Claude hook passes project, transcript, and event context to record-usage", () => {
+    const hook = readFileSync(
+      resolve(__dirname, "../../.claude/hooks/capture-token-usage.sh"),
+      "utf-8"
+    );
+
+    expect(hook).toContain("--project-path");
+    expect(hook).toContain("--transcript");
+    expect(hook).toContain("--event-start");
+    expect(hook).toContain("--event-time");
+  });
+
   it("end missing --session flag errors", async () => {
     const err = await runErr("telemetry", "end");
     expect(err.error).toBe("VALIDATION_ERROR");

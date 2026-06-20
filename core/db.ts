@@ -888,6 +888,9 @@ export function runMigrations(db: DbHandle, logger: Logger = silentLogger): void
         cache_creation_tokens INTEGER,
         cost_usd REAL,
         source TEXT NOT NULL,
+        source_ref TEXT,
+        provider_event_start TEXT,
+        provider_event_end TEXT,
         recorded_at TEXT NOT NULL DEFAULT (datetime('now'))
       )
     `
@@ -895,6 +898,10 @@ export function runMigrations(db: DbHandle, logger: Logger = silentLogger): void
     db.prepare("CREATE INDEX idx_token_usage_session ON token_usage(telemetry_session_id)").run();
     db.prepare("CREATE INDEX idx_token_usage_ticket ON token_usage(ticket_id)").run();
     db.prepare("CREATE INDEX idx_token_usage_recorded ON token_usage(recorded_at)").run();
+    db.prepare("CREATE INDEX idx_token_usage_source_ref ON token_usage(source_ref)").run();
+    db.prepare(
+      "CREATE UNIQUE INDEX idx_token_usage_source_session_model ON token_usage(telemetry_session_id, source_ref, model) WHERE source_ref IS NOT NULL AND telemetry_session_id IS NOT NULL"
+    ).run();
     db.prepare(
       "CREATE INDEX idx_token_usage_ticket_recorded ON token_usage(ticket_id, recorded_at)"
     ).run();
@@ -904,6 +911,17 @@ export function runMigrations(db: DbHandle, logger: Logger = silentLogger): void
   // Telemetry tables predate the current Drizzle journal in some installs.
   // Ensure they exist before applying follow-up column migrations.
   ensureTelemetrySchema(db, logger);
+
+  // Token usage source metadata for replay and auditability
+  addColumnIfMissing(db, "token_usage", "source_ref", "TEXT", logger);
+  addColumnIfMissing(db, "token_usage", "provider_event_start", "TEXT", logger);
+  addColumnIfMissing(db, "token_usage", "provider_event_end", "TEXT", logger);
+  db.prepare(
+    "CREATE INDEX IF NOT EXISTS idx_token_usage_source_ref ON token_usage(source_ref)"
+  ).run();
+  db.prepare(
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_token_usage_source_session_model ON token_usage(telemetry_session_id, source_ref, model) WHERE source_ref IS NOT NULL AND telemetry_session_id IS NOT NULL"
+  ).run();
 
   // Telemetry sessions aggregate columns for cost tracking
   addColumnIfMissing(db, "telemetry_sessions", "total_input_tokens", "INTEGER", logger);

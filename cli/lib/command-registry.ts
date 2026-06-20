@@ -981,7 +981,7 @@ export const COMMAND_REGISTRY: CommandDef[] = [
   {
     resource: "telemetry",
     action: "record-usage",
-    description: "Record token usage with cost computation (auto-detects session)",
+    description: "Record token usage with deterministic session/ticket attribution",
     flags: [
       { ...sessionFlag, required: false },
       { ...ticketFlag, required: false },
@@ -1012,11 +1012,50 @@ export const COMMAND_REGISTRY: CommandDef[] = [
         description: "Token data source (default: jsonl-hook)",
         enum: ["jsonl-hook", "otel", "mcp-manual"],
       },
+      {
+        name: "project-path",
+        type: "string",
+        required: false,
+        description: "Project path used with transcript/event timing to resolve attribution",
+      },
+      {
+        name: "transcript",
+        type: "string",
+        required: false,
+        description: "Provider transcript path used for deterministic attribution",
+      },
+      {
+        name: "source-ref",
+        type: "string",
+        required: false,
+        description:
+          "Stable provider source identity for idempotent replay (defaults to --transcript)",
+      },
+      {
+        name: "event-time",
+        type: "string",
+        required: false,
+        description:
+          "Provider event timestamp used for attribution when no event window is supplied",
+      },
+      {
+        name: "event-start",
+        type: "string",
+        required: false,
+        description: "Provider transcript/event window start timestamp",
+      },
+      {
+        name: "event-end",
+        type: "string",
+        required: false,
+        description: "Provider transcript/event window end timestamp",
+      },
       prettyFlag,
     ],
     examples: [
-      "brain-dump telemetry record-usage --model claude-opus-4-6 --input 1000 --output 500",
       "brain-dump telemetry record-usage --session abc --model claude-opus-4-6 --input 1000 --output 500",
+      "brain-dump telemetry record-usage --project-path /repo --transcript /logs/session.jsonl --event-time 2026-01-01T00:00:00.000Z --model claude-opus-4-6 --input 1000 --output 500",
+      "brain-dump telemetry record-usage --session abc --source-ref /logs/session.jsonl --event-start 2026-01-01T00:00:00.000Z --event-end 2026-01-01T00:05:00.000Z --model claude-opus-4-6 --input 1000 --output 500",
     ],
   },
 

@@ -190,6 +190,8 @@ export {
   useDeleteCostModel,
   useRecalculateCosts,
   useDeepRecalculateCosts,
+  useCostAttributionDiagnostics,
+  useRepairTokenUsageAttribution,
   useCostExplorer,
   useCostExplorerSummary,
   deriveCostExplorerSummary,

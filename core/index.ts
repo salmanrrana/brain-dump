@@ -255,6 +255,7 @@ export type {
 // Cost tracking business logic
 export {
   recordUsage,
+  resolveTokenUsageAttribution,
   getTicketCost,
   getEpicCost,
   getProjectCost,
@@ -265,6 +266,8 @@ export {
   deleteCostModel,
   seedCostModels,
   recalculateCosts,
+  repairTokenUsageAttribution,
+  getCostAttributionDiagnostics,
   computeStageCosts,
   getTicketCostDetail,
   getCostExplorerData,
@@ -272,9 +275,19 @@ export {
 
 export type {
   RecordUsageParams,
+  ResolveTokenUsageAttributionParams,
+  TokenUsageAttributionResult,
   UpsertCostModelParams,
   CostTrendParams,
   RecalculateResult,
+  RepairTokenUsageAttributionParams,
+  RepairTokenUsageAttributionResult,
+  TokenUsageAttributionRepairProposal,
+  TokenUsageAttributionRepairRefusal,
+  CostAttributionDiagnosticsResult,
+  CostAttributionDiagnosticSession,
+  CostAttributionDiagnosticMismatch,
+  CostAttributionDuplicateSourceRef,
 } from "./cost.ts";
 
 export { deepRecalculateCosts } from "./deep-cost-recalculate.ts";

@@ -6,9 +6,11 @@ import {
   useDeleteCostModel,
   useRecalculateCosts,
   useDeepRecalculateCosts,
+  useCostAttributionDiagnostics,
+  useRepairTokenUsageAttribution,
 } from "../../lib/hooks";
 import { useToast } from "../Toast";
-import type { CostModel } from "../../api/cost";
+import type { CostModel, CostAttributionDiagnosticsResult } from "../../api/cost";
 import { sectionHeaderStyles, inputStyles } from "./settingsStyles";
 
 interface CostModelSettingsProps {
@@ -60,6 +62,8 @@ export function CostModelSettings({ isActive }: CostModelSettingsProps) {
   const deleteMutation = useDeleteCostModel();
   const recalculateMutation = useRecalculateCosts();
   const deepRecalculateMutation = useDeepRecalculateCosts();
+  const diagnosticsMutation = useCostAttributionDiagnostics();
+  const repairAttributionMutation = useRepairTokenUsageAttribution();
   const { showToast } = useToast();
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -200,6 +204,53 @@ export function CostModelSettings({ isActive }: CostModelSettingsProps) {
     });
   }, [deepRecalculateMutation, showToast]);
 
+  const handleRunDiagnostics = useCallback(() => {
+    diagnosticsMutation.mutate(undefined, {
+      onSuccess: (result) => {
+        showToast(
+          "success",
+          `Diagnostics found ${result.repair.proposedMoves.length} proposed repairs and ${result.duplicateSourceRefs.length} duplicate source references`
+        );
+      },
+      onError: (err) => {
+        showToast(
+          "error",
+          `Failed to run diagnostics: ${err instanceof Error ? err.message : "Unknown error"}`
+        );
+      },
+    });
+  }, [diagnosticsMutation, showToast]);
+
+  const handleRepairAttribution = useCallback(() => {
+    const proposedMoves = diagnosticsMutation.data?.repair.proposedMoves.length ?? 0;
+    const confirmed = window.confirm(
+      `Apply ${proposedMoves} high-confidence attribution repair${proposedMoves === 1 ? "" : "s"}? Ambiguous rows will stay unchanged.`
+    );
+    if (!confirmed) return;
+
+    repairAttributionMutation.mutate(undefined, {
+      onSuccess: (result) => {
+        showToast(
+          "success",
+          `Applied ${result.appliedMoves} attribution repairs and rebuilt ${result.sessionsUpdated} session totals`
+        );
+        diagnosticsMutation.reset();
+      },
+      onError: (err) => {
+        showToast(
+          "error",
+          `Failed to repair attribution: ${err instanceof Error ? err.message : "Unknown error"}`
+        );
+      },
+    });
+  }, [diagnosticsMutation, repairAttributionMutation, showToast]);
+
+  const isCostActionPending =
+    recalculateMutation.isPending ||
+    deepRecalculateMutation.isPending ||
+    diagnosticsMutation.isPending ||
+    repairAttributionMutation.isPending;
+
   // Group models by provider
   const grouped = (models ?? []).reduce<Record<string, CostModel[]>>((acc, model) => {
     const key = model.provider;
@@ -307,14 +358,17 @@ export function CostModelSettings({ isActive }: CostModelSettingsProps) {
                   Cost recalculation
                 </h4>
                 <p className="text-xs leading-5 text-[var(--text-secondary)]">
-                  Recalculate All Costs updates existing usage rows with the current pricing
-                  catalog. Deep Recalculation scans CLI provider logs for missing usage first, then
-                  reprices everything. It checks Claude Code, OpenCode, Codex CLI, Cursor Agent CLI,
-                  and GitHub Copilot CLI.
+                  Recalculate All Costs only reprices existing token usage rows with the current
+                  catalog. Deep Recalculation scans CLI provider logs for missing usage, backfills
+                  matched sessions, then reprices everything. Repair Attribution compares transcript
+                  source references and provider event windows against telemetry session windows,
+                  then proposes only high-confidence ticket/session moves.
                 </p>
               </div>
             </div>
           </div>
+
+          <AttributionDiagnosticsPanel diagnostics={diagnosticsMutation.data} />
 
           {/* Actions */}
           <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -329,7 +383,7 @@ export function CostModelSettings({ isActive }: CostModelSettingsProps) {
             )}
             <button
               onClick={handleRecalculateCosts}
-              disabled={recalculateMutation.isPending || deepRecalculateMutation.isPending}
+              disabled={isCostActionPending}
               title="Reprice existing token_usage rows with the current pricing catalog. This does not scan provider logs."
               className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-lg transition-colors disabled:opacity-50"
             >
@@ -341,7 +395,7 @@ export function CostModelSettings({ isActive }: CostModelSettingsProps) {
             </button>
             <button
               onClick={handleDeepRecalculateCosts}
-              disabled={recalculateMutation.isPending || deepRecalculateMutation.isPending}
+              disabled={isCostActionPending}
               title="Scan CLI provider logs for missing token usage, backfill matched sessions, then reprice all costs."
               className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-lg transition-colors disabled:opacity-50"
             >
@@ -351,6 +405,35 @@ export function CostModelSettings({ isActive }: CostModelSettingsProps) {
                 <Search size={16} />
               )}
               {deepRecalculateMutation.isPending ? "Deep Recalculating..." : "Deep Recalculation"}
+            </button>
+            <button
+              onClick={handleRunDiagnostics}
+              disabled={isCostActionPending}
+              title="Dry-run attribution diagnostics without changing token usage rows."
+              className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-lg transition-colors disabled:opacity-50"
+            >
+              {diagnosticsMutation.isPending ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <Search size={16} />
+              )}
+              {diagnosticsMutation.isPending ? "Running diagnostics..." : "Run Repair Diagnostic"}
+            </button>
+            <button
+              onClick={handleRepairAttribution}
+              disabled={
+                isCostActionPending ||
+                (diagnosticsMutation.data?.repair.proposedMoves.length ?? 0) === 0
+              }
+              title="Apply high-confidence attribution repairs from the latest diagnostic run."
+              className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-lg transition-colors disabled:opacity-50"
+            >
+              {repairAttributionMutation.isPending ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <Check size={16} />
+              )}
+              {repairAttributionMutation.isPending ? "Repairing..." : "Apply Repair Attribution"}
             </button>
           </div>
         </>
@@ -362,6 +445,101 @@ export function CostModelSettings({ isActive }: CostModelSettingsProps) {
 // =============================================================================
 // Sub-components
 // =============================================================================
+
+function AttributionDiagnosticsPanel({
+  diagnostics,
+}: {
+  diagnostics: CostAttributionDiagnosticsResult | undefined;
+}) {
+  if (!diagnostics) {
+    return (
+      <div className="mt-4 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-3 text-xs leading-5 text-[var(--text-secondary)]">
+        Run a repair diagnostic to find telemetry sessions without token usage, ticket/session
+        mismatches, duplicate transcript source references, and high-confidence attribution repairs.
+      </div>
+    );
+  }
+
+  const proposedRepairCount = diagnostics.repair.proposedMoves.length;
+  const refusedCount = diagnostics.repair.refusedRows.length;
+
+  return (
+    <div className="mt-4 space-y-3 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-3">
+      <div className="flex flex-wrap gap-2">
+        <DiagnosticBadge
+          label="Telemetry no usage"
+          value={diagnostics.sessionsWithTelemetryNoTokenUsage.length}
+        />
+        <DiagnosticBadge
+          label="Suspicious rows"
+          value={diagnostics.suspiciousAttributionRows.length}
+        />
+        <DiagnosticBadge label="Duplicate sources" value={diagnostics.duplicateSourceRefs.length} />
+        <DiagnosticBadge label="Proposed repairs" value={proposedRepairCount} />
+        <DiagnosticBadge label="Refused" value={refusedCount} />
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2">
+        <DiagnosticList
+          title="Proposed repairs"
+          emptyText="No high-confidence moves found."
+          items={diagnostics.repair.proposedMoves.slice(0, 5).map((move) => ({
+            id: move.tokenUsageId,
+            text: `${shortId(move.sourceRef)}: ${shortId(move.fromTicketId)} → ${shortId(move.toTicketId)}`,
+          }))}
+        />
+        <DiagnosticList
+          title="Duplicate source references"
+          emptyText="No duplicate transcript references found."
+          items={diagnostics.duplicateSourceRefs.slice(0, 5).map((duplicate) => ({
+            id: `${duplicate.sourceRef}-${duplicate.model}`,
+            text: `${shortId(duplicate.sourceRef)} (${duplicate.model}) appears ${duplicate.rowCount} times`,
+          }))}
+        />
+      </div>
+    </div>
+  );
+}
+
+function DiagnosticBadge({ label, value }: { label: string; value: number }) {
+  return (
+    <span className="rounded-md bg-[var(--bg-tertiary)] px-2 py-1 text-xs text-[var(--text-secondary)]">
+      <span className="font-semibold text-[var(--text-primary)]">{value}</span> {label}
+    </span>
+  );
+}
+
+function DiagnosticList({
+  title,
+  emptyText,
+  items,
+}: {
+  title: string;
+  emptyText: string;
+  items: Array<{ id: string; text: string }>;
+}) {
+  return (
+    <div>
+      <h4 className="mb-1 text-xs font-semibold text-[var(--text-primary)]">{title}</h4>
+      {items.length === 0 ? (
+        <p className="text-xs text-[var(--text-tertiary)]">{emptyText}</p>
+      ) : (
+        <ul className="space-y-1 text-xs text-[var(--text-secondary)]">
+          {items.map((item) => (
+            <li key={item.id} className="truncate">
+              {item.text}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function shortId(value: string | null): string {
+  if (!value) return "none";
+  return value.length > 12 ? `${value.slice(0, 8)}…` : value;
+}
 
 function ModelRow({
   model,

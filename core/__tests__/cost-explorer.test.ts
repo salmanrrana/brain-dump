@@ -3,10 +3,12 @@ import type Database from "better-sqlite3";
 import { createTestDatabase } from "../db.ts";
 import {
   computeStageCosts,
+  getCostAttributionDiagnostics,
   getCostExplorerData,
   getTicketCostDetail,
   listCostModels,
   recalculateCosts,
+  repairTokenUsageAttribution,
   seedCostModels,
   recordUsage,
   syncDefaultCostModels,
@@ -43,6 +45,13 @@ function seedEpic(id = "epic-1", projectId = "proj-1") {
     new Date().toISOString()
   );
   return id;
+}
+
+function seedTelemetrySession(id: string, ticketId: string, startedAt: string, endedAt: string) {
+  db.prepare(
+    `INSERT INTO telemetry_sessions (id, ticket_id, project_id, environment, started_at, ended_at)
+     VALUES (?, ?, 'proj-1', 'claude-code', ?, ?)`
+  ).run(id, ticketId, startedAt, endedAt);
 }
 
 function seedRalphSession(
@@ -298,6 +307,266 @@ describe("cost model defaults", () => {
 
     expect(usage.source).toBe("pi");
     expect(usage.ticketId).toBe("ticket-1");
+  });
+
+  it("keeps source metadata and returns old rows with null source references", () => {
+    const ticketId = seedTicket();
+    db.prepare(
+      `INSERT INTO telemetry_sessions (id, ticket_id, project_id, environment, started_at)
+       VALUES ('telemetry-1', ?, 'proj-1', 'claude-code', '2026-01-01T00:00:00.000Z')`
+    ).run(ticketId);
+
+    const usage = recordUsage(db, {
+      telemetrySessionId: "telemetry-1",
+      model: "claude-opus-4-6",
+      inputTokens: 1000,
+      outputTokens: 500,
+      source: "jsonl-hook",
+      sourceRef: "/logs/session.jsonl",
+      providerEventStart: "2026-01-01T00:00:01.000Z",
+      providerEventEnd: "2026-01-01T00:00:03.000Z",
+    });
+
+    expect(usage.sourceRef).toBe("/logs/session.jsonl");
+    expect(usage.providerEventStart).toBe("2026-01-01T00:00:01.000Z");
+    expect(usage.providerEventEnd).toBe("2026-01-01T00:00:03.000Z");
+
+    const oldShape = recordUsage(db, {
+      telemetrySessionId: "telemetry-1",
+      model: "claude-sonnet-4",
+      inputTokens: 1,
+      outputTokens: 1,
+      source: "mcp-manual",
+    });
+
+    expect(oldShape.sourceRef).toBeNull();
+    expect(oldShape.providerEventStart).toBeNull();
+    expect(oldShape.providerEventEnd).toBeNull();
+  });
+
+  it("deduplicates replayed transcript usage for the same session and model", () => {
+    const ticketId = seedTicket();
+    db.prepare(
+      `INSERT INTO telemetry_sessions (id, ticket_id, project_id, environment, started_at)
+       VALUES ('telemetry-1', ?, 'proj-1', 'claude-code', '2026-01-01T00:00:00.000Z')`
+    ).run(ticketId);
+
+    const first = recordUsage(db, {
+      telemetrySessionId: "telemetry-1",
+      model: "claude-opus-4-6",
+      inputTokens: 1000,
+      outputTokens: 500,
+      source: "claude-jsonl-backfill",
+      sourceRef: "/logs/session.jsonl",
+    });
+    const replayed = recordUsage(db, {
+      telemetrySessionId: "telemetry-1",
+      model: "claude-opus-4-6",
+      inputTokens: 1000,
+      outputTokens: 500,
+      source: "claude-jsonl-backfill",
+      sourceRef: "/logs/session.jsonl",
+    });
+
+    const rowCount = db.prepare("SELECT COUNT(*) as count FROM token_usage").get() as {
+      count: number;
+    };
+    const totals = db
+      .prepare(
+        `SELECT total_input_tokens as inputTokens, total_output_tokens as outputTokens
+         FROM telemetry_sessions WHERE id = 'telemetry-1'`
+      )
+      .get() as { inputTokens: number; outputTokens: number };
+
+    expect(replayed.id).toBe(first.id);
+    expect(rowCount.count).toBe(1);
+    expect(totals.inputTokens).toBe(1000);
+    expect(totals.outputTokens).toBe(500);
+  });
+
+  it("repairs Notion-style transcript rows across seven matching ticket sessions", () => {
+    const finalSessionId = "telemetry-7";
+    for (let i = 1; i <= 7; i++) {
+      const ticketId = seedTicket(`ticket-${i}`);
+      const minute = String(i).padStart(2, "0");
+      seedTelemetrySession(
+        `telemetry-${i}`,
+        ticketId,
+        `2026-01-01T00:${minute}:00.000Z`,
+        `2026-01-01T00:${minute}:30.000Z`
+      );
+    }
+
+    for (let i = 1; i <= 7; i++) {
+      const minute = String(i).padStart(2, "0");
+      recordUsage(db, {
+        telemetrySessionId: finalSessionId,
+        model: "claude-sonnet-4",
+        inputTokens: 100 * i,
+        outputTokens: 10 * i,
+        source: "claude-jsonl-backfill",
+        sourceRef: `/notion/transcript-${i}.jsonl`,
+        providerEventStart: `2026-01-01T00:${minute}:05.000Z`,
+        providerEventEnd: `2026-01-01T00:${minute}:10.000Z`,
+      });
+    }
+
+    const dryRun = repairTokenUsageAttribution(db);
+
+    expect(dryRun.mode).toBe("dry-run");
+    expect(dryRun.inspectedRows).toBe(7);
+    expect(dryRun.proposedMoves).toHaveLength(6);
+    expect(dryRun.appliedMoves).toBe(0);
+
+    const applied = repairTokenUsageAttribution(db, { apply: true });
+
+    expect(applied.appliedMoves).toBe(6);
+    expect(applied.sessionsUpdated).toBe(7);
+
+    const distribution = db
+      .prepare(
+        `SELECT telemetry_session_id as telemetrySessionId, ticket_id as ticketId, COUNT(*) as rows
+         FROM token_usage
+         GROUP BY telemetry_session_id, ticket_id
+         ORDER BY telemetry_session_id`
+      )
+      .all() as Array<{ telemetrySessionId: string; ticketId: string; rows: number }>;
+
+    expect(distribution).toEqual(
+      Array.from({ length: 7 }, (_, index) => ({
+        telemetrySessionId: `telemetry-${index + 1}`,
+        ticketId: `ticket-${index + 1}`,
+        rows: 1,
+      }))
+    );
+
+    const finalTotals = db
+      .prepare(
+        `SELECT total_input_tokens as inputTokens, total_output_tokens as outputTokens
+         FROM telemetry_sessions WHERE id = ?`
+      )
+      .get(finalSessionId) as { inputTokens: number; outputTokens: number };
+    expect(finalTotals).toEqual({ inputTokens: 700, outputTokens: 70 });
+  });
+
+  it("reports UI repair diagnostics without applying moves", () => {
+    const sourceTicketId = seedTicket("ticket-source");
+    const targetTicketId = seedTicket("ticket-target");
+    seedTelemetrySession(
+      "telemetry-source",
+      sourceTicketId,
+      "2026-01-01T00:00:00.000Z",
+      "2026-01-01T00:01:00.000Z"
+    );
+    seedTelemetrySession(
+      "telemetry-target",
+      targetTicketId,
+      "2026-01-01T00:02:00.000Z",
+      "2026-01-01T00:03:00.000Z"
+    );
+    seedTelemetrySession(
+      "telemetry-empty",
+      seedTicket("ticket-empty"),
+      "2026-01-01T00:04:00.000Z",
+      "2026-01-01T00:05:00.000Z"
+    );
+    db.prepare(
+      `INSERT INTO telemetry_events (id, session_id, event_type, created_at)
+       VALUES ('event-empty', 'telemetry-empty', 'prompt', '2026-01-01T00:04:30.000Z')`
+    ).run();
+
+    recordUsage(db, {
+      telemetrySessionId: "telemetry-source",
+      ticketId: sourceTicketId,
+      model: "claude-sonnet-4",
+      inputTokens: 100,
+      outputTokens: 10,
+      source: "claude-jsonl-backfill",
+      sourceRef: "/diagnostics/transcript.jsonl",
+      providerEventStart: "2026-01-01T00:02:15.000Z",
+      providerEventEnd: "2026-01-01T00:02:30.000Z",
+    });
+    recordUsage(db, {
+      telemetrySessionId: "telemetry-target",
+      ticketId: targetTicketId,
+      model: "claude-opus-4-6",
+      inputTokens: 100,
+      outputTokens: 10,
+      source: "claude-jsonl-backfill",
+      sourceRef: "/diagnostics/duplicate.jsonl",
+    });
+    recordUsage(db, {
+      telemetrySessionId: "telemetry-source",
+      ticketId: sourceTicketId,
+      model: "claude-opus-4-6",
+      inputTokens: 200,
+      outputTokens: 20,
+      source: "claude-jsonl-backfill",
+      sourceRef: "/diagnostics/duplicate.jsonl",
+    });
+
+    const diagnostics = getCostAttributionDiagnostics(db);
+
+    expect(diagnostics.sessionsWithTelemetryNoTokenUsage).toEqual([
+      expect.objectContaining({ telemetrySessionId: "telemetry-empty", eventCount: 1 }),
+    ]);
+    expect(diagnostics.duplicateSourceRefs).toEqual([
+      expect.objectContaining({ sourceRef: "/diagnostics/duplicate.jsonl", rowCount: 2 }),
+    ]);
+    expect(diagnostics.repair.mode).toBe("dry-run");
+    expect(diagnostics.repair.proposedMoves).toEqual([
+      expect.objectContaining({
+        fromTelemetrySessionId: "telemetry-source",
+        toTelemetrySessionId: "telemetry-target",
+      }),
+    ]);
+
+    const originalRow = db
+      .prepare(
+        "SELECT telemetry_session_id as telemetrySessionId FROM token_usage WHERE source_ref = ?"
+      )
+      .get("/diagnostics/transcript.jsonl") as { telemetrySessionId: string };
+    expect(originalRow.telemetrySessionId).toBe("telemetry-source");
+  });
+
+  it("refuses ambiguous attribution repair candidates", () => {
+    const ticketId = seedTicket("ticket-ambiguous");
+    seedTelemetrySession(
+      "telemetry-a",
+      ticketId,
+      "2026-01-01T00:01:00.000Z",
+      "2026-01-01T00:03:00.000Z"
+    );
+    seedTelemetrySession(
+      "telemetry-b",
+      ticketId,
+      "2026-01-01T00:01:00.000Z",
+      "2026-01-01T00:03:00.000Z"
+    );
+    recordUsage(db, {
+      telemetrySessionId: "telemetry-a",
+      model: "claude-sonnet-4",
+      inputTokens: 100,
+      outputTokens: 10,
+      source: "claude-jsonl-backfill",
+      sourceRef: "/ambiguous/transcript.jsonl",
+      providerEventStart: "2026-01-01T00:01:30.000Z",
+      providerEventEnd: "2026-01-01T00:02:00.000Z",
+    });
+
+    const result = repairTokenUsageAttribution(db, { apply: true });
+
+    expect(result.proposedMoves).toHaveLength(0);
+    expect(result.appliedMoves).toBe(0);
+    expect(result.refusedRows).toEqual([
+      {
+        tokenUsageId: expect.any(String),
+        sourceRef: "/ambiguous/transcript.jsonl",
+        model: "claude-sonnet-4",
+        reason: "ambiguous-match",
+        candidateSessionIds: ["telemetry-a", "telemetry-b"],
+      },
+    ]);
   });
 });
 

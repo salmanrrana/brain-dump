@@ -10,23 +10,23 @@ All commands output JSON by default. Add `--pretty` for human-readable output.
 
 ### Resources
 
-| Resource     | Description                                                                                                                                                              |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `project`    | List, find, create, delete projects — _list, find, create, delete_                                                                                                       |
-| `ticket`     | Create, list, get, update, delete tickets — _create, list, get, update, update-status, update-criterion, update-attachment, list-by-epic, link-files, get-files, delete_ |
-| `epic`       | Create, list, update, delete epics — _create, list, update, delete, reconcile-learnings, get-learnings_                                                                  |
-| `workflow`   | Start work, complete work, start epic, launch Ralph — _start-work, complete-work, start-epic, launch-ticket, launch-epic_                                                |
-| `comment`    | Add and list ticket comments — _add, list_                                                                                                                               |
-| `review`     | Submit findings, generate demos, manage reviews — _submit-finding, mark-fixed, check-complete, generate-demo, get-demo, submit-feedback, update-demo-step, get-findings_ |
-| `session`    | Create, update, complete Ralph sessions — _create, update, complete, get, list, update-state, emit-event, get-events, clear-events_                                      |
-| `git`        | Link commits, PRs, sync ticket links — _link-commit, link-pr, sync_                                                                                                      |
-| `telemetry`  | Start, end, get, list telemetry sessions, record token usage — _start, end, get, list, log-tool, log-prompt, log-context, record-usage, recalculate-costs_               |
-| `files`      | Link files to tickets, find tickets by file — _link, get-tickets_                                                                                                        |
-| `tasks`      | Save, get, clear Claude task lists — _save, get, clear, snapshots_                                                                                                       |
-| `compliance` | Conversation logging for compliance auditing — _start, log, end, list, export, archive_                                                                                  |
-| `settings`   | Get and update project settings — _get, update_                                                                                                                          |
-| `transfer`   | Export and import .braindump archives — _export-epic, export-project, import, preview_                                                                                   |
-| `admin`      | Backup, restore, check, doctor, health — _backup, restore, check, doctor, health_                                                                                        |
+| Resource     | Description                                                                                                                                                                        |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `project`    | List, find, create, delete projects — _list, find, create, delete_                                                                                                                 |
+| `ticket`     | Create, list, get, update, delete tickets — _create, list, get, update, update-status, update-criterion, update-attachment, list-by-epic, link-files, get-files, delete_           |
+| `epic`       | Create, list, update, delete epics — _create, list, update, delete, reconcile-learnings, get-learnings_                                                                            |
+| `workflow`   | Start work, complete work, start epic, launch Ralph — _start-work, complete-work, start-epic, launch-ticket, launch-epic_                                                          |
+| `comment`    | Add and list ticket comments — _add, list_                                                                                                                                         |
+| `review`     | Submit findings, generate demos, manage reviews — _submit-finding, mark-fixed, check-complete, generate-demo, get-demo, submit-feedback, update-demo-step, get-findings_           |
+| `session`    | Create, update, complete Ralph sessions — _create, update, complete, get, list, update-state, emit-event, get-events, clear-events_                                                |
+| `git`        | Link commits, PRs, sync ticket links — _link-commit, link-pr, sync_                                                                                                                |
+| `telemetry`  | Start, end, get, list telemetry sessions, record token usage — _start, end, get, list, log-tool, log-prompt, log-context, record-usage, recalculate-costs, deep-recalculate-costs_ |
+| `files`      | Link files to tickets, find tickets by file — _link, get-tickets_                                                                                                                  |
+| `tasks`      | Save, get, clear Claude task lists — _save, get, clear, snapshots_                                                                                                                 |
+| `compliance` | Conversation logging for compliance auditing — _start, log, end, list, export, archive_                                                                                            |
+| `settings`   | Get and update project settings — _get, update_                                                                                                                                    |
+| `transfer`   | Export and import .braindump archives — _export-epic, export-project, import, preview_                                                                                             |
+| `admin`      | Backup, restore, check, doctor, health — _backup, restore, check, doctor, health_                                                                                                  |
 
 ### Top-Level Commands
 
@@ -697,13 +697,13 @@ brain-dump workflow start-epic --epic abc --create-pr
 Launch Ralph for a single ticket in the chosen provider (parity with UI)
 
 ```bash
-brain-dump workflow launch-ticket --ticket <value> [--provider <claude-code|vscode|cursor|cursor-agent|copilot-cli|codex|opencode|pi>] [--terminal <value>] [--max-iterations <n>] [--sandbox] [--pretty]
+brain-dump workflow launch-ticket --ticket <value> [--provider <claude-code|vscode|cursor|cursor-agent|copilot-cli|codex|pi|opencode>] [--terminal <value>] [--max-iterations <n>] [--sandbox] [--pretty]
 ```
 
 | Flag               | Type    | Required | Description                                                                                                                   |
 | ------------------ | ------- | -------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | `--ticket`         | string  | Yes      | Ticket ID                                                                                                                     |
-| `--provider`       | enum    | No       | AI backend to launch (default: project setting) (claude-code, vscode, cursor, cursor-agent, copilot-cli, codex, opencode, pi) |
+| `--provider`       | enum    | No       | AI backend to launch (default: project setting) (claude-code, vscode, cursor, cursor-agent, copilot-cli, codex, pi, opencode) |
 | `--terminal`       | string  | No       | Preferred terminal emulator (e.g. ghostty, kitty, iterm2)                                                                     |
 | `--max-iterations` | number  | No       | Override Ralph loop iteration cap                                                                                             |
 | `--sandbox`        | boolean | No       | Run inside the Docker sandbox (claude-code only)                                                                              |
@@ -714,7 +714,6 @@ brain-dump workflow launch-ticket --ticket <value> [--provider <claude-code|vsco
 ```bash
 brain-dump workflow launch-ticket --ticket abc --provider claude-code
 brain-dump workflow launch-ticket --ticket abc --provider copilot-cli --terminal ghostty
-brain-dump workflow launch-ticket --ticket abc --provider pi --terminal ghostty
 brain-dump workflow launch-ticket --ticket abc --provider claude-code --sandbox
 ```
 
@@ -723,13 +722,13 @@ brain-dump workflow launch-ticket --ticket abc --provider claude-code --sandbox
 Launch Ralph for an entire epic in the chosen provider (parity with UI)
 
 ```bash
-brain-dump workflow launch-epic --epic <value> [--provider <claude-code|vscode|cursor|cursor-agent|copilot-cli|codex|opencode|pi>] [--terminal <value>] [--max-iterations <n>] [--sandbox] [--pretty]
+brain-dump workflow launch-epic --epic <value> [--provider <claude-code|vscode|cursor|cursor-agent|copilot-cli|codex|pi|opencode>] [--terminal <value>] [--max-iterations <n>] [--sandbox] [--pretty]
 ```
 
 | Flag               | Type    | Required | Description                                                                                                                   |
 | ------------------ | ------- | -------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | `--epic`           | string  | Yes      | Epic ID                                                                                                                       |
-| `--provider`       | enum    | No       | AI backend to launch (default: project setting) (claude-code, vscode, cursor, cursor-agent, copilot-cli, codex, opencode, pi) |
+| `--provider`       | enum    | No       | AI backend to launch (default: project setting) (claude-code, vscode, cursor, cursor-agent, copilot-cli, codex, pi, opencode) |
 | `--terminal`       | string  | No       | Preferred terminal emulator (e.g. ghostty, kitty, iterm2)                                                                     |
 | `--max-iterations` | number  | No       | Override Ralph loop iteration cap                                                                                             |
 | `--sandbox`        | boolean | No       | Run inside the Docker sandbox (claude-code only)                                                                              |
@@ -740,7 +739,6 @@ brain-dump workflow launch-epic --epic <value> [--provider <claude-code|vscode|c
 ```bash
 brain-dump workflow launch-epic --epic abc --provider claude-code
 brain-dump workflow launch-epic --epic abc --provider opencode --max-iterations 20
-brain-dump workflow launch-epic --epic abc --provider pi --max-iterations 20
 ```
 
 ---
@@ -754,16 +752,16 @@ Add and list ticket comments
 Add a comment to a ticket
 
 ```bash
-brain-dump comment add --ticket <value> --content <value> [--type <comment|work_summary|test_report|progress>] [--author <claude|ralph|user|opencode|cursor|vscode|ai>] [--pretty]
+brain-dump comment add --ticket <value> --content <value> [--type <comment|work_summary|test_report|progress>] [--author <claude|ralph|user|opencode|cursor|vscode|copilot|codex|pi|ai>] [--pretty]
 ```
 
-| Flag        | Type    | Required | Description                                                        |
-| ----------- | ------- | -------- | ------------------------------------------------------------------ |
-| `--ticket`  | string  | Yes      | Ticket ID                                                          |
-| `--content` | string  | Yes      | Comment content                                                    |
-| `--type`    | enum    | No       | Comment type (comment, work_summary, test_report, progress)        |
-| `--author`  | enum    | No       | Comment author (claude, ralph, user, opencode, cursor, vscode, ai) |
-| `--pretty`  | boolean | No       | Human-readable output (default: JSON)                              |
+| Flag        | Type    | Required | Description                                                                            |
+| ----------- | ------- | -------- | -------------------------------------------------------------------------------------- |
+| `--ticket`  | string  | Yes      | Ticket ID                                                                              |
+| `--content` | string  | Yes      | Comment content                                                                        |
+| `--type`    | enum    | No       | Comment type (comment, work_summary, test_report, progress)                            |
+| `--author`  | enum    | No       | Comment author (claude, ralph, user, opencode, cursor, vscode, copilot, codex, pi, ai) |
+| `--pretty`  | boolean | No       | Human-readable output (default: JSON)                                                  |
 
 **Examples:**
 
@@ -1244,29 +1242,36 @@ brain-dump telemetry log-context --session abc --has-description --has-criteria 
 
 ### brain-dump telemetry record-usage
 
-Record token usage with cost computation (auto-detects session)
+Record token usage with deterministic session/ticket attribution
 
 ```bash
-brain-dump telemetry record-usage [--session <value>] [--ticket <value>] --model <value> --input <n> --output <n> [--cache-read <n>] [--cache-create <n>] [--source <jsonl-hook|otel|mcp-manual>] [--pretty]
+brain-dump telemetry record-usage [--session <value>] [--ticket <value>] --model <value> --input <n> --output <n> [--cache-read <n>] [--cache-create <n>] [--source <jsonl-hook|otel|mcp-manual>] [--project-path <value>] [--transcript <value>] [--source-ref <value>] [--event-time <value>] [--event-start <value>] [--event-end <value>] [--pretty]
 ```
 
-| Flag             | Type    | Required | Description                                                            |
-| ---------------- | ------- | -------- | ---------------------------------------------------------------------- |
-| `--session`      | string  | No       | Session ID                                                             |
-| `--ticket`       | string  | No       | Ticket ID                                                              |
-| `--model`        | string  | Yes      | Model name (e.g. claude-opus-4-6)                                      |
-| `--input`        | number  | Yes      | Input token count                                                      |
-| `--output`       | number  | Yes      | Output token count                                                     |
-| `--cache-read`   | number  | No       | Cache read token count                                                 |
-| `--cache-create` | number  | No       | Cache creation token count                                             |
-| `--source`       | enum    | No       | Token data source (default: jsonl-hook) (jsonl-hook, otel, mcp-manual) |
-| `--pretty`       | boolean | No       | Human-readable output (default: JSON)                                  |
+| Flag             | Type    | Required | Description                                                                      |
+| ---------------- | ------- | -------- | -------------------------------------------------------------------------------- |
+| `--session`      | string  | No       | Session ID                                                                       |
+| `--ticket`       | string  | No       | Ticket ID                                                                        |
+| `--model`        | string  | Yes      | Model name (e.g. claude-opus-4-6)                                                |
+| `--input`        | number  | Yes      | Input token count                                                                |
+| `--output`       | number  | Yes      | Output token count                                                               |
+| `--cache-read`   | number  | No       | Cache read token count                                                           |
+| `--cache-create` | number  | No       | Cache creation token count                                                       |
+| `--source`       | enum    | No       | Token data source (default: jsonl-hook) (jsonl-hook, otel, mcp-manual)           |
+| `--project-path` | string  | No       | Project path used with transcript/event timing to resolve attribution            |
+| `--transcript`   | string  | No       | Provider transcript path used for deterministic attribution                      |
+| `--source-ref`   | string  | No       | Stable provider source identity for idempotent replay (defaults to --transcript) |
+| `--event-time`   | string  | No       | Provider event timestamp used for attribution when no event window is supplied   |
+| `--event-start`  | string  | No       | Provider transcript/event window start timestamp                                 |
+| `--event-end`    | string  | No       | Provider transcript/event window end timestamp                                   |
+| `--pretty`       | boolean | No       | Human-readable output (default: JSON)                                            |
 
 **Examples:**
 
 ```bash
-brain-dump telemetry record-usage --model claude-opus-4-6 --input 1000 --output 500
 brain-dump telemetry record-usage --session abc --model claude-opus-4-6 --input 1000 --output 500
+brain-dump telemetry record-usage --project-path /repo --transcript /logs/session.jsonl --event-time 2026-01-01T00:00:00.000Z --model claude-opus-4-6 --input 1000 --output 500
+brain-dump telemetry record-usage --session abc --source-ref /logs/session.jsonl --event-start 2026-01-01T00:00:00.000Z --event-end 2026-01-01T00:05:00.000Z --model claude-opus-4-6 --input 1000 --output 500
 ```
 
 ### brain-dump telemetry recalculate-costs
@@ -1285,6 +1290,24 @@ brain-dump telemetry recalculate-costs [--pretty]
 
 ```bash
 brain-dump telemetry recalculate-costs --pretty
+```
+
+### brain-dump telemetry deep-recalculate-costs
+
+Backfill missing CLI token usage from provider logs, then recalculate all costs
+
+```bash
+brain-dump telemetry deep-recalculate-costs [--pretty]
+```
+
+| Flag       | Type    | Required | Description                           |
+| ---------- | ------- | -------- | ------------------------------------- |
+| `--pretty` | boolean | No       | Human-readable output (default: JSON) |
+
+**Examples:**
+
+```bash
+brain-dump telemetry deep-recalculate-costs --pretty
 ```
 
 ---

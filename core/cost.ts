@@ -42,8 +42,46 @@ export interface RecordUsageParams {
   cacheReadTokens?: number;
   cacheCreationTokens?: number;
   source?: string;
+  /** Stable provider source identity, e.g. transcript path or provider event id. */
+  sourceRef?: string;
+  /** Provider transcript/event window start (ISO string). */
+  providerEventStart?: string;
+  /** Provider transcript/event window end (ISO string). */
+  providerEventEnd?: string;
   /** Override recorded_at timestamp (ISO string). Defaults to now. Used for backfill. */
   recordedAt?: string;
+}
+
+export interface ResolveTokenUsageAttributionParams {
+  telemetrySessionId?: string;
+  ticketId?: string;
+  projectPath?: string;
+  transcriptPath?: string;
+  eventTime?: string;
+  eventStart?: string;
+  eventEnd?: string;
+}
+
+export interface TokenUsageAttributionResult {
+  telemetrySessionId?: string;
+  ticketId?: string;
+  source: "explicit" | "project-event-window" | "project-active-session" | "skipped";
+  skipped: boolean;
+  warning?: string;
+}
+
+interface TokenUsageAttributionCandidate {
+  telemetrySessionId: string;
+  ticketId: string | null;
+  startedAt: string;
+  endedAt: string | null;
+  firstEventAt: string | null;
+  lastEventAt: string | null;
+}
+
+interface AttributionWindow {
+  startMs: number;
+  endMs: number;
 }
 
 export interface UpsertCostModelParams {
@@ -104,6 +142,9 @@ function parseTokenUsageRow(row: DbTokenUsageRow): TokenUsageRecord {
     cacheCreationTokens: row.cache_creation_tokens,
     costUsd: row.cost_usd,
     source: row.source,
+    sourceRef: row.source_ref,
+    providerEventStart: row.provider_event_start,
+    providerEventEnd: row.provider_event_end,
     recordedAt: row.recorded_at,
   };
 }
@@ -738,6 +779,225 @@ function resolveCostModelRow(models: DbCostModelRow[], model: string): DbCostMod
   return best;
 }
 
+function parseAttributionTime(value: string | undefined | null): number | null {
+  if (!value) return null;
+  const ms = Date.parse(value);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function getAttributionWindow(
+  params: ResolveTokenUsageAttributionParams
+): AttributionWindow | null {
+  const pointMs = parseAttributionTime(params.eventTime);
+  const startMs = parseAttributionTime(params.eventStart) ?? pointMs;
+  const endMs = parseAttributionTime(params.eventEnd) ?? pointMs ?? startMs;
+
+  if (startMs === null || endMs === null) return null;
+  return {
+    startMs: Math.min(startMs, endMs),
+    endMs: Math.max(startMs, endMs),
+  };
+}
+
+function getSessionEventWindow(
+  candidate: TokenUsageAttributionCandidate
+): AttributionWindow | null {
+  const startedMs = parseAttributionTime(candidate.startedAt);
+  if (startedMs === null) return null;
+
+  const firstEventMs = parseAttributionTime(candidate.firstEventAt);
+  const endedMs = parseAttributionTime(candidate.endedAt);
+  const lastEventMs = parseAttributionTime(candidate.lastEventAt);
+  const startMs = firstEventMs === null ? startedMs : Math.min(startedMs, firstEventMs);
+  const endCandidates = [endedMs, lastEventMs, startedMs].filter((ms): ms is number => ms !== null);
+  const endMs = Math.max(...endCandidates);
+
+  return { startMs, endMs: Math.max(startMs, endMs) };
+}
+
+function overlapMs(left: AttributionWindow, right: AttributionWindow): number {
+  return Math.max(0, Math.min(left.endMs, right.endMs) - Math.max(left.startMs, right.startMs));
+}
+
+function pointInWindow(pointMs: number, window: AttributionWindow): boolean {
+  return pointMs >= window.startMs && pointMs <= window.endMs;
+}
+
+function windowsMatch(left: AttributionWindow, right: AttributionWindow): boolean {
+  if (left.startMs === left.endMs) return pointInWindow(left.startMs, right);
+  if (right.startMs === right.endMs) return pointInWindow(right.startMs, left);
+  return overlapMs(left, right) > 0;
+}
+
+function loadProjectAttributionCandidates(
+  db: DbHandle,
+  projectPath: string
+): TokenUsageAttributionCandidate[] {
+  return db
+    .prepare(
+      `SELECT
+         ts.id as telemetrySessionId,
+         ts.ticket_id as ticketId,
+         ts.started_at as startedAt,
+         ts.ended_at as endedAt,
+         MIN(te.created_at) as firstEventAt,
+         MAX(te.created_at) as lastEventAt
+       FROM telemetry_sessions ts
+       LEFT JOIN telemetry_events te ON te.session_id = ts.id
+       LEFT JOIN tickets t ON t.id = ts.ticket_id
+       LEFT JOIN projects p ON p.id = COALESCE(ts.project_id, t.project_id)
+       WHERE p.path = ?
+       GROUP BY ts.id
+       ORDER BY ts.started_at`
+    )
+    .all(projectPath) as TokenUsageAttributionCandidate[];
+}
+
+function findBestWindowCandidate(
+  candidates: TokenUsageAttributionCandidate[],
+  transcriptWindow: AttributionWindow
+): TokenUsageAttributionCandidate | "ambiguous" | null {
+  const matches = candidates
+    .map((candidate) => {
+      const sessionWindow = getSessionEventWindow(candidate);
+      if (!sessionWindow || !windowsMatch(transcriptWindow, sessionWindow)) return null;
+      return {
+        candidate,
+        overlap: overlapMs(transcriptWindow, sessionWindow),
+      };
+    })
+    .filter((match): match is { candidate: TokenUsageAttributionCandidate; overlap: number } =>
+      Boolean(match)
+    )
+    .sort((left, right) => right.overlap - left.overlap);
+
+  if (matches.length === 0) return null;
+  if (matches.length === 1) return matches[0]!.candidate;
+
+  const [best, second] = matches;
+  if (best && second && best.overlap > second.overlap) return best.candidate;
+  return "ambiguous";
+}
+
+function activeCandidatesForWindow(
+  candidates: TokenUsageAttributionCandidate[],
+  transcriptWindow: AttributionWindow | null
+): TokenUsageAttributionCandidate[] {
+  return candidates.filter((candidate) => {
+    const startedMs = parseAttributionTime(candidate.startedAt);
+    const endedMs = parseAttributionTime(candidate.endedAt);
+    if (startedMs === null) return false;
+    if (!transcriptWindow) return endedMs === null;
+    return (
+      startedMs <= transcriptWindow.endMs &&
+      (endedMs === null || endedMs >= transcriptWindow.startMs)
+    );
+  });
+}
+
+function attributionResult(
+  candidate: TokenUsageAttributionCandidate,
+  source: TokenUsageAttributionResult["source"]
+): TokenUsageAttributionResult {
+  return {
+    telemetrySessionId: candidate.telemetrySessionId,
+    ...(candidate.ticketId ? { ticketId: candidate.ticketId } : {}),
+    source,
+    skipped: false,
+  };
+}
+
+function skippedAttribution(warning: string): TokenUsageAttributionResult {
+  return {
+    source: "skipped",
+    skipped: true,
+    warning,
+  };
+}
+
+/**
+ * Resolve token usage attribution without falling back to an arbitrary global
+ * active session. Explicit session/ticket flags always win; otherwise callers
+ * must provide project context plus transcript/event timing. Ambiguous matches
+ * return a skipped result so hooks can log and avoid charging the wrong ticket.
+ */
+export function resolveTokenUsageAttribution(
+  db: DbHandle,
+  params: ResolveTokenUsageAttributionParams
+): TokenUsageAttributionResult {
+  if (params.telemetrySessionId) {
+    return {
+      telemetrySessionId: params.telemetrySessionId,
+      ...(params.ticketId ? { ticketId: params.ticketId } : {}),
+      source: "explicit",
+      skipped: false,
+    };
+  }
+
+  if (!params.projectPath) {
+    if (params.ticketId) {
+      return {
+        ticketId: params.ticketId,
+        source: "explicit",
+        skipped: false,
+      };
+    }
+    return skippedAttribution(
+      "Token usage attribution skipped: provide --session/--ticket or --project-path with transcript/event timing."
+    );
+  }
+
+  let candidates = loadProjectAttributionCandidates(db, params.projectPath);
+  if (params.ticketId) {
+    candidates = candidates.filter((candidate) => candidate.ticketId === params.ticketId);
+  }
+  if (candidates.length === 0) {
+    if (params.ticketId) {
+      return {
+        ticketId: params.ticketId,
+        source: "explicit",
+        skipped: false,
+      };
+    }
+    return skippedAttribution(
+      `Token usage attribution skipped: no telemetry sessions found for project ${params.projectPath}.`
+    );
+  }
+
+  const transcriptWindow = getAttributionWindow(params);
+  if (transcriptWindow) {
+    const eventWindowMatch = findBestWindowCandidate(candidates, transcriptWindow);
+    if (eventWindowMatch === "ambiguous") {
+      return skippedAttribution(
+        `Token usage attribution skipped: transcript ${params.transcriptPath ?? "<unknown>"} overlaps multiple telemetry sessions for project ${params.projectPath}.`
+      );
+    }
+    if (eventWindowMatch) return attributionResult(eventWindowMatch, "project-event-window");
+  }
+
+  const activeMatches = activeCandidatesForWindow(candidates, transcriptWindow);
+  if (activeMatches.length === 1)
+    return attributionResult(activeMatches[0]!, "project-active-session");
+
+  if (activeMatches.length > 1) {
+    return skippedAttribution(
+      `Token usage attribution skipped: ${activeMatches.length} active telemetry sessions match project ${params.projectPath}; pass --session or --ticket explicitly.`
+    );
+  }
+
+  if (params.ticketId) {
+    return {
+      ticketId: params.ticketId,
+      source: "explicit",
+      skipped: false,
+    };
+  }
+
+  return skippedAttribution(
+    `Token usage attribution skipped: no telemetry session window matched transcript ${params.transcriptPath ?? "<unknown>"} for project ${params.projectPath}.`
+  );
+}
+
 // ============================================
 // Recording
 // ============================================
@@ -760,6 +1020,9 @@ export function recordUsage(db: DbHandle, params: RecordUsageParams): TokenUsage
     cacheReadTokens = 0,
     cacheCreationTokens = 0,
     source = "mcp-manual",
+    sourceRef,
+    providerEventStart,
+    providerEventEnd,
     recordedAt,
   } = params;
 
@@ -781,6 +1044,17 @@ export function recordUsage(db: DbHandle, params: RecordUsageParams): TokenUsage
     }
   }
 
+  if (sourceRef && telemetrySessionId) {
+    const existing = db
+      .prepare(
+        `SELECT * FROM token_usage
+         WHERE telemetry_session_id = ? AND source_ref = ? AND model = ?
+         LIMIT 1`
+      )
+      .get(telemetrySessionId, sourceRef, model) as DbTokenUsageRow | undefined;
+    if (existing) return parseTokenUsageRow(existing);
+  }
+
   const costUsd = computeCostFromTokens(db, model, {
     inputTokens,
     outputTokens,
@@ -794,8 +1068,9 @@ export function recordUsage(db: DbHandle, params: RecordUsageParams): TokenUsage
   db.prepare(
     `INSERT INTO token_usage
      (id, telemetry_session_id, ticket_id, model, input_tokens, output_tokens,
-      cache_read_tokens, cache_creation_tokens, cost_usd, source, recorded_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      cache_read_tokens, cache_creation_tokens, cost_usd, source, source_ref,
+      provider_event_start, provider_event_end, recorded_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     telemetrySessionId || null,
@@ -807,6 +1082,9 @@ export function recordUsage(db: DbHandle, params: RecordUsageParams): TokenUsage
     cacheCreationTokens ?? null,
     costUsd,
     source,
+    sourceRef ?? null,
+    providerEventStart ?? null,
+    providerEventEnd ?? null,
     now
   );
 
@@ -1178,6 +1456,73 @@ export interface RecalculateResult {
   newTotalCost: number;
 }
 
+export interface RepairTokenUsageAttributionParams {
+  apply?: boolean;
+  projectId?: string;
+  sourceRef?: string;
+}
+
+export interface TokenUsageAttributionRepairProposal {
+  tokenUsageId: string;
+  sourceRef: string;
+  model: string;
+  fromTelemetrySessionId: string | null;
+  fromTicketId: string | null;
+  toTelemetrySessionId: string;
+  toTicketId: string | null;
+  confidence: "high";
+  overlapMs: number;
+  reason: string;
+}
+
+export interface TokenUsageAttributionRepairRefusal {
+  tokenUsageId: string;
+  sourceRef: string | null;
+  model: string;
+  reason: "missing-source-metadata" | "no-matching-session" | "ambiguous-match";
+  candidateSessionIds: string[];
+}
+
+export interface RepairTokenUsageAttributionResult {
+  mode: "dry-run" | "apply";
+  inspectedRows: number;
+  proposedMoves: TokenUsageAttributionRepairProposal[];
+  refusedRows: TokenUsageAttributionRepairRefusal[];
+  appliedMoves: number;
+  sessionsUpdated: number;
+}
+
+export interface CostAttributionDiagnosticSession {
+  telemetrySessionId: string;
+  ticketId: string | null;
+  projectId: string | null;
+  startedAt: string;
+  eventCount: number;
+}
+
+export interface CostAttributionDiagnosticMismatch {
+  tokenUsageId: string;
+  tokenUsageTicketId: string | null;
+  telemetrySessionId: string | null;
+  telemetrySessionTicketId: string | null;
+  sourceRef: string | null;
+  model: string;
+}
+
+export interface CostAttributionDuplicateSourceRef {
+  sourceRef: string;
+  model: string;
+  rowCount: number;
+  telemetrySessionIds: string[];
+}
+
+export interface CostAttributionDiagnosticsResult {
+  sessionsWithTelemetryNoTokenUsage: CostAttributionDiagnosticSession[];
+  suspiciousAttributionRows: CostAttributionDiagnosticMismatch[];
+  duplicateSourceRefs: CostAttributionDuplicateSourceRef[];
+  repair: RepairTokenUsageAttributionResult;
+}
+
 /**
  * Recalculate cost_usd for all token_usage rows using current cost_models pricing.
  * Also rebuilds telemetry_sessions aggregate totals.
@@ -1278,6 +1623,322 @@ export function recalculateCosts(db: DbHandle): RecalculateResult {
     sessionsUpdated,
     oldTotalCost,
     newTotalCost,
+  };
+}
+
+interface RepairCandidateSession {
+  telemetrySessionId: string;
+  ticketId: string | null;
+  startedAt: string;
+  endedAt: string | null;
+  firstEventAt: string | null;
+  lastEventAt: string | null;
+  ralphStartedAt: string | null;
+  ralphCompletedAt: string | null;
+}
+
+interface RepairTokenUsageRow {
+  id: string;
+  telemetry_session_id: string | null;
+  ticket_id: string | null;
+  model: string;
+  source_ref: string | null;
+  provider_event_start: string | null;
+  provider_event_end: string | null;
+  recorded_at: string;
+  project_id: string | null;
+}
+
+function timestampMs(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const ms = Date.parse(value);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function repairWindow(
+  start: string | null,
+  end: string | null
+): { startMs: number; endMs: number } | null {
+  const startMs = timestampMs(start);
+  const endMs = timestampMs(end ?? start);
+  if (startMs === null || endMs === null) return null;
+  return { startMs, endMs: Math.max(startMs, endMs) };
+}
+
+function windowOverlapMs(
+  left: { startMs: number; endMs: number },
+  right: { startMs: number; endMs: number }
+): number {
+  if (left.startMs === left.endMs && right.startMs <= left.startMs && left.startMs <= right.endMs) {
+    return 1;
+  }
+  return Math.max(0, Math.min(left.endMs, right.endMs) - Math.max(left.startMs, right.startMs));
+}
+
+function splitDistinctList(value: string | null): string[] {
+  if (!value) return [];
+  return value.split(",").filter(Boolean);
+}
+
+export function getCostAttributionDiagnostics(db: DbHandle): CostAttributionDiagnosticsResult {
+  const sessionsWithTelemetryNoTokenUsage = db
+    .prepare(
+      `SELECT
+         ts.id as telemetrySessionId,
+         ts.ticket_id as ticketId,
+         ts.project_id as projectId,
+         ts.started_at as startedAt,
+         COUNT(te.id) as eventCount
+       FROM telemetry_sessions ts
+       LEFT JOIN telemetry_events te ON te.session_id = ts.id
+       LEFT JOIN token_usage tu ON tu.telemetry_session_id = ts.id
+       GROUP BY ts.id
+       HAVING COUNT(te.id) > 0 AND COUNT(tu.id) = 0
+       ORDER BY ts.started_at DESC
+       LIMIT 100`
+    )
+    .all() as CostAttributionDiagnosticSession[];
+
+  const suspiciousAttributionRows = db
+    .prepare(
+      `SELECT
+         tu.id as tokenUsageId,
+         tu.ticket_id as tokenUsageTicketId,
+         tu.telemetry_session_id as telemetrySessionId,
+         ts.ticket_id as telemetrySessionTicketId,
+         tu.source_ref as sourceRef,
+         tu.model
+       FROM token_usage tu
+       LEFT JOIN telemetry_sessions ts ON ts.id = tu.telemetry_session_id
+       WHERE tu.telemetry_session_id IS NOT NULL
+         AND tu.ticket_id IS NOT NULL
+         AND ts.ticket_id IS NOT NULL
+         AND tu.ticket_id != ts.ticket_id
+       ORDER BY tu.recorded_at DESC
+       LIMIT 100`
+    )
+    .all() as CostAttributionDiagnosticMismatch[];
+
+  const duplicateRows = db
+    .prepare(
+      `SELECT
+         source_ref as sourceRef,
+         model,
+         COUNT(*) as rowCount,
+         GROUP_CONCAT(DISTINCT telemetry_session_id) as telemetrySessionIds
+       FROM token_usage
+       WHERE source_ref IS NOT NULL
+       GROUP BY source_ref, model
+       HAVING COUNT(*) > 1
+       ORDER BY rowCount DESC, source_ref
+       LIMIT 100`
+    )
+    .all() as Array<
+    Omit<CostAttributionDuplicateSourceRef, "telemetrySessionIds"> & {
+      telemetrySessionIds: string | null;
+    }
+  >;
+
+  return {
+    sessionsWithTelemetryNoTokenUsage,
+    suspiciousAttributionRows,
+    duplicateSourceRefs: duplicateRows.map((row) => ({
+      ...row,
+      telemetrySessionIds: splitDistinctList(row.telemetrySessionIds),
+    })),
+    repair: repairTokenUsageAttribution(db),
+  };
+}
+
+function rebuildTelemetryAggregates(db: DbHandle, sessionIds: Set<string>): number {
+  const rebuildStmt = db.prepare(
+    `UPDATE telemetry_sessions
+     SET total_input_tokens = (
+           SELECT COALESCE(SUM(input_tokens), 0) FROM token_usage WHERE telemetry_session_id = ?
+         ),
+         total_output_tokens = (
+           SELECT COALESCE(SUM(output_tokens), 0) FROM token_usage WHERE telemetry_session_id = ?
+         ),
+         total_cost_usd = (
+           SELECT COALESCE(SUM(cost_usd), 0) FROM token_usage WHERE telemetry_session_id = ?
+         )
+     WHERE id = ?`
+  );
+
+  let updated = 0;
+  for (const sessionId of sessionIds) {
+    rebuildStmt.run(sessionId, sessionId, sessionId, sessionId);
+    updated += 1;
+  }
+  return updated;
+}
+
+/**
+ * Propose or apply high-confidence repairs for token_usage rows whose provider
+ * transcript/event window points at a different telemetry session in the same
+ * project. Ambiguous or metadata-poor rows are reported and never moved.
+ */
+export function repairTokenUsageAttribution(
+  db: DbHandle,
+  params: RepairTokenUsageAttributionParams = {}
+): RepairTokenUsageAttributionResult {
+  const filters = ["tu.source_ref IS NOT NULL"];
+  const queryParams: string[] = [];
+  if (params.projectId) {
+    filters.push("COALESCE(ts.project_id, t.project_id) = ?");
+    queryParams.push(params.projectId);
+  }
+  if (params.sourceRef) {
+    filters.push("tu.source_ref = ?");
+    queryParams.push(params.sourceRef);
+  }
+
+  const rows = db
+    .prepare(
+      `SELECT
+         tu.id,
+         tu.telemetry_session_id,
+         tu.ticket_id,
+         tu.model,
+         tu.source_ref,
+         tu.provider_event_start,
+         tu.provider_event_end,
+         tu.recorded_at,
+         COALESCE(ts.project_id, t.project_id) as project_id
+       FROM token_usage tu
+       LEFT JOIN telemetry_sessions ts ON ts.id = tu.telemetry_session_id
+       LEFT JOIN tickets t ON t.id = COALESCE(tu.ticket_id, ts.ticket_id)
+       WHERE ${filters.join(" AND ")}
+       ORDER BY tu.recorded_at, tu.id`
+    )
+    .all(...queryParams) as RepairTokenUsageRow[];
+
+  const candidateCache = new Map<string, RepairCandidateSession[]>();
+  const proposedMoves: TokenUsageAttributionRepairProposal[] = [];
+  const refusedRows: TokenUsageAttributionRepairRefusal[] = [];
+
+  for (const row of rows) {
+    const usageWindow = repairWindow(row.provider_event_start, row.provider_event_end);
+    if (!row.source_ref || !usageWindow || !row.project_id) {
+      refusedRows.push({
+        tokenUsageId: row.id,
+        sourceRef: row.source_ref,
+        model: row.model,
+        reason: "missing-source-metadata",
+        candidateSessionIds: [],
+      });
+      continue;
+    }
+
+    let candidates = candidateCache.get(row.project_id);
+    if (!candidates) {
+      candidates = db
+        .prepare(
+          `SELECT
+             ts.id as telemetrySessionId,
+             ts.ticket_id as ticketId,
+             ts.started_at as startedAt,
+             ts.ended_at as endedAt,
+             MIN(te.created_at) as firstEventAt,
+             MAX(te.created_at) as lastEventAt,
+             MIN(rs.started_at) as ralphStartedAt,
+             MAX(rs.completed_at) as ralphCompletedAt
+           FROM telemetry_sessions ts
+           LEFT JOIN tickets t ON t.id = ts.ticket_id
+           LEFT JOIN telemetry_events te ON te.session_id = ts.id
+           LEFT JOIN ralph_sessions rs ON rs.ticket_id = ts.ticket_id
+           WHERE COALESCE(ts.project_id, t.project_id, rs.project_id) = ?
+           GROUP BY ts.id
+           ORDER BY ts.started_at`
+        )
+        .all(row.project_id) as RepairCandidateSession[];
+      candidateCache.set(row.project_id, candidates);
+    }
+
+    const ranked = candidates
+      .map((candidate) => {
+        const candidateWindow = repairWindow(
+          candidate.firstEventAt ?? candidate.startedAt ?? candidate.ralphStartedAt,
+          candidate.lastEventAt ??
+            candidate.endedAt ??
+            candidate.ralphCompletedAt ??
+            candidate.startedAt
+        );
+        return {
+          candidate,
+          overlapMs: candidateWindow ? windowOverlapMs(usageWindow, candidateWindow) : 0,
+        };
+      })
+      .filter((entry) => entry.overlapMs > 0)
+      .sort((a, b) => b.overlapMs - a.overlapMs);
+
+    if (ranked.length === 0) {
+      refusedRows.push({
+        tokenUsageId: row.id,
+        sourceRef: row.source_ref,
+        model: row.model,
+        reason: "no-matching-session",
+        candidateSessionIds: [],
+      });
+      continue;
+    }
+
+    const best = ranked[0]!;
+    if (ranked.length !== 1) {
+      refusedRows.push({
+        tokenUsageId: row.id,
+        sourceRef: row.source_ref,
+        model: row.model,
+        reason: "ambiguous-match",
+        candidateSessionIds: ranked.map((entry) => entry.candidate.telemetrySessionId),
+      });
+      continue;
+    }
+
+    if (best.candidate.telemetrySessionId === row.telemetry_session_id) continue;
+
+    proposedMoves.push({
+      tokenUsageId: row.id,
+      sourceRef: row.source_ref,
+      model: row.model,
+      fromTelemetrySessionId: row.telemetry_session_id,
+      fromTicketId: row.ticket_id,
+      toTelemetrySessionId: best.candidate.telemetrySessionId,
+      toTicketId: best.candidate.ticketId,
+      confidence: "high",
+      overlapMs: best.overlapMs,
+      reason: "provider event window overlaps exactly one telemetry session in the same project",
+    });
+  }
+
+  let appliedMoves = 0;
+  let sessionsUpdated = 0;
+  if (params.apply && proposedMoves.length > 0) {
+    const affectedSessionIds = new Set<string>();
+    const applyMoves = db.transaction(() => {
+      const updateStmt = db.prepare(
+        `UPDATE token_usage
+         SET telemetry_session_id = ?, ticket_id = ?
+         WHERE id = ?`
+      );
+      for (const move of proposedMoves) {
+        updateStmt.run(move.toTelemetrySessionId, move.toTicketId, move.tokenUsageId);
+        affectedSessionIds.add(move.toTelemetrySessionId);
+        if (move.fromTelemetrySessionId) affectedSessionIds.add(move.fromTelemetrySessionId);
+        appliedMoves += 1;
+      }
+      sessionsUpdated = rebuildTelemetryAggregates(db, affectedSessionIds);
+    });
+    applyMoves();
+  }
+
+  return {
+    mode: params.apply ? "apply" : "dry-run",
+    inspectedRows: rows.length,
+    proposedMoves,
+    refusedRows,
+    appliedMoves,
+    sessionsUpdated,
   };
 }
 
