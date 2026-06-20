@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real, index } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 
 // Projects table
@@ -552,6 +552,9 @@ export const tokenUsage = sqliteTable(
     cacheCreationTokens: integer("cache_creation_tokens"),
     costUsd: real("cost_usd"), // Computed from cost_models at insert time
     source: text("source").notNull(), // 'jsonl-hook', 'otel', 'mcp-manual'
+    sourceRef: text("source_ref"), // Provider transcript/path/event identity for idempotent replay
+    providerEventStart: text("provider_event_start"),
+    providerEventEnd: text("provider_event_end"),
     recordedAt: text("recorded_at")
       .notNull()
       .default(sql`(datetime('now'))`),
@@ -560,6 +563,10 @@ export const tokenUsage = sqliteTable(
     index("idx_token_usage_session").on(table.telemetrySessionId),
     index("idx_token_usage_ticket").on(table.ticketId),
     index("idx_token_usage_recorded").on(table.recordedAt),
+    index("idx_token_usage_source_ref").on(table.sourceRef),
+    uniqueIndex("idx_token_usage_source_session_model")
+      .on(table.telemetrySessionId, table.sourceRef, table.model)
+      .where(sql`${table.sourceRef} IS NOT NULL AND ${table.telemetrySessionId} IS NOT NULL`),
     index("idx_token_usage_ticket_recorded").on(table.ticketId, table.recordedAt),
   ]
 );

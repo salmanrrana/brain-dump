@@ -1025,6 +1025,13 @@ export const COMMAND_REGISTRY: CommandDef[] = [
         description: "Provider transcript path used for deterministic attribution",
       },
       {
+        name: "source-ref",
+        type: "string",
+        required: false,
+        description:
+          "Stable provider source identity for idempotent replay (defaults to --transcript)",
+      },
+      {
         name: "event-time",
         type: "string",
         required: false,
@@ -1048,6 +1055,7 @@ export const COMMAND_REGISTRY: CommandDef[] = [
     examples: [
       "brain-dump telemetry record-usage --session abc --model claude-opus-4-6 --input 1000 --output 500",
       "brain-dump telemetry record-usage --project-path /repo --transcript /logs/session.jsonl --event-time 2026-01-01T00:00:00.000Z --model claude-opus-4-6 --input 1000 --output 500",
+      "brain-dump telemetry record-usage --session abc --source-ref /logs/session.jsonl --event-start 2026-01-01T00:00:00.000Z --event-end 2026-01-01T00:05:00.000Z --model claude-opus-4-6 --input 1000 --output 500",
     ],
   },
 

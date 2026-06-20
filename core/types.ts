@@ -360,6 +360,9 @@ export interface TokenUsageRecord {
   cacheCreationTokens: number | null;
   costUsd: number | null;
   source: string;
+  sourceRef: string | null;
+  providerEventStart: string | null;
+  providerEventEnd: string | null;
   recordedAt: string;
 }
 

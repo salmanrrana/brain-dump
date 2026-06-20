@@ -42,6 +42,12 @@ export interface RecordUsageParams {
   cacheReadTokens?: number;
   cacheCreationTokens?: number;
   source?: string;
+  /** Stable provider source identity, e.g. transcript path or provider event id. */
+  sourceRef?: string;
+  /** Provider transcript/event window start (ISO string). */
+  providerEventStart?: string;
+  /** Provider transcript/event window end (ISO string). */
+  providerEventEnd?: string;
   /** Override recorded_at timestamp (ISO string). Defaults to now. Used for backfill. */
   recordedAt?: string;
 }
@@ -136,6 +142,9 @@ function parseTokenUsageRow(row: DbTokenUsageRow): TokenUsageRecord {
     cacheCreationTokens: row.cache_creation_tokens,
     costUsd: row.cost_usd,
     source: row.source,
+    sourceRef: row.source_ref,
+    providerEventStart: row.provider_event_start,
+    providerEventEnd: row.provider_event_end,
     recordedAt: row.recorded_at,
   };
 }
@@ -1011,6 +1020,9 @@ export function recordUsage(db: DbHandle, params: RecordUsageParams): TokenUsage
     cacheReadTokens = 0,
     cacheCreationTokens = 0,
     source = "mcp-manual",
+    sourceRef,
+    providerEventStart,
+    providerEventEnd,
     recordedAt,
   } = params;
 
@@ -1032,6 +1044,17 @@ export function recordUsage(db: DbHandle, params: RecordUsageParams): TokenUsage
     }
   }
 
+  if (sourceRef && telemetrySessionId) {
+    const existing = db
+      .prepare(
+        `SELECT * FROM token_usage
+         WHERE telemetry_session_id = ? AND source_ref = ? AND model = ?
+         LIMIT 1`
+      )
+      .get(telemetrySessionId, sourceRef, model) as DbTokenUsageRow | undefined;
+    if (existing) return parseTokenUsageRow(existing);
+  }
+
   const costUsd = computeCostFromTokens(db, model, {
     inputTokens,
     outputTokens,
@@ -1045,8 +1068,9 @@ export function recordUsage(db: DbHandle, params: RecordUsageParams): TokenUsage
   db.prepare(
     `INSERT INTO token_usage
      (id, telemetry_session_id, ticket_id, model, input_tokens, output_tokens,
-      cache_read_tokens, cache_creation_tokens, cost_usd, source, recorded_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      cache_read_tokens, cache_creation_tokens, cost_usd, source, source_ref,
+      provider_event_start, provider_event_end, recorded_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     telemetrySessionId || null,
@@ -1058,6 +1082,9 @@ export function recordUsage(db: DbHandle, params: RecordUsageParams): TokenUsage
     cacheCreationTokens ?? null,
     costUsd,
     source,
+    sourceRef ?? null,
+    providerEventStart ?? null,
+    providerEventEnd ?? null,
     now
   );
 

@@ -221,6 +221,9 @@ export interface DbTokenUsageRow {
   cache_creation_tokens: number | null;
   cost_usd: number | null;
   source: string;
+  source_ref: string | null;
+  provider_event_start: string | null;
+  provider_event_end: string | null;
   recorded_at: string;
 }
 

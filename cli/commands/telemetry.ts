@@ -183,6 +183,7 @@ export async function handle(action: string, args: string[]): Promise<void> {
         const ticketIdFlag = optionalFlag(flags, "ticket");
         const projectPathFlag = optionalFlag(flags, "project-path");
         const transcriptPathFlag = optionalFlag(flags, "transcript");
+        const sourceRefFlag = optionalFlag(flags, "source-ref");
         const eventTimeFlag = optionalFlag(flags, "event-time");
         const eventStartFlag = optionalFlag(flags, "event-start");
         const eventEndFlag = optionalFlag(flags, "event-end");
@@ -217,6 +218,7 @@ export async function handle(action: string, args: string[]): Promise<void> {
           ...(eventStartFlag ? { eventStart: eventStartFlag } : {}),
           ...(eventEndFlag ? { eventEnd: eventEndFlag } : {}),
         });
+        const sourceRef = sourceRefFlag ?? transcriptPath;
 
         if (attribution.warning) warnAttribution(attribution.warning);
         if (attribution.skipped) {
@@ -243,6 +245,9 @@ export async function handle(action: string, args: string[]): Promise<void> {
           ...(resolvedTicketId !== undefined ? { ticketId: resolvedTicketId } : {}),
           ...(cacheReadTokens !== undefined ? { cacheReadTokens } : {}),
           ...(cacheCreateTokens !== undefined ? { cacheCreationTokens: cacheCreateTokens } : {}),
+          ...(sourceRef ? { sourceRef } : {}),
+          ...(eventStartFlag ? { providerEventStart: eventStartFlag } : {}),
+          ...(eventEndFlag ? { providerEventEnd: eventEndFlag } : {}),
         };
 
         const result = recordUsage(db, usageParams);

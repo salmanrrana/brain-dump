@@ -299,6 +299,81 @@ describe("cost model defaults", () => {
     expect(usage.source).toBe("pi");
     expect(usage.ticketId).toBe("ticket-1");
   });
+
+  it("keeps source metadata and returns old rows with null source references", () => {
+    const ticketId = seedTicket();
+    db.prepare(
+      `INSERT INTO telemetry_sessions (id, ticket_id, project_id, environment, started_at)
+       VALUES ('telemetry-1', ?, 'proj-1', 'claude-code', '2026-01-01T00:00:00.000Z')`
+    ).run(ticketId);
+
+    const usage = recordUsage(db, {
+      telemetrySessionId: "telemetry-1",
+      model: "claude-opus-4-6",
+      inputTokens: 1000,
+      outputTokens: 500,
+      source: "jsonl-hook",
+      sourceRef: "/logs/session.jsonl",
+      providerEventStart: "2026-01-01T00:00:01.000Z",
+      providerEventEnd: "2026-01-01T00:00:03.000Z",
+    });
+
+    expect(usage.sourceRef).toBe("/logs/session.jsonl");
+    expect(usage.providerEventStart).toBe("2026-01-01T00:00:01.000Z");
+    expect(usage.providerEventEnd).toBe("2026-01-01T00:00:03.000Z");
+
+    const oldShape = recordUsage(db, {
+      telemetrySessionId: "telemetry-1",
+      model: "claude-sonnet-4",
+      inputTokens: 1,
+      outputTokens: 1,
+      source: "mcp-manual",
+    });
+
+    expect(oldShape.sourceRef).toBeNull();
+    expect(oldShape.providerEventStart).toBeNull();
+    expect(oldShape.providerEventEnd).toBeNull();
+  });
+
+  it("deduplicates replayed transcript usage for the same session and model", () => {
+    const ticketId = seedTicket();
+    db.prepare(
+      `INSERT INTO telemetry_sessions (id, ticket_id, project_id, environment, started_at)
+       VALUES ('telemetry-1', ?, 'proj-1', 'claude-code', '2026-01-01T00:00:00.000Z')`
+    ).run(ticketId);
+
+    const first = recordUsage(db, {
+      telemetrySessionId: "telemetry-1",
+      model: "claude-opus-4-6",
+      inputTokens: 1000,
+      outputTokens: 500,
+      source: "claude-jsonl-backfill",
+      sourceRef: "/logs/session.jsonl",
+    });
+    const replayed = recordUsage(db, {
+      telemetrySessionId: "telemetry-1",
+      model: "claude-opus-4-6",
+      inputTokens: 1000,
+      outputTokens: 500,
+      source: "claude-jsonl-backfill",
+      sourceRef: "/logs/session.jsonl",
+    });
+
+    const rowCount = db.prepare("SELECT COUNT(*) as count FROM token_usage").get() as {
+      count: number;
+    };
+    const totals = db
+      .prepare(
+        `SELECT total_input_tokens as inputTokens, total_output_tokens as outputTokens
+         FROM telemetry_sessions WHERE id = 'telemetry-1'`
+      )
+      .get() as { inputTokens: number; outputTokens: number };
+
+    expect(replayed.id).toBe(first.id);
+    expect(rowCount.count).toBe(1);
+    expect(totals.inputTokens).toBe(1000);
+    expect(totals.outputTokens).toBe(500);
+  });
 });
 
 // ============================================

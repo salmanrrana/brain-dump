@@ -930,6 +930,57 @@ describe("telemetry", () => {
     expect(parseJson(result)).toMatchObject({ recorded: false, skipped: true });
   });
 
+  it("record-usage persists transcript source references for idempotent replay", async () => {
+    const projPath = makeProjDir("telemetry-source-ref");
+    const project = (await runOk(
+      "project",
+      "create",
+      "--name",
+      "TelemetrySourceRef",
+      "--path",
+      projPath
+    )) as Record<string, unknown>;
+    const ticket = (await runOk(
+      "ticket",
+      "create",
+      "--project",
+      project.id as string,
+      "--title",
+      "Ticket One"
+    )) as Record<string, unknown>;
+    const session = (await runOk("telemetry", "start", "--ticket", ticket.id as string)) as Record<
+      string,
+      unknown
+    >;
+
+    const args = [
+      "telemetry",
+      "record-usage",
+      "--session",
+      session.id as string,
+      "--transcript",
+      join(projPath, "transcript.jsonl"),
+      "--event-start",
+      "2026-01-01T00:00:00.000Z",
+      "--event-end",
+      "2026-01-01T00:00:05.000Z",
+      "--model",
+      "claude-opus-4-6",
+      "--input",
+      "1000",
+      "--output",
+      "500",
+    ];
+
+    const first = (await runOk(...args)) as Record<string, unknown>;
+    const replayed = (await runOk(...args)) as Record<string, unknown>;
+
+    expect(first.sourceRef).toBe(join(projPath, "transcript.jsonl"));
+    expect(first.providerEventStart).toBe("2026-01-01T00:00:00.000Z");
+    expect(first.providerEventEnd).toBe("2026-01-01T00:00:05.000Z");
+    expect(replayed.id).toBe(first.id);
+  });
+
   it("Claude hook passes project, transcript, and event context to record-usage", () => {
     const hook = readFileSync(
       resolve(__dirname, "../../.claude/hooks/capture-token-usage.sh"),

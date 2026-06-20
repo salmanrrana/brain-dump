@@ -103,6 +103,9 @@ export function registerTelemetryTool(
       cacheReadTokens: z.number().optional().describe("Cache read token count"),
       cacheCreationTokens: z.number().optional().describe("Cache creation token count"),
       source: z.string().optional().describe("Usage source (default: 'mcp-manual')"),
+      sourceRef: z.string().optional().describe("Stable provider transcript/event reference"),
+      providerEventStart: z.string().optional().describe("Provider event window start timestamp"),
+      providerEventEnd: z.string().optional().describe("Provider event window end timestamp"),
       // get-cost params
       epicId: z.string().optional().describe("Epic ID for cost queries"),
       // cost-trend params
@@ -148,6 +151,9 @@ export function registerTelemetryTool(
       cacheReadTokens?: number | undefined;
       cacheCreationTokens?: number | undefined;
       source?: string | undefined;
+      sourceRef?: string | undefined;
+      providerEventStart?: string | undefined;
+      providerEventEnd?: string | undefined;
       // get-cost params
       epicId?: string | undefined;
       // cost-trend params
@@ -316,6 +322,13 @@ export function registerTelemetryTool(
                 ? { cacheCreationTokens: params.cacheCreationTokens }
                 : {}),
               ...(params.source !== undefined ? { source: params.source } : {}),
+              ...(params.sourceRef !== undefined ? { sourceRef: params.sourceRef } : {}),
+              ...(params.providerEventStart !== undefined
+                ? { providerEventStart: params.providerEventStart }
+                : {}),
+              ...(params.providerEventEnd !== undefined
+                ? { providerEventEnd: params.providerEventEnd }
+                : {}),
             };
 
             const result = recordUsage(db, usageParams);

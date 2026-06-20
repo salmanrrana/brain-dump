@@ -153,7 +153,10 @@ function insertUsageRows(
   session: BrainTelemetrySession,
   usage: UsageCounts[],
   source: string,
-  recordedAt: string
+  recordedAt: string,
+  sourceRef?: string,
+  providerEventStart?: string,
+  providerEventEnd?: string
 ): number {
   let insertedRows = 0;
   for (const row of usage) {
@@ -175,6 +178,9 @@ function insertUsageRows(
       cacheCreationTokens: row.cacheCreationTokens,
       source,
       recordedAt,
+      ...(sourceRef ? { sourceRef } : {}),
+      ...(providerEventStart ? { providerEventStart } : {}),
+      ...(providerEventEnd ? { providerEventEnd } : {}),
     });
     insertedRows += 1;
   }
@@ -264,6 +270,9 @@ function backfillOpenCode(db: DbHandle): BackfillSourceResult {
         session,
         usage,
         "opencode-backfill",
+        new Date(match.timeUpdated).toISOString(),
+        `opencode:${match.id}`,
+        new Date(match.timeCreated).toISOString(),
         new Date(match.timeUpdated).toISOString()
       );
       if (insertedForSession === 0) continue;
@@ -397,7 +406,10 @@ async function backfillClaudeCode(db: DbHandle): Promise<BackfillSourceResult> {
       session,
       match.usage,
       "claude-jsonl-backfill",
-      new Date(match.mtimeMs).toISOString()
+      new Date(match.mtimeMs).toISOString(),
+      match.path,
+      match.firstEventMs ? new Date(match.firstEventMs).toISOString() : undefined,
+      match.lastEventMs ? new Date(match.lastEventMs).toISOString() : undefined
     );
     if (insertedForSession === 0) continue;
 
@@ -575,7 +587,10 @@ async function backfillCodexCli(db: DbHandle): Promise<BackfillSourceResult> {
       session,
       match.usage,
       "codex-jsonl-backfill",
-      new Date(match.mtimeMs).toISOString()
+      new Date(match.mtimeMs).toISOString(),
+      match.path,
+      match.firstEventMs ? new Date(match.firstEventMs).toISOString() : undefined,
+      match.lastEventMs ? new Date(match.lastEventMs).toISOString() : undefined
     );
     if (insertedForSession === 0) continue;
 
