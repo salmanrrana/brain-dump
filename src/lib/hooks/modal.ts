@@ -22,6 +22,7 @@ export type ModalState =
         name: string;
         path: string;
         color: string | null;
+        position: number;
         workingMethod: string | null;
       } | null;
     }
@@ -49,6 +50,7 @@ export interface UseModalReturn {
     name: string;
     path: string;
     color: string | null;
+    position: number;
     workingMethod: string | null;
   }) => void;
   openEpic: (
@@ -90,6 +92,7 @@ export function useModal(): UseModalReturn {
       name: string;
       path: string;
       color: string | null;
+      position: number;
       workingMethod: string | null;
     }) => {
       setModal({ type: "project", project: project ?? null });

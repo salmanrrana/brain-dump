@@ -2,16 +2,21 @@ import { sqliteTable, text, integer, real, index, uniqueIndex } from "drizzle-or
 import { sql } from "drizzle-orm";
 
 // Projects table
-export const projects = sqliteTable("projects", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  path: text("path").notNull().unique(),
-  color: text("color"),
-  workingMethod: text("working_method").default("auto"), // 'auto' | 'claude-code' | 'vscode' | 'opencode' | 'cursor' | 'cursor-agent' | 'copilot-cli' | 'codex' | 'pi'
-  createdAt: text("created_at")
-    .notNull()
-    .default(sql`(datetime('now'))`),
-});
+export const projects = sqliteTable(
+  "projects",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    path: text("path").notNull().unique(),
+    color: text("color"),
+    workingMethod: text("working_method").default("auto"), // 'auto' | 'claude-code' | 'vscode' | 'opencode' | 'cursor' | 'cursor-agent' | 'copilot-cli' | 'codex' | 'pi'
+    position: real("position").notNull().default(0),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (table) => [index("idx_projects_position").on(table.position)]
+);
 
 // Epics table
 export const epics = sqliteTable(

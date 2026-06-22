@@ -87,10 +87,36 @@ function columnExists(tableName: string, columnName: string): boolean {
   return columns.some((column) => column.name === columnName);
 }
 
+function isDuplicateColumnError(error: unknown): boolean {
+  return error instanceof Error && error.message.toLowerCase().includes("duplicate column name");
+}
+
 function ensureColumnExists(tableName: string, columnName: string, definition: string): void {
   if (!columnExists(tableName, columnName)) {
-    sqlite.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
+    try {
+      sqlite.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
+    } catch (error) {
+      if (!isDuplicateColumnError(error)) {
+        throw error;
+      }
+    }
   }
+}
+
+function backfillProjectPositions(): void {
+  const projectRows = sqlite
+    .prepare("SELECT id FROM projects ORDER BY datetime(created_at), rowid")
+    .all() as Array<{ id: string }>;
+
+  const updateProjectPosition = sqlite.prepare("UPDATE projects SET position = ? WHERE id = ?");
+
+  const fillPositions = sqlite.transaction((rows: Array<{ id: string }>) => {
+    rows.forEach((row, index) => {
+      updateProjectPosition.run(index + 1, row.id);
+    });
+  });
+
+  fillPositions(projectRows);
 }
 
 // Auto-create tables if they don't exist
@@ -110,6 +136,7 @@ function initTables() {
         path TEXT NOT NULL UNIQUE,
         color TEXT,
         working_method TEXT DEFAULT 'auto',
+        position REAL NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
       )
     `);
@@ -228,15 +255,31 @@ function seedSampleData() {
   console.log("Sample data seeded successfully");
 }
 
-// Add working_method column to projects table if it doesn't exist (migration)
+// Add new projects columns to existing databases
 function migrateProjectsTable() {
-  const tableInfo = sqlite.prepare("PRAGMA table_info(projects)").all() as { name: string }[];
-  const columns = tableInfo.map((col) => col.name);
-
-  if (!columns.includes("working_method")) {
+  if (!columnExists("projects", "working_method")) {
     console.log("Adding working_method column to projects...");
-    sqlite.exec("ALTER TABLE projects ADD COLUMN working_method TEXT DEFAULT 'auto'");
+    ensureColumnExists("projects", "working_method", "TEXT DEFAULT 'auto'");
   }
+
+  const shouldBackfillExistingPositions = (): boolean => {
+    const maxRow = sqlite.prepare("SELECT MAX(position) as maxPosition FROM projects").get() as {
+      maxPosition: number | null;
+    };
+    return (maxRow?.maxPosition ?? 0) <= 0;
+  };
+
+  if (!columnExists("projects", "position")) {
+    console.log("Adding position column to projects...");
+    ensureColumnExists("projects", "position", "REAL NOT NULL DEFAULT 0");
+    if (shouldBackfillExistingPositions()) {
+      backfillProjectPositions();
+    }
+  } else if (shouldBackfillExistingPositions()) {
+    backfillProjectPositions();
+  }
+
+  sqlite.exec("CREATE INDEX IF NOT EXISTS idx_projects_position ON projects(position)");
 }
 
 function migrateEpicWorkflowStateTable() {
@@ -774,7 +817,7 @@ function runSchemaMigrations(): void {
  * Bump this whenever a new table/column migration is added to
  * `runSchemaMigrations()` so existing DBs re-run the checks once and re-stamp.
  */
-const CURRENT_SCHEMA_VERSION = 1;
+const CURRENT_SCHEMA_VERSION = 2;
 
 // Gate the migration checks behind PRAGMA user_version (standard SQLite
 // pattern). When the DB is already at the current version we skip all ~25

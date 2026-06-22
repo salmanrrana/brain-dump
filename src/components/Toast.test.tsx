@@ -21,6 +21,16 @@ describe("Toast", () => {
     vi.useRealTimers();
   });
 
+  it("does not render the notification container before a toast is shown", () => {
+    render(
+      <ToastProvider>
+        <TriggerToast />
+      </ToastProvider>
+    );
+
+    expect(screen.queryByTestId("toast-container")).not.toBeInTheDocument();
+  });
+
   it("renders the notification container through a portal attached to document.body", () => {
     render(
       <ToastProvider>

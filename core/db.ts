@@ -238,6 +238,35 @@ function addColumnIfMissing(
   }
 }
 
+function backfillProjectPositions(db: DbHandle): void {
+  const rows = db
+    .prepare("SELECT id FROM projects ORDER BY datetime(created_at), rowid")
+    .all() as Array<{
+    id: string;
+  }>;
+  const maxIdPosition = rows.length;
+  if (maxIdPosition === 0) return;
+
+  const setProjectPosition = db.prepare("UPDATE projects SET position = ? WHERE id = ?");
+
+  const tx = db.transaction((projectRows: Array<{ id: string }>) => {
+    projectRows.forEach((row, index) => {
+      setProjectPosition.run(index + 1, row.id);
+    });
+  });
+
+  tx(rows);
+}
+
+function shouldBackfillProjectPositions(db: DbHandle): boolean {
+  const maxPositionResult = db
+    .prepare("SELECT MAX(position) as maxPosition FROM projects")
+    .get() as {
+    maxPosition: number | null;
+  };
+  return (maxPositionResult?.maxPosition ?? 0) <= 0;
+}
+
 function ensureBaseSchema(db: DbHandle, logger: Logger): void {
   if (tableExists(db, "projects") && tableExists(db, "tickets") && tableExists(db, "settings")) {
     return;
@@ -252,6 +281,7 @@ function ensureBaseSchema(db: DbHandle, logger: Logger): void {
       path TEXT NOT NULL UNIQUE,
       color TEXT,
       working_method TEXT DEFAULT 'auto',
+      position REAL NOT NULL DEFAULT 0,
       default_isolation_mode TEXT,
       worktree_location TEXT DEFAULT 'sibling',
       worktree_base_path TEXT,
@@ -259,6 +289,8 @@ function ensureBaseSchema(db: DbHandle, logger: Logger): void {
       auto_cleanup_worktrees INTEGER DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE INDEX IF NOT EXISTS idx_projects_position ON projects(position);
 
     CREATE TABLE IF NOT EXISTS epics (
       id TEXT PRIMARY KEY NOT NULL,
@@ -607,6 +639,14 @@ export function runMigrations(db: DbHandle, logger: Logger = silentLogger): void
 
   // Project columns
   addColumnIfMissing(db, "projects", "working_method", "TEXT DEFAULT 'auto'", logger);
+
+  const positionExisted = columnExists(db, "projects", "position");
+  addColumnIfMissing(db, "projects", "position", "REAL NOT NULL DEFAULT 0", logger);
+  if (!positionExisted || shouldBackfillProjectPositions(db)) {
+    backfillProjectPositions(db);
+  }
+
+  db.prepare("CREATE INDEX IF NOT EXISTS idx_projects_position ON projects(position)").run();
 
   // Epic workflow columns
   addColumnIfMissing(db, "epic_workflow_state", "epic_branch_name", "TEXT", logger);

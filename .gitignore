@@ -69,3 +69,10 @@ Thumbs.db
 ehthumbs.db
 plans/prd.json
 plans/progress.txt
+
+# Brain Dump Ralph artifacts
+plans/review-runs/
+plans/ralph*.sh
+.claude/ralph-context.md
+.claude/review-runs/
+.ralph-prompt.md
