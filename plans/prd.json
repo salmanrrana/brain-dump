@@ -9,163 +9,174 @@
   ],
   "userStories": [
     {
-      "id": "daeb49be-61ec-47a2-b5fc-1aecd22e8271",
-      "title": "Audit and remove remaining AI visual tells across the detail pages",
+      "id": "956d2e18-7f19-4bce-a019-513a45128b9a",
+      "title": "Drag-to-reorder projects in the workspace Projects list (reuse @dnd-kit)",
       "passes": true,
       "overview": "",
       "types": [],
-      "designDecisions": [],
+      "designDecisions": [
+        {
+          "decision": "this approach",
+          "alternatives": [],
+          "rationale": []
+        }
+      ],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Findings list posted, then each item resolved or explicitly justified.",
-        "No side-stripe accents, gradient text, decorative glassmorphism, >16px card radii, or ghost-card border+shadow pairs remain on either detail page or its panels.",
-        "The uniform identical-card stack is broken up (this overlaps the layout tickets — coordinate, don't duplicate).",
-        "`pnpm check` passes; before/after screenshots captured."
+        "User can grab a project row by its handle and drop it elsewhere; the list reorders immediately (optimistic) and the order persists across reload.",
+        "Keyboard reorder works (focus handle → Space to pick up → arrows → Space to drop) with screen-reader announcements.",
+        "Clicking a project row (not the handle) still opens the project; the 8px activation constraint prevents accidental drags on click.",
+        "Reorder is disabled/ignored while a search filter is active (documented behavior), and re-enabled when the search is cleared.",
+        "No layout shift / flicker on drop."
       ],
       "references": [
-        "src/routes/ticket.$id.tsx",
-        "src/routes/epic.$id.tsx"
+        "src/routes/index.tsx",
+        "src/components/projects/ProjectListItem.tsx"
       ],
-      "description": "# Why\nThe comment side-stripe (handled in its own ticket) is the worst offender, but the detail pages likely carry other generic-AI signatures. This ticket is a focused sweep so the whole surface reads as deliberate human craft, not a template.\n\n# What to look for (impeccable \"Absolute bans\" + Codex defects)\nAudit `src/routes/ticket.$id.tsx`, `src/routes/epic.$id.tsx`, and every component they compose (`TicketDetailHeader`, `WorkflowProgress`, `TicketCodeChangesSection`/`EpicCodeChangesSection`, `SubtasksProgress`, `ReviewFindingsPanel`, `ClaudeTasks`, `TicketCostPanel`/`EpicCostPanel`, `TelemetryPanel`, `ActivitySection`, `EpicProgressOverview`, `EpicTicketsList`, `EpicInsights`, `EpicLearnings`, `EpicDetailHeader`) for:\n- **Other side-stripe borders** (`borderLeft`/`borderRight` > 1px as a colored accent) on cards, list items, callouts, alerts.\n- **Gradient text** (`background-clip: text` over a gradient). Replace with a solid color; emphasis via weight/size.\n- **Glassmorphism used decoratively** (blur/backdrop-filter glass cards) — keep only if genuinely purposeful.\n- **Identical card grids** — same-sized icon+heading+text cards repeated. The detail pages currently wrap many regions in identical `cardSectionStyles` boxes (`ticket.$id.tsx:815`); that uniform-card stack is itself a tell.\n- **Tiny uppercase tracked eyebrows** above sections; **numbered section markers** (01/02/03) as scaffolding.\n- **Over-rounded cards** (`border-radius` > 16px on cards/sections/inputs — cap at 12–16px; pills fine for tags/buttons).\n- **Ghost cards**: `border: 1px solid` paired with `box-shadow` blur ≥16px on the same element — pick one.\n- **The hero-metric template** (big number + small label + gradient accent) in cost/telemetry/progress panels.\n\n# What to do\n1. Produce a short findings list (file:line + which tell) as a comment on this ticket before editing.\n2. Fix each finding with the impeccable-recommended rewrite (full border/bg tint/leading icon instead of stripe; solid color instead of gradient; reduce radius; remove redundant eyebrows; differentiate cards by role/size instead of cloning).\n3. Don't over-correct into blandness — keep intentional hierarchy and the project's existing CSS-variable theming.\n\n# Acceptance criteria\n- Findings list posted, then each item resolved or explicitly justified.\n- No side-stripe accents, gradient text, decorative glassmorphism, >16px card radii, or ghost-card border+shadow pairs remain on either detail page or its panels.\n- The uniform identical-card stack is broken up (this overlaps the layout tickets — coordinate, don't duplicate).\n- `pnpm check` passes; before/after screenshots captured.",
-      "priority": "medium",
-      "tags": [
-        "ui",
-        "ticket-detail",
-        "epic-detail",
-        "ai-tells",
-        "audit"
-      ]
-    },
-    {
-      "id": "1fd46f6d-3540-436a-ac2f-cd2bbc9fb773",
-      "title": "Build a responsive detail-page workspace layout shell",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "A reusable `DetailPageLayout` (or equivalent) exists with documented props for full-bleed / primary / rail regions.",
-        "It is responsive: multi-column with sticky rail on wide screens, single column on narrow, no overflow at any breakpoint.",
-        "Primary column constrains prose width while the overall container uses more horizontal space than the current 1200px.",
-        "Uses existing design tokens; `pnpm check` and `pnpm build` pass (touches client/layout boundaries).",
-        "API documented in a ticket comment for the consuming tickets."
-      ],
-      "references": [
-        "src/components/layout/DetailPageLayout.tsx"
-      ],
-      "description": "# Why\nBoth detail pages hardcode their own `containerStyles` with `maxWidth: 1200px; margin: 0 auto` (`ticket.$id.tsx:750-759`, `epic.$id.tsx` equivalent) and an identical `contentGridStyles` (`3fr 2fr`). On wide displays this leaves the content as a narrow centered ribbon, and everything below the one grid is a single stacked column. Before redesigning either page we need ONE shared layout primitive so ticket + epic stay consistent and the wasted-canvas problem is fixed in one place.\n\nThis is the foundational ticket. The ticket-detail and epic-detail redesign tickets build on top of it.\n\n# What to do\n1. Create a small, reusable layout component (e.g. `src/components/layout/DetailPageLayout.tsx`) that defines:\n   - A responsive outer container: fluid width that **uses the available canvas** with a sensible upper bound (wider than today's 1200px — e.g. a `clamp()`/`min()` cap around 1600–1760px), generous but rhythmic gutters, and graceful narrowing on smaller viewports.\n   - A **primary / rail** region system: a main content column and an optional secondary rail. The rail should be **sticky** within the viewport on wide screens and collapse below the main column on narrow screens (single column under a breakpoint).\n   - Slots/props so each page can declare: full-bleed regions (header, code changes), primary-column content, and rail content.\n   - The primary reading column caps text at ~65–75ch even when the page is wide (wide canvas ≠ wide prose).\n2. Use the project's existing CSS variables / spacing tokens. Follow existing styling conventions in these route files (they use inline `React.CSSProperties`); match that or introduce Tailwind only if consistent with the file you touch — don't mix arbitrarily.\n3. Define a semantic z-index/stacking approach for the sticky rail (no arbitrary 9999).\n4. Do NOT migrate the pages in this ticket — just build + unit/visual-smoke the shell with a throwaway harness or Storybook-style usage, and document the API in the ticket. The page migrations are separate tickets.\n\n# Design guardrails\n- Wide canvas, bounded prose. No identical-card scaffolding baked into the shell — the shell is structure, not decoration.\n- Sticky rail must not overlap content or trap scroll; respect `prefers-reduced-motion` for any scroll/transition behavior.\n- Test the breakpoint behavior: rail → stacked, no horizontal overflow at any width.\n\n# Acceptance criteria\n- A reusable `DetailPageLayout` (or equivalent) exists with documented props for full-bleed / primary / rail regions.\n- It is responsive: multi-column with sticky rail on wide screens, single column on narrow, no overflow at any breakpoint.\n- Primary column constrains prose width while the overall container uses more horizontal space than the current 1200px.\n- Uses existing design tokens; `pnpm check` and `pnpm build` pass (touches client/layout boundaries).\n- API documented in a ticket comment for the consuming tickets.",
+      "description": "## Goal\n\nLet the user drag project rows into a custom order on the workspace Projects list (`src/routes/index.tsx`, the \"Projects\" page from the screenshot), persisting via the reorder hook with instant optimistic feedback.\n\n## Depends on\n\nSchema ticket + reorder API/hook ticket.\n\n## Why this approach\n\n@dnd-kit is already wired for the kanban — we reuse that exact setup (vertical list, fractional-midpoint drop math) so the interaction feels identical and we add no new dependency. The list is a simple vertical list, so this is a straightforward `verticalListSortingStrategy`.\n\n## Reference implementation to copy\n\n- DndContext + sensors + accessibility announcements: `KanbanBoard.tsx:17-28, 54-64, 197-200, 390-397`.\n- `SortableContext` with `verticalListSortingStrategy`: `KanbanColumnContent.tsx:155`.\n- `useSortable` + `CSS.Transform.toString` + drag handle/listeners: `SortableTicketCard.tsx:32-54`.\n- Fractional-midpoint drop math (drop-to-end / before-first / between-two): `KanbanBoard.tsx:286-310`.\n\n## Changes\n\n1. Wrap the project list in `src/routes/index.tsx` with `DndContext` (PointerSensor `{ distance: 8 }` + KeyboardSensor with `sortableKeyboardCoordinates`, plus accessibility `announcements`) and a `SortableContext` over the project IDs using `verticalListSortingStrategy`.\n2. Make `ProjectListItem` (`src/components/projects/ProjectListItem.tsx`) sortable via `useSortable({ id: project.id })` — apply transform/transition style, `opacity` while dragging, and add a **visible drag handle** (grip icon) that carries the `listeners` so clicking the card still navigates (don't make the whole card the drag handle — preserve the existing `onClick` to open the project).\n3. `onDragEnd`: compute the target `position` with the fractional-midpoint algorithm against the **position-ordered** project array, then call `useUpdateProjectPosition().mutateAsync({ id, position })`.\n4. **Search interaction**: dragging should be disabled (or no-op for persistence) while a search filter is active, since reordering a filtered subset is ambiguous. Simplest correct behavior: only enable drag when the search box is empty; document this choice.\n\n## Acceptance criteria\n\n- User can grab a project row by its handle and drop it elsewhere; the list reorders immediately (optimistic) and the order persists across reload.\n- Keyboard reorder works (focus handle → Space to pick up → arrows → Space to drop) with screen-reader announcements.\n- Clicking a project row (not the handle) still opens the project; the 8px activation constraint prevents accidental drags on click.\n- Reorder is disabled/ignored while a search filter is active (documented behavior), and re-enabled when the search is cleared.\n- No layout shift / flicker on drop.\n\n## Validation\n\n- `pnpm check` passes.\n- `pnpm build` (touches a route/component) and **`pnpm build:analyze`** — this changes the `/` route's chunk graph by pulling @dnd-kit in. Record before/after initial-load bundle numbers per `docs/performance/validating-optimizations.md`; lazy-load if it regresses the home route meaningfully, and ratchet `docs/performance/perf-budgets.json` if needed.\n- Manually verify in browser at `localhost:4242`: mouse drag, keyboard drag, click-to-open still works, responsive layout.\n- Add a test for the observable reorder behavior (user drags row → order changes) following the Kent C. Dodds philosophy.\n\n## Notes\n\n- Reuse, don't fork: if the kanban's sensor option constants or announcement helpers can be lifted to a shared module without churn, prefer that over copy-paste. Otherwise keep it local and consistent.",
       "priority": "high",
       "tags": [
+        "projects",
         "ui",
-        "layout",
-        "ticket-detail",
-        "epic-detail",
-        "architecture"
-      ]
-    },
-    {
-      "id": "5bc261bd-c3af-40ed-9060-b373a99e53ff",
-      "title": "Re-lay-out the ticket detail page on the new workspace shell",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "`ticket.$id.tsx` uses `DetailPageLayout`; the 1200px hardcoded container and the lone `3fr 2fr` grid are gone.",
-        "On a wide viewport the page uses the canvas: primary reading column + sticky secondary rail; no vast empty margins.",
-        "Secondary/monitoring panels live in the rail; description + activity are primary.",
-        "Narrow viewport collapses cleanly to a single column with no overflow.",
-        "All status-gated sections, polling, and modals behave exactly as before.",
-        "`pnpm check` passes; `pnpm build:analyze` run (route-chunk/bundle-sensitive) with result recorded; before/after screenshots at desktop + narrow widths."
-      ],
-      "references": [],
-      "description": "# Why\nToday `ticket.$id.tsx` renders a 1200px-centered column: header → workflow → code changes → one `3fr 2fr` grid (description | subtasks+findings) → then a long vertical stack of identical full-width cards (Demo → Claude Tasks → Cost → Telemetry → Activity → metadata footer). On a wide screen it's a narrow ribbon and an endless scroll. Rebuild it on the shared `DetailPageLayout` so a ticket reads at a glance.\n\nDepends on: \"Build a responsive detail-page workspace layout shell.\"\n\n# Target composition (use judgment, this is the intent)\n- **Full-bleed top:** `TicketDetailHeader`, then `WorkflowProgress`, then `TicketCodeChangesSection` (the diff surface genuinely wants the full width).\n- **Primary column:** `TicketDescription` (prose, width-capped) + `ActivitySection` (the activity log is primary reading, not a footnote).\n- **Sticky rail:** the at-a-glance/secondary panels — `SubtasksProgress`, `ReviewFindingsPanel`, `TicketCostPanel`, `TelemetryPanel`, `ClaudeTasks`, and the created/updated/completed metadata (currently the footer). These are scan-and-monitor, perfect for a sticky rail.\n- `DemoPanel` (human_review/done) — place where it reads best; likely full-bleed or primary, since it's interactive.\n- Keep all conditional rendering rules and props exactly as today (status gating, polling intervals, modals). This is layout only.\n\n# Design guardrails\n- Break the identical-card monotony: differentiate panels by role and weight, not by cloning `cardSectionStyles`. Not every region needs to be a bordered card. Nested cards are banned.\n- Prose stays 65–75ch even though the page is now wider.\n- The rail collapses below the primary column on narrow screens; no overflow at any width.\n- Preserve all existing behavior, query invalidation, and accessibility (keyboard, ARIA) — verify the full chain still works end to end.\n\n# Acceptance criteria\n- `ticket.$id.tsx` uses `DetailPageLayout`; the 1200px hardcoded container and the lone `3fr 2fr` grid are gone.\n- On a wide viewport the page uses the canvas: primary reading column + sticky secondary rail; no vast empty margins.\n- Secondary/monitoring panels live in the rail; description + activity are primary.\n- Narrow viewport collapses cleanly to a single column with no overflow.\n- All status-gated sections, polling, and modals behave exactly as before.\n- `pnpm check` passes; `pnpm build:analyze` run (route-chunk/bundle-sensitive) with result recorded; before/after screenshots at desktop + narrow widths.",
-      "priority": "medium",
-      "tags": [
-        "ui",
-        "ticket-detail",
-        "layout"
-      ]
-    },
-    {
-      "id": "b2e0ad72-2076-4542-bc77-c2d781dacdf8",
-      "title": "Re-lay-out the epic detail page on the new workspace shell",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "`epic.$id.tsx` uses `DetailPageLayout`; hardcoded 1200px container and lone `3fr 2fr` grid removed.",
-        "Tickets list is the visual focus; cost/insights/learnings live in a scannable rail/band; review-runs grid retained and placed in the wider canvas.",
-        "Wide viewport uses horizontal space; narrow viewport collapses cleanly with no overflow.",
-        "Ticket and epic detail pages read as a consistent family.",
-        "All existing behavior and conditional sections preserved; `pnpm check` passes; `pnpm build:analyze` recorded; before/after screenshots at desktop + narrow widths."
-      ],
-      "references": [],
-      "description": "# Why\n`epic.$id.tsx` mirrors the ticket page's problem: 1200px-centered, a single `3fr 2fr` grid (description | tickets list), then a stack of sections (cost → insights → learnings → review runs → footer). An epic is a portfolio of work and should feel like a dashboard that uses the canvas, not a tall scroll. Rebuild it on the shared `DetailPageLayout`.\n\nDepends on: \"Build a responsive detail-page workspace layout shell.\" Coordinate with the ticket-detail redesign so the two pages feel like siblings.\n\n# Target composition (use judgment, this is the intent)\n- **Full-bleed top:** `EpicDetailHeader`, then `EpicProgressOverview`, then `EpicCodeChangesSection` (aggregated diff wants width).\n- **Primary column:** `EpicTicketsList` is the heart of an epic — give it the prominent primary region. `TicketDescription` (epic description) reads above it, width-capped.\n- **Sticky rail:** `EpicCostPanel`, `EpicInsights`, `EpicLearnings` — scan/monitor content. Consider a 2-up arrangement within the rail or a secondary band rather than a tall single stack.\n- **Review Runs:** the existing `auto-fit minmax(260px, 1fr)` grid of run cards is a good pattern — keep that grid but host it in a region that uses the new width.\n- The epic detail page has no comments/activity section today — do not add one.\n\n# Design guardrails\n- Same anti-AI guardrails: no side stripes, no identical-card scaffolding, cards ≤16px radius, no ghost cards, no gradient text.\n- Differentiate the tickets list (primary) from the insight/learning panels (secondary) by weight and placement, not by uniform cards.\n- Prose width-capped; responsive collapse with no overflow; preserve all conditional rendering (e.g. review runs only when present).\n\n# Acceptance criteria\n- `epic.$id.tsx` uses `DetailPageLayout`; hardcoded 1200px container and lone `3fr 2fr` grid removed.\n- Tickets list is the visual focus; cost/insights/learnings live in a scannable rail/band; review-runs grid retained and placed in the wider canvas.\n- Wide viewport uses horizontal space; narrow viewport collapses cleanly with no overflow.\n- Ticket and epic detail pages read as a consistent family.\n- All existing behavior and conditional sections preserved; `pnpm check` passes; `pnpm build:analyze` recorded; before/after screenshots at desktop + narrow widths.",
-      "priority": "medium",
-      "tags": [
-        "ui",
-        "epic-detail",
-        "layout"
-      ]
-    },
-    {
-      "id": "abeae4cd-4cda-4b3f-91be-7217f417e3b6",
-      "title": "Polish and verify the redesigned detail pages",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Both pages pass an accessibility walkthrough (keyboard + ARIA + focus-visible) and contrast checks.",
-        "Motion is present, purposeful, and fully reduced-motion-safe; no reveal hides content on headless/inactive-tab renders.",
-        "No overflow or broken wrapping at any tested breakpoint.",
-        "Before/after performance numbers recorded (bundle + render counts); no regression vs. baseline, perf budgets respected/ratcheted if improved.",
-        "`pnpm check` and `pnpm build` pass; final before/after screenshots of both pages at multiple widths attached."
-      ],
-      "references": [],
-      "description": "# Why\nFinal craft + verification pass once the comment cleanup, AI-tell sweep, layout shell, and both page redesigns have landed. This is where the redesign earns \"impeccable\": rhythm, motion, accessibility, contrast, responsiveness, and measured performance.\n\nDepends on: the ticket-detail and epic-detail redesign tickets.\n\n# What to do\n1. **Spacing & rhythm:** vary spacing for hierarchy (don't use one uniform gap everywhere); verify alignment across the primary column and rail on both pages.\n2. **Motion (intentional, not reflexive):** add restrained motion where it helps — e.g. a subtle staggered reveal for the activity log or tickets list, smooth sticky-rail behavior. No bounce/elastic; ease-out curves. Every animation has a `@media (prefers-reduced-motion: reduce)` alternative. Do not gate content visibility on a transition.\n3. **Accessibility:** keyboard navigation through all interactive regions, focus order sane with the new rail, ARIA labels intact, focus-visible styles present. Run the `web-design-guidelines` checks if available.\n4. **Contrast:** verify body text ≥4.5:1 and large text ≥3:1 against the new surfaces, including the neutralized comment badges.\n5. **Responsive:** walk desktop-wide → laptop → tablet → mobile. No horizontal overflow, no text overflowing containers, rail collapses correctly, headings wrap (`text-wrap: balance`).\n6. **Performance:** these are hot paths (ticket modal/detail open, route chunks). Run `pnpm build:analyze` and the render-count check (`pnpm test:e2e perf-renders`) where relevant; record before/after numbers per the perf runbook. Ensure no extra re-renders introduced by the layout change.\n\n# Acceptance criteria\n- Both pages pass an accessibility walkthrough (keyboard + ARIA + focus-visible) and contrast checks.\n- Motion is present, purposeful, and fully reduced-motion-safe; no reveal hides content on headless/inactive-tab renders.\n- No overflow or broken wrapping at any tested breakpoint.\n- Before/after performance numbers recorded (bundle + render counts); no regression vs. baseline, perf budgets respected/ratcheted if improved.\n- `pnpm check` and `pnpm build` pass; final before/after screenshots of both pages at multiple widths attached.",
-      "priority": "medium",
-      "tags": [
-        "ui",
-        "polish",
+        "dnd-kit",
+        "reorder",
         "accessibility",
-        "performance",
-        "verification"
+        "performance"
       ]
     },
     {
-      "id": "c8fab265-ff88-4a5d-8e57-d04e755628bc",
-      "title": "Remove the colored side-stripe and type-color badges from comments",
+      "id": "edc820a0-82a6-4504-94c6-9ffb1381353a",
+      "title": "Propagate custom project order to desktop and mobile sidebars",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [
+        {
+          "decision": "this should be cheap",
+          "alternatives": [
+            "Desktop `ProjectsPanel` receives `projects` from `AppLayout` via `useProjectsWithAIActivity()` (`src/components/AppLayout.tsx:129`), which builds on `useProjects()` → `queryKeys.projectsWithEpics`. Once the server fn orders by `position`, the panel order follows automatically.",
+            "Mobile `MobileSidebar` calls `useProjects()` directly (`src/components/MobileSidebar.tsx:51`) and passes straight to `ProjectTree` (`src/components/ProjectTree.tsx:105`) with no sort — so it also follows automatically."
+          ],
+          "rationale": []
+        }
+      ],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Reordering projects in the workspace list updates the order shown in the desktop `ProjectsPanel` (after its query refreshes) without a manual refresh beyond normal cache invalidation.",
+        "The mobile `ProjectTree` reflects the same custom order.",
+        "Search/filter in both sidebars preserves the custom order of the matching subset."
+      ],
+      "references": [
+        "src/components/AppLayout.tsx:129",
+        "src/components/MobileSidebar.tsx:51",
+        "src/components/ProjectTree.tsx:105"
+      ],
+      "description": "## Goal\n\nEnsure the custom order set in the Projects list shows up everywhere projects are listed — specifically the desktop `ProjectsPanel` slide-out and the mobile `MobileSidebar`/`ProjectTree`.\n\n## Depends on\n\nSchema ticket (ordered data layer). Largely a verification + small-fix ticket because all consumers read the same query.\n\n## Why this should be cheap\n\n- Desktop `ProjectsPanel` receives `projects` from `AppLayout` via `useProjectsWithAIActivity()` (`src/components/AppLayout.tsx:129`), which builds on `useProjects()` → `queryKeys.projectsWithEpics`. Once the server fn orders by `position`, the panel order follows automatically.\n- Mobile `MobileSidebar` calls `useProjects()` directly (`src/components/MobileSidebar.tsx:51`) and passes straight to `ProjectTree` (`src/components/ProjectTree.tsx:105`) with no sort — so it also follows automatically.\n\n## Changes / checks\n\n1. Confirm neither sidebar applies its own project-level `.sort()` that would override `position`. (The desktop panel sorts *epics* newest-first at `ProjectsPanel.tsx:626-628` — that is fine and unrelated; do not touch it.)\n2. Verify the desktop panel's `filteredProjects` `useMemo` (`ProjectsPanel.tsx:184-187`) preserves incoming order after filtering (filtering should not re-sort).\n3. If any consumer derives its own ordering, remove it so `position` is the single source of truth.\n\n## Acceptance criteria\n\n- Reordering projects in the workspace list updates the order shown in the desktop `ProjectsPanel` (after its query refreshes) without a manual refresh beyond normal cache invalidation.\n- The mobile `ProjectTree` reflects the same custom order.\n- Search/filter in both sidebars preserves the custom order of the matching subset.\n\n## Validation\n\n- `pnpm check` passes.\n- Manual cross-surface check at `localhost:4242`: reorder on the Projects page, open the desktop panel and (responsive/mobile) the mobile sidebar, confirm identical order. Confirm filtering keeps order.\n- If a fix was needed, add/adjust a test asserting the rendered sidebar order matches the data order.",
+      "priority": "medium",
+      "tags": [
+        "projects",
+        "sidebar",
+        "reorder",
+        "navigation"
+      ]
+    },
+    {
+      "id": "5e2f4f34-76fa-4b80-9a5b-7ad0bc50c872",
+      "title": "Default-sort epics newest-first on the project detail page",
       "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "No comment renders a colored left border in either renderer.",
-        "Ordinary comment types (progress/work_summary/test_report/comment) use a single neutral badge style; the rainbow per-type coloring is gone.",
-        "`change_request` remains visually distinct via a single restrained, non-stripe treatment.",
-        "Both `Comment.tsx` and `ModalCommentsSection.tsx` are updated and visually consistent.",
-        "Dead color-map constants removed; `pnpm check` passes.",
-        "Manual: open a ticket with multiple comment types at localhost:4242 — confirm the activity log reads as a clean human log; capture before/after screenshots."
+        "The project detail page lists epics with the most recently created epic at the top.",
+        "Creating a new epic makes it appear at the top of the list.",
+        "No regression to ticket counts, epic links, or the \"Add Epic\" affordance."
       ],
       "references": [
-        "src/components/tickets/Comment.tsx",
-        "src/components/tickets/ModalCommentsSection.tsx"
+        "src/routes/projects.$projectId.tsx",
+        "src/api/projects.ts:52-119"
       ],
-      "description": "# Why\nThe colored vertical stripe down the left edge of every comment is the single most obvious \"an AI built this\" tell on the ticket detail page. The impeccable skill lists side-stripe borders (`border-left` > 1px as a colored accent) as an *Absolute ban* — \"never intentional.\" Color-coding the type badge by category reinforces the machine-sorted feeling. Comments should read like a human activity log.\n\n# Current state\n- `src/components/tickets/Comment.tsx`\n  - `:26-32` `TYPE_BORDER_COLORS` map (gray/teal/purple/green/orange per type)\n  - `:287` `borderLeft: \\`3px solid ${borderColor}\\`` applied to EVERY comment container\n  - `:313-319` `typeBadgeStyles` uses `background: ${borderColor}15; color: borderColor` — colored pills per type\n- `src/components/tickets/ModalCommentsSection.tsx`\n  - `:13-18` `COMMENT_CONTAINER_STYLES` — colored full borders + tinted backgrounds per type\n  - `:33-43` `COMMENT_BADGE_STYLES` — colored badge pills\n\nThere are TWO comment renderers (CLAUDE.md: \"Identify ALL instances before modifying shared patterns\"). Both must be updated so board-modal and detail-page comments match.\n\n# What to do\n1. Remove the `borderLeft` side-stripe from `Comment.tsx`. Comments sit on a flat, consistent surface differentiated by avatar + author, not by a stripe.\n2. Drop per-type accent colors for the ordinary types (`progress`, `work_summary`, `test_report`, `comment`). Keep the small text label (e.g. \"Work Summary\") but render the badge in a single neutral token (`--text-muted` text on a `--bg-tertiary`/transparent chip) — no per-type rainbow.\n3. Keep exactly ONE meaningful exception: `change_request` (\"Changes Requested\") still needs to stand out because it's an action signal. Use a single restrained treatment (subtle full border + faint tint already present at `Comment.tsx:285-286`), NOT a side stripe and NOT the rainbow.\n4. Apply the same neutralization to `ModalCommentsSection.tsx` so both renderers agree.\n5. Delete now-dead constants/maps once unreferenced.\n\n# Design guardrails\n- No side stripes anywhere. No gradient text. Badge chips ≤ one neutral color (plus the single change_request accent).\n- Verify the badge/label text still hits ≥4.5:1 contrast on its chip.\n- Don't lose information: the type label text stays so users still know what a comment is.\n\n# Acceptance criteria\n- No comment renders a colored left border in either renderer.\n- Ordinary comment types (progress/work_summary/test_report/comment) use a single neutral badge style; the rainbow per-type coloring is gone.\n- `change_request` remains visually distinct via a single restrained, non-stripe treatment.\n- Both `Comment.tsx` and `ModalCommentsSection.tsx` are updated and visually consistent.\n- Dead color-map constants removed; `pnpm check` passes.\n- Manual: open a ticket with multiple comment types at localhost:4242 — confirm the activity log reads as a clean human log; capture before/after screenshots.",
+      "description": "## Goal\n\nOn the project detail page (`src/routes/projects.$projectId.tsx`, the \"EPICS\" list from the screenshot), render epics **newest-first** by default instead of the current DB insertion order (oldest-first).\n\n## Why\n\nCurrently `getProjectsWithEpics` (`src/api/projects.ts:52-119`) has no `ORDER BY` for epics, so `project.epics` comes back in leftJoin/insertion order (oldest first). The detail page maps it directly (`projects.$projectId.tsx:163-176`) with no sort. Users expect the most recent epic at the top. Note the desktop sidebar already sorts epics newest-first inline (`ProjectsPanel.tsx:626-628`) — this aligns the detail page with that behavior.\n\n## Changes (pick the cleanest single place)\n\n- Preferred: sort `project.epics` newest-first where the detail page consumes it. `epic.createdAt` is an ISO 8601 string, so `[...project.epics].sort((a, b) => b.createdAt.localeCompare(a.createdAt))` (descending) is correct and dependency-free.\n- Alternative: add `.orderBy(desc(epics.createdAt))` in `getProjectsWithEpics`. This is also fine and would centralize ordering, but verify it does not disturb the inline sort the desktop panel already does (it would simply make that sort redundant, which is harmless).\n- Whichever layer is chosen, keep it to one place — do not sort in multiple layers.\n\n## Acceptance criteria\n\n- The project detail page lists epics with the most recently created epic at the top.\n- Creating a new epic makes it appear at the top of the list.\n- No regression to ticket counts, epic links, or the \"Add Epic\" affordance.\n\n## Validation\n\n- `pnpm check` passes.\n- Manual check at `localhost:4242`: open a project with several epics (e.g. Brain Dump), confirm newest-first; create an epic and confirm it lands on top.\n- Add a small test verifying the rendered epic order is newest-first given known `createdAt` values (test the observable order, not the sort fn).\n\n## Notes\n\n- Independent of the reorder tickets — can ship in parallel.",
+      "priority": "medium",
+      "tags": [
+        "epics",
+        "ui",
+        "sorting",
+        "project-detail"
+      ]
+    },
+    {
+      "id": "1873563c-342e-4c0a-9763-f1a95f9f16ab",
+      "title": "Add `position` column to projects and order the shared data layer by it",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [
+        {
+          "decision": "this approach",
+          "alternatives": [],
+          "rationale": []
+        }
+      ],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "`projects` table has a non-null `position` column with an index; `pnpm db:generate` + `pnpm db:migrate` apply cleanly on an existing database.",
+        "Existing projects retain their current visual order after migration (deterministic backfill, no NULLs).",
+        "Newly created projects (via web `createProject` and via MCP/CLI `core/project.ts`) receive `MAX(position)+1`.",
+        "`getProjectsWithEpics` and `getProjects` return projects ordered by `position`.",
+        "`core/db-rows.ts` `DbProjectRow` includes `position`; core read path compiles and returns it."
+      ],
+      "references": [
+        "src/lib/schema.ts",
+        "src/lib/schema.ts:46",
+        "src/api/projects.ts",
+        "src/api/tickets.ts:123-130",
+        "src/api/projects.ts:52-119",
+        "src/api/projects.ts:46"
+      ],
+      "description": "## Goal\n\nGive projects a persistent, user-controllable sort order by adding a `position` column, and make every project list read it. This is the foundation the reorder UI and sidebar propagation build on.\n\n## Why this approach\n\n`tickets` and `claudeTasks` already use a `position: real` fractional-ordering column. We mirror that exact pattern for `projects` so the codebase stays consistent and the drop algorithm (next ticket) can be copied verbatim. Because the workspace list and both sidebars all read the **same** `getProjectsWithEpics` query, ordering here propagates everywhere for free.\n\n## Changes\n\n1. **Schema** — `src/lib/schema.ts` (`projects` table, ~line 5):\n   - Add `position: real(\"position\").notNull()` (mirror `tickets.position` at `src/lib/schema.ts:46`).\n   - Add an index for consistency: `index(\"idx_projects_position\").on(table.position)`.\n2. **Migration** — run `pnpm db:generate` (creates a file in `drizzle/`), then `pnpm db:migrate`. The generated SQL must **backfill existing rows** with sequential positions (e.g. ordered by `created_at`/rowid) so current ordering is preserved on upgrade — verify/adjust the generated SQL to set deterministic positions for existing projects rather than leaving them NULL/0.\n3. **Initial position on create** — `createProject` in `src/api/projects.ts` (~line 122): assign `MAX(position) + 1` for new projects (mirror `createTicket` at `src/api/tickets.ts:123-130`). Also set position in the `core/` create path (`core/project.ts createProject`) used by the MCP/CLI so projects created outside the web UI still get a valid position.\n4. **Order the reads**:\n   - `getProjectsWithEpics` (`src/api/projects.ts:52-119`): add `ORDER BY projects.position` to the query so the returned `Array.from(projectMap.values())` is position-ordered. Keep epic ordering untouched (handled in a separate ticket).\n   - `getProjects` (`src/api/projects.ts:46`): add the same ordering.\n   - `core/project.ts listProjects` currently does `ORDER BY name`. Decide and document: keep alphabetical for MCP, OR switch to `ORDER BY position` for parity. Recommended: order by `position` for parity with the UI; update `DbProjectRow` (`core/db-rows.ts:10-17`) to include `position`.\n\n## Acceptance criteria\n\n- `projects` table has a non-null `position` column with an index; `pnpm db:generate` + `pnpm db:migrate` apply cleanly on an existing database.\n- Existing projects retain their current visual order after migration (deterministic backfill, no NULLs).\n- Newly created projects (via web `createProject` and via MCP/CLI `core/project.ts`) receive `MAX(position)+1`.\n- `getProjectsWithEpics` and `getProjects` return projects ordered by `position`.\n- `core/db-rows.ts` `DbProjectRow` includes `position`; core read path compiles and returns it.\n\n## Validation\n\n- `pnpm check` (type-check + lint + test) passes.\n- `pnpm db:migrate` against a copy of the dev DB succeeds and preserves order (note before/after row order).\n- Add/adjust a focused test for the projects core read path ordering if one exists for that module.\n\n## Notes\n\n- Do NOT add blocking work to hot paths; this is a single indexed column + one `ORDER BY`.\n- Take a backup first: `pnpm brain-dump admin backup` before testing the migration.",
       "priority": "high",
       "tags": [
-        "ui",
-        "ticket-detail",
-        "comments",
-        "ai-tells"
+        "projects",
+        "schema",
+        "database",
+        "reorder",
+        "foundation"
+      ]
+    },
+    {
+      "id": "73dab6e5-fc68-43a7-988d-f97423bf281c",
+      "title": "Add `updateProjectPosition` server fn + optimistic `useUpdateProjectPosition` hook",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [
+        {
+          "decision": "this approach",
+          "alternatives": [],
+          "rationale": []
+        }
+      ],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Calling `updateProjectPosition` with a valid `{ id, position }` persists the new position; invalid input throws a clear error.",
+        "`useUpdateProjectPosition` updates the cache optimistically (list reorders immediately) and rolls back with a visible error if the server call fails.",
+        "After settle, the list reflects server truth via invalidation."
+      ],
+      "references": [
+        "src/api/projects.ts",
+        "src/api/tickets.ts:282-302",
+        "src/lib/hooks/projects.ts",
+        "src/lib/hooks/tickets.ts:366-413"
+      ],
+      "description": "## Goal\n\nProvide the write path for project reordering, with instant optimistic UI, by mirroring the existing ticket-position machinery.\n\n## Depends on\n\nSchema ticket (projects `position` column must exist).\n\n## Why this approach\n\n`updateTicketPosition` + `useUpdateTicketPosition` already implement exactly this: a validated `{ id, position }` server function and an optimistic mutation that patches the query cache and rolls back on error. Copying the pattern keeps behavior and error-handling identical and avoids a bespoke solution.\n\n## Changes\n\n1. **Server function** — `src/api/projects.ts`: add `updateProjectPosition` mirroring `updateTicketPosition` (`src/api/tickets.ts:282-302`):\n   - `createServerFn({ method: \"POST\" })` with `.inputValidator((input: { id: string; position: number }) => ...)` rejecting missing id / non-numeric position.\n   - Use `ensureExists(project, \"Project\", id)`.\n   - Update `projects.position` via Drizzle (`db.update(projects).set({ position }).where(eq(projects.id, id))`). Note: `projects` has no `updatedAt` column today — do not set one unless the schema ticket adds it.\n   - Return the updated row.\n2. **React hook** — `src/lib/hooks/projects.ts`: add `useUpdateProjectPosition` mirroring `useUpdateTicketPosition` (`src/lib/hooks/tickets.ts:366-413`):\n   - `onMutate`: cancel in-flight queries for `queryKeys.projectsWithEpics`, snapshot, optimistically patch the matching project's `position` in the cached array, and **re-sort the cached array by position** so the optimistic order matches what the server will return.\n   - `onError`: roll back to snapshot + surface a user-visible error (toast) per Rule 1/Rule 2 (no silent failure).\n   - `onSettled`: invalidate `queryKeys.projectsWithEpics`.\n\n## Acceptance criteria\n\n- Calling `updateProjectPosition` with a valid `{ id, position }` persists the new position; invalid input throws a clear error.\n- `useUpdateProjectPosition` updates the cache optimistically (list reorders immediately) and rolls back with a visible error if the server call fails.\n- After settle, the list reflects server truth via invalidation.\n\n## Validation\n\n- `pnpm check` passes.\n- Add a test that verifies the optimistic reorder + rollback-on-error user-visible behavior (mock the boundary/server fn, assert the visible order changes then reverts on failure) — follow the project's Kent C. Dodds testing philosophy (test the observable reorder, not internals).\n\n## Notes\n\n- This ticket adds no UI; the drag interaction lives in the next ticket. Keep the hook generic enough to be driven by the @dnd-kit `onDragEnd` handler.",
+      "priority": "high",
+      "tags": [
+        "projects",
+        "api",
+        "reorder",
+        "tanstack-query"
       ]
     }
   ],
@@ -316,7 +327,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-06-06T22:26:45.759Z",
-  "epicTitle": "Detail pages: remove the AI tells, use the full canvas",
-  "epicDescription": "# Goal\n\nMake the **ticket detail** and **epic detail** pages look like a human craftsperson built them, and lay them out so they actually use the screen.\n\nTwo problems, one epic:\n\n## 1. The \"an AI made this\" tells\nCertain visual habits have become instantly-recognizable AI signatures. We carry several of them, the worst being the **colored vertical stripe down the left edge of every comment** in the ticket activity log (`Comment.tsx:287`, `borderLeft: 3px solid <typeColor>`). This is on the impeccable skill's *Absolute bans* list — \"side-stripe borders… never intentional.\" We also color-code comment type badges, which reinforces the machine-categorized feel. We will remove these and replace type differentiation (where it carries real meaning, e.g. \"Changes Requested\") with quieter, human conventions.\n\n## 2. Wasted canvas\nBoth detail pages hardcode `maxWidth: 1200px; margin: 0 auto` and then stack nearly everything in a single vertical column (after one `3fr 2fr` grid). On any wide display the content is a narrow ribbon floating in a sea of empty space, and the page becomes an endless scroll of full-width cards (Claude Tasks → Cost → Telemetry → Activity). We will introduce a responsive workspace layout that uses horizontal space deliberately — a primary reading column plus a persistent, scannable rail — so an epic or ticket reads at a glance instead of by scrolling.\n\n# Design north stars (from the impeccable skill)\n- **No side-stripe accents. No gradient text. No glassmorphism-by-default. No identical card grids. No tiny uppercase tracked eyebrows above every section. Cards top out at 12–16px radius. Never pair a 1px border with a >16px-blur shadow (\"ghost card\").**\n- Hierarchy comes from **scale, weight, and spacing rhythm** — not from boxing every region in its own card. Nested cards are always wrong.\n- Use the canvas: `flex`/`grid` that breathes, a sticky secondary rail for metadata, a wider-but-bounded primary column (cap prose at 65–75ch even if the page is wide).\n- Verify contrast (body ≥4.5:1). Every change has a `prefers-reduced-motion` path. Test every breakpoint — text must never overflow its container.\n\n# Scope\n- `src/routes/ticket.$id.tsx`, `src/routes/epic.$id.tsx`\n- `src/components/tickets/Comment.tsx`, `src/components/tickets/ModalCommentsSection.tsx` (BOTH comment renderers — see CLAUDE.md \"Identify ALL instances\")\n- A shared detail-page layout primitive (new) so ticket + epic stay consistent\n- The panel components composed into both pages (header, code changes, subtasks, review findings, cost, telemetry, activity, epic progress/insights/learnings/tickets-list)\n\n# Out of scope\n- Backend / data changes. This is presentational only.\n- The kanban board, modals' core behavior, search.\n\n# Validation\n`pnpm check` must pass per ticket. UI tickets require manual verification at localhost:4242 with before/after screenshots at desktop + narrow widths, plus a `pnpm build:analyze` check on any bundle-sensitive change."
+  "generatedAt": "2026-06-20T22:27:30.602Z",
+  "epicTitle": "Reorderable Projects & Newest-First Epics",
+  "epicDescription": "## Why\n\nThe workspace Projects list (`src/routes/index.tsx`) and the project sidebars currently render projects in raw SQLite insertion order — there is no `ORDER BY` at the DB layer, no `.sort()` in any hook, and no sort in the rendering components. Users want to express their own priority by **dragging projects into a custom order** in the Projects list view, and have that order **propagate everywhere projects are listed** (desktop `ProjectsPanel` slide-out and mobile `ProjectTree`).\n\nSeparately, on the project detail page (`src/routes/projects.$projectId.tsx`) the EPICS list renders in DB insertion order (oldest-first). Users want it **default-sorted newest-first**.\n\n## Design / Reuse (maintainability first)\n\nBoth the workspace list and both sidebars read the **same single TanStack Query cache entry** (`queryKeys.projectsWithEpics` → `getProjectsWithEpics` in `src/api/projects.ts`). Ordering applied once at that data layer therefore propagates to every consumer automatically — no per-component sort needed.\n\nWe mirror the **existing ticket reorder system** rather than invent a new one:\n- `tickets` already uses a `position: real` column with a **fractional-midpoint** drop algorithm (no renumbering). See `tickets` schema (`src/lib/schema.ts:46`), `updateTicketPosition` server fn (`src/api/tickets.ts:282-302`), `useUpdateTicketPosition` optimistic hook (`src/lib/hooks/tickets.ts:366`), and the drop math in `KanbanBoard.tsx:286-310`.\n- @dnd-kit is already a dependency (`@dnd-kit/core`, `/sortable`, `/utilities`) and wired in the kanban (`DndContext` + `SortableContext` + `useSortable` + `PointerSensor`/`KeyboardSensor` + accessibility announcements). The projects list reuses this exact setup.\n\n## Performance / UX\n\n- Local-first → must feel instant. Reorder uses optimistic cache updates (no spinner, no flicker), exactly like the kanban.\n- Adding @dnd-kit to the `/` route may shift the initial-load chunk graph; run `pnpm build:analyze` and keep the home route lean (lazy where appropriate). Record before/after numbers.\n- Keyboard-accessible drag (KeyboardSensor + announcements) and a clear drag handle.\n\n## Scope (tickets)\n\n1. Schema: add `position` to `projects`, migration + backfill, order the shared data layer (web API **and** `core/` for MCP parity) by position, set initial position on create.\n2. API: `updateProjectPosition` server fn + `useUpdateProjectPosition` optimistic hook.\n3. UI: drag-to-reorder in the workspace Projects list (reuse the kanban @dnd-kit pattern, keyboard-accessible, drag handle).\n4. Propagation: verify/ensure custom order is reflected in desktop `ProjectsPanel` and mobile `ProjectTree`, and that search/filter preserves order.\n5. UX: default-sort epics newest-first on the project detail page.\n\n## Out of scope\n\n- Reordering epics or tickets via this feature (tickets already have it; epics get sort-only here).\n- Per-user ordering / multi-user (Brain Dump is single-user local-first)."
 }

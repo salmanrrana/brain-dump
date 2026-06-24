@@ -477,7 +477,13 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
   // Handler for project edit from ProjectsPanel
   const handleProjectEdit = useCallback(
-    (project: { id: string; name: string; path: string; color: string | null }) => {
+    (project: {
+      id: string;
+      name: string;
+      path: string;
+      color: string | null;
+      position: number;
+    }) => {
       // Find the full project from our projects list to get all fields
       const fullProject = projects.find((p) => p.id === project.id);
       if (fullProject) {

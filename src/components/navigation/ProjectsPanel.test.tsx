@@ -20,6 +20,7 @@ const mockProjects: ProjectWithAIActivity[] = [
     name: "Brain Dump",
     path: "/Users/dev/brain-dump",
     color: "#8b5cf6",
+    position: 1,
     workingMethod: "auto",
     createdAt: "2026-01-01T00:00:00Z",
     hasActiveAI: false,
@@ -32,6 +33,7 @@ const mockProjects: ProjectWithAIActivity[] = [
     name: "My App",
     path: "/Users/dev/my-app",
     color: "#10b981",
+    position: 2,
     workingMethod: "auto",
     createdAt: "2026-01-01T00:00:00Z",
     hasActiveAI: false,
@@ -44,6 +46,7 @@ const mockProjects: ProjectWithAIActivity[] = [
     name: "API Server",
     path: "/Users/dev/api-server",
     color: "#f97316",
+    position: 3,
     workingMethod: "auto",
     createdAt: "2026-01-01T00:00:00Z",
     hasActiveAI: false,
@@ -67,6 +70,27 @@ const projectWithEpics: ProjectWithAIActivity = {
   })),
 };
 
+const customOrderedProjects: ProjectWithAIActivity[] = [
+  {
+    ...mockProjects[2]!,
+    id: "gamma",
+    name: "Gamma Project",
+    position: 3,
+  },
+  {
+    ...mockProjects[0]!,
+    id: "alpha",
+    name: "Alpha Project",
+    position: 1,
+  },
+  {
+    ...mockProjects[1]!,
+    id: "beta",
+    name: "Beta Project",
+    position: 2,
+  },
+];
+
 describe("ProjectsPanel", () => {
   describe("Rendering", () => {
     it("renders panel when isOpen is true", () => {
@@ -88,6 +112,18 @@ describe("ProjectsPanel", () => {
       expect(screen.getByText("Brain Dump")).toBeInTheDocument();
       expect(screen.getByText("My App")).toBeInTheDocument();
       expect(screen.getByText("API Server")).toBeInTheDocument();
+    });
+
+    it("preserves the incoming custom project order", () => {
+      render(<ProjectsPanel isOpen={true} onClose={vi.fn()} projects={customOrderedProjects} />);
+
+      const renderedProjects = within(screen.getByRole("listbox")).getAllByRole("option");
+
+      expect(renderedProjects.map((project) => project.textContent)).toEqual([
+        expect.stringContaining("Gamma Project"),
+        expect.stringContaining("Alpha Project"),
+        expect.stringContaining("Beta Project"),
+      ]);
     });
 
     it("displays project paths", () => {
@@ -129,6 +165,21 @@ describe("ProjectsPanel", () => {
       expect(screen.getByText("Brain Dump")).toBeInTheDocument();
       expect(screen.queryByText("My App")).not.toBeInTheDocument();
       expect(screen.queryByText("API Server")).not.toBeInTheDocument();
+    });
+
+    it("preserves incoming order for the matching filtered subset", async () => {
+      const user = userEvent.setup();
+      render(<ProjectsPanel isOpen={true} onClose={vi.fn()} projects={customOrderedProjects} />);
+
+      await user.type(screen.getByPlaceholderText("Search projects..."), "project");
+
+      const renderedProjects = within(screen.getByRole("listbox")).getAllByRole("option");
+
+      expect(renderedProjects.map((project) => project.textContent)).toEqual([
+        expect.stringContaining("Gamma Project"),
+        expect.stringContaining("Alpha Project"),
+        expect.stringContaining("Beta Project"),
+      ]);
     });
 
     it("filters are case-insensitive", async () => {

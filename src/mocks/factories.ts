@@ -23,11 +23,13 @@ export function resetMockCounters(): void {
  */
 export function createMockProject(overrides: Partial<Project> = {}): Project {
   const id = overrides.id ?? crypto.randomUUID();
+  positionCounter += 1;
   return {
     id,
     name: overrides.name ?? "Test Project",
     path: overrides.path ?? `/test/projects/${id}`,
     color: overrides.color ?? null,
+    position: overrides.position ?? positionCounter,
     workingMethod: overrides.workingMethod ?? "auto",
     createdAt: overrides.createdAt ?? new Date().toISOString(),
   };

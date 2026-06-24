@@ -13,14 +13,12 @@ let tempDir: string;
 function seedProject(
   id: string = "proj-1",
   name: string = "Test Project",
-  path: string = "/tmp/test-project"
+  path: string = "/tmp/test-project",
+  position: number = 0
 ) {
-  db.prepare("INSERT INTO projects (id, name, path, created_at) VALUES (?, ?, ?, ?)").run(
-    id,
-    name,
-    path,
-    new Date().toISOString()
-  );
+  db.prepare(
+    "INSERT INTO projects (id, name, path, position, created_at) VALUES (?, ?, ?, ?, ?)"
+  ).run(id, name, path, position, new Date().toISOString());
   return id;
 }
 
@@ -55,9 +53,19 @@ beforeEach(() => {
 });
 
 describe("listProjects", () => {
-  it("returns all projects ordered by name", () => {
-    seedProject("p1", "Zebra", "/tmp/zebra");
-    seedProject("p2", "Alpha", "/tmp/alpha");
+  it("returns all projects ordered by position", () => {
+    seedProject("p1", "Zebra", "/tmp/zebra", 10);
+    seedProject("p2", "Alpha", "/tmp/alpha", 5);
+
+    const projects = listProjects(db);
+    expect(projects.length).toBe(2);
+    expect(projects[0]!.id).toBe("p2");
+    expect(projects[1]!.id).toBe("p1");
+  });
+
+  it("falls back to name order for projects sharing position", () => {
+    seedProject("p1", "Zebra", "/tmp/zebra", 1);
+    seedProject("p2", "Alpha", "/tmp/alpha", 1);
 
     const projects = listProjects(db);
     expect(projects.length).toBe(2);
@@ -125,6 +133,7 @@ describe("createProject", () => {
     });
 
     expect(project.id).toBeTruthy();
+    expect(project.position).toBe(1);
     expect(project.name).toBe("New Project");
     expect(project.path).toBe(tempDir);
     expect(project.color).toBe("#ff0000");
@@ -152,6 +161,19 @@ describe("createProject", () => {
 
     // Second create at same path should fail
     expect(() => createProject(db, { name: "Duplicate", path: tempDir })).toThrow(ValidationError);
+  });
+
+  it("assigns the next position when creating a project", () => {
+    seedProject("p1", "First", "/tmp/first", 2);
+
+    const nextPath = mkdtempSync(join(tmpdir(), "brain-dump-test-next-"));
+
+    const project = createProject(db, {
+      name: "Next",
+      path: nextPath,
+    });
+
+    expect(project.position).toBe(3);
   });
 });
 

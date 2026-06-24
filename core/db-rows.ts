@@ -13,6 +13,7 @@ export interface DbProjectRow {
   path: string;
   color: string | null;
   working_method: string | null;
+  position: number;
   created_at: string;
 }
 

@@ -65,6 +65,7 @@ function createLegacyDatabaseWithStampedJournalOnly(dbPath: string): void {
       path TEXT NOT NULL UNIQUE,
       color TEXT,
       working_method TEXT DEFAULT 'auto',
+      position REAL NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 

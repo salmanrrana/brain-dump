@@ -13,6 +13,7 @@ export interface DbProject {
   name: string;
   path: string;
   color?: string | null;
+  position: number;
   workingMethod?:
     | "auto"
     | "claude-code"
@@ -414,7 +415,7 @@ export interface QueryFilter {
 }
 
 /** Create/update request types */
-export type CreateProjectRequest = Omit<DbProject, "id" | "createdAt">;
+export type CreateProjectRequest = Omit<DbProject, "id" | "createdAt" | "position">;
 export type UpdateProjectRequest = Partial<CreateProjectRequest>;
 
 export type CreateTicketRequest = Omit<DbTicket, "id" | "createdAt" | "updatedAt">;

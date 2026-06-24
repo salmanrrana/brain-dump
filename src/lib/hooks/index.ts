@@ -68,6 +68,7 @@ export {
   useEpicTicketCounts,
   useCreateProject,
   useUpdateProject,
+  useUpdateProjectPosition,
   useDeleteProject,
   useProjectDeletePreview,
   useCreateEpic,

@@ -68,6 +68,7 @@ export interface Project {
   name: string;
   path: string;
   color: string | null;
+  position: number;
   workingMethod:
     | "auto"
     | "claude-code"

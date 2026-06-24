@@ -200,6 +200,7 @@ export default function ProjectTree({
                       name: project.name,
                       path: project.path,
                       color: project.color,
+                      position: project.position,
                       workingMethod: project.workingMethod,
                     });
                   }}

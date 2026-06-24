@@ -96,6 +96,10 @@ function ProjectDetail() {
     );
   }
 
+  const epicsNewestFirst = [...project.epics].sort((a, b) =>
+    b.createdAt.localeCompare(a.createdAt)
+  );
+
   return (
     <div style={containerStyles}>
       <header style={headerStyles}>
@@ -160,7 +164,7 @@ function ProjectDetail() {
             </div>
           ) : (
             <div style={epicsListStyles}>
-              {project.epics.map((epic) => (
+              {epicsNewestFirst.map((epic) => (
                 <EpicListItem
                   key={epic.id}
                   epic={epic}

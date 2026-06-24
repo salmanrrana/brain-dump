@@ -21,6 +21,7 @@ function toProject(row: DbProjectRow): Project {
     name: row.name,
     path: row.path,
     color: row.color,
+    position: row.position,
     workingMethod: row.working_method as Project["workingMethod"],
     createdAt: row.created_at,
   };
@@ -31,10 +32,10 @@ function toProject(row: DbProjectRow): Project {
 // ============================================
 
 /**
- * List all projects ordered by name.
+ * List all projects ordered by position.
  */
 export function listProjects(db: DbHandle): Project[] {
-  const rows = db.prepare("SELECT * FROM projects ORDER BY name").all() as DbProjectRow[];
+  const rows = db.prepare("SELECT * FROM projects ORDER BY position, name").all() as DbProjectRow[];
   return rows.map(toProject);
 }
 
@@ -80,13 +81,19 @@ export function createProject(db: DbHandle, params: CreateProjectParams): Projec
   const id = randomUUID();
   const now = new Date().toISOString();
 
-  db.prepare("INSERT INTO projects (id, name, path, color, created_at) VALUES (?, ?, ?, ?, ?)").run(
-    id,
-    name.trim(),
-    path,
-    color || null,
-    now
-  );
+  const maxPosition = (
+    db.prepare("SELECT MAX(position) as position FROM projects").get() as
+      | {
+          position: number | null;
+        }
+      | undefined
+  )?.position;
+
+  const nextPosition = (maxPosition ?? 0) + 1;
+
+  db.prepare(
+    "INSERT INTO projects (id, name, path, color, position, created_at) VALUES (?, ?, ?, ?, ?, ?)"
+  ).run(id, name.trim(), path, color || null, nextPosition, now);
 
   const row = db.prepare("SELECT * FROM projects WHERE id = ?").get(id) as DbProjectRow;
   return toProject(row);
