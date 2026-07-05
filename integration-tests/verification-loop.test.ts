@@ -6,7 +6,9 @@
  * migrations) — no hand-rolled schema, no reimplemented tool logic:
  *
  *   start-work → complete-work → ai_review findings → generate-demo with
- *   automation specs → verification run against a booted fixture app →
+ *   automation specs → verification run against a running fixture app (an
+ *   in-process http.Server injected via baseUrl; the runner's process-spawn
+ *   boot path is deliberately out of scope to keep this CI gate hermetic) →
  *   forced assertion failure → loop-back (finding filed, status in_progress,
  *   Ralph context contains the failure section) → fix → re-verify full suite
  *   passes → runner sets done with evidence + sealed manifest → last ticket
@@ -46,16 +48,10 @@ let server: Server | null = null;
 let tempDir: string;
 let previousXdgDataHome: string | undefined;
 
-interface MockGit extends GitOperations {
-  createdBranches: string[];
-}
-
-function createMockGit(existingBranches: string[] = ["main"]): MockGit {
+function createMockGit(existingBranches: string[] = ["main"]): GitOperations {
   const branches = new Set(existingBranches);
-  const createdBranches: string[] = [];
 
   return {
-    createdBranches,
     run(command: string): GitCommandResult {
       if (command.includes("rev-parse --git-dir")) return { success: true, output: ".git" };
       if (command.includes("git log")) return { success: true, output: "abc1234 feat: fixture" };
@@ -70,7 +66,6 @@ function createMockGit(existingBranches: string[] = ["main"]): MockGit {
     },
     createBranch(branch: string): GitCommandResult {
       branches.add(branch);
-      createdBranches.push(branch);
       return { success: true, output: "" };
     },
   };
@@ -167,7 +162,7 @@ function apiStep(order: number, expectedStatus: number): DemoStep {
     type: "automated",
     automation: {
       kind: "api",
-      request: { method: "GET", path: `/health` },
+      request: { method: "GET", path: "/health" },
       assert: [
         { type: "status", expected: expectedStatus },
         { type: "bodyContains", expected: "ok" },
