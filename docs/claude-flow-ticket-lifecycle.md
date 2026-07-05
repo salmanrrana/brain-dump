@@ -4,59 +4,32 @@ The complete flow of a ticket through Brain Dump when using Claude Code as the A
 
 ## Ticket Status State Machine
 
-This diagram is illustrative. The enforced ticket status specification lives in
-`core/workflow-steps.ts`, with core tests in `core/__tests__/workflow-steps.test.ts`
-and adapter transition coverage in `mcp-server/tools/__tests__/status-transitions.test.ts`.
+<!-- BEGIN GENERATED: workflow-sequence -->
+
+This diagram is generated from `core/workflow-steps.ts`. Run `pnpm workflow:prompts` after changing workflow statuses or transitions.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> backlog: User creates ticket<br/>(UI or MCP)
+    [*] --> backlog: User creates ticket
+    backlog --> ready: User marks ready
+    ready --> in_progress: workflow start-work
+    backlog --> in_progress: workflow start-work
+    in_progress --> ai_review: workflow complete-work
+    ai_review --> ai_review: review findings fixed
+    ai_review --> human_review: review generate-demo
+    human_review --> done: review submit-feedback passed
+    human_review --> ready: review submit-feedback changes requested
+    done --> [*]
 
-    backlog --> ready: User marks ready<br/>(acceptance criteria defined)
-
-    ready --> in_progress: Claude calls<br/>workflow start-work
-
-    in_progress --> ai_review: Claude calls<br/>workflow complete-work
-
-    ai_review --> ai_review: Claude fixes findings<br/>and re-reviews
-
-    ai_review --> human_review: Claude calls<br/>review generate-demo
-
-    human_review --> done: Human calls<br/>review submit-feedback<br/>(passed: true)
-
-    human_review --> ready: Human requests changes<br/>(passed: false)
-
-    note right of backlog
-        Created by user in UI
-        or by MCP ticket create
-    end note
-
-    note right of in_progress
-        Git branch created
-        Ralph session active
-        Hooks enforcing state
-        Telemetry capturing
-    end note
-
-    note right of ai_review
-        Self-review of diff
-        Submit findings per issue
-        Fix critical/major
-        Must pass check-complete
-    end note
-
-    note right of human_review
-        Demo script with 3-7 steps
-        Claude STOPS here
-        Only human can approve
-    end note
-
-    note right of ready
-        Rework starts from ready
-        Change-request notes are prioritized
-        Full workflow repeats after relaunch
-    end note
+    note right of backlog: Backlog
+    note right of ready: Ready
+    note right of in_progress: In Progress
+    note right of ai_review: AI Review
+    note right of human_review: Human Review
+    note right of done: Done
 ```
+
+<!-- END GENERATED: workflow-sequence -->
 
 ## Phase 0: Session Start (Before Any Ticket)
 

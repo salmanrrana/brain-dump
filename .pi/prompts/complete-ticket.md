@@ -5,6 +5,16 @@ argument-hint: "<ticket-id> [summary]"
 
 Use the `brain-dump` CLI only. Do not use MCP.
 
+<!-- BEGIN GENERATED: workflow-sequence -->
+## Generated Workflow Guardrails
+
+- Use the `brain-dump` CLI only. Do not use MCP.
+- Status flow: `backlog -> ready -> in_progress -> ai_review -> human_review -> done`.
+- Run project validation discovered from docs/config before `workflow complete-work`.
+- Use `brain-dump review check-complete --ticket <ticket-id> --pretty` before generating demo steps.
+- Stop after `brain-dump review generate-demo`; do not approve or move tickets to done.
+<!-- END GENERATED: workflow-sequence -->
+
 1. Verify implementation status from the current diff and recent changes.
 2. Run relevant validation commands.
 3. Run:

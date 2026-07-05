@@ -16,7 +16,7 @@ Your kanban board is the single source of truth. Every ticket, every status chan
 | Move ticket    | Drag to new column                         |
 | Complete work  | `workflow "complete-work"` or drag to Done |
 
-**Status flow:** `backlog` → `ready` → `in_progress` → `review` → `done`
+**Status flow:** `backlog` -> `ready` -> `in_progress` -> `ai_review` -> `human_review` -> `done`
 
 **AI flow:** `in_progress` → `ai_review` → `human_review` → `done`
 
@@ -182,35 +182,22 @@ flowchart LR
 
 ## Ticket Status Flow
 
-Tickets flow through seven possible statuses:
+<!-- BEGIN GENERATED: workflow-sequence -->
 
-```mermaid
-stateDiagram-v2
-    [*] --> backlog: Created
-    backlog --> ready: Groomed
-    ready --> in_progress: Work started
-    in_progress --> review: Code complete
-    in_progress --> ai_review: Ralph working
-    ai_review --> human_review: AI done
-    human_review --> done: Approved
-    review --> done: Approved
-    done --> [*]
+The enforced ticket status specification lives in `core/workflow-steps.ts`. Run `pnpm workflow:prompts` after changing workflow statuses or transitions.
 
-    note right of ai_review: 🤖 Ralph autonomous flow
-    note right of review: 👤 Manual review flow
-```
+Status flow: `backlog -> ready -> in_progress -> ai_review -> human_review -> done`
 
-**Status Descriptions:**
+| Status         | Label        | Active | Kanban column |
+| -------------- | ------------ | ------ | ------------- |
+| `backlog`      | Backlog      | no     | yes           |
+| `ready`        | Ready        | no     | yes           |
+| `in_progress`  | In Progress  | yes    | yes           |
+| `ai_review`    | AI Review    | yes    | yes           |
+| `human_review` | Human Review | yes    | yes           |
+| `done`         | Done         | no     | yes           |
 
-| Status         | Meaning              | Who's Working  | Column Color |
-| -------------- | -------------------- | -------------- | ------------ |
-| `backlog`      | Not yet ready        | Nobody         | Slate        |
-| `ready`        | Groomed and ready    | Nobody         | Slate        |
-| `in_progress`  | Active development   | Human or AI    | Slate        |
-| `review`       | Manual code review   | Human reviewer | Slate        |
-| `ai_review`    | Ralph completed work | Awaiting human | **Amber**    |
-| `human_review` | Human verifying AI   | Human reviewer | **Rose**     |
-| `done`         | Complete             | Nobody         | Slate        |
+<!-- END GENERATED: workflow-sequence -->
 
 ---
 

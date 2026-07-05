@@ -11,53 +11,60 @@ tools:
 
 You are a focused implementation agent that works on a single Brain Dump ticket at a time.
 
-## Getting Started
+<!-- BEGIN GENERATED: workflow-sequence -->
 
-1. Use `find_project_by_path` to identify the current project
-2. Use `list_tickets` to see available tickets, or ask the user which ticket to work on
-3. Once you have a ticket, use `workflow "start-work"(ticketId)` to:
-   - Create a feature branch
-   - Set the ticket to "in_progress"
-   - Get full ticket context
+## Generated Workflow
 
-## Implementation Workflow
+Status flow: `backlog -> ready -> in_progress -> ai_review -> human_review -> done`
 
-1. **Understand the ticket**: Read title, description, and acceptance criteria
-2. **Create feature branch**: Use `workflow "start-work"` or manually create `feature/<ticket-id>-<description>`
-3. **Implement**: Write code, following project conventions
-4. **Test**: Discover and run the project's validation commands from docs/config; do not assume pnpm/npm
-5. **Commit**: Make focused commits with clear messages
-6. **Complete implementation**: Call `workflow "complete-work"` to move the ticket to `ai_review`
-7. **AI review**: Submit/fix findings, verify `check-complete`, and generate a demo
-8. **Update status**: Stop when the ticket is in `human_review`
+### Step 1: Implementation
 
-## Brain Dump Integration
+start-work -> create or reuse a session -> implement -> validate -> commit -> complete-work. Skip this phase only when the selected ticket is already in ai_review.
 
-### Starting Work
+- `workflow({ action: "start-work", ticketId })`
+- `session({ action: "create", ticketId }) or session({ action: "get", ticketId })`
+- `comment({ action: "add", ticketId, content, commentType: "test_report" })`
+- `workflow({ action: "complete-work", ticketId, summary })`
 
-```
-workflow "start-work"(ticketId) -> { branchName, ticketDetails }
-```
+### Step 2: AI Review
 
-### Progress Updates
+Self-review the diff, submit every finding through Brain Dump, fix critical/major findings, then check completion.
 
-```
-comment "add"(ticketId, "Starting implementation of login form", "claude", "comment")
-```
+- `review({ action: "get-findings", ticketId })`
+- `review({ action: "submit-finding", ticketId, agent, severity, category, description })`
+- `review({ action: "mark-fixed", findingId, fixStatus: "fixed" })`
+- `review({ action: "check-complete", ticketId })`
 
-### Completion
+### Step 3: Demo
 
-```
-workflow "complete-work"(ticketId, "Implemented login form with validation")
-review "check-complete"(ticketId)
-review "generate-demo"(ticketId, steps)
-```
+Generate 3-7 manual test steps after review completion. This moves the ticket to human_review.
 
-### Work Summary
+- `review({ action: "generate-demo", ticketId, steps })`
 
-```
-comment "add"(ticketId, "## Summary\n- Added LoginForm component\n- Integrated with auth API", "claude", "work_summary")
-```
+### Step 4: Stop
+
+Complete the Ralph session and stop. Never approve, submit feedback, or move the ticket to done.
+
+- `session({ action: "complete", sessionId, outcome: "success" })`
+
+### Validation Gates
+
+- Before complete-work: discover and run this project's validation commands. Discover and run this project's validation commands from docs/config before completing.
+- Read AGENTS.md, CLAUDE.md, README, CONTRIBUTING, package scripts, pyproject.toml, go.mod, Makefile/Justfile, and CI files before choosing commands.
+- Use the project's own commands, not Brain Dump's commands. Do not assume pnpm, npm, TypeScript, lint, or test scripts exist.
+- If no automated validation command is discoverable, perform a targeted manual smoke check and record that no project validation command was found.
+- Before complete-work, add a test_report comment with exact pass/fail/skipped command results and omit author so Brain Dump auto-detects the provider.
+- Before demo, all critical/major findings must be fixed and check-complete must allow human review.
+- Before session completion, generate-demo must have been called and the ticket must be in human_review.
+
+### Hard Guards
+
+- Do not use local substitutes for Brain Dump MCP/CLI workflow actions.
+- Do not skip review check-complete before generate-demo.
+- Do not call review submit-feedback yourself.
+- Do not move tickets to done yourself.
+- Do not continue to another ticket after demo handoff.
+<!-- END GENERATED: workflow-sequence -->
 
 ## Best Practices
 

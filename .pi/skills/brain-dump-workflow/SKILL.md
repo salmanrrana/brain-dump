@@ -7,143 +7,30 @@ description: Use Brain Dump entirely through the brain-dump CLI. Start ticket wo
 
 Use the `brain-dump` CLI directly. Do not rely on MCP. Prefer CLI commands plus pi's built-in `bash`, `read`, `edit`, and `write` tools.
 
-## Core rule
+<!-- BEGIN GENERATED: workflow-sequence -->
+## Generated CLI Workflow
 
-When working on a Brain Dump ticket, follow this sequence:
+Status flow: `backlog -> ready -> in_progress -> ai_review -> human_review -> done`
 
-1. Inspect project/ticket context
-2. Start work with the CLI
-3. Implement and verify
-4. Complete work with a summary
-5. Review and log findings with the CLI
-6. Generate demo steps for human review
+1. Inspect context: `brain-dump context --ticket <ticket-id> --pretty`.
+2. Start work: `brain-dump workflow start-work --ticket <ticket-id> --pretty`.
+3. Implement focused changes and run project validation discovered from docs/config.
+4. Record validation in a ticket comment if the CLI surface is available, then commit with `feat(<ticket-id>): <description>`.
+5. Complete work: `brain-dump workflow complete-work --ticket <ticket-id> --summary "<summary>" --pretty`.
+6. Review: use `brain-dump review submit-finding`, `brain-dump review mark-fixed`, and `brain-dump review check-complete --ticket <ticket-id> --pretty`.
+7. Demo: `brain-dump review generate-demo --ticket <ticket-id> --steps-file <steps.json> --pretty`.
+8. Stop after demo handoff. Do not approve or move the ticket to done.
 
-## 1) Inspect context
+### Validation Gates
 
-Use these commands first:
-
-```bash
-brain-dump doctor
-brain-dump status --pretty
-brain-dump ticket list --pretty
-brain-dump context --ticket <ticket-id> --pretty
-```
-
-If `brain-dump` is not in PATH, use:
-
-```bash
-pnpm brain-dump <command>
-```
-
-## 2) Start work
-
-Before changing code, run:
-
-```bash
-brain-dump workflow start-work --ticket <ticket-id> --pretty
-```
-
-This should create/check out the branch and move the ticket to `in_progress`.
-
-## 3) Implement and verify
-
-Use pi tools to inspect and edit files. Keep changes focused.
-
-Discover and run this project's validation commands from docs/config. Check `AGENTS.md`,
-`CLAUDE.md`, README, CONTRIBUTING, package scripts, `pyproject.toml`, `go.mod`,
-Makefile/Justfile, and CI files. Do not assume pnpm, npm, TypeScript, lint, or test
-scripts exist.
-
-Examples only: package script check/test/lint, pytest/ruff when configured,
-`go test ./...`, `cargo test`, `dotnet test`, `mvn test`, `./gradlew test`.
-If no automated validation command is discoverable, run a targeted manual smoke check
-and record that no project validation command was found.
-
-Good commit format:
-
-```bash
-git commit -m "feat(<ticket-id>): <description>"
-```
-
-You can also sync or link git work manually if needed:
-
-```bash
-brain-dump git sync --pretty
-brain-dump git link-commit --ticket <ticket-id> --hash $(git rev-parse HEAD) --pretty
-brain-dump git link-pr --ticket <ticket-id> --pr <number> --pretty
-```
-
-## 4) Complete implementation
-
-After implementation and validation, run:
-
-```bash
-brain-dump workflow complete-work --ticket <ticket-id> --summary "<what changed>" --pretty
-```
-
-This should move the ticket to `ai_review`.
-
-## 5) Review with CLI logging
-
-Perform self-review by reading diffs and changed files.
-
-Useful commands:
-
-```bash
-git diff --stat
-git diff
-brain-dump review check-complete --ticket <ticket-id> --pretty
-```
-
-If you find issues, log them explicitly:
-
-```bash
-brain-dump review submit-finding \
-  --ticket <ticket-id> \
-  --agent code-reviewer \
-  --severity major \
-  --category error-handling \
-  --description "Describe the issue" \
-  --file src/example.ts \
-  --line 42 \
-  --fix "Describe the intended fix" \
-  --pretty
-```
-
-After fixing an issue, mark it:
-
-```bash
-brain-dump review mark-fixed --finding <finding-id> --status fixed --description "Fixed by ..." --pretty
-```
-
-Re-run checks until Brain Dump reports review is complete:
-
-```bash
-brain-dump review check-complete --ticket <ticket-id> --pretty
-```
-
-## 6) Generate demo for human review
-
-Create a JSON file with 3-7 demo steps, for example at `.pi/tmp/demo-steps.json`:
-
-```json
-[
-  {
-    "order": 1,
-    "description": "Open the updated screen",
-    "expectedOutcome": "The page loads without errors",
-    "type": "manual"
-  }
-]
-```
-
-Then run:
-
-```bash
-brain-dump review generate-demo --ticket <ticket-id> --steps-file .pi/tmp/demo-steps.json --pretty
-```
-
-At that point, stop and wait for human review.
+- Before complete-work: discover and run this project's validation commands. Discover and run this project's validation commands from docs/config before completing.
+- Read AGENTS.md, CLAUDE.md, README, CONTRIBUTING, package scripts, pyproject.toml, go.mod, Makefile/Justfile, and CI files before choosing commands.
+- Use the project's own commands, not Brain Dump's commands. Do not assume pnpm, npm, TypeScript, lint, or test scripts exist.
+- If no automated validation command is discoverable, perform a targeted manual smoke check and record that no project validation command was found.
+- Before complete-work, add a test_report comment with exact pass/fail/skipped command results and omit author so Brain Dump auto-detects the provider.
+- Before demo, all critical/major findings must be fixed and check-complete must allow human review.
+- Before session completion, generate-demo must have been called and the ticket must be in human_review.
+<!-- END GENERATED: workflow-sequence -->
 
 ## Useful CLI shortcuts
 

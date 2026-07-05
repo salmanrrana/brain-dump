@@ -8,74 +8,60 @@ applyTo: "**/*"
 
 When the user asks to start work on a ticket, work on a task, or implement a feature, follow this workflow:
 
-## Selecting a Ticket
+<!-- BEGIN GENERATED: workflow-sequence -->
 
-1. Call `mcp__brain-dump__list_tickets({ status: 'ready', limit: 10 })` to see available tickets
-2. Consider:
-   - Priority (high > medium > low)
-   - Dependencies (unblocked tickets first)
-   - Epic context (continue current epic if possible)
-3. Present top 3 recommendations with rationale
-4. Once user selects, call `mcp__brain-dump__workflow "start-work"({ ticketId })`
+## Generated Workflow
 
-## Starting Work
+Status flow: `backlog -> ready -> in_progress -> ai_review -> human_review -> done`
 
-1. Create a session: `mcp__brain-dump__session "create"({ ticketId })`
-2. Read the ticket description and acceptance criteria
-3. Update session state: `session "update-state"({ state: 'analyzing' })`
+### Step 1: Implementation
 
-## Implementing
+start-work -> create or reuse a session -> implement -> validate -> commit -> complete-work. Skip this phase only when the selected ticket is already in ai_review.
 
-1. Analyze the requirements
-2. Update session state: `session "update-state"({ state: 'implementing' })`
-3. Write and modify code
-4. Discover and run the project's validation commands from docs/config
-5. Verify acceptance criteria are met
+- `workflow({ action: "start-work", ticketId })`
+- `session({ action: "create", ticketId }) or session({ action: "get", ticketId })`
+- `comment({ action: "add", ticketId, content, commentType: "test_report" })`
+- `workflow({ action: "complete-work", ticketId, summary })`
 
-## Testing & Review
+### Step 2: AI Review
 
-1. Check project docs/config first: `AGENTS.md`, `CLAUDE.md`, README, CONTRIBUTING, package scripts, `pyproject.toml`, `go.mod`, Makefile/Justfile, and CI files
-2. Run the project's own validation commands. Do not assume pnpm, npm, TypeScript, lint, or test scripts exist
-3. Examples only: package script check/test/lint, pytest/ruff when configured, `go test ./...`, `cargo test`, `dotnet test`, `mvn test`, `./gradlew test`
-4. If no automated validation command is discoverable, run a targeted manual smoke check and record that no project validation command was found
-5. Update session state: `session "update-state"({ state: 'testing' })`
+Self-review the diff, submit every finding through Brain Dump, fix critical/major findings, then check completion.
 
-## Completing Work
+- `review({ action: "get-findings", ticketId })`
+- `review({ action: "submit-finding", ticketId, agent, severity, category, description })`
+- `review({ action: "mark-fixed", findingId, fixStatus: "fixed" })`
+- `review({ action: "check-complete", ticketId })`
 
-1. Create commit with format: `feat(<ticket-id>): <description>`
-2. Update session state: `session "update-state"({ state: 'committing' })`
-3. Call `mcp__brain-dump__workflow "complete-work"({ ticketId, summary })`
-4. This moves ticket to `ai_review` status
+### Step 3: Demo
 
-## AI Review Phase
+Generate 3-7 manual test steps after review completion. This moves the ticket to human_review.
 
-After `workflow "complete-work"`:
+- `review({ action: "generate-demo", ticketId, steps })`
 
-1. Run review agents to identify issues:
-   - Call `review "submit-finding"` for each finding
-   - Include severity (critical, major, minor, suggestion)
-   - Be specific about file paths and line numbers
+### Step 4: Stop
 
-2. Check completion: `review "check-complete"({ ticketId })`
-   - If open critical/major findings, stay in ai_review
-   - If all critical/major fixed, proceed to human review
+Complete the Ralph session and stop. Never approve, submit feedback, or move the ticket to done.
 
-3. Verify findings are fixed using `review "mark-fixed"`
+- `session({ action: "complete", sessionId, outcome: "success" })`
 
-## Human Review Phase
+### Validation Gates
 
-When ready for human approval:
+- Before complete-work: discover and run this project's validation commands. Discover and run this project's validation commands from docs/config before completing.
+- Read AGENTS.md, CLAUDE.md, README, CONTRIBUTING, package scripts, pyproject.toml, go.mod, Makefile/Justfile, and CI files before choosing commands.
+- Use the project's own commands, not Brain Dump's commands. Do not assume pnpm, npm, TypeScript, lint, or test scripts exist.
+- If no automated validation command is discoverable, perform a targeted manual smoke check and record that no project validation command was found.
+- Before complete-work, add a test_report comment with exact pass/fail/skipped command results and omit author so Brain Dump auto-detects the provider.
+- Before demo, all critical/major findings must be fixed and check-complete must allow human review.
+- Before session completion, generate-demo must have been called and the ticket must be in human_review.
 
-1. Call `review "generate-demo"({ ticketId, steps })` with demo steps
-2. This transitions ticket to `human_review`
-3. Update session state: `session "update-state"({ state: 'reviewing' })`
-4. Wait for human to review demo and approve
+### Hard Guards
 
-## Completion
-
-1. Once demo approved, ticket moves to `done` status
-2. Optionally call `epic "reconcile-learnings"` to extract patterns
-3. Complete session: `session "complete"({ sessionId, outcome: 'success' })`
+- Do not use local substitutes for Brain Dump MCP/CLI workflow actions.
+- Do not skip review check-complete before generate-demo.
+- Do not call review submit-feedback yourself.
+- Do not move tickets to done yourself.
+- Do not continue to another ticket after demo handoff.
+<!-- END GENERATED: workflow-sequence -->
 
 ## Example: Selecting Next Task
 

@@ -37,36 +37,22 @@ pnpm dev    # http://localhost:4242
 
 ## The Status Flow
 
-This diagram is illustrative. The enforced ticket status specification lives in
-`core/workflow-steps.ts`, with core tests in `core/__tests__/workflow-steps.test.ts`
-and adapter transition coverage in `mcp-server/tools/__tests__/status-transitions.test.ts`.
+<!-- BEGIN GENERATED: workflow-sequence -->
 
-```
-┌──────────┐
-│ backlog  │  Waiting to be picked up
-└────┬─────┘
-     │ (ready status, AI starts work)
-     ▼
-┌──────────────┐
-│ in_progress  │  AI is writing code
-└────┬─────────┘
-     │ (code done, tests pass)
-     ▼
-┌──────────┐        ┌────────────┐
-│ ai_review│───→    │ Fix Loop:  │
-└────┬─────┘        │ - Review   │
-     │              │ - Fix      │
-     │              │ - Repeat   │
-     ▼              └────────────┘
-┌──────────────┐     (All critical/major fixed)
-│ human_review │  AI generated demo, waiting for you
-└────┬─────────┘
-     │ (You ran demo, gave feedback)
-     ▼
-┌─────┐
-│ done│  Complete and approved
-└─────┘
-```
+The enforced ticket status specification lives in `core/workflow-steps.ts`. Run `pnpm workflow:prompts` after changing workflow statuses or transitions.
+
+Status flow: `backlog -> ready -> in_progress -> ai_review -> human_review -> done`
+
+| Status         | Label        | Active | Kanban column |
+| -------------- | ------------ | ------ | ------------- |
+| `backlog`      | Backlog      | no     | yes           |
+| `ready`        | Ready        | no     | yes           |
+| `in_progress`  | In Progress  | yes    | yes           |
+| `ai_review`    | AI Review    | yes    | yes           |
+| `human_review` | Human Review | yes    | yes           |
+| `done`         | Done         | no     | yes           |
+
+<!-- END GENERATED: workflow-sequence -->
 
 ## Detailed Workflow Phases
 

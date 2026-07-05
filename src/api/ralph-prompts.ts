@@ -1,5 +1,13 @@
 import { safeJsonParse } from "../lib/utils";
 import {
+  renderHardGuards,
+  renderRalphWorkflowPhases,
+  renderScopeConstraints,
+  renderSessionStateTracking,
+  renderValidationChecklist,
+  renderWorkflowRules,
+} from "../../core/workflow-prompt-spec.ts";
+import {
   extractOverview,
   extractTypeDefinitions,
   extractDesignDecisions,
@@ -38,80 +46,10 @@ export interface RalphReviewPromptProfile {
 
 export type RalphPromptProfile = RalphImplementationPromptProfile | RalphReviewPromptProfile;
 
-// ============================================================================
-// SHARED WORKFLOW CONSTANTS
-// Extracted to reduce duplication between getRalphPrompt() and generateVSCodeContext()
-// ============================================================================
-
-/**
- * The 4-phase Universal Quality Workflow instructions.
- * Used by both Claude Code (via getRalphPrompt) and VS Code (via generateVSCodeContext).
- */
-const WORKFLOW_PHASES = `
-## 4-Phase Workflow
-
-Use Brain Dump MCP tools literally. No local substitutes for branching, review, or status updates.
-
-1. **Implementation** — start-work → create session → implement → commit → complete-work (skip this phase if the chosen ticket is already in ai_review)
-2. **AI Review** — self-review or resume existing findings → submit-finding → fix critical/major → check-complete (must return canProceedToHumanReview: true)
-3. **Demo** — generate-demo with 3+ manual test steps → ticket moves to human_review
-4. **Stop** — complete session → STOP. Never move tickets to done yourself.
-
-If all tickets are in \`human_review\` or \`done\`, output: \`PRD_COMPLETE\`.
-`;
-
-/**
- * Project-native verification gates used by both getRalphPrompt() and
- * generateVSCodeContext(). These intentionally avoid naming a single package
- * manager because Ralph can run against Node, PHP, Go, Python, or any other
- * project Brain Dump tracks.
- */
-const VERIFICATION_CHECKLIST = `
-## Gates
-- Before complete-work: discover and run this project's validation commands, then verify all acceptance criteria are met
-- Discover commands from project docs/config first: \`AGENTS.md\`, \`CLAUDE.md\`, README, CONTRIBUTING, package scripts, \`pyproject.toml\`, \`go.mod\`, Makefile/Justfile, and CI files
-- Use the project's own commands, not Brain Dump's commands. Examples only: package script check/test/lint, pytest/ruff when configured, \`go test ./...\`, \`cargo test\`, \`dotnet test\`, \`mvn test\`, \`./gradlew test\`
-- If no automated validation command is discoverable, perform a targeted manual smoke check and explicitly record that no project validation command was found
-- Before complete-work: add a \`comment({ action: "add", ticketId, content, commentType: "test_report" })\` entry summarizing exact commands and pass/fail/skipped results; omit \`author\` so Brain Dump auto-detects the active provider
-- Before demo: all critical/major findings fixed, check-complete returns canProceedToHumanReview: true
-- Before session complete: generate-demo called, ticket in human_review
-`;
-
-/**
- * Scope constraints. The Ralph loop writes a project-scoped and epic-scoped
- * PRD to \`plans/prd.json\` before each iteration. Agents MUST use it as the
- * authoritative ticket list, otherwise they wander into unrelated backlog
- * tickets (regression observed with OpenCode: it called
- * \`brain-dump_ticket list --status backlog\` across the whole project and
- * picked a cross-epic ticket, which then broke the branch workflow).
- */
-const SCOPE_CONSTRAINTS = `
-## Scope: plans/prd.json is the ONLY ticket source
-
-Before anything else, read \`plans/prd.json\` from the project root. That file contains the tickets this Ralph run is scoped to (one epic, or a single ticket). It is the authoritative task list.
-
-1. FIRST action every iteration: read \`plans/prd.json\` and find entries where \`passes: false\`.
-2. For each \`passes: false\` candidate, call \`ticket({ action: "get", ticketId: "<id>" })\` to check \`status\`. The PRD's \`passes\` flag can lag behind real ticket status between iterations.
-3. If any candidate is already \`ai_review\`, pick ONE of those first and resume at the AI Review phase. Do NOT call \`start-work\` or \`complete-work\` for it; use \`review({ action: "get-findings", ... })\`, fix open critical/major findings, \`review({ action: "check-complete", ... })\`, then \`review({ action: "generate-demo", ... })\`.
-4. Otherwise pick ONE candidate whose status is \`backlog\`, \`ready\`, or \`in_progress\` and work only on that ticket through the full implementation workflow.
-5. Skip candidates whose status is \`human_review\` or \`done\`; those are waiting on humans or already complete.
-6. Do NOT call \`ticket\` with \`action: "list"\` across the whole project to discover work. The PRD is scoped; the project backlog is not.
-7. Do NOT pick tickets whose IDs do not appear in \`plans/prd.json\`, even if they look related or higher-priority.
-8. If every PRD entry is either \`passes: true\` or has a ticket status of \`human_review\` / \`done\`, output the exact token \`PRD_COMPLETE\` and stop. Do not look for more work outside the PRD. A ticket in \`ai_review\` is NOT complete; resume it instead.
-9. If \`plans/prd.json\` is missing or empty, output \`PRD_COMPLETE\` and stop. Do not fall back to project-wide ticket discovery.
-`;
-
-/**
- * Rules for Ralph workflow.
- */
-const WORKFLOW_RULES = `
-## Rules
-- Strict phase order: Implementation → AI Review → Demo → STOP
-- ONE ticket per iteration, minimal focused changes
-- Never call review submit-feedback or move tickets to done — humans only
-- If stuck, note progress in \`plans/progress.txt\` and move to next ticket
-- Scope is fixed by \`plans/prd.json\`. Never work on tickets outside it.
-`;
+const SCOPE_CONSTRAINTS = renderScopeConstraints();
+const WORKFLOW_PHASES = renderRalphWorkflowPhases();
+const WORKFLOW_RULES = renderWorkflowRules();
+const VERIFICATION_CHECKLIST = renderValidationChecklist();
 
 // ============================================================================
 // PROMPT GENERATION
@@ -127,27 +65,12 @@ ${WORKFLOW_PHASES}
 ${WORKFLOW_RULES}
 ${VERIFICATION_CHECKLIST}
 
-## Session State Tracking
-
-Use \`session\` to keep progress and UI state accurate.
-
-1. Create once after starting ticket work, or when resuming an \`ai_review\` ticket that has no active session:
-   \`session({ action: "create", ticketId: "<ticketId>" })\`
-   If an active session already exists, reuse it with \`session({ action: "get", ticketId: "<ticketId>" })\` instead of creating another.
-2. Update state at each phase transition:
-   \`session({ action: "update-state", sessionId: "<sessionId>", state: "analyzing|implementing|testing|committing|reviewing", metadata: { message: "..." } })\`
-3. Complete after demo generation, then STOP:
-   \`session({ action: "complete", sessionId: "<sessionId>", outcome: "success" })\`
+${renderSessionStateTracking()}
 
 Optional detailed progress events:
 \`session({ action: "emit-event", sessionId: "<sessionId>", eventType: "progress", message: "..." })\`
 
-## Hard Guards
-
-- Do NOT use local substitutes (\`git checkout -b\`, local \`/review\` skills, manual status edits).
-- Do NOT skip \`review({ action: "check-complete" })\` before \`review({ action: "generate-demo" })\`.
-- Do NOT call \`review({ action: "submit-feedback" })\` yourself or move tickets to \`done\`.
-- Do NOT continue to another ticket after Phase 4; wait for human feedback.
+${renderHardGuards()}
 
 ## Hook Enforcement
 
@@ -193,22 +116,10 @@ ${steeringSection}
 - \`review({ action: "check-complete", ticketId: "${profile.selectedTicket.id}" })\` must return \`canProceedToHumanReview: true\` before demo generation.
 - Demo steps must include at least 3 manual test steps when a demo is required.
 
-## Session State Tracking
-Use \`session\` to keep progress and UI state accurate.
+${renderSessionStateTracking(profile.selectedTicket.id)}
 
-1. Create a session when no active session exists for this ticket:
-   \`session({ action: "create", ticketId: "${profile.selectedTicket.id}" })\`
-2. Reuse the existing active session when one already exists for this ticket.
-3. Update state as work progresses:
-   \`session({ action: "update-state", sessionId: "<sessionId>", state: "analyzing|implementing|testing|committing|reviewing", metadata: { message: "..." } })\`
-4. Complete after demo generation, then STOP:
-   \`session({ action: "complete", sessionId: "<sessionId>", outcome: "success" })\`
-
-## Hard Guards
-- Do NOT pick unrelated tickets or backlog work.
-- Do NOT skip \`review({ action: "check-complete" })\` before \`review({ action: "generate-demo" })\`.
-- Do NOT call \`review({ action: "submit-feedback" })\` yourself or move tickets to \`done\`.
-- Do NOT continue to another ticket after the selected review is complete.
+${renderHardGuards()}
+- Do not pick unrelated tickets or backlog work.
 
 ## Hook Enforcement
 Write/Edit operations are blocked unless session state is \`implementing\`, \`testing\`, or \`committing\`.

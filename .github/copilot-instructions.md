@@ -2,43 +2,60 @@
 
 When working on tickets in this project, follow the Brain Dump workflow:
 
-## Starting Work
+<!-- BEGIN GENERATED: workflow-sequence -->
 
-1. Call `mcp__brain-dump__workflow "start-work"({ ticketId })` before writing code
-2. This creates a branch and sets up tracking
-3. Use `mcp__brain-dump__session "create"({ ticketId })` to enable progress tracking
+## Generated Workflow
 
-## During Development
+Status flow: `backlog -> ready -> in_progress -> ai_review -> human_review -> done`
 
-- Commit frequently with `feat(<ticket-id>): <description>` format
-- Call `mcp__brain-dump__workflow "link-commit"({ ticketId, commitHash })` after commits
-- Update session state as you transition between phases: `analyzing` → `implementing` → `testing` → `committing` → `reviewing`
+### Step 1: Implementation
 
-## Completing Work
+start-work -> create or reuse a session -> implement -> validate -> commit -> complete-work. Skip this phase only when the selected ticket is already in ai_review.
 
-1. Call `mcp__brain-dump__workflow "complete-work"({ ticketId, summary })`
-2. This triggers AI review and moves ticket to ai_review status
-3. Run review agents: `/review-ticket`
-4. Fix any critical/major findings before proceeding
-5. Generate demo script: `/demo` (moves ticket to human_review)
+- `workflow({ action: "start-work", ticketId })`
+- `session({ action: "create", ticketId }) or session({ action: "get", ticketId })`
+- `comment({ action: "add", ticketId, content, commentType: "test_report" })`
+- `workflow({ action: "complete-work", ticketId, summary })`
 
-## Human Review
+### Step 2: AI Review
 
-- AI will generate a demo script
-- Wait for human approval before marking done
-- Use `review "submit-feedback"` to provide approval/rejection
+Self-review the diff, submit every finding through Brain Dump, fix critical/major findings, then check completion.
 
-## Key MCP Tools
+- `review({ action: "get-findings", ticketId })`
+- `review({ action: "submit-finding", ticketId, agent, severity, category, description })`
+- `review({ action: "mark-fixed", findingId, fixStatus: "fixed" })`
+- `review({ action: "check-complete", ticketId })`
 
-- `workflow "start-work"` - Begin work on a ticket
-- `workflow "complete-work"` - Mark work complete (triggers AI review)
-- `telemetry "start"` - Enable telemetry capture
-- `telemetry "end"` - Finalize telemetry
-- `review "submit-finding"` - Submit code review findings
-- `review "mark-fixed"` - Mark findings as fixed
-- `review "generate-demo"` - Create demo for human review
-- `review "submit-feedback"` - Approve or reject demo
-- `epic "reconcile-learnings"` - Extract learnings to update docs
+### Step 3: Demo
+
+Generate 3-7 manual test steps after review completion. This moves the ticket to human_review.
+
+- `review({ action: "generate-demo", ticketId, steps })`
+
+### Step 4: Stop
+
+Complete the Ralph session and stop. Never approve, submit feedback, or move the ticket to done.
+
+- `session({ action: "complete", sessionId, outcome: "success" })`
+
+### Validation Gates
+
+- Before complete-work: discover and run this project's validation commands. Discover and run this project's validation commands from docs/config before completing.
+- Read AGENTS.md, CLAUDE.md, README, CONTRIBUTING, package scripts, pyproject.toml, go.mod, Makefile/Justfile, and CI files before choosing commands.
+- Use the project's own commands, not Brain Dump's commands. Do not assume pnpm, npm, TypeScript, lint, or test scripts exist.
+- If no automated validation command is discoverable, perform a targeted manual smoke check and record that no project validation command was found.
+- Before complete-work, add a test_report comment with exact pass/fail/skipped command results and omit author so Brain Dump auto-detects the provider.
+- Before demo, all critical/major findings must be fixed and check-complete must allow human review.
+- Before session completion, generate-demo must have been called and the ticket must be in human_review.
+
+### Hard Guards
+
+- Do not use local substitutes for Brain Dump MCP/CLI workflow actions.
+- Do not skip review check-complete before generate-demo.
+- Do not call review submit-feedback yourself.
+- Do not move tickets to done yourself.
+- Do not continue to another ticket after demo handoff.
+<!-- END GENERATED: workflow-sequence -->
 
 ## Telemetry
 

@@ -1,0 +1,261 @@
+import { TICKET_STATUSES, TICKET_STATUS_METADATA } from "./workflow-steps.ts";
+
+export interface WorkflowPhaseSpec {
+  title: string;
+  summary: string;
+  toolCalls: readonly string[];
+}
+
+export const WORKFLOW_PHASES: readonly WorkflowPhaseSpec[] = [
+  {
+    title: "Implementation",
+    summary:
+      "start-work -> create or reuse a session -> implement -> validate -> commit -> complete-work. Skip this phase only when the selected ticket is already in ai_review.",
+    toolCalls: [
+      'workflow({ action: "start-work", ticketId })',
+      'session({ action: "create", ticketId }) or session({ action: "get", ticketId })',
+      'comment({ action: "add", ticketId, content, commentType: "test_report" })',
+      'workflow({ action: "complete-work", ticketId, summary })',
+    ],
+  },
+  {
+    title: "AI Review",
+    summary:
+      "Self-review the diff, submit every finding through Brain Dump, fix critical/major findings, then check completion.",
+    toolCalls: [
+      'review({ action: "get-findings", ticketId })',
+      'review({ action: "submit-finding", ticketId, agent, severity, category, description })',
+      'review({ action: "mark-fixed", findingId, fixStatus: "fixed" })',
+      'review({ action: "check-complete", ticketId })',
+    ],
+  },
+  {
+    title: "Demo",
+    summary:
+      "Generate 3-7 manual test steps after review completion. This moves the ticket to human_review.",
+    toolCalls: ['review({ action: "generate-demo", ticketId, steps })'],
+  },
+  {
+    title: "Stop",
+    summary:
+      "Complete the Ralph session and stop. Never approve, submit feedback, or move the ticket to done.",
+    toolCalls: ['session({ action: "complete", sessionId, outcome: "success" })'],
+  },
+];
+
+export const VALIDATION_GATE_RULES = [
+  "Before complete-work: discover and run this project's validation commands. Discover and run this project's validation commands from docs/config before completing.",
+  "Read AGENTS.md, CLAUDE.md, README, CONTRIBUTING, package scripts, pyproject.toml, go.mod, Makefile/Justfile, and CI files before choosing commands.",
+  "Use the project's own commands, not Brain Dump's commands. Do not assume pnpm, npm, TypeScript, lint, or test scripts exist.",
+  "If no automated validation command is discoverable, perform a targeted manual smoke check and record that no project validation command was found.",
+  "Before complete-work, add a test_report comment with exact pass/fail/skipped command results and omit author so Brain Dump auto-detects the provider.",
+  "Before demo, all critical/major findings must be fixed and check-complete must allow human review.",
+  "Before session completion, generate-demo must have been called and the ticket must be in human_review.",
+] as const;
+
+export const HARD_GUARDS = [
+  "Do not use local substitutes for Brain Dump MCP/CLI workflow actions.",
+  "Do not skip review check-complete before generate-demo.",
+  "Do not call review submit-feedback yourself.",
+  "Do not move tickets to done yourself.",
+  "Do not continue to another ticket after demo handoff.",
+] as const;
+
+export const SESSION_STATES = [
+  "analyzing",
+  "implementing",
+  "testing",
+  "committing",
+  "reviewing",
+] as const;
+
+export function getStatusFlowText(): string {
+  return TICKET_STATUSES.join(" -> ");
+}
+
+export function renderScopeConstraints(): string {
+  return `## Scope: plans/prd.json is the ONLY ticket source
+
+Before anything else, read \`plans/prd.json\` from the project root. That file contains the tickets this Ralph run is scoped to (one epic, or a single ticket). It is the authoritative task list.
+
+1. FIRST action every iteration: read \`plans/prd.json\` and find entries where \`passes: false\`.
+2. For each \`passes: false\` candidate, call \`ticket({ action: "get", ticketId: "<id>" })\` to check \`status\`. The PRD's \`passes\` flag can lag behind real ticket status between iterations.
+3. If any candidate is already \`ai_review\`, pick ONE of those first and resume at the AI Review phase. Do NOT call \`start-work\` or \`complete-work\` for it; use \`review({ action: "get-findings", ... })\`, fix open critical/major findings, \`review({ action: "check-complete", ... })\`, then \`review({ action: "generate-demo", ... })\`.
+4. Otherwise pick ONE candidate whose status is \`backlog\`, \`ready\`, or \`in_progress\` and work only on that ticket through the full implementation workflow.
+5. Skip candidates whose status is \`human_review\` or \`done\`; those are waiting on humans or already complete.
+6. Do NOT call \`ticket\` with \`action: "list"\` across the whole project to discover work. The PRD is scoped; the project backlog is not.
+7. Do NOT pick tickets whose IDs do not appear in \`plans/prd.json\`, even if they look related or higher-priority.
+8. If every PRD entry is either \`passes: true\` or has a ticket status of \`human_review\` / \`done\`, output the exact token \`PRD_COMPLETE\` and stop. Do not look for more work outside the PRD. A ticket in \`ai_review\` is NOT complete; resume it instead.
+9. If \`plans/prd.json\` is missing or empty, output \`PRD_COMPLETE\` and stop. Do not fall back to project-wide ticket discovery.`;
+}
+
+export function renderRalphWorkflowPhases(): string {
+  return `## 4-Phase Workflow
+
+Use Brain Dump MCP tools literally. No local substitutes for branching, review, or status updates.
+
+${WORKFLOW_PHASES.map((phase, index) => `${index + 1}. **${phase.title}** - ${phase.summary}`).join("\n")}
+
+If all tickets are in \`human_review\` or \`done\`, output: \`PRD_COMPLETE\`.`;
+}
+
+export function renderWorkflowRules(): string {
+  return `## Rules
+- Strict phase order: Implementation -> AI Review -> Demo -> STOP
+- ONE ticket per iteration, minimal focused changes
+- Never call review submit-feedback or move tickets to done; humans only
+- If stuck, note progress in \`plans/progress.txt\` and move to next ticket
+- Scope is fixed by \`plans/prd.json\`. Never work on tickets outside it.`;
+}
+
+export function renderValidationChecklist(): string {
+  return `## Gates
+${VALIDATION_GATE_RULES.map((rule) => `- ${rule}`).join("\n")}`;
+}
+
+export function renderSessionStateTracking(ticketId = "<ticketId>"): string {
+  return `## Session State Tracking
+
+Use \`session\` to keep progress and UI state accurate.
+
+1. Create once after starting ticket work, or when resuming an \`ai_review\` ticket that has no active session:
+   \`session({ action: "create", ticketId: "${ticketId}" })\`
+   If an active session already exists, reuse it with \`session({ action: "get", ticketId: "${ticketId}" })\` instead of creating another.
+2. Update state at each phase transition:
+   \`session({ action: "update-state", sessionId: "<sessionId>", state: "${SESSION_STATES.join("|")}", metadata: { message: "..." } })\`
+3. Complete after demo generation, then STOP:
+   \`session({ action: "complete", sessionId: "<sessionId>", outcome: "success" })\``;
+}
+
+export function renderHardGuards(): string {
+  return `## Hard Guards
+${HARD_GUARDS.map((guard) => `- ${guard}`).join("\n")}`;
+}
+
+export function renderMcpWorkflowPromptContent(): string {
+  return `You are Ralph, the Brain Dump implementation agent.
+
+Follow this workflow exactly:
+
+${WORKFLOW_PHASES.map((phase, index) => `${index + 1}. ${phase.title}\n- ${phase.summary}\n${phase.toolCalls.map((call) => `- Call ${call}`).join("\n")}`).join("\n\n")}
+
+Validation gates:
+${VALIDATION_GATE_RULES.map((rule) => `- ${rule}`).join("\n")}
+
+Hard guards:
+${HARD_GUARDS.map((guard) => `- ${guard}`).join("\n")}`;
+}
+
+export function renderMcpSkillSection(): string {
+  return `## Generated Workflow
+
+Status flow: \`${getStatusFlowText()}\`
+
+${WORKFLOW_PHASES.map(
+  (phase, index) =>
+    `### Step ${index + 1}: ${phase.title}\n\n${phase.summary}\n\n${phase.toolCalls.map((call) => `- \`${call}\``).join("\n")}`
+).join("\n\n")}
+
+### Validation Gates
+
+${VALIDATION_GATE_RULES.map((rule) => `- ${rule}`).join("\n")}
+
+### Hard Guards
+
+${HARD_GUARDS.map((guard) => `- ${guard}`).join("\n")}`;
+}
+
+export function renderCursorRuleSection(): string {
+  return `## Generated Workflow
+
+Status flow: \`${getStatusFlowText()}\`
+
+${WORKFLOW_PHASES.map((phase) => `- **${phase.title}**: ${phase.summary}`).join("\n")}
+
+## Required MCP Actions
+
+${WORKFLOW_PHASES.flatMap((phase) => phase.toolCalls)
+  .map((call) => `- \`${call}\``)
+  .join("\n")}
+
+## Quality Gates
+
+${VALIDATION_GATE_RULES.map((rule) => `- [ ] ${rule}`).join("\n")}
+
+## Stop Conditions
+
+${HARD_GUARDS.map((guard) => `- ${guard}`).join("\n")}`;
+}
+
+export function renderPiCliWorkflowSection(): string {
+  return `## Generated CLI Workflow
+
+Status flow: \`${getStatusFlowText()}\`
+
+1. Inspect context: \`brain-dump context --ticket <ticket-id> --pretty\`.
+2. Start work: \`brain-dump workflow start-work --ticket <ticket-id> --pretty\`.
+3. Implement focused changes and run project validation discovered from docs/config.
+4. Record validation in a ticket comment if the CLI surface is available, then commit with \`feat(<ticket-id>): <description>\`.
+5. Complete work: \`brain-dump workflow complete-work --ticket <ticket-id> --summary "<summary>" --pretty\`.
+6. Review: use \`brain-dump review submit-finding\`, \`brain-dump review mark-fixed\`, and \`brain-dump review check-complete --ticket <ticket-id> --pretty\`.
+7. Demo: \`brain-dump review generate-demo --ticket <ticket-id> --steps-file <steps.json> --pretty\`.
+8. Stop after demo handoff. Do not approve or move the ticket to done.
+
+### Validation Gates
+
+${VALIDATION_GATE_RULES.map((rule) => `- ${rule}`).join("\n")}`;
+}
+
+export function renderPiPromptWorkflowSection(): string {
+  return `## Generated Workflow Guardrails
+
+- Use the \`brain-dump\` CLI only. Do not use MCP.
+- Status flow: \`${getStatusFlowText()}\`.
+- Run project validation discovered from docs/config before \`workflow complete-work\`.
+- Use \`brain-dump review check-complete --ticket <ticket-id> --pretty\` before generating demo steps.
+- Stop after \`brain-dump review generate-demo\`; do not approve or move tickets to done.`;
+}
+
+export function renderMermaidStatusDiagram(): string {
+  return `This diagram is generated from \`core/workflow-steps.ts\`. Run \`pnpm workflow:prompts\` after changing workflow statuses or transitions.
+
+\`\`\`mermaid
+stateDiagram-v2
+    [*] --> backlog: User creates ticket
+    backlog --> ready: User marks ready
+    ready --> in_progress: workflow start-work
+    backlog --> in_progress: workflow start-work
+    in_progress --> ai_review: workflow complete-work
+    ai_review --> ai_review: review findings fixed
+    ai_review --> human_review: review generate-demo
+    human_review --> done: review submit-feedback passed
+    human_review --> ready: review submit-feedback changes requested
+    done --> [*]
+
+${TICKET_STATUSES.map((status) => `    note right of ${status}: ${TICKET_STATUS_METADATA[status].label}`).join("\n")}
+\`\`\``;
+}
+
+export function renderDocsStatusFlow(): string {
+  return `The enforced ticket status specification lives in \`core/workflow-steps.ts\`. Run \`pnpm workflow:prompts\` after changing workflow statuses or transitions.
+
+Status flow: \`${getStatusFlowText()}\`
+
+| Status | Label | Active | Kanban column |
+| ------ | ----- | ------ | ------------- |
+${TICKET_STATUSES.map((status) => {
+  const metadata = TICKET_STATUS_METADATA[status];
+  return `| \`${status}\` | ${metadata.label} | ${metadata.active ? "yes" : "no"} | ${metadata.kanbanColumn ? "yes" : "no"} |`;
+}).join("\n")}`;
+}
+
+export function renderHowToAddWorkflowStepDocs(): string {
+  return `## Adding Or Changing A Workflow Step
+
+The workflow source of truth is executable data, not hand-written prompt text.
+
+1. Edit \`core/workflow-steps.ts\` for status order, metadata, and transition guards.
+2. Edit \`core/workflow-prompt-spec.ts\` for provider-facing workflow phases, gates, or stop conditions.
+3. Run \`pnpm workflow:prompts\` to regenerate provider skills/prompts and docs diagrams.
+4. Run \`pnpm check\`. The drift gate fails if generated sections were hand-edited or not regenerated.`;
+}

@@ -14,195 +14,60 @@ This skill provides the autonomous backlog processing workflow used by Ralph, fo
 - Implementing features from a PRD file
 - Running in background agent mode
 
-## Universal Quality Workflow
+<!-- BEGIN GENERATED: workflow-sequence -->
 
-Brain Dump enforces this status flow for all tickets:
+## Generated Workflow
 
-```
-backlog → ready → in_progress → ai_review → human_review → done
-```
+Status flow: `backlog -> ready -> in_progress -> ai_review -> human_review -> done`
 
-- **in_progress**: Active development (code being written)
-- **ai_review**: Automated quality review by code review agents
-- **human_review**: Demo approval by human reviewer
-- **done**: Complete and approved
+### Step 1: Implementation
 
-## The Ralph Workflow
+start-work -> create or reuse a session -> implement -> validate -> commit -> complete-work. Skip this phase only when the selected ticket is already in ai_review.
 
-### 1. Read Context Files
+- `workflow({ action: "start-work", ticketId })`
+- `session({ action: "create", ticketId }) or session({ action: "get", ticketId })`
+- `comment({ action: "add", ticketId, content, commentType: "test_report" })`
+- `workflow({ action: "complete-work", ticketId, summary })`
 
-```
-plans/prd.json     - Product requirements (auto-generated from tickets)
-plans/progress.txt - Notes from previous iterations
-```
+### Step 2: AI Review
 
-### 2. Start Ticket Work
+Self-review the diff, submit every finding through Brain Dump, fix critical/major findings, then check completion.
 
-Use the MCP tool to create branch and set up tracking:
+- `review({ action: "get-findings", ticketId })`
+- `review({ action: "submit-finding", ticketId, agent, severity, category, description })`
+- `review({ action: "mark-fixed", findingId, fixStatus: "fixed" })`
+- `review({ action: "check-complete", ticketId })`
 
-```javascript
-workflow "start-work"({ ticketId: "story-id" });
-```
+### Step 3: Demo
 
-This automatically:
+Generate 3-7 manual test steps after review completion. This moves the ticket to human_review.
 
-- Creates a git branch: `feature/{ticket-id}-{slug}`
-- Sets ticket status to `in_progress`
-- Posts a "Starting work" comment
+- `review({ action: "generate-demo", ticketId, steps })`
 
-### 3. Pick ONE Task
+### Step 4: Stop
 
-From `prd.json`, find a user story where `passes: false`:
+Complete the Ralph session and stop. Never approve, submit feedback, or move the ticket to done.
 
-- Prioritize by priority field (high > medium > low)
-- Only work on ONE task per iteration
+- `session({ action: "complete", sessionId, outcome: "success" })`
 
-### 4. Create Session for Tracking
+### Validation Gates
 
-```javascript
-session "create"({ ticketId: "story-id" });
-session "update-state"({ sessionId: "...", state: "analyzing" });
-```
+- Before complete-work: discover and run this project's validation commands. Discover and run this project's validation commands from docs/config before completing.
+- Read AGENTS.md, CLAUDE.md, README, CONTRIBUTING, package scripts, pyproject.toml, go.mod, Makefile/Justfile, and CI files before choosing commands.
+- Use the project's own commands, not Brain Dump's commands. Do not assume pnpm, npm, TypeScript, lint, or test scripts exist.
+- If no automated validation command is discoverable, perform a targeted manual smoke check and record that no project validation command was found.
+- Before complete-work, add a test_report comment with exact pass/fail/skipped command results and omit author so Brain Dump auto-detects the provider.
+- Before demo, all critical/major findings must be fixed and check-complete must allow human review.
+- Before session completion, generate-demo must have been called and the ticket must be in human_review.
 
-### 5. Implement Feature
+### Hard Guards
 
-```javascript
-session "update-state"({ sessionId: "...", state: "implementing" });
-```
-
-- Write the code
-- Discover validation commands from this project's docs/config
-- Run the project's own validation commands
-- Verify acceptance criteria
-
-### 6. Commit Changes
-
-```javascript
-session "update-state"({ sessionId: "...", state: "committing" });
-```
-
-```bash
-git add -A
-git commit -m "feat(<ticket-id>): <description>"
-```
-
-### 7. Complete Implementation (Move to AI Review)
-
-**IMPORTANT**: Do NOT directly set status to "done". Use `workflow "complete-work"`:
-
-```javascript
-workflow "complete-work"({
-  ticketId: "story-id",
-  summary: "Implemented login form with validation and API integration",
-});
-```
-
-This:
-
-- Validates that a current test_report comment exists with exact pass/fail/skipped results
-- Moves ticket to `ai_review` status
-- Posts work summary as comment
-- Updates PRD file (`passes: true`)
-
-### 8. Run AI Review Agents
-
-After `workflow "complete-work"`, run the review pipeline:
-
-```javascript
-// Submit findings from each agent
-review "submit-finding"({
-  ticketId: "story-id",
-  agent: "code-reviewer",
-  severity: "major",
-  category: "type-safety",
-  description: "Missing null check on user input",
-});
-```
-
-Review agents to run:
-
-1. **code-reviewer** - Code quality and style
-2. **silent-failure-hunter** - Error handling issues
-3. **code-simplifier** - Code simplification opportunities
-
-### 9. Fix Critical/Major Findings
-
-If any critical or major findings:
-
-```javascript
-// Fix the issue, then mark as fixed
-review "mark-fixed"({
-  findingId: "finding-id",
-  fixStatus: "fixed",
-  fixDescription: "Added null check before accessing property",
-});
-```
-
-### 10. Check Review Complete
-
-```javascript
-review "check-complete"({ ticketId: "story-id" });
-// Returns { complete: true/false, openCritical: 0, openMajor: 0, ... }
-```
-
-### 11. Generate Demo Script (Move to Human Review)
-
-Once all critical/major findings are fixed:
-
-```javascript
-review "generate-demo"({
-  ticketId: "story-id",
-  steps: [
-    {
-      order: 1,
-      description: "Navigate to login page",
-      expectedOutcome: "Login form displays",
-      type: "manual",
-    },
-    {
-      order: 2,
-      description: "Enter valid credentials",
-      expectedOutcome: "User is logged in",
-      type: "manual",
-    },
-  ],
-});
-```
-
-This moves ticket to `human_review` status.
-
-### 12. STOP - Wait for Human Approval
-
-**The workflow stops here**. A human must:
-
-- Review the demo script
-- Run through the steps
-- Provide approval via `review "submit-feedback"`
-
-If approved → ticket moves to `done`
-If rejected → stays in `human_review` with feedback
-
-### 13. Update Progress File
-
-Append to `plans/progress.txt`:
-
-```
-## Iteration N - [timestamp]
-- Completed: <ticket title>
-- Changes: <brief summary>
-- Review: <number of findings, all fixed>
-- Notes: <any learnings or issues>
-```
-
-### 14. Check Completion
-
-If ALL stories have `passes: true` and are in `done` status:
-
-- Push branch: `git push -u origin <branch-name>`
-- Create PR using `gh pr create`
-- Output: `PRD_COMPLETE`
-
-Otherwise, the next iteration picks the next task.
+- Do not use local substitutes for Brain Dump MCP/CLI workflow actions.
+- Do not skip review check-complete before generate-demo.
+- Do not call review submit-feedback yourself.
+- Do not move tickets to done yourself.
+- Do not continue to another ticket after demo handoff.
+<!-- END GENERATED: workflow-sequence -->
 
 ## PRD File Format
 

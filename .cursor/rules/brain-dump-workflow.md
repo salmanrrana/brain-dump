@@ -7,73 +7,47 @@ alwaysApply: true
 
 When working on Brain Dump tickets, follow this quality workflow to ensure consistent code quality and proper tracking.
 
-## Required Workflow
+<!-- BEGIN GENERATED: workflow-sequence -->
 
-1. **Start work**: Call `mcp__brain-dump__workflow` with `action: "start-work"` and `ticketId` when beginning a ticket
-2. **Create session**: Call `mcp__brain-dump__session` with `action: "create"` and `ticketId` to enable state tracking
-3. **Update state**: Use `mcp__brain-dump__session` with `action: "update-state"` and `sessionId`, `state` as you progress:
-   - `analyzing` - Reading and understanding requirements
-   - `implementing` - Writing or modifying code
-   - `testing` - Running tests
-   - `committing` - Creating git commits
-   - `reviewing` - Final self-review
-4. **Implement changes**: Write code, following patterns in CLAUDE.md
-5. **Validate**: Discover and run this project's validation commands from docs/config. Do not assume pnpm/npm.
-6. **Complete**: Call `mcp__brain-dump__workflow` with `action: "complete-work"`, `ticketId`, and `summary`
+## Generated Workflow
 
-## Status Flow
+Status flow: `backlog -> ready -> in_progress -> ai_review -> human_review -> done`
 
-```
-ready → in_progress → ai_review → human_review → done
-```
+- **Implementation**: start-work -> create or reuse a session -> implement -> validate -> commit -> complete-work. Skip this phase only when the selected ticket is already in ai_review.
+- **AI Review**: Self-review the diff, submit every finding through Brain Dump, fix critical/major findings, then check completion.
+- **Demo**: Generate 3-7 manual test steps after review completion. This moves the ticket to human_review.
+- **Stop**: Complete the Ralph session and stop. Never approve, submit feedback, or move the ticket to done.
 
-- **in_progress**: Active development
-- **ai_review**: Automated quality review by code review agents
-- **human_review**: Demo approval by human reviewer
-- **done**: Complete and approved
+## Required MCP Actions
 
-## AI Review Phase
-
-After implementation, run the review pipeline:
-
-1. Call `mcp__brain-dump__review` with `action: "submit-finding"` for each issue found
-2. Fix critical/major issues
-3. Call `mcp__brain-dump__review` with `action: "mark-fixed"` for each fix
-4. Call `mcp__brain-dump__review` with `action: "check-complete"` to verify all issues resolved
-
-## Demo Generation
-
-When AI review passes:
-
-1. Call `mcp__brain-dump__review` with `action: "generate-demo"`, `ticketId`, and `steps: [...]`
-2. Ticket moves to `human_review`
-3. **STOP** - Wait for human approval
-
-## MCP Tools
-
-All Brain Dump MCP tools use the `mcp__brain-dump__` prefix with an `action` parameter:
-
-- `workflow` (action: `start-work`) - Begin work on a ticket
-- `workflow` (action: `complete-work`) - Complete implementation
-- `session` (action: `create`) - Create state tracking session
-- `session` (action: `update-state`) - Update work state
-- `review` (action: `submit-finding`) - Report review issues
-- `review` (action: `mark-fixed`) - Mark issue as resolved
-- `review` (action: `generate-demo`) - Create demo steps
-- `comment` (action: `add`) - Add work notes
+- `workflow({ action: "start-work", ticketId })`
+- `session({ action: "create", ticketId }) or session({ action: "get", ticketId })`
+- `comment({ action: "add", ticketId, content, commentType: "test_report" })`
+- `workflow({ action: "complete-work", ticketId, summary })`
+- `review({ action: "get-findings", ticketId })`
+- `review({ action: "submit-finding", ticketId, agent, severity, category, description })`
+- `review({ action: "mark-fixed", findingId, fixStatus: "fixed" })`
+- `review({ action: "check-complete", ticketId })`
+- `review({ action: "generate-demo", ticketId, steps })`
+- `session({ action: "complete", sessionId, outcome: "success" })`
 
 ## Quality Gates
 
-Before marking a ticket complete:
+- [ ] Before complete-work: discover and run this project's validation commands. Discover and run this project's validation commands from docs/config before completing.
+- [ ] Read AGENTS.md, CLAUDE.md, README, CONTRIBUTING, package scripts, pyproject.toml, go.mod, Makefile/Justfile, and CI files before choosing commands.
+- [ ] Use the project's own commands, not Brain Dump's commands. Do not assume pnpm, npm, TypeScript, lint, or test scripts exist.
+- [ ] If no automated validation command is discoverable, perform a targeted manual smoke check and record that no project validation command was found.
+- [ ] Before complete-work, add a test_report comment with exact pass/fail/skipped command results and omit author so Brain Dump auto-detects the provider.
+- [ ] Before demo, all critical/major findings must be fixed and check-complete must allow human review.
+- [ ] Before session completion, generate-demo must have been called and the ticket must be in human_review.
 
-- [ ] Project validation commands were discovered from docs/config and run
-- [ ] Exact pass/fail/skipped results were recorded in a test_report comment
-- [ ] If no automated command exists, a targeted manual smoke check was recorded
-- [ ] All acceptance criteria met
-- [ ] Work summary added
+## Stop Conditions
 
-## Important Notes
+- Do not use local substitutes for Brain Dump MCP/CLI workflow actions.
+- Do not skip review check-complete before generate-demo.
+- Do not call review submit-feedback yourself.
+- Do not move tickets to done yourself.
+- Do not continue to another ticket after demo handoff.
+<!-- END GENERATED: workflow-sequence -->
 
-- Never auto-approve tickets - human review is required
-- All tool usage is captured in telemetry for audit trails
-- Follow the patterns in CLAUDE.md for database queries, React components, etc.
+Follow the patterns in CLAUDE.md for database queries, React components, and project conventions.

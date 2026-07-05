@@ -171,6 +171,18 @@ backlog → ready → in_progress → ai_review → human_review → done
 4. Self-review + `review` tool, `action: "submit-finding"` → for each issue
 5. `review` tool, `action: "generate-demo"`, `ticketId`, `steps` → then STOP
 
+<!-- BEGIN GENERATED: workflow-sequence -->
+
+## Adding Or Changing A Workflow Step
+
+The workflow source of truth is executable data, not hand-written prompt text.
+
+1. Edit `core/workflow-steps.ts` for status order, metadata, and transition guards.
+2. Edit `core/workflow-prompt-spec.ts` for provider-facing workflow phases, gates, or stop conditions.
+3. Run `pnpm workflow:prompts` to regenerate provider skills/prompts and docs diagrams.
+4. Run `pnpm check`. The drift gate fails if generated sections were hand-edited or not regenerated.
+<!-- END GENERATED: workflow-sequence -->
+
 ### Skills (Workflow Shortcuts)
 
 - **`/next-task`** - Select the next ticket considering priority and dependencies

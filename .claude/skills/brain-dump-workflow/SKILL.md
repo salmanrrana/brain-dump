@@ -7,106 +7,66 @@ description: >
 
 # Brain Dump Universal Quality Workflow
 
-> **Canonical source**: `src/api/ralph.ts` -> `getRalphPrompt()`.
+> **Canonical source**: `src/api/ralph-prompts.ts` -> `getRalphPrompt()`, backed by `core/workflow-prompt-spec.ts`.
 > This skill provides a quick reference. The system prompt has the full workflow.
 >
 > **MCP tools are consolidated**: 9 tools with action-dispatched params.
 > Always pass `action` as the first parameter to specify the operation.
 
-## MANDATORY 5-Step Sequence
+<!-- BEGIN GENERATED: workflow-sequence -->
 
-Every ticket MUST go through these steps using MCP tools. Never skip any.
+## Generated Workflow
 
-### Step 1: Start Work
+Status flow: `backlog -> ready -> in_progress -> ai_review -> human_review -> done`
 
-Call the **workflow** tool with `action: "start-work"` and `ticketId: "<id>"` BEFORE writing any code.
+### Step 1: Implementation
 
-This creates a git branch, sets status to `in_progress`, and posts a "Starting work" comment.
+start-work -> create or reuse a session -> implement -> validate -> commit -> complete-work. Skip this phase only when the selected ticket is already in ai_review.
 
-### Step 2: Implement + Verify
+- `workflow({ action: "start-work", ticketId })`
+- `session({ action: "create", ticketId }) or session({ action: "get", ticketId })`
+- `comment({ action: "add", ticketId, content, commentType: "test_report" })`
+- `workflow({ action: "complete-work", ticketId, summary })`
 
-Write code, then discover and run this project's validation commands:
+### Step 2: AI Review
 
-- Check project docs/config first: `AGENTS.md`, `CLAUDE.md`, README, CONTRIBUTING, package scripts, `pyproject.toml`, `go.mod`, Makefile/Justfile, and CI files.
-- Use the project's own commands. Do not assume pnpm, npm, TypeScript, lint, or test scripts exist.
-- Common examples only: package script check/test/lint, pytest/ruff when configured, `go test ./...`, `cargo test`, `dotnet test`, `mvn test`, `./gradlew test`.
-- If no automated validation command is discoverable, run a targeted manual smoke check and record that no project validation command was found.
-- When available, `.claude/skills/brain-dump-workflow/scripts/run-quality-checks.sh` can be used as a discovery helper.
+Self-review the diff, submit every finding through Brain Dump, fix critical/major findings, then check completion.
 
-Commit with format: `feat(<ticket-short-id>): <description>`
+- `review({ action: "get-findings", ticketId })`
+- `review({ action: "submit-finding", ticketId, agent, severity, category, description })`
+- `review({ action: "mark-fixed", findingId, fixStatus: "fixed" })`
+- `review({ action: "check-complete", ticketId })`
 
-### Step 3: Complete Implementation
+### Step 3: Demo
 
-Call the **workflow** tool with `action: "complete-work"`, `ticketId: "<id>"`, and `summary: "<what you did>"`.
+Generate 3-7 manual test steps after review completion. This moves the ticket to human_review.
 
-This moves ticket to `ai_review` and posts a work summary comment.
+- `review({ action: "generate-demo", ticketId, steps })`
 
-### Step 4: AI Review (via MCP tools -- NOT local review skills)
+### Step 4: Stop
 
-IMPORTANT: Do NOT use local `/review` skills, subagents, or code review tools.
-Perform self-review by reading your own diffs, then record findings via MCP.
+Complete the Ralph session and stop. Never approve, submit feedback, or move the ticket to done.
 
-For each issue found, call the **review** tool:
+- `session({ action: "complete", sessionId, outcome: "success" })`
 
-```
-action: "submit-finding"
-ticketId: "<ticket-id>"
-agent: "code-reviewer"       // or "silent-failure-hunter" or "code-simplifier"
-severity: "major"            // critical | major | minor | suggestion
-category: "error-handling"
-description: "Clear description of the issue"
-```
+### Validation Gates
 
-Fix critical/major issues, then call the **review** tool:
+- Before complete-work: discover and run this project's validation commands. Discover and run this project's validation commands from docs/config before completing.
+- Read AGENTS.md, CLAUDE.md, README, CONTRIBUTING, package scripts, pyproject.toml, go.mod, Makefile/Justfile, and CI files before choosing commands.
+- Use the project's own commands, not Brain Dump's commands. Do not assume pnpm, npm, TypeScript, lint, or test scripts exist.
+- If no automated validation command is discoverable, perform a targeted manual smoke check and record that no project validation command was found.
+- Before complete-work, add a test_report comment with exact pass/fail/skipped command results and omit author so Brain Dump auto-detects the provider.
+- Before demo, all critical/major findings must be fixed and check-complete must allow human review.
+- Before session completion, generate-demo must have been called and the ticket must be in human_review.
 
-```
-action: "mark-fixed"
-findingId: "<finding-id>"
-fixStatus: "fixed"
-```
+### Hard Guards
 
-Verify by calling the **review** tool with `action: "check-complete"` and `ticketId: "<id>"` -- response must contain `canProceedToHumanReview: true`.
-
-### Step 5: Generate Demo + STOP
-
-Call the **review** tool:
-
-```
-action: "generate-demo"
-ticketId: "<ticket-id>"
-steps: [{ order: 1, description: "...", expectedOutcome: "...", type: "manual" }]
-```
-
-Include 3-7 manual test steps. Ticket moves to `human_review`.
-
-**STOP HERE. Do NOT continue. Only humans can approve tickets.**
-
-## DO NOT
-
-- Skip any step above
-- Set ticket status to "done" directly
-- Continue working after generating demo
-- Write code before calling workflow `start-work`
-- Use local review skills or subagents instead of review `submit-finding`
-- Describe demo steps in text instead of calling review `generate-demo`
-- Create git branches manually instead of using workflow `start-work`
-
-## Severity Guide (for Step 4)
-
-| Severity     | When to Use                                     |
-| ------------ | ----------------------------------------------- |
-| `critical`   | Bug that breaks functionality or causes crashes |
-| `major`      | Incorrect behavior or error handling issue      |
-| `minor`      | Code quality issue, not a bug                   |
-| `suggestion` | Nice-to-have improvement                        |
-
-## Demo Step Types (for Step 5)
-
-| Type        | When to Use                      |
-| ----------- | -------------------------------- |
-| `manual`    | User performs an action          |
-| `visual`    | User visually confirms something |
-| `automated` | System runs a command/test       |
+- Do not use local substitutes for Brain Dump MCP/CLI workflow actions.
+- Do not skip review check-complete before generate-demo.
+- Do not call review submit-feedback yourself.
+- Do not move tickets to done yourself.
+- Do not continue to another ticket after demo handoff.
+<!-- END GENERATED: workflow-sequence -->
 
 ## Reference Docs
 
