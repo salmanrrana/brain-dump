@@ -8,6 +8,9 @@ import { ValidationError, InvalidStateError, TicketNotFoundError } from "./error
 import { assertTransition, isTicketStatus, WorkflowTransitionError } from "./workflow-steps.ts";
 import { getStateDir } from "./db.ts";
 import { updatePrdForDbTicketIfPresent } from "./prd-sync.ts";
+import { addVerificationReportComment } from "./comment.ts";
+import { writeAttachmentFromFile } from "./attachments.ts";
+import type { AttachmentType } from "./attachment-types.ts";
 
 export type VerificationRunStatus = "passed" | "failed" | "uncertified" | "infra_error";
 export type VerificationStepStatus = "passed" | "failed" | "skipped";
@@ -68,6 +71,7 @@ export interface VerificationRun {
 
 export interface VerifyTicketParams {
   ticketId: string;
+  provider?: string | undefined;
   projectPath?: string;
   baseUrl?: string;
   bootCommand?: string[];
@@ -587,6 +591,63 @@ function persistRun(db: DbHandle, run: VerificationRun): void {
   );
 }
 
+function evidenceAttachmentType(path: string): AttachmentType {
+  if (path.endsWith("manifest.json")) return "verification-manifest";
+  if (path.endsWith(".png")) return "verification-screenshot";
+  return "api-evidence";
+}
+
+function attachRunEvidenceAndReport(
+  db: DbHandle,
+  run: VerificationRun,
+  provider: string | undefined
+): void {
+  const reportProvider = provider ?? process.env.BRAIN_DUMP_PROVIDER ?? "unknown";
+  const evidenceFiles = [
+    ...run.manifest.evidenceFiles,
+    {
+      path: join(getStateDir(), "verification", run.id, "manifest.json"),
+      hash: run.manifest.manifestHash,
+    },
+  ];
+  const attachmentIdsByPath = new Map<string, string>();
+
+  for (const evidence of evidenceFiles) {
+    if (!existsSync(evidence.path)) continue;
+    const attachment = writeAttachmentFromFile(db, {
+      ticketId: run.ticketId,
+      filePath: evidence.path,
+      metadata: {
+        type: evidenceAttachmentType(evidence.path),
+        priority: "primary",
+        provider: reportProvider,
+        description: `Verification run ${run.id} evidence (${evidence.hash})`,
+      },
+    });
+    attachmentIdsByPath.set(evidence.path, attachment.id);
+  }
+
+  addVerificationReportComment(db, {
+    ticketId: run.ticketId,
+    provider: reportProvider,
+    runId: run.id,
+    status: run.status,
+    integrityStatus: run.certified ? "valid" : "uncertified",
+    manifestAttachmentId: attachmentIdsByPath.get(
+      join(getStateDir(), "verification", run.id, "manifest.json")
+    ),
+    summary: `Verification run ${run.id} ${run.status}${run.certified ? " with certified evidence" : " without certification"}.`,
+    steps: run.manifest.stepVerdicts.map((step) => ({
+      order: step.order,
+      status: step.status,
+      actual: step.message,
+      evidenceAttachments: step.evidenceFiles
+        .map((file) => attachmentIdsByPath.get(file.path))
+        .filter((id): id is string => typeof id === "string"),
+    })),
+  });
+}
+
 function completeTicketIfCertified(db: DbHandle, ticketId: string, now: string): void {
   db.prepare(
     `UPDATE tickets
@@ -721,6 +782,7 @@ export async function verifyTicket(
 ): Promise<VerificationRun> {
   const run = await buildRun(db, params);
   persistRun(db, run);
+  attachRunEvidenceAndReport(db, run, params.provider);
   const now = run.finishedAt;
   if (run.status === "passed" && run.certified) {
     completeTicketIfCertified(db, params.ticketId, now);

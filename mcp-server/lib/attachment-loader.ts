@@ -5,9 +5,14 @@
  */
 import { existsSync, readFileSync, statSync } from "fs";
 import { join } from "path";
-import { homedir } from "os";
 import { log } from "./logging.js";
-import { FILE_TYPES, ATTACHMENT_TYPE_CONFIG, formatFileSize } from "./attachment-types.js";
+import { getDataDir } from "../../core/db.ts";
+import {
+  FILE_TYPES,
+  ATTACHMENT_TYPE_CONFIG,
+  formatFileSize,
+  normalizeAttachmentUploader,
+} from "./attachment-types.js";
 
 // ============================================
 // Type Definitions
@@ -105,7 +110,7 @@ export function normalizeAttachment(item: unknown, index: number): NormalizedAtt
       description: obj.description as string | undefined,
       priority: (obj.priority as string) ?? "primary",
       linkedCriteria: obj.linkedCriteria as string[] | undefined,
-      uploadedBy: (obj.uploadedBy as string) ?? "human",
+      uploadedBy: normalizeAttachmentUploader(obj.uploadedBy),
       uploadedAt: (obj.uploadedAt as string) ?? new Date().toISOString(),
     };
   }
@@ -124,11 +129,10 @@ export function normalizeAttachment(item: unknown, index: number): NormalizedAtt
 
 /**
  * Get the attachments directory path.
- * Uses legacy path (~/.brain-dump) to match src/api/attachments.ts for consistency.
- * TODO: Migrate both to XDG-compliant paths (see docs/data-locations.md)
+ * Uses the shared XDG data directory used by core attachment writes.
  */
 export function getAttachmentsDir(): string {
-  return join(homedir(), ".brain-dump", "attachments");
+  return join(getDataDir(), "attachments");
 }
 
 /**

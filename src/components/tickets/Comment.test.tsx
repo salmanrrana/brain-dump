@@ -37,7 +37,7 @@ describe("Comment", () => {
     expect(screen.getByText("Pi")).toBeInTheDocument();
   });
 
-  it("shows Ralph-prefixed provider comments with the underlying provider", () => {
+  it("shows Ralph-prefixed provider comments as provider-qualified Ralph", () => {
     render(
       <Comment
         comment={{
@@ -51,24 +51,42 @@ describe("Comment", () => {
       />
     );
 
-    expect(screen.getByText("Ralph (Codex)")).toBeInTheDocument();
+    expect(screen.getByText("Codex Ralph")).toBeInTheDocument();
   });
 
-  it("shows Ralph-prefixed Pi comments clearly", () => {
+  it("shows provider Ralph comments clearly", () => {
     render(
       <Comment
         comment={{
           id: "comment-ralph-pi",
           ticketId: "ticket-1",
           content: "Automated Pi pass completed.",
-          author: "ralph:pi",
+          author: "pi ralph",
           type: "progress",
           createdAt: new Date().toISOString(),
         }}
       />
     );
 
-    expect(screen.getByText("Ralph (Pi)")).toBeInTheDocument();
+    expect(screen.getByText("Pi Ralph")).toBeInTheDocument();
+  });
+
+  it("labels verification report comments", () => {
+    render(
+      <Comment
+        comment={{
+          id: "comment-verification",
+          ticketId: "ticket-1",
+          content: "## Verification passed\n\nEvidence captured.",
+          author: "opencode ralph",
+          type: "verification_report",
+          createdAt: new Date().toISOString(),
+        }}
+      />
+    );
+
+    expect(screen.getByText("OpenCode Ralph")).toBeInTheDocument();
+    expect(screen.getByText("Verification Report")).toBeInTheDocument();
   });
 
   it("visually distinguishes change-request comments", () => {

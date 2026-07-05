@@ -17,6 +17,12 @@ import type { DbTicketRow, DbProjectRow, DbEpicRow, DbTicketSummaryRow } from ".
 import { safeJsonParse } from "./json.ts";
 import { autoTagFromMentions } from "./platform-mention-parser.ts";
 import { isActiveTicketStatus, TICKET_STATUSES } from "./workflow-steps.ts";
+import {
+  normalizeAttachments,
+  type AttachmentPriority,
+  type AttachmentType,
+  type TicketAttachment,
+} from "./attachment-types.ts";
 
 // ============================================
 // Internal Helpers
@@ -131,21 +137,6 @@ interface AcceptanceCriterion {
   verifiedBy?: string | undefined;
   verifiedAt?: string | undefined;
   verificationNote?: string | undefined;
-}
-
-// ============================================
-// Attachment Types
-// ============================================
-
-interface TicketAttachment {
-  id: string;
-  filename: string;
-  type?: string;
-  description?: string;
-  priority?: string;
-  uploadedBy?: string;
-  uploadedAt?: string;
-  linkedCriteria?: string[];
 }
 
 // ============================================
@@ -552,22 +543,7 @@ export function updateAttachmentMetadata(
 ): UpdateAttachmentResult {
   const ticketRow = getTicketRow(db, ticketId);
 
-  const attachments: (string | TicketAttachment)[] = safeJsonParse(ticketRow.attachments, []);
-
-  // Normalize attachments (handle legacy string format)
-  const normalizedAttachments: TicketAttachment[] = attachments.map((item, index) => {
-    if (typeof item === "string") {
-      return {
-        id: `legacy-${index}-${item}`,
-        filename: item,
-        type: "reference",
-        priority: "primary",
-        uploadedBy: "human",
-        uploadedAt: new Date().toISOString(),
-      };
-    }
-    return item as TicketAttachment;
-  });
+  const normalizedAttachments = normalizeAttachments(ticketRow.attachments);
 
   const attachmentIndex = normalizedAttachments.findIndex(
     (a) => a.id === attachmentId || a.filename === attachmentId
@@ -584,9 +560,10 @@ export function updateAttachmentMetadata(
   }
 
   const attachment = normalizedAttachments[attachmentIndex]!;
-  if (metadata.type !== undefined) attachment.type = metadata.type;
+  if (metadata.type !== undefined) attachment.type = metadata.type as AttachmentType;
   if (metadata.description !== undefined) attachment.description = metadata.description;
-  if (metadata.priority !== undefined) attachment.priority = metadata.priority;
+  if (metadata.priority !== undefined)
+    attachment.priority = metadata.priority as AttachmentPriority;
   if (metadata.linkedCriteria !== undefined) attachment.linkedCriteria = metadata.linkedCriteria;
 
   const now = new Date().toISOString();

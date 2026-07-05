@@ -98,7 +98,14 @@ export const ticketComments = sqliteTable(
     type: text("type")
       .notNull()
       .default("comment")
-      .$type<"comment" | "work_summary" | "test_report" | "progress" | "change_request">(),
+      .$type<
+        | "comment"
+        | "work_summary"
+        | "test_report"
+        | "progress"
+        | "change_request"
+        | "verification_report"
+      >(),
     createdAt: text("created_at")
       .notNull()
       .default(sql`(datetime('now'))`),

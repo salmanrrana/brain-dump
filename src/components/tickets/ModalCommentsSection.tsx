@@ -47,6 +47,7 @@ const COMMENT_BADGE_LABELS: Record<string, string> = {
   work_summary: "Work Summary",
   test_report: "Test Report",
   change_request: "Changes Requested",
+  verification_report: "Verification Report",
 };
 
 export interface ModalCommentsSectionProps {

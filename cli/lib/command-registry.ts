@@ -669,6 +669,12 @@ export const COMMAND_REGISTRY: CommandDef[] = [
         required: false,
         description: "Use an already-running app instead of booting the project",
       },
+      {
+        name: "provider",
+        type: "string",
+        required: false,
+        description: "Provider attribution for runner evidence, stored as '<provider> ralph'",
+      },
       prettyFlag,
     ],
     examples: [

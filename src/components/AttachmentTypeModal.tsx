@@ -19,6 +19,9 @@ import {
   FileImage,
   Image,
   Star,
+  Camera,
+  FileJson,
+  ShieldCheck,
 } from "lucide-react";
 import type { AttachmentType, AttachmentPriority } from "../lib/attachment-types";
 import { ATTACHMENT_TYPE_CONFIG } from "../lib/attachment-types";
@@ -52,6 +55,9 @@ const TYPE_ICONS: Record<AttachmentType, typeof Palette> = {
   "console-log": Terminal,
   reference: FileImage,
   asset: Image,
+  "verification-screenshot": Camera,
+  "api-evidence": FileJson,
+  "verification-manifest": ShieldCheck,
 };
 
 /** Attachment types grouped by category for better UX */
@@ -74,6 +80,10 @@ const TYPE_CATEGORIES = [
     label: "Other",
     types: ["diagram", "reference"] as AttachmentType[],
   },
+  {
+    label: "Verification Evidence",
+    types: ["verification-screenshot", "api-evidence", "verification-manifest"] as AttachmentType[],
+  },
 ];
 
 /** Pattern-to-type mapping for auto-detection */
@@ -87,6 +97,9 @@ const FILENAME_PATTERNS: Array<{ patterns: string[]; type: AttachmentType }> = [
   { patterns: ["console", "log"], type: "console-log" },
   { patterns: ["diagram", "flow", "architecture"], type: "diagram" },
   { patterns: ["logo", "icon", "asset"], type: "asset" },
+  { patterns: ["verification", "screenshot"], type: "verification-screenshot" },
+  { patterns: ["api", "evidence"], type: "api-evidence" },
+  { patterns: ["manifest"], type: "verification-manifest" },
 ];
 
 /**

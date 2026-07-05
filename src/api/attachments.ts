@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { db } from "../lib/db";
+import { db, sqlite } from "../lib/db";
 import { tickets } from "../lib/schema";
 import { eq } from "drizzle-orm";
 import {
@@ -12,6 +12,7 @@ import {
   MIME_TYPES,
   IMAGE_EXTENSIONS,
 } from "../lib/attachment-types";
+import { getAttachmentsDir, writeAttachmentFromBuffer } from "../../core/attachments.ts";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
@@ -42,25 +43,6 @@ function validateMimeType(dataUrl: string, filename: string): void {
   if (!allowedExtensions.includes(ext)) {
     throw new Error(`File extension "${ext}" does not match content type "${dataMimeType}"`);
   }
-}
-
-// Lazy initialization for server-only file operations
-let attachmentsDir: string | null = null;
-
-async function getAttachmentsDir(): Promise<string> {
-  if (attachmentsDir) return attachmentsDir;
-
-  const { join } = await import("path");
-  const { homedir } = await import("os");
-  const { existsSync, mkdirSync } = await import("fs");
-
-  attachmentsDir = join(homedir(), ".brain-dump", "attachments");
-
-  if (!existsSync(attachmentsDir)) {
-    mkdirSync(attachmentsDir, { recursive: true });
-  }
-
-  return attachmentsDir;
 }
 
 /**
@@ -97,7 +79,7 @@ export const getAttachments = createServerFn({ method: "GET" })
     // Get ticket to read attachment metadata from database
     const ticket = db.select().from(tickets).where(eq(tickets.id, ticketId)).get();
 
-    const baseDir = await getAttachmentsDir();
+    const baseDir = getAttachmentsDir();
     const ticketDir = join(baseDir, ticketId);
 
     if (!existsSync(ticketDir)) {
@@ -185,10 +167,6 @@ export const uploadAttachment = createServerFn({ method: "POST" })
   })
   .handler(
     async ({ data: { ticketId, filename, data, type, description, priority, uploadedBy } }) => {
-      const { join } = await import("path");
-      const { existsSync, mkdirSync, writeFileSync } = await import("fs");
-      const { randomUUID } = await import("crypto");
-
       // Verify ticket exists
       const ticket = db.select().from(tickets).where(eq(tickets.id, ticketId)).get();
       if (!ticket) {
@@ -207,68 +185,32 @@ export const uploadAttachment = createServerFn({ method: "POST" })
         throw new Error(`File size exceeds maximum allowed size of 10MB`);
       }
 
-      // Ensure ticket directory exists
-      const baseDir = await getAttachmentsDir();
-      const ticketDir = join(baseDir, ticketId);
-      if (!existsSync(ticketDir)) {
-        mkdirSync(ticketDir, { recursive: true });
-      }
+      const attachmentMetadata = writeAttachmentFromBuffer(sqlite, {
+        ticketId,
+        filename,
+        buffer,
+        metadata: {
+          type: type ?? "reference",
+          priority: priority ?? "primary",
+          uploadedBy: uploadedBy ?? "human",
+          ...(description ? { description } : {}),
+        },
+      });
 
-      // Sanitize filename
-      const sanitizedFilename = filename.replace(/[^a-zA-Z0-9._-]/g, "_");
-
-      // Handle duplicate filenames
-      let finalFilename = sanitizedFilename;
-      let counter = 1;
-      while (existsSync(join(ticketDir, finalFilename))) {
-        const extIdx = sanitizedFilename.lastIndexOf(".");
-        if (extIdx > 0) {
-          finalFilename = `${sanitizedFilename.slice(0, extIdx)}_${counter}${sanitizedFilename.slice(extIdx)}`;
-        } else {
-          finalFilename = `${sanitizedFilename}_${counter}`;
-        }
-        counter++;
-      }
-
-      // Write file
-      const filePath = join(ticketDir, finalFilename);
-      writeFileSync(filePath, buffer);
-
-      // Create attachment metadata object
-      const attachmentId = randomUUID();
-      const now = new Date().toISOString();
-      const attachmentMetadata = {
-        id: attachmentId,
-        filename: finalFilename,
-        type: type ?? "reference",
-        priority: priority ?? "primary",
-        uploadedBy: uploadedBy ?? "human",
-        uploadedAt: now,
-        ...(description ? { description } : {}),
-      };
-
-      // Update ticket's attachments JSON field with new metadata format
-      const currentAttachments = normalizeAttachments(ticket.attachments);
-      currentAttachments.push(attachmentMetadata);
-      db.update(tickets)
-        .set({ attachments: JSON.stringify(currentAttachments) })
-        .where(eq(tickets.id, ticketId))
-        .run();
-
-      const ext = finalFilename.split(".").pop()?.toLowerCase() ?? "";
+      const ext = attachmentMetadata.filename.split(".").pop()?.toLowerCase() ?? "";
       const isImage = (IMAGE_EXTENSIONS as readonly string[]).includes(ext);
       const mimeType = MIME_TYPES[ext] ?? "application/octet-stream";
 
       const result: Attachment = {
-        id: attachmentId,
-        filename: finalFilename,
+        id: attachmentMetadata.id,
+        filename: attachmentMetadata.filename,
         size: buffer.length,
         isImage,
         url: `data:${mimeType};base64,${buffer.toString("base64")}`,
         type: attachmentMetadata.type as AttachmentType,
         priority: attachmentMetadata.priority as AttachmentPriority,
         uploadedBy: attachmentMetadata.uploadedBy as AttachmentUploader,
-        uploadedAt: now,
+        uploadedAt: attachmentMetadata.uploadedAt,
       };
 
       if (description) {
@@ -317,7 +259,7 @@ export const uploadPendingAttachment = createServerFn({ method: "POST" })
         throw new Error(`File size exceeds maximum allowed size of 10MB`);
       }
 
-      const baseDir = await getAttachmentsDir();
+      const baseDir = getAttachmentsDir();
       const ticketDir = join(baseDir, ticketId);
       if (!existsSync(ticketDir)) {
         mkdirSync(ticketDir, { recursive: true });
@@ -376,7 +318,7 @@ export const deletePendingAttachments = createServerFn({ method: "POST" })
     const { join } = await import("path");
     const { existsSync, readdirSync, unlinkSync, rmdirSync } = await import("fs");
 
-    const baseDir = await getAttachmentsDir();
+    const baseDir = getAttachmentsDir();
     const ticketDir = join(baseDir, ticketId);
 
     if (!existsSync(ticketDir)) {
@@ -403,7 +345,7 @@ export const deletePendingAttachment = createServerFn({ method: "POST" })
     const { join } = await import("path");
     const { existsSync, unlinkSync, readdirSync, rmdirSync } = await import("fs");
 
-    const baseDir = await getAttachmentsDir();
+    const baseDir = getAttachmentsDir();
     const filePath = join(baseDir, ticketId, filename);
 
     if (!existsSync(filePath)) {
@@ -442,7 +384,7 @@ export const deleteAttachment = createServerFn({ method: "POST" })
       throw new Error(`Ticket not found: ${ticketId}`);
     }
 
-    const baseDir = await getAttachmentsDir();
+    const baseDir = getAttachmentsDir();
     const filePath = join(baseDir, ticketId, filename);
 
     if (!existsSync(filePath)) {

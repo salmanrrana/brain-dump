@@ -1,4 +1,7 @@
 import { createServer, type Server } from "http";
+import { mkdtempSync, rmSync } from "fs";
+import { join } from "path";
+import { tmpdir } from "os";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type Database from "better-sqlite3";
 import { createTestDatabase } from "../db.ts";
@@ -7,6 +10,8 @@ import type { DemoStep } from "../types.ts";
 
 let db: Database.Database;
 let server: Server | null = null;
+let tempDir: string;
+let previousXdgDataHome: string | undefined;
 
 function seedProject(): void {
   db.prepare("INSERT INTO projects (id, name, path, created_at) VALUES (?, ?, ?, ?)").run(
@@ -71,6 +76,9 @@ async function startFixtureServer(status = 200): Promise<string> {
 }
 
 beforeEach(() => {
+  previousXdgDataHome = process.env.XDG_DATA_HOME;
+  tempDir = mkdtempSync(join(tmpdir(), "brain-dump-verification-"));
+  process.env.XDG_DATA_HOME = tempDir;
   db = createTestDatabase().db;
   seedProject();
   seedTicket();
@@ -85,6 +93,12 @@ afterEach(async () => {
     server.close((error) => (error ? reject(error) : resolve()));
   });
   server = null;
+  if (previousXdgDataHome === undefined) {
+    delete process.env.XDG_DATA_HOME;
+  } else {
+    process.env.XDG_DATA_HOME = previousXdgDataHome;
+  }
+  rmSync(tempDir, { recursive: true, force: true });
 });
 
 describe("verifyTicket", () => {
@@ -107,6 +121,10 @@ describe("verifyTicket", () => {
     };
     expect(ticket.status).toBe("done");
     expect(ticket.completed_at).toBeTruthy();
+    const comment = db
+      .prepare("SELECT author, type FROM ticket_comments WHERE ticket_id = 'ticket-1'")
+      .get() as { author: string; type: string };
+    expect(comment).toEqual({ author: "unknown ralph", type: "verification_report" });
   });
 
   it("records failed rounds without completing the ticket", async () => {

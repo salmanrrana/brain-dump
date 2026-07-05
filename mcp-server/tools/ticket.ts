@@ -57,6 +57,9 @@ const ATTACHMENT_TYPES = [
   "console-log",
   "reference",
   "asset",
+  "verification-screenshot",
+  "api-evidence",
+  "verification-manifest",
 ] as const;
 const ATTACHMENT_PRIORITIES = ["primary", "supplementary"] as const;
 
@@ -77,7 +80,7 @@ Status flow: ${TICKET_STATUSES.join(" → ")}
 ### update-status - Update ticket status (follows status flow above)
 ### delete - Delete ticket and comments. DRY RUN by default; set confirm=true to delete.
 ### update-criterion - Update acceptance criterion status
-### update-attachment - Update attachment metadata (type, description, priority, linkedCriteria)
+### update-attachment - Update attachment metadata only (type, description, priority, linkedCriteria). Evidence files and verification reports are runner-only core writes; no MCP action can upload or fabricate verification evidence.
 ### list-by-epic - List all tickets in a specific epic (sorted by position)
 ### link-files - Link file paths to a ticket for context tracking
 ### get-files - Find tickets linked to a specific file (partial path matching)`,

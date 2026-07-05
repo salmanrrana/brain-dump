@@ -76,7 +76,13 @@ export interface DbTicketComment {
   ticketId: string;
   content: string;
   author: string; // 'claude', 'ralph', 'opencode', or user identifier
-  type: "comment" | "work_summary" | "test_report" | "progress";
+  type:
+    | "comment"
+    | "work_summary"
+    | "test_report"
+    | "progress"
+    | "change_request"
+    | "verification_report";
   createdAt: string;
 }
 

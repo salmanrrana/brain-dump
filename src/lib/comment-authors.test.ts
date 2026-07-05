@@ -20,6 +20,7 @@ describe("comment author helpers", () => {
     expect(isValidCommentAuthor("ralph:codex")).toBe(true);
     expect(isValidCommentAuthor("ralph:pi")).toBe(true);
     expect(isValidCommentAuthor("ralph:cursor")).toBe(true);
+    expect(isValidCommentAuthor("codex ralph")).toBe(true);
   });
 
   it("formats direct provider display names for users", () => {
@@ -30,9 +31,9 @@ describe("comment author helpers", () => {
   });
 
   it("formats Ralph provider-prefixed authors clearly", () => {
-    expect(getCommentAuthorDisplayName("ralph:codex")).toBe("Ralph (Codex)");
-    expect(getCommentAuthorDisplayName("ralph:pi")).toBe("Ralph (Pi)");
-    expect(getCommentAuthorBase("ralph:codex")).toBe("ralph");
+    expect(getCommentAuthorDisplayName("ralph:codex")).toBe("Codex Ralph");
+    expect(getCommentAuthorDisplayName("pi ralph")).toBe("Pi Ralph");
+    expect(getCommentAuthorBase("ralph:codex")).toBe("codex");
   });
 
   it("returns provider-specific styles for supported authors", () => {

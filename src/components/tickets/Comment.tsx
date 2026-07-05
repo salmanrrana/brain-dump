@@ -29,6 +29,7 @@ const TYPE_LABELS: Record<CommentType, string | null> = {
   work_summary: "Work Summary",
   test_report: "Test Report",
   change_request: "Changes Requested",
+  verification_report: "Verification Report",
 };
 
 // =============================================================================

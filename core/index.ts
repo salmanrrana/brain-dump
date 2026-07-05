@@ -199,15 +199,58 @@ export type {
 } from "./epic-review-run.ts";
 
 // Comment business logic
-export { addComment, listComments, getActivityLog } from "./comment.ts";
+export {
+  addComment,
+  addVerificationReportComment,
+  listComments,
+  getActivityLog,
+} from "./comment.ts";
 
 export type {
   AddCommentParams,
   CommentAuthor,
   CommentType,
+  AddVerificationReportParams,
+  VerificationReportStep,
   ActivityLogEntry,
   GetActivityLogParams,
 } from "./comment.ts";
+
+export {
+  ATTACHMENT_TYPE_CONFIG,
+  ATTACHMENT_TYPES,
+  ALLOWED_MIME_TYPES,
+  MIME_TYPES,
+  IMAGE_EXTENSIONS,
+  createProviderRalphUploader,
+  normalizeAttachmentProvider,
+  normalizeAttachmentUploader,
+  normalizeAttachments,
+  serializeAttachments,
+} from "./attachment-types.ts";
+
+export type {
+  AttachmentType,
+  AttachmentPriority,
+  AttachmentProvider,
+  AttachmentUploader,
+  BaseAttachmentUploader,
+  ProviderRalphUploader,
+  LegacyRalphUploader,
+  TicketAttachment,
+} from "./attachment-types.ts";
+
+export {
+  getAttachmentsDir,
+  writeAttachmentFromBuffer,
+  writeAttachmentFromFile,
+} from "./attachments.ts";
+
+export type {
+  AttachmentWriteMetadata,
+  WriteAttachmentFromBufferParams,
+  WriteAttachmentFromFileParams,
+} from "./attachments.ts";
 
 export {
   updatePrdForTicket,

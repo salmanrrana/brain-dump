@@ -9,6 +9,7 @@ import { randomUUID } from "crypto";
 import type { DbHandle, Comment } from "./types.ts";
 import { TicketNotFoundError } from "./errors.ts";
 import type { DbTicketRow, DbCommentRow } from "./db-rows.ts";
+import { createProviderRalphUploader } from "./attachment-types.ts";
 
 // ============================================
 // Types
@@ -26,13 +27,15 @@ export type CommentAuthor =
   | "cursor-agent"
   | "ai"
   | "brain-dump"
-  | `ralph:${string}`;
+  | `ralph:${string}`
+  | `${string} ralph`;
 export type CommentType =
   | "comment"
   | "work_summary"
   | "test_report"
   | "progress"
-  | "change_request";
+  | "change_request"
+  | "verification_report";
 
 // ============================================
 // Internal Helpers
@@ -84,6 +87,26 @@ export interface AddCommentParams {
   type?: CommentType | undefined;
 }
 
+export interface VerificationReportStep {
+  order: number;
+  status: string;
+  description?: string | undefined;
+  expected?: string | undefined;
+  actual?: string | undefined;
+  evidenceAttachments?: string[] | undefined;
+}
+
+export interface AddVerificationReportParams {
+  ticketId: string;
+  provider: string;
+  runId: string;
+  status: string;
+  summary?: string | undefined;
+  manifestAttachmentId?: string | undefined;
+  integrityStatus?: string | undefined;
+  steps: VerificationReportStep[];
+}
+
 /**
  * Add a comment or work summary to a ticket.
  * @throws TicketNotFoundError if the ticket doesn't exist
@@ -100,6 +123,68 @@ export function addComment(db: DbHandle, params: AddCommentParams): Comment {
     "INSERT INTO ticket_comments (id, ticket_id, content, author, type, created_at) VALUES (?, ?, ?, ?, ?, ?)"
   ).run(id, ticketId, content.trim(), author, type, now);
 
+  const row = db.prepare("SELECT * FROM ticket_comments WHERE id = ?").get(id) as DbCommentRow;
+  return toComment(row);
+}
+
+function formatVerificationReportContent(params: AddVerificationReportParams): string {
+  const lines = [
+    `<!-- verification-run:${params.runId} -->`,
+    `## Verification ${params.status}`,
+    "",
+    params.summary ?? `Run ${params.runId} completed with status: ${params.status}.`,
+    "",
+    `- Run ID: ${params.runId}`,
+    `- Integrity: ${params.integrityStatus ?? "unknown"}`,
+  ];
+
+  if (params.manifestAttachmentId) {
+    lines.push(`- Manifest: ${params.manifestAttachmentId}`);
+  }
+
+  lines.push("", "| Step | Status | Result | Evidence |", "| --- | --- | --- | --- |");
+  for (const step of params.steps) {
+    const details = step.actual ?? step.expected ?? step.description ?? "See evidence";
+    const evidence = step.evidenceAttachments?.length ? step.evidenceAttachments.join(", ") : "-";
+    lines.push(
+      `| ${step.order} | ${step.status} | ${details.replace(/\|/g, "\\|")} | ${evidence} |`
+    );
+  }
+
+  return lines.join("\n");
+}
+
+export function addVerificationReportComment(
+  db: DbHandle,
+  params: AddVerificationReportParams
+): Comment {
+  getTicketRow(db, params.ticketId);
+  const marker = `<!-- verification-run:${params.runId} -->`;
+  const content = formatVerificationReportContent(params);
+  const author = createProviderRalphUploader(params.provider);
+  const existing = db
+    .prepare(
+      "SELECT * FROM ticket_comments WHERE ticket_id = ? AND type = 'verification_report' AND content LIKE ? ORDER BY created_at DESC, rowid DESC LIMIT 1"
+    )
+    .get(params.ticketId, `${marker}%`) as DbCommentRow | undefined;
+
+  if (existing) {
+    db.prepare("UPDATE ticket_comments SET content = ?, author = ? WHERE id = ?").run(
+      content,
+      author,
+      existing.id
+    );
+    const row = db
+      .prepare("SELECT * FROM ticket_comments WHERE id = ?")
+      .get(existing.id) as DbCommentRow;
+    return toComment(row);
+  }
+
+  const id = randomUUID();
+  const now = new Date().toISOString();
+  db.prepare(
+    "INSERT INTO ticket_comments (id, ticket_id, content, author, type, created_at) VALUES (?, ?, ?, ?, 'verification_report', ?)"
+  ).run(id, params.ticketId, content, author, now);
   const row = db.prepare("SELECT * FROM ticket_comments WHERE id = ?").get(id) as DbCommentRow;
   return toComment(row);
 }

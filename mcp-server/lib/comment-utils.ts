@@ -18,11 +18,18 @@ interface CommentTypeLabels {
   test_report: string;
   progress: string;
   change_request: string;
+  verification_report: string;
   comment: string;
 }
 
 /** Comment type - must match database values */
-type CommentType = "comment" | "work_summary" | "test_report" | "progress" | "change_request";
+type CommentType =
+  | "comment"
+  | "work_summary"
+  | "test_report"
+  | "progress"
+  | "change_request"
+  | "verification_report";
 
 /** Author type - who created the comment */
 type CommentAuthor =
@@ -38,6 +45,7 @@ type CommentAuthor =
   | "ai"
   | "brain-dump"
   | `ralph:${string}`
+  | `${string} ralph`
   | null;
 
 /** Comment record from database */
@@ -79,6 +87,7 @@ export const COMMENT_TYPE_LABELS: CommentTypeLabels = {
   test_report: "🧪 Test Report",
   progress: "📈 Progress",
   change_request: "⚠️ Changes Requested",
+  verification_report: "✅ Verification Report",
   comment: "💬 Comment",
 };
 

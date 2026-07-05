@@ -14,7 +14,7 @@ export const BASE_COMMENT_AUTHORS = [
 ] as const;
 
 export type BaseCommentAuthor = (typeof BASE_COMMENT_AUTHORS)[number];
-export type CommentAuthor = BaseCommentAuthor | `ralph:${string}`;
+export type CommentAuthor = BaseCommentAuthor | `ralph:${string}` | `${string} ralph`;
 
 export interface CommentAuthorStyle {
   gradient: [string, string];
@@ -123,7 +123,7 @@ export function isValidCommentAuthor(author: string): author is CommentAuthor {
   }
 
   if (!author.startsWith("ralph:")) {
-    return false;
+    return /^[a-z0-9-]+ ralph$/i.test(author.trim());
   }
 
   const provider = author.slice("ralph:".length);
@@ -131,8 +131,14 @@ export function isValidCommentAuthor(author: string): author is CommentAuthor {
 }
 
 export function getCommentAuthorBase(author: string): BaseCommentAuthor {
+  if (author.endsWith(" ralph")) {
+    const provider = author.slice(0, -" ralph".length);
+    return isKnownBaseCommentAuthor(provider) ? provider : "ralph";
+  }
+
   if (author.startsWith("ralph:")) {
-    return "ralph";
+    const provider = author.slice("ralph:".length);
+    return isKnownBaseCommentAuthor(provider) ? provider : "ralph";
   }
 
   if (isKnownBaseCommentAuthor(author)) {
@@ -143,13 +149,22 @@ export function getCommentAuthorBase(author: string): BaseCommentAuthor {
 }
 
 export function getCommentAuthorDisplayName(author: string): string {
+  if (author.endsWith(" ralph")) {
+    const provider = author.slice(0, -" ralph".length).trim();
+    if (provider.length === 0) {
+      return COMMENT_AUTHOR_LABELS.ralph;
+    }
+
+    return `${getCommentAuthorDisplayName(provider)} Ralph`;
+  }
+
   if (author.startsWith("ralph:")) {
     const provider = author.slice("ralph:".length).trim();
     if (provider.length === 0) {
       return COMMENT_AUTHOR_LABELS.ralph;
     }
 
-    return `Ralph (${getCommentAuthorDisplayName(provider)})`;
+    return `${getCommentAuthorDisplayName(provider)} Ralph`;
   }
 
   if (isKnownBaseCommentAuthor(author)) {

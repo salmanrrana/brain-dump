@@ -28,8 +28,10 @@ export async function handle(action: string, args: string[]): Promise<void> {
     }
 
     const baseUrl = optionalFlag(flags, "base-url");
+    const provider = optionalFlag(flags, "provider");
     const result = await verifyTicket(db, {
       ticketId,
+      ...(provider !== undefined ? { provider } : {}),
       ...(baseUrl !== undefined ? { baseUrl } : {}),
       execFileNoThrow,
     });

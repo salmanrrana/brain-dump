@@ -39,6 +39,7 @@ import {
   type TicketStatus,
   type WorkflowTransitionAction,
 } from "./workflow-steps.ts";
+import { normalizeAttachments } from "./attachment-types.ts";
 
 // ============================================
 // Internal row types (raw SQL results)
@@ -706,7 +707,7 @@ function toTicketWithProject(row: TicketRow): TicketWithProject {
     isBlocked: row.is_blocked === 1,
     blockedReason: row.blocked_reason,
     linkedFiles: row.linked_files ? safeParseJson(row.linked_files, [], "linked_files") : [],
-    attachments: row.attachments ? safeParseJson(row.attachments, [], "attachments") : [],
+    attachments: normalizeAttachments(row.attachments),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     completedAt: row.completed_at,

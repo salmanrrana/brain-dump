@@ -40,10 +40,11 @@ export interface Subtask {
 export interface Attachment {
   id: string;
   filename: string;
-  path: string;
   type?: string;
   description?: string;
   priority?: "primary" | "supplementary";
+  uploadedBy?: string;
+  uploadedAt?: string;
   linkedCriteria?: string[];
 }
 
@@ -121,7 +122,13 @@ export interface Comment {
   ticketId: string;
   content: string;
   author: string;
-  type: "comment" | "work_summary" | "test_report" | "progress" | "change_request";
+  type:
+    | "comment"
+    | "work_summary"
+    | "test_report"
+    | "progress"
+    | "change_request"
+    | "verification_report";
   createdAt: string;
 }
 
