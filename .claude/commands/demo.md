@@ -1,18 +1,18 @@
 ---
-description: Generate demo script for human review approval
+description: Generate demo script for AI verification
 ---
 
 # Generate Demo Script
 
 Load the `brain-dump-workflow` skill for context on the full workflow.
 
-You are generating a demo script for a ticket that has passed AI review and is ready for human approval.
+You are generating a demo script for a ticket that has passed AI review and is ready for AI verification.
 
 ## Prerequisites
 
 - Ticket must be in `ai_review` status
 - All critical and major findings must be fixed
-- `review` tool `check-complete` with `ticketId` must return `canProceedToHumanReview: true`
+- `review` tool `check-complete` with `ticketId` must return `canProceedToVerification: true`
 
 ## Steps
 

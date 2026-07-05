@@ -182,7 +182,7 @@ describe("KanbanBoard", () => {
     // Check that we have a columns container
     expect(loadingRegion.children[0]).toBeInTheDocument();
     // Check that we have 6 columns (children of the columns container)
-    // Columns: backlog, ready, in_progress, ai_review, human_review, done
+    // Columns: backlog, ready, in_progress, ai_review, ai_verification, done
     expect(loadingRegion.children[0]?.children).toHaveLength(6);
   });
 

@@ -5,7 +5,7 @@ Ticket: `348966d6-a8c9-486a-8ed8-9eeb2453720b`.
 Phase 0 grep command used before refactor:
 
 ```bash
-git grep -n -E '"(backlog|ready|in_progress|ai_review|human_review|done)"|'"'"'(backlog|ready|in_progress|ai_review|human_review|done)'"'"'' -- core mcp-server cli src hooks scripts
+git grep -n -E '"(backlog|ready|in_progress|ai_review|ai_verification|human_review|done)"|'"'"'(backlog|ready|in_progress|ai_review|ai_verification|human_review|done)'"'"'' -- core mcp-server cli src hooks scripts
 ```
 
 Canonical status module: `core/workflow-steps.ts`.

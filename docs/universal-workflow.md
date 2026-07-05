@@ -4,7 +4,7 @@
 
 ## Overview
 
-The Universal Quality Workflow ensures consistent code quality by enforcing a structured review → fix → demo → approval flow in every AI coding environment (Claude Code, Cursor, VS Code, OpenCode).
+The Universal Quality Workflow ensures consistent code quality by enforcing a structured review -> fix -> demo -> AI verification flow in every AI coding environment (Claude Code, Cursor, VS Code, OpenCode, Copilot CLI, Codex, and Pi).
 
 This document is the authoritative guide to the workflow. For implementation details, see [plans/specs/universal-quality-workflow.md](../plans/specs/universal-quality-workflow.md).
 
@@ -31,8 +31,8 @@ pnpm dev    # http://localhost:4242
 # 6. Fix any issues the agents found
 # → Once all critical/major issues fixed, demo is ready
 
-# 7. Human (you) approves the demo
-# → Ticket moves to done
+# 7. AI verification runner executes the demo steps
+# → Certified passes move to done; failures loop back to in_progress
 ```
 
 ## The Status Flow
@@ -197,6 +197,25 @@ What happens:
 - Demo script generated with 5 steps
 - Verification run failed: profile page missing avatar field
 - Verification evidence attached for failed step
+
+## Cross-Provider Workflow Parity
+
+Every provider class must have a non-empty way to fulfill each workflow step. MCP clients use the `workflow`, `review`, `session`, and `comment` tools directly; Pi uses the `brain-dump` CLI equivalents; hook-capable providers add local guardrails, but MCP/core preconditions remain authoritative.
+
+| Workflow step                | MCP providers: Claude Code, VS Code, Cursor, OpenCode, Copilot CLI, Codex | CLI-only provider: Pi                                                                                   | Hook/prompt enforcement                                                                                  |
+| ---------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------ | --------- | ----------------------------------------------------------- |
+| Start work                   | `workflow { action: "start-work" }`                                       | `brain-dump workflow start-work --ticket <id>`                                                          | Claude/Copilot/Cursor-agent hooks guide state; prompt guardrails for hook-less providers                 |
+| Track session                | `session create/get/update-state/complete`                                | `brain-dump session create                                                                              | get                                                                                                      | update-state | complete` | State file is written by the session tool for all providers |
+| Record validation            | `comment { action: "add", commentType: "test_report" }`                   | `brain-dump comment add --type test_report --ticket <id>`                                               | `complete-work` requires a fresh test report                                                             |
+| Complete implementation      | `workflow { action: "complete-work" }`                                    | `brain-dump workflow complete-work --ticket <id>`                                                       | Core transition requires `in_progress -> ai_review`                                                      |
+| Submit review findings       | `review { action: "submit-finding" }`                                     | `brain-dump review submit-finding --ticket <id> ...`                                                    | Core transition requires `ai_review`                                                                     |
+| Mark findings fixed          | `review { action: "mark-fixed" }`                                         | `brain-dump review mark-fixed --finding <id> --status fixed`                                            | `check-complete` blocks open critical/major findings                                                     |
+| Check review completion      | `review { action: "check-complete" }`                                     | `brain-dump review check-complete --ticket <id>`                                                        | Result exposes `canProceedToVerification`                                                                |
+| Generate demo handoff        | `review { action: "generate-demo" }`                                      | `brain-dump review generate-demo --ticket <id> --steps-file <file>`                                     | Core transition requires `ai_review -> ai_verification`; visual/automated steps require automation specs |
+| Inspect verification history | `review { action: "get-verification-history" }`                           | `brain-dump review get-verification-history --ticket <id>` or `brain-dump verify history --ticket <id>` | Read-only evidence/audit surface                                                                         |
+| Run verification             | Runner/core only, not an implementing agent MCP action                    | `brain-dump verify run --ticket <id> --provider <provider>`                                             | Runner owns evidence writes and `ai_verification -> done` or failure loop-back                           |
+
+`submit-feedback` is intentionally not part of any provider class. Manual approval is retired; hook-less providers cannot bypass verification because the core review path rejects manual demo feedback and only the verification runner performs certified completion.
 
 ### Phase 7: Reconcile Learnings (Optional)
 
@@ -399,7 +418,7 @@ Finds cross-ticket patterns and consistency issues.
 
 ### `/demo`
 
-Generate demo script for human review.
+Generate demo script for AI verification.
 
 ```
 /demo
@@ -439,13 +458,13 @@ You tried to submit a finding for a ticket not in AI review.
 - This moves the ticket to `ai_review`
 - Then submit findings
 
-### "Cannot start ticket - previous ticket still in review"
+### "Cannot start ticket - previous ticket still in verification"
 
-A previous ticket is waiting for human feedback.
+A previous ticket is waiting for AI verification or review completion.
 
 **Fix:**
 
-- Review and approve/reject the previous ticket
+- Let the verification runner certify the previous ticket, or fix/review any loop-back findings
 - Then start the new one
 
 ### "Validation failed: 1 test failing"

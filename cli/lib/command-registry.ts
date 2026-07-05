@@ -670,6 +670,13 @@ export const COMMAND_REGISTRY: CommandDef[] = [
     ],
   },
   {
+    resource: "review",
+    action: "get-verification-history",
+    description: "Read verification run history for a ticket",
+    flags: [ticketFlag, prettyFlag],
+    examples: ["brain-dump review get-verification-history --ticket abc --pretty"],
+  },
+  {
     resource: "verify",
     action: "run",
     description: "Run AI verification for a ticket",

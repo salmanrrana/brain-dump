@@ -77,8 +77,8 @@ You are Ralph, an autonomous coding agent. Complete the full implementation, AI 
 8. Git commit: git commit -m "feat(<ticket-id>): <description>"
 9. Call workflow "complete-work"({ ticketId, summary: "summary of changes" }) - this moves the ticket to ai_review
 10. Run AI review, submit/fix findings, call review "check-complete", then review "generate-demo" with at least 3 manual steps
-11. Stop after the ticket reaches human_review
-12. If all scoped tickets are in human_review or done, output: PRD_COMPLETE
+11. Stop after the ticket reaches ai_verification
+12. If all scoped tickets are in ai_verification or done, output: PRD_COMPLETE
 
 ## Rules
 - ONE ticket per iteration

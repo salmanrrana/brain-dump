@@ -17,7 +17,8 @@ All commands output JSON by default. Add `--pretty` for human-readable output.
 | `epic`       | Create, list, update, delete epics — _create, list, update, delete, reconcile-learnings, get-learnings_                                                                            |
 | `workflow`   | Start work, complete work, start epic, launch Ralph — _start-work, complete-work, start-epic, launch-ticket, launch-epic_                                                          |
 | `comment`    | Add and list ticket comments — _add, list_                                                                                                                                         |
-| `review`     | Submit findings, generate demos, manage reviews — _submit-finding, mark-fixed, check-complete, generate-demo, get-demo, get-findings_                                              |
+| `review`     | Submit findings, generate demos, manage reviews — _submit-finding, mark-fixed, check-complete, generate-demo, get-demo, get-findings, get-verification-history_                    |
+| `verify`     | Run AI verification and inspect verification history — _run, history_                                                                                                              |
 | `session`    | Create, update, complete Ralph sessions — _create, update, complete, get, list, update-state, emit-event, get-events, clear-events_                                                |
 | `git`        | Link commits, PRs, sync ticket links — _link-commit, link-pr, sync_                                                                                                                |
 | `telemetry`  | Start, end, get, list telemetry sessions, record token usage — _start, end, get, list, log-tool, log-prompt, log-context, record-usage, recalculate-costs, deep-recalculate-costs_ |
@@ -697,7 +698,7 @@ brain-dump workflow start-epic --epic abc --create-pr
 Launch Ralph for a single ticket in the chosen provider (parity with UI)
 
 ```bash
-brain-dump workflow launch-ticket --ticket <value> [--provider <claude-code|vscode|cursor|cursor-agent|copilot-cli|codex|pi|opencode>] [--terminal <value>] [--max-iterations <n>] [--sandbox] [--pretty]
+brain-dump workflow launch-ticket --ticket <value> [--provider <claude-code|vscode|cursor|cursor-agent|copilot-cli|codex|pi|opencode>] [--terminal <value>] [--model <value>] [--max-iterations <n>] [--sandbox] [--pretty]
 ```
 
 | Flag               | Type    | Required | Description                                                                                                                   |
@@ -705,6 +706,7 @@ brain-dump workflow launch-ticket --ticket <value> [--provider <claude-code|vsco
 | `--ticket`         | string  | Yes      | Ticket ID                                                                                                                     |
 | `--provider`       | enum    | No       | AI backend to launch (default: project setting) (claude-code, vscode, cursor, cursor-agent, copilot-cli, codex, pi, opencode) |
 | `--terminal`       | string  | No       | Preferred terminal emulator (e.g. ghostty, kitty, iterm2)                                                                     |
+| `--model`          | string  | No       | Provider model id to pass to Ralph (requires --provider)                                                                      |
 | `--max-iterations` | number  | No       | Override Ralph loop iteration cap                                                                                             |
 | `--sandbox`        | boolean | No       | Run inside the Docker sandbox (claude-code only)                                                                              |
 | `--pretty`         | boolean | No       | Human-readable output (default: JSON)                                                                                         |
@@ -722,7 +724,7 @@ brain-dump workflow launch-ticket --ticket abc --provider claude-code --sandbox
 Launch Ralph for an entire epic in the chosen provider (parity with UI)
 
 ```bash
-brain-dump workflow launch-epic --epic <value> [--provider <claude-code|vscode|cursor|cursor-agent|copilot-cli|codex|pi|opencode>] [--terminal <value>] [--max-iterations <n>] [--sandbox] [--pretty]
+brain-dump workflow launch-epic --epic <value> [--provider <claude-code|vscode|cursor|cursor-agent|copilot-cli|codex|pi|opencode>] [--terminal <value>] [--model <value>] [--max-iterations <n>] [--sandbox] [--pretty]
 ```
 
 | Flag               | Type    | Required | Description                                                                                                                   |
@@ -730,6 +732,7 @@ brain-dump workflow launch-epic --epic <value> [--provider <claude-code|vscode|c
 | `--epic`           | string  | Yes      | Epic ID                                                                                                                       |
 | `--provider`       | enum    | No       | AI backend to launch (default: project setting) (claude-code, vscode, cursor, cursor-agent, copilot-cli, codex, pi, opencode) |
 | `--terminal`       | string  | No       | Preferred terminal emulator (e.g. ghostty, kitty, iterm2)                                                                     |
+| `--model`          | string  | No       | Provider model id to pass to Ralph (requires --provider)                                                                      |
 | `--max-iterations` | number  | No       | Override Ralph loop iteration cap                                                                                             |
 | `--sandbox`        | boolean | No       | Run inside the Docker sandbox (claude-code only)                                                                              |
 | `--pretty`         | boolean | No       | Human-readable output (default: JSON)                                                                                         |
@@ -884,6 +887,73 @@ brain-dump review get-findings --ticket <value> [--status <open|fixed|wont_fix|d
 | `--severity` | enum    | No       | Filter by severity (critical, major, minor, suggestion)                 |
 | `--agent`    | enum    | No       | Filter by agent (code-reviewer, silent-failure-hunter, code-simplifier) |
 | `--pretty`   | boolean | No       | Human-readable output (default: JSON)                                   |
+
+### brain-dump review get-verification-history
+
+Read verification run history for a ticket
+
+```bash
+brain-dump review get-verification-history --ticket <value> [--pretty]
+```
+
+| Flag       | Type    | Required | Description                           |
+| ---------- | ------- | -------- | ------------------------------------- |
+| `--ticket` | string  | Yes      | Ticket ID                             |
+| `--pretty` | boolean | No       | Human-readable output (default: JSON) |
+
+**Examples:**
+
+```bash
+brain-dump review get-verification-history --ticket abc --pretty
+```
+
+---
+
+## verify
+
+Run AI verification and inspect verification history
+
+### brain-dump verify run
+
+Run AI verification for a ticket
+
+```bash
+brain-dump verify run --ticket <value> [--base-url <value>] [--provider <value>] [--pretty]
+```
+
+| Flag         | Type    | Required | Description                                                            |
+| ------------ | ------- | -------- | ---------------------------------------------------------------------- |
+| `--ticket`   | string  | Yes      | Ticket ID                                                              |
+| `--base-url` | string  | No       | Use an already-running app instead of booting the project              |
+| `--provider` | string  | No       | Provider attribution for runner evidence, stored as '<provider> ralph' |
+| `--pretty`   | boolean | No       | Human-readable output (default: JSON)                                  |
+
+**Examples:**
+
+```bash
+brain-dump verify --ticket abc --pretty
+brain-dump verify --ticket abc --base-url http://127.0.0.1:4242 --pretty
+```
+
+### brain-dump verify history
+
+List verification run history for a ticket
+
+```bash
+brain-dump verify history --ticket <value> [--history] [--pretty]
+```
+
+| Flag        | Type    | Required | Description                           |
+| ----------- | ------- | -------- | ------------------------------------- |
+| `--ticket`  | string  | Yes      | Ticket ID                             |
+| `--history` | boolean | No       | Show history                          |
+| `--pretty`  | boolean | No       | Human-readable output (default: JSON) |
+
+**Examples:**
+
+```bash
+brain-dump verify --ticket abc --history --pretty
+```
 
 ---
 

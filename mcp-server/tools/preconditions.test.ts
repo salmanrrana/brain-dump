@@ -56,7 +56,7 @@ describe("MCP Tool Preconditions", () => {
         start_ticket_work: ["backlog", "ready"], // Can start from backlog/ready
         complete_ticket_work: ["in_progress"], // Can only complete from in_progress
         submit_review_finding: ["ai_review"], // Can only submit findings while in review
-        generate_demo_script: ["ai_review"], // Can only generate demo from ai_review
+        generate_demo_script: ["ai_review"], // Hands off to AI verification
         verify_ticket: ["ai_verification"], // Runner owns verification completion
         reconcile_learnings: ["done"], // Can only reconcile from done
       };
@@ -72,7 +72,7 @@ describe("MCP Tool Preconditions", () => {
       const prohibitedOperations = {
         submit_review_finding: "Ticket must be in ai_review status",
         generate_demo_script: "Ticket must be in ai_review to generate demo",
-        verify_ticket: "Ticket must be in ai_verification",
+        verify_ticket: "Ticket must be in ai_verification and invoked by the runner",
       };
 
       Object.entries(prohibitedOperations).forEach(([, expectedError]) => {
@@ -125,13 +125,14 @@ describe("MCP Tool Preconditions", () => {
       expect(criticalMajor).toEqual(["critical", "major"]);
     });
 
-    it("should require demo script to exist before submitting feedback", () => {
-      // Error: "No demo script found for this ticket"
-      // This prevents users from submitting feedback on non-existent demos
+    it("should route manual demo feedback users to the verification runner", () => {
+      // Error: manual demo feedback is retired.
+      // This prevents hook-less MCP clients from moving tickets to done manually.
 
-      const errorMsg = "No demo script found for this ticket";
-      expect(errorMsg).toContain("demo");
-      expect(errorMsg).toContain("found"); // "found" is in "found for this ticket"
+      const errorMsg =
+        "Manual demo feedback has been retired. Run the verification runner for ai_verification tickets instead.";
+      expect(errorMsg).toContain("Manual demo feedback has been retired");
+      expect(errorMsg).toContain("verification runner");
     });
   });
 
@@ -234,6 +235,10 @@ describe("MCP Tool Preconditions", () => {
         {
           error: "Cannot proceed - X open critical findings",
           action: "fix",
+        },
+        {
+          error: "Manual demo feedback has been retired",
+          action: "brain-dump verify run",
         },
       ];
 

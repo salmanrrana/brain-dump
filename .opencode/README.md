@@ -97,7 +97,7 @@ Once configured, these tools are automatically available:
 - `review "submit-finding"` — Post review findings
 - `review "mark-fixed"` — Mark issue resolved
 - `review "check-complete"` — Verify all critical issues fixed
-- `review "generate-demo"` — Create demo for human review
+- `review "generate-demo"` — Create verification handoff steps
 
 ### Telemetry
 

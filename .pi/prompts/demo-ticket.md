@@ -1,5 +1,5 @@
 ---
-description: Generate Brain Dump demo steps for human review using the CLI
+description: Generate Brain Dump demo steps for AI verification using the CLI
 argument-hint: "<ticket-id>"
 ---
 
@@ -31,4 +31,4 @@ brain-dump review check-complete --ticket $1 --pretty
 brain-dump review generate-demo --ticket $1 --steps-file .pi/tmp/demo-steps-$1.json --pretty
 ```
 
-4. Summarize the generated demo and stop for human review.
+4. Summarize the generated demo and stop for AI verification.

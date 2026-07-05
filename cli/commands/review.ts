@@ -1,5 +1,6 @@
 /**
- * Review commands: submit-finding, mark-fixed, check-complete, generate-demo, get-demo, get-findings.
+ * Review commands: submit-finding, mark-fixed, check-complete, generate-demo, get-demo, get-findings,
+ * get-verification-history.
  */
 
 import { readFileSync } from "fs";
@@ -11,6 +12,7 @@ import {
   generateDemo,
   getDemo,
   getFindings,
+  listVerificationRuns,
   updatePrdForDbTicketIfPresent,
   InvalidActionError,
   ValidationError,
@@ -41,6 +43,7 @@ const ACTIONS = [
   "generate-demo",
   "get-demo",
   "get-findings",
+  "get-verification-history",
 ];
 
 export function handle(action: string, args: string[]): void {
@@ -161,6 +164,13 @@ export function handle(action: string, args: string[]): void {
           ...(severity !== undefined ? { severity } : {}),
           ...(agent !== undefined ? { agent } : {}),
         });
+        outputResult(result, pretty);
+        break;
+      }
+
+      case "get-verification-history": {
+        const ticketId = requireFlag(flags, "ticket");
+        const result = listVerificationRuns(db, ticketId);
         outputResult(result, pretty);
         break;
       }

@@ -29,7 +29,7 @@ You are starting work on the next available task from the Brain Dump kanban boar
    ```
 
    - The tool will check preconditions and block if needed
-   - Follow any instructions in the response (e.g., if previous ticket needs human review)
+   - Follow any instructions in the response (e.g., if a previous ticket is awaiting AI verification)
 
 4. **If successful, create a micro-plan:**
    - Write a 5-10 bullet implementation plan

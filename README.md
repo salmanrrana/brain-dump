@@ -226,7 +226,7 @@ Common commands available from installed command packs:
 | `/launch-ticket`       | Launch Ralph for a single ticket (any provider) |
 | `/launch-epic`         | Launch Ralph for an entire epic (any provider)  |
 | `/review-ticket`       | Run ticket review pipeline                      |
-| `/demo`                | Generate human review demo script               |
+| `/demo`                | Generate AI verification demo script            |
 | `/review-epic`         | Run cross-ticket epic review                    |
 | `/reconcile-learnings` | Extract and store learnings                     |
 | `/extended-review`     | Extended multi-agent review                     |

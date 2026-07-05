@@ -123,7 +123,7 @@ cp scripts/skills/*.md ~/.claude/commands/
 **When to use**:
 
 - After implementing a feature and tests pass
-- Before moving to human review phase
+- Before moving to AI verification handoff
 - Checking code quality before committing
 
 **What it does**:

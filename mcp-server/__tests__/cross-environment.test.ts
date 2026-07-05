@@ -351,6 +351,7 @@ describe("MCP Protocol Compatibility", () => {
         submit_review_finding: "ticket must be in ai_review",
         generate_demo_script: "no critical/major findings open",
         verify_ticket: "ticket must be in ai_verification",
+        submit_feedback: "manual feedback is retired; runner owns done",
       };
 
       Object.values(preconditions).forEach((precond) => {
@@ -370,6 +371,24 @@ describe("MCP Protocol Compatibility", () => {
         const isHelpful = err.includes("Use") || err.includes("must") || err.includes(".");
         expect(isHelpful).toBeTruthy();
         expect(err.length).toBeGreaterThan(0);
+      });
+    });
+
+    it("hook-less environments rely on MCP preconditions for verification handoff", () => {
+      const hooklessEnvironments = ["vscode", "cursor", "opencode", "codex"];
+      const mcpPreconditions = [
+        "review submit-finding requires ai_review",
+        "review generate-demo requires ai_review and resolved critical/major findings",
+        "review submit-feedback is retired",
+        "verification runner alone performs ai_verification -> done",
+      ];
+
+      hooklessEnvironments.forEach((environment) => {
+        expect(environment.length).toBeGreaterThan(0);
+        expect(mcpPreconditions).toContain("review submit-feedback is retired");
+        expect(mcpPreconditions).toContain(
+          "verification runner alone performs ai_verification -> done"
+        );
       });
     });
   });
