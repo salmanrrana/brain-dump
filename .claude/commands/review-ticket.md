@@ -100,7 +100,7 @@ For each critical/major finding:
 review tool, action: "check-complete", ticketId: "<ticket-id>"
 ```
 
-Must return `canProceedToHumanReview: true` before continuing.
+Must return `canProceedToVerification: true` before continuing.
 
 ### Step 7: Generate Demo Script
 

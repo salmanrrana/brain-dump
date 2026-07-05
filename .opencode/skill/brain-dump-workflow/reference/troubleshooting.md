@@ -27,7 +27,7 @@ Then retry your Write/Edit operation. Only `implementing`, `testing`, and `commi
 2. Perform review (self-review or use review agents)
 3. Submit findings via `review "submit-finding"`
 4. Fix critical/major issues
-5. Run `review "check-complete"({ ticketId })` -- must return `canProceedToHumanReview: true`
+5. Run `review "check-complete"({ ticketId })` -- must return `canProceedToVerification: true`
 6. Now you can push
 
 ## "Cannot proceed - open critical findings"
@@ -39,7 +39,7 @@ Then retry your Write/Edit operation. Only `implementing`, `testing`, and `commi
 1. Get open findings: `review "get-findings"({ ticketId, severity: "critical" })`
 2. Fix each finding in code
 3. Mark fixed: `review "mark-fixed"({ findingId, fixStatus: "fixed" })`
-4. Verify: `review "check-complete"({ ticketId })` must return `canProceedToHumanReview: true`
+4. Verify: `review "check-complete"({ ticketId })` must return `canProceedToVerification: true`
 5. Now you can generate the demo
 
 ## "Ticket must be in ai_review to submit findings"
@@ -93,7 +93,7 @@ Have you fixed all critical/major findings?
 |-- YES: Call review "check-complete"({ ticketId })
 |-- NO: Fix them and review "mark-fixed"
 
-Does review "check-complete" return canProceedToHumanReview: true?
+Does review "check-complete" return canProceedToVerification: true?
 |-- YES: Call review "generate-demo"({ ticketId, steps })
 |-- NO: Still have open critical/major findings
 

@@ -7,7 +7,8 @@
  */
 
 import { execFileSync } from "child_process";
-import { existsSync, readFileSync } from "fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "fs";
+import { createRequire } from "module";
 import { join } from "path";
 import { createInterface } from "readline";
 import { getDatabasePath, getBackupsDir, ensureDirectoriesSync } from "../../src/lib/xdg";
@@ -21,7 +22,7 @@ import {
 } from "../../src/lib/backup";
 import { fullDatabaseCheck, quickIntegrityCheck } from "../../src/lib/integrity";
 import { createCliLogger } from "../../src/lib/logger";
-import { getDatabaseHealth } from "../../core/index.ts";
+import { getAttachmentsDir, getDatabaseHealth } from "../../core/index.ts";
 import type { HealthDependencies } from "../../core/index.ts";
 import { parseFlags, boolFlag } from "../lib/args.ts";
 import { outputResult, outputError, showResourceHelp } from "../lib/output.ts";
@@ -604,6 +605,73 @@ function handleDoctorAction(): void {
     }
   } else {
     console.log("  o Not detected (Codex not installed or not configured)");
+  }
+
+  console.log();
+
+  // Verification Runner & Epic Auto-PR
+  console.log("Verification Runner & Epic Auto-PR");
+  console.log("-".repeat(50));
+
+  // UI demo steps only certify when @playwright/test resolves from the runner's install.
+  try {
+    const nodeRequire = createRequire(import.meta.url);
+    nodeRequire.resolve("@playwright/test");
+    console.log("  ✓ Playwright available (UI verification steps certifiable)");
+  } catch {
+    console.log(
+      "  ✗ Playwright not available: UI verification steps will be skipped (runs stay uncertified)"
+    );
+    issues.push({
+      environment: "Verification",
+      component: "Playwright",
+      message: "@playwright/test is not installed; UI demo steps cannot produce certified evidence",
+      fix: "pnpm add -D @playwright/test && npx playwright install chromium",
+    });
+  }
+
+  // Evidence files + sealed manifests are written under the attachments directory.
+  try {
+    const attachmentsDir = getAttachmentsDir();
+    const probePath = join(attachmentsDir, `.doctor-probe-${process.pid}`);
+    writeFileSync(probePath, "probe");
+    rmSync(probePath, { force: true });
+    console.log(`  ✓ Attachments directory writable (${attachmentsDir})`);
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.log(`  ✗ Attachments directory not writable: ${errorMsg}`);
+    issues.push({
+      environment: "Verification",
+      component: "Attachments Directory",
+      message: `Verification evidence cannot be stored: ${errorMsg}`,
+      fix: "Fix ownership/permissions of the Brain Dump data directory reported above",
+    });
+  }
+
+  // Epic completion shells out to gh (pr list/create/edit/ready).
+  try {
+    execFileSync("gh", ["auth", "status"], { stdio: "pipe" });
+    console.log("  ✓ GitHub CLI authenticated (epic auto-PR ready)");
+  } catch (error) {
+    const err = error as NodeJS.ErrnoException;
+    if (err.code === "ENOENT") {
+      console.log("  ✗ GitHub CLI (gh) not installed: epic auto-PR cannot create PRs");
+      issues.push({
+        environment: "Verification",
+        component: "GitHub CLI",
+        message: "gh binary not found on PATH; epic completion cannot create or ready PRs",
+        fix: "Install GitHub CLI (https://cli.github.com), then run: gh auth login",
+      });
+    } else {
+      console.log("  ✗ GitHub CLI not authenticated: epic auto-PR cannot create PRs");
+      issues.push({
+        environment: "Verification",
+        component: "GitHub CLI Auth",
+        message:
+          "gh is installed but not authenticated; epic completion cannot create or ready PRs",
+        fix: "gh auth login",
+      });
+    }
   }
 
   console.log();

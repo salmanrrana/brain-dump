@@ -624,7 +624,7 @@ Then start your new ticket only after the prior ticket reaches `done` or returns
 **Conditions for creating marker**:
 
 - Output contains `complete: true`, OR
-- Output contains `canProceedToHumanReview: true`, OR
+- Output contains `canProceedToVerification: true` (or the deprecated alias `canProceedToHumanReview: true`), OR
 - Output shows `openCritical === 0 && openMajor === 0`
 
 **Marker file content**: ISO timestamp (for staleness checking)

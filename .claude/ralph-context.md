@@ -38,7 +38,7 @@ Primary actions:
 1. Review your own diff
 2. Record each issue with `review({ action: "submit-finding", ... })`
 3. Fix critical/major issues and mark them with `review({ action: "mark-fixed", findingId: "...", fixStatus: "fixed", fixDescription: "..." })`
-4. Invoke `review({ action: "check-complete", ticketId: "<ticketId>" })` until `canProceedToHumanReview: true`
+4. Invoke `review({ action: "check-complete", ticketId: "<ticketId>" })` until `canProceedToVerification: true`
 
 ### Phase 3: Demo Generation
 

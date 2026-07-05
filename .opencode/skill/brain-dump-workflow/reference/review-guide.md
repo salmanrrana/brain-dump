@@ -85,7 +85,7 @@ After all critical/major issues are fixed:
 
 ```
 review "check-complete"({ ticketId: "<ticket-id>" })
-// Must return: { canProceedToHumanReview: true }
+// Must return: { canProceedToVerification: true }
 ```
 
-Only proceed to demo generation when `canProceedToHumanReview` is `true`.
+Only proceed to demo generation when `canProceedToVerification` is `true`.
