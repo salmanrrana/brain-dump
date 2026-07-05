@@ -23,6 +23,7 @@ import { tickets } from "../lib/schema";
 type TicketRecord = typeof tickets.$inferSelect;
 
 export type HumanRequestedChangesByTicketId = Record<string, string | undefined>;
+export type VerificationFailuresByTicketId = Record<string, string | undefined>;
 
 // ============================================================================
 // TYPES
@@ -141,6 +142,9 @@ function buildImplementationContext(prd: EnhancedPRDDocument): string {
   const ticketsWithHumanRequestedChanges = incompleteTickets.filter((ticket) =>
     ticket.humanRequestedChanges?.trim()
   );
+  const ticketsWithVerificationFailures = incompleteTickets.filter((ticket) =>
+    ticket.verificationFailures?.trim()
+  );
 
   const ticketList = incompleteTickets
     .map((ticket) => {
@@ -165,6 +169,21 @@ ${ticketsWithHumanRequestedChanges
   .join("\n\n")}
 `
       : "";
+  const verificationFailuresSection =
+    ticketsWithVerificationFailures.length > 0
+      ? `
+---
+
+## Verification Failures - Fix This First
+
+${ticketsWithVerificationFailures
+  .map(
+    (ticket) =>
+      `### ${ticket.title}\nID: \`${ticket.id}\`\n\n${ticket.verificationFailures?.trim()}`
+  )
+  .join("\n\n")}
+`
+      : "";
 
   return `# Ralph Context - ${prd.projectName}
 
@@ -181,6 +200,7 @@ You are Ralph, an autonomous coding agent. Follow the Universal Quality Workflow
 ${SCOPE_CONSTRAINTS}
 ${WORKFLOW_PHASES}
 ${humanRequestedChangesSection}
+${verificationFailuresSection}
 ---
 
 ## Current Tickets
@@ -214,6 +234,18 @@ ${trimmed}
 `;
 }
 
+function buildVerificationFailuresSection(content: string | undefined): string {
+  const trimmed = content?.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  return `## Verification Failures - Fix This First
+
+${trimmed}
+`;
+}
+
 function buildReviewContext(prd: EnhancedPRDDocument, profile: RalphReviewPromptProfile): string {
   const ticket = prd.userStories.find((story) => story.id === profile.selectedTicket.id);
   const epicHeader = prd.epicTitle ? `\n**Epic:** ${prd.epicTitle}` : "";
@@ -233,6 +265,9 @@ ${ticket.description}
       : "";
   const humanRequestedChangesSection = buildHumanRequestedChangesSection(
     ticket?.humanRequestedChanges
+  );
+  const verificationFailuresSection = buildVerificationFailuresSection(
+    ticket?.verificationFailures
   );
   const steeringSection = steeringPrompt
     ? `
@@ -275,6 +310,7 @@ ${steeringSection}
 - Do not skip \`review.check-complete\` before \`review.generate-demo\`.
 - Do not run verification yourself or move tickets to \`done\`.
 ${humanRequestedChangesSection}
+${verificationFailuresSection}
 ${descriptionSection}
 ## Acceptance Criteria
 
@@ -345,7 +381,8 @@ export function generateEnhancedPRD(
   ticketList: TicketRecord[],
   epicTitle?: string,
   epicDescription?: string,
-  humanRequestedChangesByTicketId: HumanRequestedChangesByTicketId = {}
+  humanRequestedChangesByTicketId: HumanRequestedChangesByTicketId = {},
+  verificationFailuresByTicketId: VerificationFailuresByTicketId = {}
 ): EnhancedPRDDocument {
   // Get project context from CLAUDE.md
   const projectContext = getProjectContext(projectPath);
@@ -377,12 +414,14 @@ export function generateEnhancedPRD(
     }
 
     const humanRequestedChanges = humanRequestedChangesByTicketId[ticket.id]?.trim();
+    const verificationFailures = verificationFailuresByTicketId[ticket.id]?.trim();
 
     return {
       id: ticket.id,
       title: ticket.title,
       passes: ticket.status === "done",
       ...(humanRequestedChanges ? { humanRequestedChanges } : {}),
+      ...(verificationFailures ? { verificationFailures } : {}),
       overview,
       types,
       designDecisions,

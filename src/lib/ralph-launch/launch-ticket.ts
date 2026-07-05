@@ -23,7 +23,10 @@ import {
 } from "../../api/ralph-launchers";
 import { projects, settings, tickets } from "../schema";
 import type { LaunchTicketInput, RalphLaunchDb, RalphLaunchDependencies } from "./types";
-import { getHumanRequestedChangesByTicketId } from "./change-request-context";
+import {
+  getHumanRequestedChangesByTicketId,
+  getVerificationFailuresByTicketId,
+} from "./change-request-context";
 import { ensureRalphArtifactsIgnored } from "./gitignore";
 
 const coreGit = createRealGitOperations();
@@ -108,13 +111,15 @@ export async function launchRalphForTicketCore(
   mkdirSync(plansDir, { recursive: true });
 
   const humanRequestedChanges = getHumanRequestedChangesByTicketId(sqlite, [ticket.id]);
+  const verificationFailures = getVerificationFailuresByTicketId(sqlite, [ticket.id]);
   const prd = generateEnhancedPRD(
     project.name,
     project.path,
     [ticket],
     undefined,
     undefined,
-    humanRequestedChanges
+    humanRequestedChanges,
+    verificationFailures
   );
   const prdPath = join(plansDir, "prd.json");
   writeFileSync(prdPath, JSON.stringify(prd, null, 2));

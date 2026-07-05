@@ -1,9 +1,47 @@
 import { createServerFn } from "@tanstack/react-start";
 import { db } from "../lib/db";
-import { demoScripts, ticketComments, tickets, projects, epics } from "../lib/schema";
+import {
+  demoScripts,
+  ticketComments,
+  tickets,
+  projects,
+  epics,
+  verificationRuns,
+} from "../lib/schema";
 import { eq, and, not, desc, gt } from "drizzle-orm";
 import type { Subtask } from "./tickets";
 import { safeJsonParse } from "../lib/utils";
+
+interface VerificationManifestStep {
+  order: number;
+  status: string;
+  message: string;
+  evidenceFiles?: Array<{ path: string; hash: string }>;
+}
+
+interface VerificationManifestContext {
+  runId?: string;
+  stepVerdicts?: VerificationManifestStep[];
+}
+
+function formatVerificationFailureContext(run: typeof verificationRuns.$inferSelect): string {
+  const manifest = safeJsonParse<VerificationManifestContext>(run.manifest, {});
+  const failedSteps = manifest.stepVerdicts?.filter((step) => step.status === "failed") ?? [];
+  const lines = [
+    `Verification run ${manifest.runId ?? run.id} failed at ${run.finishedAt} (round ${run.round}).`,
+    "",
+  ];
+
+  for (const step of failedSteps) {
+    const evidence = step.evidenceFiles?.length
+      ? step.evidenceFiles.map((file) => `${file.path} (${file.hash})`).join(", ")
+      : "none";
+    lines.push(`- Step ${step.order}: ${step.message}`);
+    lines.push(`  Evidence: ${evidence}`);
+  }
+
+  return lines.join("\n");
+}
 
 // Get formatted context for Claude Code
 export const getTicketContext = createServerFn({ method: "GET" })
@@ -106,6 +144,20 @@ export const getTicketContext = createServerFn({ method: "GET" })
       if (latestChangeRequest && !newerApproval) {
         contextParts.push("## Human Requested Changes - Fix This First");
         contextParts.push(latestChangeRequest.content);
+        contextParts.push("");
+      }
+
+      const latestVerificationRun = db
+        .select()
+        .from(verificationRuns)
+        .where(eq(verificationRuns.ticketId, ticket.id))
+        .orderBy(desc(verificationRuns.round))
+        .limit(1)
+        .get();
+
+      if (latestVerificationRun?.status === "failed") {
+        contextParts.push("## Verification Failures - Fix This First");
+        contextParts.push(formatVerificationFailureContext(latestVerificationRun));
         contextParts.push("");
       }
     }

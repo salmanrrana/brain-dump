@@ -61,6 +61,9 @@ export interface EnhancedPRDItem {
   /** Latest unresolved human review rejection details that AI should fix first */
   humanRequestedChanges?: string;
 
+  /** Latest unresolved verification failure details that AI should fix first */
+  verificationFailures?: string;
+
   /** WHY this feature exists (extracted from Context/Problem sections) */
   overview: string;
 

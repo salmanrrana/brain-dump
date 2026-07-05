@@ -132,11 +132,22 @@ describe("verifyTicket", () => {
     expect(comment).toEqual({ author: "unknown ralph", type: "verification_report" });
   });
 
-  it("records failed rounds without completing the ticket", async () => {
+  function moveTicketBackToVerification(): void {
+    const now = new Date().toISOString();
+    db.prepare(
+      "UPDATE tickets SET status = 'ai_verification', updated_at = ? WHERE id = 'ticket-1'"
+    ).run(now);
+    db.prepare(
+      "UPDATE ticket_workflow_state SET current_phase = 'ai_verification', updated_at = ? WHERE ticket_id = 'ticket-1'"
+    ).run(now);
+  }
+
+  it("files verification findings and returns failed rounds to implementation", async () => {
     seedDemo([apiStep(201), apiStep(201)]);
     const baseUrl = await startFixtureServer();
 
     const firstRun = await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+    moveTicketBackToVerification();
     const secondRun = await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
 
     expect(firstRun.status).toBe("failed");
@@ -148,9 +159,46 @@ describe("verifyTicket", () => {
       status: string;
       completed_at: string | null;
     };
-    expect(ticket.status).toBe("ai_verification");
+    expect(ticket.status).toBe("in_progress");
     expect(ticket.completed_at).toBeNull();
+    const findings = db
+      .prepare(
+        "SELECT severity, category, description, status FROM review_findings WHERE ticket_id = 'ticket-1' ORDER BY created_at"
+      )
+      .all() as Array<{ severity: string; category: string; description: string; status: string }>;
+    expect(findings).toHaveLength(4);
+    expect(findings[0]).toMatchObject({
+      severity: "major",
+      category: "verification",
+      status: "open",
+    });
+    expect(findings[0]?.description).toContain("expected status 201, got 200");
     expect(listVerificationRuns(db, "ticket-1").map((run) => run.round)).toEqual([2, 1]);
+  });
+
+  it("blocks after three consecutive failures on the same step", async () => {
+    seedDemo([apiStep(201)]);
+    const baseUrl = await startFixtureServer();
+
+    await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+    moveTicketBackToVerification();
+    await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+    moveTicketBackToVerification();
+    const thirdRun = await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+
+    expect(thirdRun.status).toBe("failed");
+    const ticket = db
+      .prepare("SELECT status, is_blocked, blocked_reason FROM tickets WHERE id = 'ticket-1'")
+      .get() as { status: string; is_blocked: number; blocked_reason: string | null };
+    expect(ticket.status).toBe("ai_verification");
+    expect(ticket.is_blocked).toBe(1);
+    expect(ticket.blocked_reason).toContain("3 consecutive times on step 1");
+    const comment = db
+      .prepare(
+        "SELECT content FROM ticket_comments WHERE ticket_id = 'ticket-1' AND type = 'comment'"
+      )
+      .get() as { content: string };
+    expect(comment.content).toContain("Needs Attention");
   });
 
   it("leaves manual-only demos uncertified and visibly blocked", async () => {

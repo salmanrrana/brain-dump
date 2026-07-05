@@ -33,7 +33,10 @@ import {
   validateDockerSetup,
 } from "../../api/ralph-launchers";
 import { epics, projects, settings, tickets } from "../schema";
-import { getHumanRequestedChangesByTicketId } from "./change-request-context";
+import {
+  getHumanRequestedChangesByTicketId,
+  getVerificationFailuresByTicketId,
+} from "./change-request-context";
 import { ensureRalphArtifactsIgnored } from "./gitignore";
 import type {
   EpicLaunchPreparation,
@@ -349,13 +352,17 @@ export async function launchRalphForEpicCore(
       const humanRequestedChanges = getHumanRequestedChangesByTicketId(sqlite, [
         reviewLaunch.ticket.id,
       ]);
+      const verificationFailures = getVerificationFailuresByTicketId(sqlite, [
+        reviewLaunch.ticket.id,
+      ]);
       const ticketPrd = generateEnhancedPRD(
         project.name,
         project.path,
         [reviewLaunch.ticket],
         epic.title,
         epic.description ?? undefined,
-        humanRequestedChanges
+        humanRequestedChanges,
+        verificationFailures
       );
       const ticketPrdPath = join(project.path, reviewLaunch.prdRelativePath);
       mkdirSync(dirname(ticketPrdPath), { recursive: true });
@@ -556,13 +563,18 @@ export async function launchRalphForEpicCore(
     sqlite,
     prdTickets.map((ticket) => ticket.id)
   );
+  const verificationFailures = getVerificationFailuresByTicketId(
+    sqlite,
+    prdTickets.map((ticket) => ticket.id)
+  );
   const prd = generateEnhancedPRD(
     project.name,
     project.path,
     prdTickets,
     epic.title,
     epic.description ?? undefined,
-    humanRequestedChanges
+    humanRequestedChanges,
+    verificationFailures
   );
   const prdPath = join(plansDir, "prd.json");
   writeFileSync(prdPath, JSON.stringify(prd, null, 2));
