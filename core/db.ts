@@ -343,6 +343,7 @@ function ensureBaseSchema(db: DbHandle, logger: Logger): void {
       ralph_timeout INTEGER DEFAULT 3600,
       ralph_max_iterations INTEGER DEFAULT 10,
       auto_create_pr INTEGER DEFAULT 1,
+      epic_auto_pr INTEGER DEFAULT 1,
       pr_target_branch TEXT DEFAULT 'main',
       default_projects_directory TEXT,
       default_working_method TEXT DEFAULT 'auto',
@@ -1027,6 +1028,7 @@ export function runMigrations(db: DbHandle, logger: Logger = silentLogger): void
   // Settings columns added in various migrations
   addColumnIfMissing(db, "settings", "ralph_timeout", "INTEGER DEFAULT 3600", logger);
   addColumnIfMissing(db, "settings", "ralph_max_iterations", "INTEGER DEFAULT 10", logger);
+  addColumnIfMissing(db, "settings", "epic_auto_pr", "INTEGER DEFAULT 1", logger);
   addColumnIfMissing(db, "settings", "default_working_method", "TEXT DEFAULT 'auto'", logger);
   addColumnIfMissing(db, "settings", "default_projects_directory", "TEXT", logger);
   addColumnIfMissing(db, "settings", "docker_runtime", "TEXT", logger);

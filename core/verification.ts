@@ -10,6 +10,7 @@ import { getStateDir } from "./db.ts";
 import { updatePrdForDbTicketIfPresent } from "./prd-sync.ts";
 import { addComment, addVerificationReportComment } from "./comment.ts";
 import { writeAttachmentFromFile } from "./attachments.ts";
+import { handleEpicCompletionAutoPr } from "./ship.ts";
 import type { AttachmentType } from "./attachment-types.ts";
 
 export type VerificationRunStatus = "passed" | "failed" | "uncertified" | "infra_error";
@@ -963,6 +964,7 @@ export async function verifyTicket(
   const steps = parseSteps(demo);
   const run = await buildRun(db, params);
   const now = run.finishedAt;
+  const shouldHandleEpicCompletion = run.status === "passed" && run.certified;
 
   db.transaction(() => {
     persistRun(db, run);
@@ -988,6 +990,15 @@ export async function verifyTicket(
       );
     }
   })();
+  if (shouldHandleEpicCompletion) {
+    await handleEpicCompletionAutoPr(
+      { completedTicketId: params.ticketId },
+      {
+        db,
+        ...(params.execFileNoThrow ? { execFileNoThrow: params.execFileNoThrow } : {}),
+      }
+    );
+  }
   return run;
 }
 

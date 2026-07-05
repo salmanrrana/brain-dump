@@ -1,5 +1,7 @@
 import { execFile } from "child_process";
+import { randomUUID } from "crypto";
 import { EpicNotFoundError, TicketNotFoundError } from "./errors.ts";
+import { addComment } from "./comment.ts";
 import type {
   DbHandle,
   DemoStep,
@@ -46,6 +48,39 @@ interface DemoScriptStepsRow {
   steps: string;
 }
 
+interface EpicCompletionTicketRow {
+  id: string;
+  title: string;
+  status: string;
+  branch_name: string | null;
+  linked_commits: string | null;
+  attachments: string | null;
+  created_at: string;
+}
+
+interface EpicCompletionRow {
+  id: string;
+  title: string;
+  description: string | null;
+  project_path: string;
+  epic_branch_name: string | null;
+}
+
+interface LatestVerificationRunRow {
+  status: string;
+  certified: number;
+  manifest: string;
+  git_sha: string | null;
+  finished_at: string;
+}
+
+interface ExistingPullRequestRow {
+  number?: number;
+  url?: string;
+  isDraft?: boolean;
+  state?: string;
+}
+
 export interface SyncPrVerificationChecklistInput {
   ticketId: string;
 }
@@ -57,6 +92,37 @@ export interface SyncPrVerificationChecklistDeps {
     args: string[],
     options?: ExecFileNoThrowOptions
   ) => Promise<ExecFileNoThrowResult>;
+}
+
+export interface HandleEpicCompletionAutoPrInput {
+  completedTicketId: string;
+}
+
+export interface HandleEpicCompletionAutoPrDeps {
+  db: DbHandle;
+  execFileNoThrow?: (
+    command: string,
+    args: string[],
+    options?: ExecFileNoThrowOptions
+  ) => Promise<ExecFileNoThrowResult>;
+}
+
+export interface EpicAutoPrBranchResult {
+  branchName: string;
+  ticketIds: string[];
+  success: boolean;
+  action: "created" | "readied" | "updated" | "skipped" | "failed";
+  prNumber?: number;
+  prUrl?: string;
+  message: string;
+}
+
+export interface HandleEpicCompletionAutoPrResult {
+  epicId: string | null;
+  completed: boolean;
+  skipped: boolean;
+  message: string;
+  branchResults: EpicAutoPrBranchResult[];
 }
 
 export type SyncPrVerificationChecklistResult =
@@ -72,6 +138,521 @@ export type SyncPrVerificationChecklistResult =
       error: string;
       prUrl?: string;
     };
+
+function parseJsonArray(value: string | null): unknown[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function getSettingsRow(db: DbHandle): {
+  epic_auto_pr?: number | null;
+  pr_target_branch?: string | null;
+} {
+  return (
+    (db
+      .prepare("SELECT epic_auto_pr, pr_target_branch FROM settings WHERE id = 'default'")
+      .get() as { epic_auto_pr?: number | null; pr_target_branch?: string | null } | undefined) ??
+    {}
+  );
+}
+
+function getNewestTicketId(tickets: EpicCompletionTicketRow[]): string {
+  const sorted = tickets
+    .slice()
+    .sort((left, right) => right.created_at.localeCompare(left.created_at));
+  return sorted[0]?.id ?? tickets[0]?.id ?? "";
+}
+
+function addEpicAutoPrComment(
+  db: DbHandle,
+  ticketId: string,
+  content: string,
+  type: "comment" | "progress" = "comment"
+): void {
+  if (!ticketId) return;
+  addComment(db, {
+    ticketId,
+    author: "brain-dump",
+    type,
+    content,
+  });
+}
+
+function normalizePrStatus(state: string | undefined): "open" | "closed" {
+  if (state?.toUpperCase() === "CLOSED") return "closed";
+  return "open";
+}
+
+function commandFailureMessage(
+  action: string,
+  result: ExecFileNoThrowResult,
+  fallback: string
+): string {
+  const detail = result.stderr.trim() || result.error || result.stdout.trim() || fallback;
+  return `${action}: ${detail}`;
+}
+
+function parseExistingPullRequest(output: string): ExistingPullRequestRow | null {
+  if (!output.trim()) return null;
+  const parsed = JSON.parse(output) as unknown;
+  if (!Array.isArray(parsed)) {
+    throw new Error("Expected gh pr list to return an array.");
+  }
+  if (parsed.length === 0) return null;
+
+  const first = parsed[0] as ExistingPullRequestRow;
+  if (typeof first.number !== "number" || typeof first.url !== "string") {
+    throw new Error("Existing PR record is missing number or URL.");
+  }
+  return first;
+}
+
+function getLatestVerificationSummary(db: DbHandle, ticketId: string): string {
+  const run = db
+    .prepare(
+      `SELECT status, certified, manifest, git_sha, finished_at
+       FROM verification_runs
+       WHERE ticket_id = ?
+       ORDER BY round DESC
+       LIMIT 1`
+    )
+    .get(ticketId) as LatestVerificationRunRow | undefined;
+
+  if (!run) return "verification: no run recorded";
+
+  let evidenceCount = 0;
+  try {
+    const manifest = JSON.parse(run.manifest) as {
+      evidenceFiles?: unknown[];
+      manifestHash?: string;
+    };
+    evidenceCount = Array.isArray(manifest.evidenceFiles) ? manifest.evidenceFiles.length : 0;
+  } catch {
+    evidenceCount = 0;
+  }
+
+  const status = run.certified === 1 ? `${run.status} certified` : run.status;
+  return `${status}, git ${run.git_sha ?? "unknown"}, evidence files ${evidenceCount}`;
+}
+
+function renderEpicCompletionPrBody(
+  db: DbHandle,
+  epic: EpicCompletionRow,
+  tickets: EpicCompletionTicketRow[]
+): string {
+  const description = epic.description?.trim() || "No epic description provided.";
+  const ticketLines = tickets.map((ticket) => {
+    const commits = parseJsonArray(ticket.linked_commits)
+      .map((commit) => {
+        if (typeof commit !== "object" || commit === null) return null;
+        const row = commit as { hash?: unknown; message?: unknown };
+        if (typeof row.hash !== "string") return null;
+        return `${row.hash.slice(0, 8)}${typeof row.message === "string" ? ` ${row.message}` : ""}`;
+      })
+      .filter((commit): commit is string => Boolean(commit));
+    const attachments = parseJsonArray(ticket.attachments);
+    return [
+      `- ${ticket.title} (${ticket.id})`,
+      `  - ${getLatestVerificationSummary(db, ticket.id)}`,
+      `  - linked commits: ${commits.length > 0 ? commits.join(", ") : "none linked"}`,
+      `  - evidence attachments: ${attachments.length}`,
+    ].join("\n");
+  });
+
+  return [
+    `# ${epic.title}`,
+    "",
+    description,
+    "",
+    "## AI Verification",
+    "All tickets in this epic passed AI verification with sealed evidence before this PR was created or readied.",
+    "",
+    "## Tickets",
+    ticketLines.join("\n"),
+  ].join("\n");
+}
+
+function updatePrLinksForTickets(
+  db: DbHandle,
+  params: {
+    epicId: string;
+    branchCount: number;
+    tickets: EpicCompletionTicketRow[];
+    prNumber: number;
+    prUrl: string;
+    prStatus: "open" | "closed";
+  }
+): void {
+  const now = new Date().toISOString();
+  for (const ticket of params.tickets) {
+    db.prepare(
+      "UPDATE tickets SET pr_number = ?, pr_url = ?, pr_status = ?, updated_at = ? WHERE id = ?"
+    ).run(params.prNumber, params.prUrl, params.prStatus, now, ticket.id);
+  }
+
+  if (params.branchCount === 1) {
+    db.prepare(
+      `INSERT OR IGNORE INTO epic_workflow_state (id, epic_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?)`
+    ).run(randomUUID(), params.epicId, now, now);
+    db.prepare(
+      `UPDATE epic_workflow_state
+       SET pr_number = ?, pr_url = ?, pr_status = ?, updated_at = ?
+       WHERE epic_id = ?`
+    ).run(params.prNumber, params.prUrl, params.prStatus, now, params.epicId);
+  }
+}
+
+async function shipEpicBranch(
+  db: DbHandle,
+  params: {
+    epic: EpicCompletionRow;
+    branchName: string;
+    branchCount: number;
+    tickets: EpicCompletionTicketRow[];
+    prTargetBranch: string;
+    execFileNoThrow: NonNullable<HandleEpicCompletionAutoPrDeps["execFileNoThrow"]>;
+  }
+): Promise<EpicAutoPrBranchResult> {
+  const commandOptions = { cwd: params.epic.project_path };
+  const ticketIds = params.tickets.map((ticket) => ticket.id);
+  const commentTicketId = getNewestTicketId(params.tickets);
+  const fail = (message: string): EpicAutoPrBranchResult => {
+    addEpicAutoPrComment(
+      db,
+      commentTicketId,
+      `## Epic Auto-PR Needs Attention\n\n${message}\n\nBranch: \`${params.branchName}\``
+    );
+    return {
+      branchName: params.branchName,
+      ticketIds,
+      success: false,
+      action: "failed",
+      message,
+    };
+  };
+
+  if (["main", "master"].includes(params.branchName)) {
+    return fail("Refusing to create or ready an epic PR directly from a protected base branch.");
+  }
+  if (params.branchName === params.prTargetBranch) {
+    return fail(
+      "Refusing to create an epic PR because the source branch equals the target branch."
+    );
+  }
+
+  const body = renderEpicCompletionPrBody(db, params.epic, params.tickets);
+  const existingResult = await params.execFileNoThrow(
+    "gh",
+    [
+      "pr",
+      "list",
+      "--head",
+      params.branchName,
+      "--json",
+      "number,url,isDraft,state",
+      "--limit",
+      "1",
+    ],
+    commandOptions
+  );
+
+  if (!existingResult.success) {
+    return fail(
+      commandFailureMessage(
+        "Failed to check for an existing epic PR",
+        existingResult,
+        "gh pr list failed"
+      )
+    );
+  }
+
+  let existingPr: ExistingPullRequestRow | null;
+  try {
+    existingPr = parseExistingPullRequest(existingResult.stdout);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return fail(`Failed to parse existing epic PR lookup output: ${message}`);
+  }
+  if (existingPr?.number && existingPr.url) {
+    const editResult = await params.execFileNoThrow(
+      "gh",
+      ["pr", "edit", String(existingPr.number), "--body", body, "--base", params.prTargetBranch],
+      commandOptions
+    );
+    if (!editResult.success) {
+      return fail(
+        commandFailureMessage(
+          "Failed to update the existing epic PR",
+          editResult,
+          "gh pr edit failed"
+        )
+      );
+    }
+
+    if (existingPr.isDraft) {
+      const readyResult = await params.execFileNoThrow(
+        "gh",
+        ["pr", "ready", String(existingPr.number)],
+        commandOptions
+      );
+      if (!readyResult.success) {
+        return fail(
+          commandFailureMessage(
+            "Failed to mark the existing epic PR ready",
+            readyResult,
+            "gh pr ready failed"
+          )
+        );
+      }
+      updatePrLinksForTickets(db, {
+        epicId: params.epic.id,
+        branchCount: params.branchCount,
+        tickets: params.tickets,
+        prNumber: existingPr.number,
+        prUrl: existingPr.url,
+        prStatus: "open",
+      });
+      addEpicAutoPrComment(
+        db,
+        commentTicketId,
+        `Epic completed. Draft PR #${existingPr.number} was marked ready for review: ${existingPr.url}`,
+        "progress"
+      );
+      return {
+        branchName: params.branchName,
+        ticketIds,
+        success: true,
+        action: "readied",
+        prNumber: existingPr.number,
+        prUrl: existingPr.url,
+        message: `Draft PR #${existingPr.number} marked ready for review.`,
+      };
+    }
+
+    const prStatus = normalizePrStatus(existingPr.state);
+    updatePrLinksForTickets(db, {
+      epicId: params.epic.id,
+      branchCount: params.branchCount,
+      tickets: params.tickets,
+      prNumber: existingPr.number,
+      prUrl: existingPr.url,
+      prStatus,
+    });
+    addEpicAutoPrComment(
+      db,
+      commentTicketId,
+      `Epic completed. Existing PR #${existingPr.number} was updated: ${existingPr.url}`,
+      "progress"
+    );
+    return {
+      branchName: params.branchName,
+      ticketIds,
+      success: true,
+      action: "updated",
+      prNumber: existingPr.number,
+      prUrl: existingPr.url,
+      message: `Existing PR #${existingPr.number} updated.`,
+    };
+  }
+
+  const pushResult = await params.execFileNoThrow(
+    "git",
+    ["push", "-u", "origin", params.branchName],
+    commandOptions
+  );
+  if (!pushResult.success) {
+    return fail(
+      commandFailureMessage("Failed to push the epic branch", pushResult, "git push failed")
+    );
+  }
+
+  const createResult = await params.execFileNoThrow(
+    "gh",
+    [
+      "pr",
+      "create",
+      "--title",
+      `[Epic] ${params.epic.title}`,
+      "--body",
+      body,
+      "--base",
+      params.prTargetBranch,
+      "--head",
+      params.branchName,
+    ],
+    commandOptions
+  );
+  if (!createResult.success) {
+    return fail(
+      commandFailureMessage("Failed to create the epic PR", createResult, "gh pr create failed")
+    );
+  }
+
+  const prRef = parsePullRequestRef(`${createResult.stdout}\n${createResult.stderr}`);
+  if (!prRef) {
+    return fail(
+      `Epic PR was created but Brain Dump could not parse the PR URL from gh output: ${createResult.stdout}`
+    );
+  }
+
+  updatePrLinksForTickets(db, {
+    epicId: params.epic.id,
+    branchCount: params.branchCount,
+    tickets: params.tickets,
+    prNumber: prRef.number,
+    prUrl: prRef.url,
+    prStatus: "open",
+  });
+  addEpicAutoPrComment(
+    db,
+    commentTicketId,
+    `Epic completed. Ready PR #${prRef.number} was created automatically: ${prRef.url}`,
+    "progress"
+  );
+  return {
+    branchName: params.branchName,
+    ticketIds,
+    success: true,
+    action: "created",
+    prNumber: prRef.number,
+    prUrl: prRef.url,
+    message: `Ready PR #${prRef.number} created automatically.`,
+  };
+}
+
+export async function handleEpicCompletionAutoPr(
+  input: HandleEpicCompletionAutoPrInput,
+  deps: HandleEpicCompletionAutoPrDeps
+): Promise<HandleEpicCompletionAutoPrResult> {
+  const ticket = deps.db
+    .prepare("SELECT epic_id FROM tickets WHERE id = ?")
+    .get(input.completedTicketId) as { epic_id: string | null } | undefined;
+
+  if (!ticket?.epic_id) {
+    return {
+      epicId: null,
+      completed: false,
+      skipped: true,
+      message: "Completed ticket is not part of an epic; skipped epic auto-PR.",
+      branchResults: [],
+    };
+  }
+
+  const epicId = ticket.epic_id;
+  const tickets = deps.db
+    .prepare(
+      `SELECT id, title, status, branch_name, linked_commits, attachments, created_at
+       FROM tickets
+       WHERE epic_id = ?
+       ORDER BY position ASC, created_at ASC`
+    )
+    .all(epicId) as EpicCompletionTicketRow[];
+  const allDone = tickets.length > 0 && tickets.every((epicTicket) => epicTicket.status === "done");
+  if (!allDone) {
+    return {
+      epicId,
+      completed: false,
+      skipped: true,
+      message: "Epic still has incomplete tickets; skipped epic auto-PR.",
+      branchResults: [],
+    };
+  }
+
+  const settings = getSettingsRow(deps.db);
+  if (settings.epic_auto_pr === 0) {
+    return {
+      epicId,
+      completed: true,
+      skipped: true,
+      message: "Epic auto-PR is disabled in settings.",
+      branchResults: [],
+    };
+  }
+
+  const epic = deps.db
+    .prepare(
+      `SELECT e.id, e.title, e.description, p.path AS project_path, ews.epic_branch_name
+       FROM epics e
+       JOIN projects p ON p.id = e.project_id
+       LEFT JOIN epic_workflow_state ews ON ews.epic_id = e.id
+       WHERE e.id = ?`
+    )
+    .get(epicId) as EpicCompletionRow | undefined;
+  if (!epic) {
+    throw new EpicNotFoundError(epicId);
+  }
+
+  const commentTicketId = getNewestTicketId(tickets);
+  if (!deps.execFileNoThrow) {
+    const message =
+      "Epic completed but no command executor was provided, so Brain Dump could not create or ready a PR.";
+    addEpicAutoPrComment(deps.db, commentTicketId, `## Epic Auto-PR Needs Attention\n\n${message}`);
+    return { epicId, completed: true, skipped: true, message, branchResults: [] };
+  }
+
+  const groups = new Map<string, EpicCompletionTicketRow[]>();
+  const unresolvableTickets = tickets.filter(
+    (epicTicket) => !epicTicket.branch_name && !epic.epic_branch_name
+  );
+  if (unresolvableTickets.length > 0) {
+    const message = `Epic completed but ${unresolvableTickets.length} ticket(s) have no branch metadata; Brain Dump will not guess a PR source branch.`;
+    addEpicAutoPrComment(deps.db, commentTicketId, `## Epic Auto-PR Needs Attention\n\n${message}`);
+    return {
+      epicId,
+      completed: true,
+      skipped: false,
+      message,
+      branchResults: [
+        {
+          branchName: "unknown",
+          ticketIds: unresolvableTickets.map((epicTicket) => epicTicket.id),
+          success: false,
+          action: "failed",
+          message,
+        },
+      ],
+    };
+  }
+
+  for (const epicTicket of tickets) {
+    const branchName = epicTicket.branch_name ?? epic.epic_branch_name;
+    if (!branchName) continue;
+    groups.set(branchName, [...(groups.get(branchName) ?? []), epicTicket]);
+  }
+
+  const prTargetBranch = settings.pr_target_branch?.trim() || "main";
+  const branchResults: EpicAutoPrBranchResult[] = [];
+  for (const [branchName, branchTickets] of groups) {
+    branchResults.push(
+      await shipEpicBranch(deps.db, {
+        epic,
+        branchName,
+        branchCount: groups.size,
+        tickets: branchTickets,
+        prTargetBranch,
+        execFileNoThrow: deps.execFileNoThrow,
+      })
+    );
+  }
+
+  const failedCount = branchResults.filter((result) => !result.success).length;
+  return {
+    epicId,
+    completed: true,
+    skipped: false,
+    message:
+      failedCount === 0
+        ? `Epic completed and ${branchResults.length} PR branch(es) were created or readied.`
+        : `Epic completed, but ${failedCount} PR branch(es) need attention.`,
+    branchResults,
+  };
+}
 
 function normalizeGitPath(rawPath: string): { path: string; originalPath?: string } {
   const trimmedPath = rawPath.trim();

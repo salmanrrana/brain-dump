@@ -456,7 +456,12 @@ export type {
   SyncPrVerificationChecklistInput,
   SyncPrVerificationChecklistDeps,
   SyncPrVerificationChecklistResult,
+  HandleEpicCompletionAutoPrInput,
+  HandleEpicCompletionAutoPrDeps,
+  HandleEpicCompletionAutoPrResult,
 } from "./ship.ts";
+
+export { handleEpicCompletionAutoPr } from "./ship.ts";
 
 // Workflow business logic
 export { startWork, completeWork, startEpicWork } from "./workflow.ts";

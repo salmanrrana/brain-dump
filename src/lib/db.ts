@@ -381,6 +381,7 @@ function initSettings() {
         ralph_timeout INTEGER DEFAULT 3600,
         ralph_max_iterations INTEGER DEFAULT 10,
         auto_create_pr INTEGER DEFAULT 1,
+        epic_auto_pr INTEGER DEFAULT 1,
         pr_target_branch TEXT DEFAULT 'dev',
         default_projects_directory TEXT,
         default_working_method TEXT DEFAULT 'auto',
@@ -408,6 +409,10 @@ function initSettings() {
     if (!columns.includes("auto_create_pr")) {
       console.log("Adding auto_create_pr column to settings...");
       sqlite.exec("ALTER TABLE settings ADD COLUMN auto_create_pr INTEGER DEFAULT 1");
+    }
+    if (!columns.includes("epic_auto_pr")) {
+      console.log("Adding epic_auto_pr column to settings...");
+      sqlite.exec("ALTER TABLE settings ADD COLUMN epic_auto_pr INTEGER DEFAULT 1");
     }
     if (!columns.includes("pr_target_branch")) {
       console.log("Adding pr_target_branch column to settings...");
@@ -849,7 +854,7 @@ function runSchemaMigrations(): void {
  * Bump this whenever a new table/column migration is added to
  * `runSchemaMigrations()` so existing DBs re-run the checks once and re-stamp.
  */
-const CURRENT_SCHEMA_VERSION = 2;
+const CURRENT_SCHEMA_VERSION = 3;
 
 // Gate the migration checks behind PRAGMA user_version (standard SQLite
 // pattern). When the DB is already at the current version we skip all ~25

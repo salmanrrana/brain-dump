@@ -28,6 +28,7 @@ export const settingsFormSchema = z.object({
     .max(100, "Cannot exceed 100 iterations"),
   dockerRuntime: dockerRuntimeSchema,
   autoCreatePr: z.boolean(),
+  epicAutoPr: z.boolean(),
   prTargetBranch: z.string().min(1, "Branch name is required"),
   conversationLoggingEnabled: z.boolean(),
   conversationRetentionDays: z

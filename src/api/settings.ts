@@ -21,6 +21,7 @@ export interface UpdateSettingsInput {
   ralphTimeout?: number; // Timeout in seconds (default: 3600 = 1 hour)
   ralphMaxIterations?: number; // Max iterations for Ralph loop (default: 10)
   autoCreatePr?: boolean;
+  epicAutoPr?: boolean;
   prTargetBranch?: string;
   defaultProjectsDirectory?: string | null;
   defaultWorkingMethod?:
@@ -137,6 +138,9 @@ export const updateSettings = createServerFn({ method: "POST" })
     }
     if (updates.autoCreatePr !== undefined) {
       updateData.autoCreatePr = updates.autoCreatePr;
+    }
+    if (updates.epicAutoPr !== undefined) {
+      updateData.epicAutoPr = updates.epicAutoPr;
     }
     if (updates.prTargetBranch !== undefined) {
       updateData.prTargetBranch = updates.prTargetBranch || "dev";

@@ -12,6 +12,7 @@ const validSettings = {
   ralphMaxIterations: 20,
   dockerRuntime: "auto",
   autoCreatePr: true,
+  epicAutoPr: true,
   prTargetBranch: "dev",
   conversationLoggingEnabled: true,
   conversationRetentionDays: 90,
