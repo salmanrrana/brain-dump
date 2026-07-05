@@ -33,7 +33,7 @@ describe("StatusPill", () => {
       { status: "ready", label: "Ready" },
       { status: "in_progress", label: "In Progress" },
       { status: "ai_review", label: "AI Review" },
-      { status: "human_review", label: "Human Review" },
+      { status: "human_review", label: "Human Review (Legacy)" },
       { status: "done", label: "Done" },
     ];
 

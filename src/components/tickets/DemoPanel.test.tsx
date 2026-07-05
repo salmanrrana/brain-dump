@@ -47,8 +47,13 @@ describe("DemoPanel", () => {
 
     render(<DemoPanel ticketId="ticket-1" />);
 
-    expect(screen.getByText("Read-Only Demo Review: Approved")).toBeInTheDocument();
-    expect(screen.getByText("Verification Checklist Snapshot")).toBeInTheDocument();
+    expect(screen.getByText("AI Verification Handoff")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "These steps are waiting for the verification runner. Manual approval has been retired."
+      )
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Last recorded result: passed on/)).toBeInTheDocument();
     expect(screen.getByText("Open the completed ticket.")).toBeInTheDocument();
     expect(screen.getByText("The demo checklist remains visible.")).toBeInTheDocument();
     expect(screen.getByText("Visible after completion.")).toBeInTheDocument();

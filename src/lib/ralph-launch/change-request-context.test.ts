@@ -163,4 +163,15 @@ describe("change request launch context", () => {
 
     expect(result).toEqual({});
   });
+
+  it("returns fallback verification failure context for malformed manifests", () => {
+    insertTicket("ticket-1", "in_progress");
+    insertVerificationRun("ticket-1", "run-1", 1, "failed", "2026-04-25T10:00:00.000Z");
+    sqlite.prepare("UPDATE verification_runs SET manifest = '{bad json' WHERE id = 'run-1'").run();
+
+    const result = getVerificationFailuresByTicketId(sqlite, ["ticket-1"]);
+
+    expect(result["ticket-1"]).toContain("Verification run run-1 failed");
+    expect(result["ticket-1"]).toContain("Manifest could not be parsed");
+  });
 });

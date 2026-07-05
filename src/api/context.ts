@@ -26,15 +26,18 @@ interface VerificationManifestContext {
 
 function formatVerificationFailureContext(run: typeof verificationRuns.$inferSelect): string {
   const manifest = safeJsonParse<VerificationManifestContext>(run.manifest, {});
-  const failedSteps = manifest.stepVerdicts?.filter((step) => step.status === "failed") ?? [];
+  const failedSteps = Array.isArray(manifest.stepVerdicts)
+    ? manifest.stepVerdicts.filter((step) => step.status === "failed")
+    : [];
   const lines = [
     `Verification run ${manifest.runId ?? run.id} failed at ${run.finishedAt} (round ${run.round}).`,
     "",
   ];
 
   for (const step of failedSteps) {
-    const evidence = step.evidenceFiles?.length
-      ? step.evidenceFiles.map((file) => `${file.path} (${file.hash})`).join(", ")
+    const evidenceFiles = Array.isArray(step.evidenceFiles) ? step.evidenceFiles : [];
+    const evidence = evidenceFiles.length
+      ? evidenceFiles.map((file) => `${file.path} (${file.hash})`).join(", ")
       : "none";
     lines.push(`- Step ${step.order}: ${step.message}`);
     lines.push(`  Evidence: ${evidence}`);

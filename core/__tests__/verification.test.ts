@@ -201,6 +201,25 @@ describe("verifyTicket", () => {
     expect(comment.content).toContain("Needs Attention");
   });
 
+  it("does not crash loop-back when a prior failed run has a malformed manifest", async () => {
+    seedDemo([apiStep(201)]);
+    const baseUrl = await startFixtureServer();
+
+    const firstRun = await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+    db.prepare("UPDATE verification_runs SET manifest = '{bad json' WHERE id = ?").run(firstRun.id);
+    moveTicketBackToVerification();
+    await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+    moveTicketBackToVerification();
+    const thirdRun = await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+
+    expect(thirdRun.status).toBe("failed");
+    const ticket = db
+      .prepare("SELECT status, is_blocked FROM tickets WHERE id = 'ticket-1'")
+      .get() as { status: string; is_blocked: number };
+    expect(ticket.status).toBe("in_progress");
+    expect(ticket.is_blocked).toBe(0);
+  });
+
   it("leaves manual-only demos uncertified and visibly blocked", async () => {
     seedDemo([
       {

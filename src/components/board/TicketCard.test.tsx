@@ -75,4 +75,20 @@ describe("TicketCard", () => {
     expect(screen.getByText("test-branch")).toBeInTheDocument();
     expect(screen.getByText("#123")).toBeInTheDocument();
   });
+
+  it("visibly flags blocked tickets with the blocked reason", () => {
+    const ticket = createTicket({
+      status: "ai_verification",
+      isBlocked: true,
+      blockedReason: "Verification failed 3 consecutive times on step 1.",
+    });
+
+    renderCard(<TicketCard ticket={ticket} />);
+
+    expect(screen.getByText("Needs Attention")).toBeInTheDocument();
+    expect(
+      screen.getByText("Verification failed 3 consecutive times on step 1.")
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Verification Ready")).not.toBeInTheDocument();
+  });
 });

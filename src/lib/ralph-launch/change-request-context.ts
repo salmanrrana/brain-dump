@@ -26,6 +26,26 @@ interface VerificationManifestContext {
   stepVerdicts?: VerificationManifestStep[];
 }
 
+function isVerificationManifestStep(value: unknown): value is VerificationManifestStep {
+  if (typeof value !== "object" || value === null) return false;
+  const step = value as Partial<VerificationManifestStep>;
+  return (
+    typeof step.order === "number" &&
+    typeof step.status === "string" &&
+    typeof step.message === "string"
+  );
+}
+
+function parseVerificationManifest(value: string): VerificationManifestContext | null {
+  try {
+    const parsed = JSON.parse(value) as VerificationManifestContext;
+    if (parsed.stepVerdicts !== undefined && !Array.isArray(parsed.stepVerdicts)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
 export function getHumanRequestedChangesByTicketId(
   sqlite: Database.Database,
   ticketIds: string[]
@@ -64,11 +84,19 @@ export function getHumanRequestedChangesByTicketId(
 }
 
 function formatVerificationFailure(row: VerificationFailureRow): string {
-  const manifest = JSON.parse(row.manifest) as VerificationManifestContext;
-  const failedSteps = (manifest.stepVerdicts ?? []).filter((step) => step.status === "failed");
+  const manifest = parseVerificationManifest(row.manifest);
+  if (!manifest) {
+    return `Verification run ${row.id} failed at ${row.finished_at} (round ${row.round}).\n\n- Manifest could not be parsed; inspect stored verification evidence for this run.`;
+  }
+
+  const failedSteps = (manifest.stepVerdicts ?? []).filter(
+    (step): step is VerificationManifestStep =>
+      isVerificationManifestStep(step) && step.status === "failed"
+  );
   const stepLines = failedSteps.map((step) => {
-    const evidence = step.evidenceFiles?.length
-      ? step.evidenceFiles.map((file) => `${file.path} (${file.hash})`).join(", ")
+    const evidenceFiles = Array.isArray(step.evidenceFiles) ? step.evidenceFiles : [];
+    const evidence = evidenceFiles.length
+      ? evidenceFiles.map((file) => `${file.path} (${file.hash})`).join(", ")
       : "none";
     return `- Step ${step.order}: ${step.message}\n  Evidence: ${evidence}`;
   });

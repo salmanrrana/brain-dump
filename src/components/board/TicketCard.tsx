@@ -1,5 +1,5 @@
 import { memo, useMemo } from "react";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck, TriangleAlert } from "lucide-react";
 import type { TicketSummary } from "../../api/tickets";
 import { GitInfo } from "./GitInfo";
 import { TicketTags } from "./TicketTags";
@@ -58,6 +58,7 @@ export const TicketCard = memo(function TicketCard({
 
   const priorityBorderClass =
     PRIORITY_BORDER_COLORS[ticket.priority ?? ""] ?? "border-l-transparent";
+  const isBlocked = ticket.isBlocked === true;
 
   return (
     <div
@@ -77,6 +78,7 @@ export const TicketCard = memo(function TicketCard({
         bg-[var(--bg-card)] p-3.5 transition-all
         hover:border-[var(--border-secondary)] hover:shadow-lg hover:-translate-y-0.5
         border-l-[3px] ${priorityBorderClass}
+        ${isBlocked ? "ring-2 ring-[var(--accent-danger)]/40 border-[var(--accent-danger)]/60" : ""}
         ${isAiActive ? "ring-1 ring-[var(--accent-ai)]/40 shadow-[0_0_16px_var(--accent-ai-glow)] animate-pulse-slow" : ""}
         ${isOverlay ? "rotate-1 scale-[1.03] shadow-2xl cursor-grabbing" : isDragging ? "opacity-40" : "cursor-pointer"}
         ${isFocused ? "ring-2 ring-offset-2 ring-[var(--accent-primary)]" : ""}
@@ -87,13 +89,24 @@ export const TicketCard = memo(function TicketCard({
         {ticket.title}
       </h3>
 
-      {/* Verification badge - shown when the runner needs to certify the ticket */}
-      {ticket.status === "ai_verification" && (
+      {isBlocked ? (
+        <div className="flex flex-col gap-1 rounded-lg border border-[var(--accent-danger)]/40 bg-[var(--accent-danger)]/10 px-2 py-1.5 text-xs text-[var(--accent-danger)]">
+          <div className="flex items-center gap-1.5 font-semibold">
+            <TriangleAlert size={12} aria-hidden="true" />
+            <span>Needs Attention</span>
+          </div>
+          {ticket.blockedReason && (
+            <span className="line-clamp-2 text-[var(--text-secondary)]">
+              {ticket.blockedReason}
+            </span>
+          )}
+        </div>
+      ) : ticket.status === "ai_verification" ? (
         <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-[var(--info-muted)] text-[var(--info)] text-xs font-medium w-fit">
-          <ShieldCheck size={12} />
+          <ShieldCheck size={12} aria-hidden="true" />
           <span>Verification Ready</span>
         </div>
-      )}
+      ) : null}
 
       <TicketTags tags={tags} />
 

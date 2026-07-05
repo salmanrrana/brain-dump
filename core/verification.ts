@@ -165,6 +165,24 @@ function failedStepOrdersFromManifest(manifest: VerificationManifest): Set<numbe
   );
 }
 
+function parseVerificationManifest(value: string): VerificationManifest | null {
+  try {
+    const manifest = JSON.parse(value) as Partial<VerificationManifest>;
+    if (!Array.isArray(manifest.stepVerdicts)) return null;
+    return manifest as VerificationManifest;
+  } catch {
+    return null;
+  }
+}
+
+function ensureWorkflowState(db: DbHandle, ticketId: string, phase: string, now: string): void {
+  db.prepare(
+    `INSERT OR IGNORE INTO ticket_workflow_state
+     (id, ticket_id, current_phase, review_iteration, findings_count, findings_fixed, demo_generated, created_at, updated_at)
+     VALUES (?, ?, ?, 0, 0, 0, 0, ?, ?)`
+  ).run(randomUUID(), ticketId, phase, now, now);
+}
+
 function latestThreeFailedRunsShareStep(db: DbHandle, ticketId: string): number | null {
   const rows = db
     .prepare(
@@ -177,7 +195,10 @@ function latestThreeFailedRunsShareStep(db: DbHandle, ticketId: string): number 
     .all(ticketId) as Array<{ status: string; manifest: string }>;
   if (rows.length < 3 || rows.some((row) => row.status !== "failed")) return null;
 
-  const failedOrderSets = rows.map((row) => failedStepOrdersFromManifest(JSON.parse(row.manifest)));
+  const manifests = rows.map((row) => parseVerificationManifest(row.manifest));
+  if (manifests.some((manifest) => manifest === null)) return null;
+
+  const failedOrderSets = manifests.map((manifest) => failedStepOrdersFromManifest(manifest!));
   const [firstSet, ...remainingSets] = failedOrderSets;
   for (const order of firstSet ?? []) {
     if (remainingSets.every((set) => set.has(order))) return order;
@@ -194,6 +215,7 @@ function recordVerificationFindings(
   const workflowState = db
     .prepare("SELECT review_iteration FROM ticket_workflow_state WHERE ticket_id = ?")
     .get(run.ticketId) as { review_iteration: number } | undefined;
+  ensureWorkflowState(db, run.ticketId, "implementation", now);
   const iteration = workflowState?.review_iteration ?? 0;
   const stepsByOrder = new Map(steps.map((step) => [step.order, step]));
   const failedVerdicts = run.manifest.stepVerdicts.filter((step) => step.status === "failed");
@@ -779,6 +801,7 @@ function blockTicketAfterRepeatedVerificationFailures(
   stepOrder: number,
   now: string
 ): void {
+  ensureWorkflowState(db, run.ticketId, "ai_verification", now);
   const reason = `Verification failed 3 consecutive times on step ${stepOrder}. Latest run: ${run.id}. Evidence: ${stringifyEvidenceRefs(
     run.manifest.stepVerdicts.find((step) => step.order === stepOrder)?.evidenceFiles ?? []
   )}`;
@@ -814,6 +837,7 @@ function returnTicketToImplementationAfterVerificationFailure(
     throw error;
   }
 
+  ensureWorkflowState(db, run.ticketId, "implementation", now);
   db.prepare(
     `UPDATE tickets
      SET status = 'in_progress', completed_at = NULL, is_blocked = 0, blocked_reason = NULL, updated_at = ?
@@ -938,28 +962,32 @@ export async function verifyTicket(
   const demo = getDemoScriptRow(db, params.ticketId);
   const steps = parseSteps(demo);
   const run = await buildRun(db, params);
-  persistRun(db, run);
-  attachRunEvidenceAndReport(db, run, params.provider);
   const now = run.finishedAt;
-  if (run.status === "passed" && run.certified) {
-    completeTicketIfCertified(db, params.ticketId, now);
-  } else if (run.status === "failed") {
-    recordVerificationFindings(db, run, steps, now);
-    updateDemoStepStatusesForRun(db, run, steps);
-    const blockedStepOrder = latestThreeFailedRunsShareStep(db, params.ticketId);
-    if (blockedStepOrder === null) {
-      returnTicketToImplementationAfterVerificationFailure(db, run, now);
-    } else {
-      blockTicketAfterRepeatedVerificationFailures(db, run, blockedStepOrder, now);
+
+  db.transaction(() => {
+    persistRun(db, run);
+    attachRunEvidenceAndReport(db, run, params.provider);
+
+    if (run.status === "passed" && run.certified) {
+      completeTicketIfCertified(db, params.ticketId, now);
+    } else if (run.status === "failed") {
+      recordVerificationFindings(db, run, steps, now);
+      updateDemoStepStatusesForRun(db, run, steps);
+      const blockedStepOrder = latestThreeFailedRunsShareStep(db, params.ticketId);
+      if (blockedStepOrder === null) {
+        returnTicketToImplementationAfterVerificationFailure(db, run, now);
+      } else {
+        blockTicketAfterRepeatedVerificationFailures(db, run, blockedStepOrder, now);
+      }
+    } else if (run.status === "uncertified" || run.status === "infra_error") {
+      blockTicket(
+        db,
+        params.ticketId,
+        `Verification ${run.status}: ${run.manifest.stepVerdicts[0]?.message ?? "see manifest"}`,
+        now
+      );
     }
-  } else if (run.status === "uncertified" || run.status === "infra_error") {
-    blockTicket(
-      db,
-      params.ticketId,
-      `Verification ${run.status}: ${run.manifest.stepVerdicts[0]?.message ?? "see manifest"}`,
-      now
-    );
-  }
+  })();
   return run;
 }
 
