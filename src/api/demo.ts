@@ -5,8 +5,6 @@ import { z } from "zod";
 import { demoScripts } from "../lib/schema";
 import type { DemoStep } from "../lib/schema";
 
-const demoStepStatusSchema = z.enum(["pending", "passed", "failed", "skipped"]);
-
 /**
  * Safely parse JSON steps with descriptive error messages.
  * Falls back to empty array if steps is null/undefined.
@@ -51,92 +49,4 @@ export const getDemoScript = createServerFn({ method: "GET" })
       passed: script.passed,
       feedback: script.feedback,
     };
-  });
-
-/**
- * Update a single demo step's status
- * Called by the UI when user marks a step as passed/failed/skipped
- */
-export const updateDemoStep = createServerFn({ method: "POST" })
-  .inputValidator(
-    z.object({
-      demoScriptId: z.string(),
-      stepOrder: z.number(),
-      status: z.enum(["pending", "passed", "failed", "skipped"]),
-      notes: z.string().optional(),
-    })
-  )
-  .handler(async ({ data: input }) => {
-    const { db } = await import("../lib/db");
-    const { demoScriptId, stepOrder, status, notes = "" } = input;
-    const script = db.select().from(demoScripts).where(eq(demoScripts.id, demoScriptId)).get();
-
-    if (!script) {
-      throw new Error("Demo script not found");
-    }
-
-    const steps = parseSteps(script.steps, `script ${demoScriptId}`);
-    const stepIndex = steps.findIndex((s) => s.order === stepOrder);
-
-    if (stepIndex === -1) {
-      throw new Error("Step not found");
-    }
-
-    // Update step status in the steps array
-    const existingStep = steps[stepIndex];
-    if (!existingStep) {
-      throw new Error("Step not found at index");
-    }
-    steps[stepIndex] = {
-      order: existingStep.order,
-      description: existingStep.description,
-      expectedOutcome: existingStep.expectedOutcome,
-      type: existingStep.type,
-      status,
-      notes,
-    };
-
-    // Update script and verify rows were modified
-    const result = db
-      .update(demoScripts)
-      .set({
-        steps: JSON.stringify(steps),
-      })
-      .where(eq(demoScripts.id, demoScriptId))
-      .run();
-
-    if (result.changes === 0) {
-      throw new Error(
-        "Failed to update demo step - the script may have been deleted. Please refresh and try again."
-      );
-    }
-
-    return steps[stepIndex];
-  });
-
-/**
- * Deprecated manual demo feedback path. Core validation rejects this now;
- * verification runner completion replaces manual approval/rejection.
- */
-export const submitDemoFeedback = createServerFn({ method: "POST" })
-  .inputValidator(
-    z.object({
-      ticketId: z.string(),
-      passed: z.boolean(),
-      feedback: z.string(),
-      stepResults: z
-        .array(
-          z.object({
-            order: z.number(),
-            status: demoStepStatusSchema,
-            notes: z.string().optional(),
-          })
-        )
-        .optional(),
-    })
-  )
-  .handler(async ({ data: input }) => {
-    const { sqlite } = await import("../lib/db");
-    const { submitDemoFeedbackForDatabase } = await import("./demo-feedback");
-    return submitDemoFeedbackForDatabase(sqlite, input);
   });

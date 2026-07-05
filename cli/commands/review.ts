@@ -11,7 +11,6 @@ import {
   generateDemo,
   getDemo,
   getFindings,
-  updateDemoStep,
   updatePrdForDbTicketIfPresent,
   InvalidActionError,
   ValidationError,
@@ -22,7 +21,6 @@ import type {
   FindingStatus,
   MarkFixedStatus,
   DemoStep,
-  DemoStepStatus,
 } from "../../core/index.ts";
 import {
   parseFlags,
@@ -42,7 +40,6 @@ const ACTIONS = [
   "check-complete",
   "generate-demo",
   "get-demo",
-  "update-demo-step",
   "get-findings",
 ];
 
@@ -136,24 +133,6 @@ export function handle(action: string, args: string[]): void {
       case "get-demo": {
         const ticketId = requireFlag(flags, "ticket");
         const result = getDemo(db, ticketId);
-        outputResult(result, pretty);
-        break;
-      }
-
-      case "update-demo-step": {
-        const demoScriptId = requireFlag(flags, "demo-script");
-        const stepOrder = numericFlag(flags, "step-order");
-        if (stepOrder === undefined) {
-          throw new ValidationError("Missing required flag: --step-order <n>");
-        }
-        const stepStatus = requireEnumFlag<DemoStepStatus>(flags, "step-status", [
-          "pending",
-          "passed",
-          "failed",
-          "skipped",
-        ]);
-        const stepNotes = optionalFlag(flags, "step-notes");
-        const result = updateDemoStep(db, demoScriptId, stepOrder, stepStatus, stepNotes);
         outputResult(result, pretty);
         break;
       }

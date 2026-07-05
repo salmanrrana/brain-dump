@@ -374,17 +374,6 @@ Get the demo script for a ticket.
 | ---------- | ------ | -------- |
 | `ticketId` | string | yes      |
 
-### update-demo-step
-
-Update a single demo step's status during verification/debug review.
-
-| Param          | Type                                           | Required |
-| -------------- | ---------------------------------------------- | -------- |
-| `demoScriptId` | string                                         | yes      |
-| `stepOrder`    | number                                         | yes      |
-| `stepStatus`   | `pending` \| `passed` \| `failed` \| `skipped` | yes      |
-| `notes`        | string                                         | no       |
-
 ---
 
 ## telemetry (7 actions)

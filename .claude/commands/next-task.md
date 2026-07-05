@@ -54,7 +54,7 @@ You are starting work on the next available task from the Brain Dump kanban boar
 ## Important
 
 - The MCP tool enforces preconditions - trust its guidance
-- If blocked (e.g., previous ticket in human_review), follow the instructions to unblock
+- If blocked (e.g., previous ticket waiting in ai_verification), follow the instructions to unblock
 - Always write a plan before coding
 - Always validate before completing
 - After completing, ticket moves to `ai_review` - run `/review-ticket` next
@@ -62,7 +62,7 @@ You are starting work on the next available task from the Brain Dump kanban boar
 ## Status Flow
 
 ```
-backlog → ready → in_progress → ai_review → human_review → done
+backlog → ready → in_progress → ai_review → ai_verification → done
                                 ↑
                              You are here after workflow "complete-work"
 ```
@@ -71,6 +71,6 @@ backlog → ready → in_progress → ai_review → human_review → done
 
 If `workflow` tool `start-work` returns a blocking message:
 
-- **Previous ticket in human_review**: Wait for human approval or escalate
+- **Previous ticket in ai_verification**: Wait for verification runner completion or escalate if blocked
 - **Validation failed**: Fix issues first
 - **Branch conflict**: Resolve git conflicts

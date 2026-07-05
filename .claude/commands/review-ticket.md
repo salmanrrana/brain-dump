@@ -122,26 +122,26 @@ Step types:
 - **visual**: User visually verifies something
 - **automated**: System runs automated check
 
-### Step 8: STOP - Wait for Human
+### Step 8: STOP - Wait for Verification
 
 After generating the demo script:
 
-- Ticket moves to `human_review`
-- **DO NOT auto-approve** - wait for human to run demo and provide feedback
-- Human will use the Brain Dump UI to approve/reject
+- Ticket moves to `ai_verification`
+- **DO NOT run verification** - wait for the verification runner to execute the demo and capture evidence
+- The runner certifies completion or returns verification findings
 
 ## Important
 
 - Submit ALL findings, even minor ones (for audit trail)
 - Fix critical and major issues before generating demo
 - Minor issues and suggestions can be noted for future work
-- The demo script helps the human reviewer verify the implementation
-- Never skip straight to `done` - human approval is required
+- The demo script gives the verification runner concrete steps to execute
+- Never skip straight to `done` - runner certification is required
 
 ## Status Flow
 
 ```
-ai_review → [fix findings] → human_review → [human approval] → done
+ai_review → [fix findings] → ai_verification → [runner certification] → done
     ↑                              ↑
  You start here              You generate demo here, then STOP
 ```

@@ -263,8 +263,8 @@ describe("Full Workflow with Telemetry Capture", () => {
       "UPDATE ticket_workflow_state SET demo_generated = 1, updated_at = ? WHERE ticket_id = ?"
     ).run(new Date().toISOString(), ticketId);
 
-    // Move ticket to human_review
-    db.prepare("UPDATE tickets SET status = 'human_review' WHERE id = ?").run(ticketId);
+    // Move ticket to ai_verification
+    db.prepare("UPDATE tickets SET status = 'ai_verification' WHERE id = ?").run(ticketId);
 
     // Create demo generated comment
     db.prepare(
@@ -278,7 +278,7 @@ describe("Full Workflow with Telemetry Capture", () => {
     );
 
     // ==========================================
-    // Phase 7: Submit Demo Feedback (Human Approval)
+    // Phase 7: Verification Runner Certification
     // ==========================================
     db.prepare(
       `UPDATE demo_scripts SET completed_at = ?, feedback = ?, passed = 1 WHERE id = ?`

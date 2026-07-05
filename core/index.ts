@@ -222,9 +222,7 @@ export {
   validateGenerateDemo,
   generateDemo,
   getDemo,
-  updateDemoStep,
   validateSubmitFeedback,
-  submitFeedback,
 } from "./review.ts";
 
 export type {

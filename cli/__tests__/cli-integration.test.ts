@@ -598,10 +598,10 @@ describe("review", () => {
       string,
       unknown
     >;
-    expect(result).toHaveProperty("canProceedToHumanReview");
+    expect(result).toHaveProperty("canProceedToVerification");
   });
 
-  it("generate-demo and rejected feedback keep the scoped PRD marker aligned", async () => {
+  it("generate-demo keeps the scoped PRD marker incomplete for verification", async () => {
     const { projectPath, ticketId } = await setupTicket();
     writePrd(projectPath, ticketId, false);
 
@@ -612,7 +612,7 @@ describe("review", () => {
         {
           order: 1,
           description: "Review the CLI demo",
-          expectedOutcome: "The reviewer can request changes.",
+          expectedOutcome: "The verification runner can execute the demo.",
           type: "manual",
         },
       ])
@@ -628,19 +628,6 @@ describe("review", () => {
     )) as Record<string, unknown>;
 
     expect((demo.prdSync as Record<string, unknown>).applied).toBe(true);
-    expect(readPrdPasses(projectPath)).toBe(true);
-
-    const feedback = (await runOk(
-      "review",
-      "submit-feedback",
-      "--ticket",
-      ticketId,
-      "--feedback",
-      "Please tighten the demo copy."
-    )) as Record<string, unknown>;
-
-    expect(feedback.newStatus).toBe("ready");
-    expect((feedback.prdSync as Record<string, unknown>).applied).toBe(true);
     expect(readPrdPasses(projectPath)).toBe(false);
   });
 

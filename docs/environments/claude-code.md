@@ -65,12 +65,11 @@ brain-dump doctor
    > /demo
    ```
 
-8. **Demo approval**
+8. **AI verification**
    - Go back to Brain Dump UI
-   - Find your ticket in `human_review` column
-   - Click "Start Demo Review"
-   - Run through demo steps
-   - Approve or request changes
+   - Find your ticket in `ai_verification` column
+   - Confirm the demo steps are ready for the verification runner
+   - Wait for runner evidence and certification
 
 ## Features Unique to Claude Code
 
@@ -241,7 +240,7 @@ Telemetry is handled by the MCP server itself — no external hooks needed. The 
 
 - Analyzes ticket and implementation
 - Generates step-by-step test instructions
-- Moves ticket to `human_review`
+- Moves ticket to `ai_verification`
 - Shows demo preview
 
 ### Select Next Ticket
@@ -420,7 +419,7 @@ Ralph:
 
 1. Picks the next unfinished ticket
 2. Implements it through to demo-ready
-3. Repeats until all tickets are in `human_review` or `done`
+3. Repeats until tickets are ready for verification; `PRD_COMPLETE` only when all tickets are `done`
 
 Ralph uses the same workflow and hooks as interactive Claude Code.
 

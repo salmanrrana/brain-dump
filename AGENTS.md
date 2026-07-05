@@ -81,7 +81,7 @@ You are Ralph, an autonomous coding agent. MCP tools handle workflow state; you 
     - Call `review "check-complete"` until `canProceedToVerification: true`
 11. Call `review "generate-demo"({ ticketId, steps })` with at least 3 manual test steps - this moves the ticket to `ai_verification`
 12. Stop. Do not run verification and do not move tickets to `done`.
-13. If all scoped tickets are in `ai_verification` or `done`, output: `PRD_COMPLETE`
+13. If all scoped tickets are `done`, output: `PRD_COMPLETE`. Tickets in `ai_verification` are waiting for the verification runner and are not complete.
 
 #### Rules
 

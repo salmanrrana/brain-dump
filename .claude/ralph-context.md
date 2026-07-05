@@ -20,7 +20,7 @@ Primary actions:
 
 - `workflow`: `start-work`, `complete-work`
 - `session`: `create`, `update-state`, `complete`
-- `review`: `submit-finding`, `mark-fixed`, `check-complete`, `generate-demo`, `submit-feedback`
+- `review`: `submit-finding`, `mark-fixed`, `check-complete`, `generate-demo`
 
 ## Mandatory 4-Phase Workflow
 
@@ -44,15 +44,15 @@ Primary actions:
 
 1. Invoke `review({ action: "generate-demo", ticketId: "<ticketId>", steps: [...] })`
 2. Provide at least 3 manual test steps
-3. Confirm ticket moved to `human_review`
+3. Confirm ticket moved to `ai_verification`
 
-### Phase 4: Stop for Human Review
+### Phase 4: Stop for Verification
 
 1. Invoke `session({ action: "complete", sessionId: "<sessionId>", outcome: "success" })`
-2. STOP and wait for human `review({ action: "submit-feedback" })`
-3. Never move tickets to `done` yourself
+2. STOP and wait for the verification runner
+3. Never run verification or move tickets to `done` yourself
 
-If all tickets are in `human_review` or `done`, output: `PRD_COMPLETE`.
+If all tickets are `done`, output: `PRD_COMPLETE`. Tickets in `ai_verification` are waiting for the verification runner and are not complete.
 
 ---
 
@@ -86,8 +86,8 @@ If all tickets are in `human_review` or `done`, output: `PRD_COMPLETE`.
 - All quality checks must pass: `pnpm type-check && pnpm lint && pnpm test`
 - Keep changes minimal and focused
 - Phase gates are enforced - cannot skip phases or proceed without required responses
-- Do not call `review({ action: "submit-feedback" })` - only humans approve tickets
-- Do not move ticket to `done` - only humans can approve via `review({ action: "submit-feedback" })`
+- Do not run verification yourself
+- Do not move ticket to `done` - only the verification runner can certify completion
 - If stuck, note progress in `plans/progress.txt` and move to next ticket
 
 ---
@@ -109,13 +109,13 @@ Run these checks before calling `workflow({ action: "complete-work" })`:
 - Self-review completed for code quality, error handling, and simplification concerns
 - All findings submitted with `review({ action: "submit-finding" })` (at least specify critical/major issues)
 - All critical/major findings fixed and marked with `review({ action: "mark-fixed" })`
-- `review({ action: "check-complete" })` returns `canProceedToHumanReview: true`
+- `review({ action: "check-complete" })` returns `canProceedToVerification: true`
 
 ### Before Calling session({ action: "complete" })
 
 - `review({ action: "generate-demo" })` called with at least 3 manual test steps
-- Ticket status is `human_review`
-- Human reviewer will call `review({ action: "submit-feedback" })` (not you)
+- Ticket status is `ai_verification`
+- The verification runner will execute the demo and certify completion (not you)
 
 ---
 
@@ -126,7 +126,6 @@ All tools use an `action` parameter:
 - `workflow({ action: "start-work" | "complete-work", ... })`
 - `session({ action: "create" | "update-state" | "complete", ... })`
 - `review({ action: "submit-finding" | "mark-fixed" | "check-complete" | "generate-demo", ... })`
-- `review({ action: "submit-feedback", ... })` is human-only
 
 ---
 

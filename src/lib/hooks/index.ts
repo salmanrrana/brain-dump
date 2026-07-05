@@ -163,12 +163,8 @@ export {
 // =============================================================================
 export {
   useDemoScript,
-  useUpdateDemoStep,
-  useSubmitDemoFeedback,
   useWorkflowState,
   type DemoScript,
-  type UpdateDemoStepInput,
-  type SubmitDemoFeedbackInput,
   type UseWorkflowStateResult,
   type WorkflowDisplayState,
   type WorkflowDisplayResult,

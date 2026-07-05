@@ -8,7 +8,7 @@ You are running a comprehensive "Tracer Review" across an entire epic. This prov
 
 ## Prerequisites
 
-- Epic must have all tickets completed (in `done` or `human_review` status)
+- Epic must have all tickets completed (`done` status)
 - Epic branch should contain all commits from the epic's tickets
 - Run this before creating or finalizing the epic's PR
 
@@ -23,8 +23,8 @@ ticket tool, action: "list-by-epic", epicId: "<epic-id>"
 
 Verify:
 
-- All tickets are complete (`done`) or awaiting final review (`human_review`)
-- No tickets are stuck in `in_progress` or `ai_review`
+- All tickets are complete (`done`)
+- No tickets are stuck in `in_progress`, `ai_review`, or `ai_verification`
 
 ### Step 2: Analyze Epic Scope
 

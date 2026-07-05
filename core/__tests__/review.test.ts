@@ -426,7 +426,7 @@ describe("checkComplete", () => {
 
     const result = checkComplete(db, "ticket-1");
     expect(result.complete).toBe(true);
-    expect(result.canProceedToHumanReview).toBe(true);
+    expect(result.canProceedToVerification).toBe(true);
     expect(result.totalFindings).toBe(0);
   });
 

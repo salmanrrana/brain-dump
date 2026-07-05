@@ -50,9 +50,9 @@ Then retry your Write/Edit operation. Only `implementing`, `testing`, and `commi
 
 ## "Cannot start ticket - previous ticket still in review"
 
-**Problem**: A previous ticket is in `human_review` status awaiting human approval.
+**Problem**: A previous ticket is in `ai_verification` status awaiting runner certification.
 
-**Fix**: Wait for the human reviewer to approve or reject the previous ticket via `review "submit-feedback"`. Then start your new ticket.
+**Fix**: Wait for the verification runner to certify the ticket or record a verification failure. If it is blocked, escalate with the blocked reason and evidence references.
 
 ## "Marker file is stale - fresh review needed"
 

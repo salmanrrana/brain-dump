@@ -21,9 +21,8 @@ import {
   validateGenerateDemo,
   generateDemo,
   getDemo,
-  updateDemoStep,
 } from "../../core/review.ts";
-import type { MarkFixedStatus, DemoStepStatus } from "../../core/review.ts";
+import type { MarkFixedStatus } from "../../core/review.ts";
 import type { FindingAgent, FindingSeverity, FindingStatus } from "../../core/types.ts";
 import { addComment, type CommentAuthor } from "../../core/comment.ts";
 import { detectAuthor } from "../lib/environment.js";
@@ -44,14 +43,12 @@ const ACTIONS = [
   "check-complete",
   "generate-demo",
   "get-demo",
-  "update-demo-step",
 ] as const;
 
 const AGENTS = ["code-reviewer", "silent-failure-hunter", "code-simplifier"] as const;
 const SEVERITIES = ["critical", "major", "minor", "suggestion"] as const;
 const FINDING_STATUSES = ["open", "fixed", "wont_fix", "duplicate"] as const;
 const MARK_FIXED_STATUSES = ["fixed", "wont_fix", "duplicate"] as const;
-const DEMO_STEP_STATUSES = ["pending", "passed", "failed", "skipped"] as const;
 const DEMO_STEP_TYPES = ["manual", "visual", "automated"] as const;
 
 type PrdSyncResult = ReturnType<typeof updatePrdForDbTicketIfPresent>;
@@ -86,7 +83,6 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
 ### check-complete - Check if all critical/major findings resolved (returns canProceedToVerification)
 ### generate-demo - Generate demo script for AI verification (moves ticket to ai_verification)
 ### get-demo - Get the demo script for a ticket
-### update-demo-step - Update a demo step's status during verification/debug review
 
 No MCP action uploads evidence or marks verification passed. The verification runner owns evidence writes and ai_verification -> done.`,
     {
@@ -115,9 +111,6 @@ No MCP action uploads evidence or marks verification passed. The verification ru
         .optional()
         .describe("Demo steps"),
       demoScriptId: z.string().optional().describe("Demo script ID"),
-      stepOrder: z.number().optional().describe("Step order number"),
-      stepStatus: z.enum(DEMO_STEP_STATUSES).optional().describe("Step status"),
-      stepNotes: z.string().optional().describe("Reviewer notes"),
       passed: z.boolean().optional().describe("Whether demo passed"),
       feedback: z.string().optional().describe("Reviewer feedback"),
       stepResults: z
@@ -154,9 +147,6 @@ No MCP action uploads evidence or marks verification passed. The verification ru
           }>
         | undefined;
       demoScriptId?: string | undefined;
-      stepOrder?: number | undefined;
-      stepStatus?: (typeof DEMO_STEP_STATUSES)[number] | undefined;
-      stepNotes?: string | undefined;
       passed?: boolean | undefined;
       feedback?: string | undefined;
       stepResults?:
@@ -323,26 +313,6 @@ No MCP action uploads evidence or marks verification passed. The verification ru
               return formatEmpty("demo script for this ticket");
             }
             return formatResult(demo);
-          }
-
-          case "update-demo-step": {
-            const demoScriptId = requireParam(
-              params.demoScriptId,
-              "demoScriptId",
-              "update-demo-step"
-            );
-            const stepOrder = requireParam(params.stepOrder, "stepOrder", "update-demo-step");
-            const stepStatus = requireParam(params.stepStatus, "stepStatus", "update-demo-step");
-
-            const demo = updateDemoStep(
-              db,
-              demoScriptId,
-              stepOrder,
-              stepStatus as DemoStepStatus,
-              params.stepNotes
-            );
-            log.info(`Updated demo step ${stepOrder} to ${stepStatus}`);
-            return formatResult(demo, `Step ${stepOrder} updated to ${stepStatus}`);
           }
         }
       } catch (err) {

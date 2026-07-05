@@ -5,15 +5,15 @@
 The **Universal Quality Workflow (UQW)** is a structured quality system that ensures consistent code quality and workflow discipline regardless of which AI coding environment you use. It implements a "tracer review" pattern inspired by Dillon Mulroy's methodology, creating a mandatory progression through quality gates:
 
 ```
-backlog → ready → in_progress → ai_review → human_review → done
+backlog → ready → in_progress → ai_review → ai_verification → done
 ```
 
-If a human clicks `Request Changes` during demo verification, Brain Dump moves the ticket from `human_review` to `ready` for rework (it does not remain in `human_review`). Brain Dump preserves the failed demo attempt as history, posts a highlighted `Changes Requested` activity comment, and makes the human notes the first context on the next AI launch.
+After demo generation, Brain Dump moves the ticket to `ai_verification`. The verification runner executes the demo/automation steps, records evidence, and either certifies the ticket to `done` or records verification findings and returns the ticket for rework.
 
 ### Why UQW Matters
 
 - **Consistency**: Same workflow across Claude Code, OpenCode, VS Code, Cursor
-- **Quality Gates**: Mandatory code review and human approval before merging
+- **Quality Gates**: Mandatory code review and evidence-backed verification before completion
 - **Audit Trail**: Complete record of who did what, when, and why
 - **State Enforcement**: Prevents accidental code pushes before review
 - **Telemetry**: Captures tool usage, token counts, and workflow metrics
@@ -322,8 +322,7 @@ All environments call the same MCP tools:
 - `review "submit-finding"` - Records code review issues
 - `review "mark-fixed"` - Marks issues as resolved
 - `review "check-complete"` - Verifies all critical/major findings fixed
-- `review "generate-demo"` - Creates manual test steps
-- `review "submit-feedback"` - Human approves (only humans can call this)
+- `review "generate-demo"` - Creates verification steps and moves the ticket to ai_verification
 - `session "complete"` - Finalizes session
 
 ### Shared Database Schema
@@ -425,29 +424,29 @@ The mandatory AI review phase is identical across all environments:
 10. Call `review` tool, `action: "generate-demo"`, `ticketId`, `steps`
     - Only allowed if review is complete (`review "check-complete"` returned true)
     - Include at least 3 manual test steps
-    - Sets status to `human_review`
+    - Sets status to `ai_verification`
 
-### Phase 4: Human Review (STOP - Wait for Human)
+### Phase 4: AI Verification (STOP - Wait for Runner)
 
 11. **STOP** - Do not proceed further
-    - Ticket is now in `human_review` status
-    - Wait for human to review and test
+    - Ticket is now in `ai_verification` status
+    - Wait for the verification runner to execute steps and capture evidence
 
-12. Human calls `review` tool, `action: "submit-feedback"`, `ticketId`, `passed`, `feedback`
-    - If approved (passed: true) → ticket moves to `done`
-    - If rejected (passed: false) → ticket moves to `ready`, preserving failed demo steps, notes, and feedback for rework
+12. The verification runner records the result
+    - If certified → ticket moves to `done`
+    - If failed → verification findings/evidence return the ticket for rework or block it for attention
 
-**Key Rule**: Only humans can move tickets to `done`. AI cannot approve its own work.
+**Key Rule**: Only the verification runner can certify tickets to `done`. Implementing agents cannot approve their own work.
 
-### Human Change-Request Side Loop
+### Verification Failure Side Loop
 
-Rejected demo feedback creates a side loop through the normal workflow rather than a shortcut back into review:
+Failed verification creates a side loop through the normal workflow rather than a shortcut back into review:
 
 ```mermaid
 flowchart LR
-    A["human_review"] --> B{"Human approves?"}
+    A["ai_verification"] --> B{"Runner certifies?"}
     B -->|Yes| C["done"]
-    B -->|No| D["Changes Requested activity comment"]
+    B -->|No| D["Verification findings + evidence"]
     D --> E["ready"]
     E --> F["workflow.start-work"]
     F --> G["in_progress"]
@@ -458,9 +457,9 @@ flowchart LR
     K --> A
 ```
 
-The next AI launch receives a top-level `Human Requested Changes - Fix This First` section before the regular ticket description. That section points to the latest unresolved change-request comment, failed demo steps, and human notes. The AI must still run the complete implementation, validation, AI review, and demo generation cycle after rework.
+The next AI launch receives a top-level verification failure section before the regular ticket description. That section points to the latest unresolved verification findings, failed demo steps, and evidence. The AI must still run the complete implementation, validation, AI review, and demo generation cycle after rework.
 
-Demo history is not wiped when this loop runs. Failed step statuses, per-step notes, and overall feedback remain discoverable through the highlighted activity comment. The active demo script is always the latest generated demo for the current `human_review` attempt.
+Demo and verification history are not wiped when this loop runs. Failed step statuses, per-step notes, and evidence remain discoverable through the verification report. The active demo script is always the latest generated demo for the current `ai_verification` attempt.
 
 ---
 
@@ -510,20 +509,16 @@ Then retry your Write/Edit operation.
 
 #### "Cannot start ticket - previous ticket still in review"
 
-**Root Cause**: A previous ticket is stuck in `human_review` waiting for approval.
+**Root Cause**: A previous ticket is stuck in `ai_verification` waiting for runner certification.
 
 **Fix**:
-Get the demo script and submit feedback to unblock:
+Inspect the demo script and verification status, then wait for the runner or escalate the blocked reason:
 
 ```
 review tool, action: "get-demo", ticketId: "BLOCKED-TICKET"
-review tool, action: "submit-feedback",
-  ticketId: "BLOCKED-TICKET",
-  passed: true,
-  feedback: "Approved"
 ```
 
-Then start your new ticket.
+Then start your new ticket only after the prior ticket reaches `done` or returns for rework.
 
 #### "(OpenCode) Plugin not triggering / No error messages"
 

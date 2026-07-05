@@ -206,7 +206,7 @@ erDiagram
         text id PK
         text title
         text description
-        text status "backlog|ready|in_progress|ai_review|human_review|done"
+        text status "backlog|ready|in_progress|ai_review|ai_verification|done"
         text priority "low|medium|high"
         real position
         text projectId FK
@@ -260,7 +260,7 @@ erDiagram
     ticketWorkflowState {
         text id PK
         text ticketId FK UK
-        text currentPhase "implementation|ai_review|human_review|done"
+        text currentPhase "implementation|ai_review|ai_verification|done"
         integer reviewIteration
         integer findingsCount
         integer findingsFixed

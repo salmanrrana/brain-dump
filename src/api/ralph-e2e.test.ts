@@ -300,7 +300,7 @@ function completeTicketWork(
   if (
     ticket.status === "done" ||
     ticket.status === "ai_review" ||
-    ticket.status === "human_review"
+    ticket.status === "ai_verification"
   ) {
     return { success: true, ticket };
   }
@@ -350,7 +350,7 @@ function suggestNextTicket(
     .prepare(
       `
     SELECT id, title, priority FROM tickets
-    WHERE project_id = ? AND id != ? AND status NOT IN ('done', 'ai_review', 'human_review')
+    WHERE project_id = ? AND id != ? AND status NOT IN ('done', 'ai_review', 'ai_verification')
     ORDER BY
       CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 ELSE 1 END,
       position

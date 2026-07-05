@@ -175,13 +175,13 @@ You: @brain-dump /review-ticket
 You: @brain-dump /demo
 ```
 
-### Phase 4: Demo & Approval
+### Phase 4: Demo & AI Verification
 
 ```
 You: Go to Brain Dump UI
-     Click ticket in human_review
-     Click "Start Demo Review"
-     Run steps, approve or request changes
+     Click ticket in ai_verification
+     Confirm the demo is ready for the verification runner
+     Wait for evidence-backed certification or verification findings
 ```
 
 ## Commands

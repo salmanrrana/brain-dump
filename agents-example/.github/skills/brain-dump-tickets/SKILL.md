@@ -57,7 +57,7 @@ Brain Dump provides these MCP tools (prefix with `brain-dump/` if needed):
 
 ```
 backlog → ready → in_progress → review → done
-                              ↘ ai_review → human_review → done
+                              ↘ ai_review → ai_verification → done
 ```
 
 ## Creating Good Tickets

@@ -122,15 +122,15 @@ stateDiagram-v2
         check-complete
     end note
 
-    note right of human_review
+    note right of ai_verification
         Demo exists
         AI must stop here
-        Human approves or requests changes
+        Runner certifies or records findings
     end note
 
     note right of ready
-        Rejected demos return here
-        Human notes become top-priority context
+        Verification failures return here
+        Evidence becomes top-priority context
         Next AI pass runs full workflow again
     end note
 ```
@@ -232,23 +232,21 @@ sequenceDiagram
 
     LLM->>MCP: review.generate-demo
     MCP->>Core: generateDemo()
-    Core->>DB: ticket -> human_review
+    Core->>DB: ticket -> ai_verification
     Core->>DB: add demo-generated comment
 
     LLM->>MCP: session.complete
     MCP->>Core: completeSession()
 
-    Human->>MCP: review.submit-feedback(passed=true)
-    MCP->>Core: submitFeedback()
+    Runner->>Core: certified verification pass
     Core->>DB: ticket -> done
 
-    alt Human requests changes
-        Human->>MCP: review.submit-feedback(passed=false)
-        MCP->>Core: submitFeedback()
-        Core->>DB: preserve failed step statuses, notes, and feedback
-        Core->>DB: add highlighted Changes Requested activity comment
-        Core->>DB: ticket -> ready
-        Note over LLM,DB: Next launch prioritizes human change request context<br/>and repeats start-work, tests, AI review, and demo generation.
+    alt Runner finds verification failure
+        Runner->>Core: verification failure with evidence
+        Core->>DB: preserve failed step statuses, notes, and evidence refs
+        Core->>DB: add verification findings/report
+        Core->>DB: ticket -> in_progress or blocked ai_verification
+        Note over LLM,DB: Next launch prioritizes verification failure context<br/>and repeats implementation, tests, AI review, and demo generation.
     end
 ```
 
@@ -336,14 +334,13 @@ flowchart TB
     G --> D
 
     D -->|No| H["review.generate-demo"]
-    H --> I["Ticket enters human_review"]
-    I --> J["Human runs demo steps"]
-    J --> K{"Human approves?"}
-    K -->|Yes| L["review.submit-feedback passed=true"]
-    L --> M["Ticket enters done"]
-    K -->|No| N["review.submit-feedback passed=false"]
-    N --> O["Ticket returns to ready"]
-    O --> P["Next launch: workflow.start-work from ready"]
+    H --> I["Ticket enters ai_verification"]
+    I --> J["Runner executes demo steps"]
+    J --> K{"Runner certifies?"}
+    K -->|Yes| L["Ticket enters done"]
+    K -->|No| N["Verification findings + evidence"]
+    N --> O["Ticket returns to in_progress or blocks in ai_verification"]
+    O --> P["Next launch: fix verification failures"]
     P --> Q["Ticket enters in_progress (new implementation pass)"]
     Q --> A
 
@@ -353,7 +350,7 @@ flowchart TB
     style M fill:#1e293b,stroke:#22c55e,color:#fff
 ```
 
-Rejected human reviews do not leave the active demo in place as the next work item. The failed demo attempt is preserved in demo history and summarized in a highlighted `Changes Requested` activity comment, while the ticket returns to `ready` so the next AI launch starts a fresh implementation pass. That pass must still run the full implementation, test report, AI review, `check-complete`, and new demo generation cycle before returning to `human_review`.
+Verification failures do not silently pass. The failed verification attempt is preserved in demo/history evidence and summarized in verification findings/report comments, while the ticket returns for rework or blocks in `ai_verification` when certification is impossible. The next AI launch must still run the full implementation, test report, AI review, `check-complete`, and new demo generation cycle before returning to `ai_verification`.
 
 ## Diagram 9: Who Creates Which Comment?
 
@@ -370,7 +367,7 @@ flowchart TB
     J["review.submit-finding"] --> K["review tool"] --> L["Finding audit comment"]
     M["review.mark-fixed"] --> N["review tool"] --> O["Fix audit comment"]
     P["review.generate-demo"] --> Q["review tool"] --> R["Demo generated comment"]
-    S["review.submit-feedback passed=false"] --> T["review tool"] --> U["Changes Requested activity comment\nwith failed steps + full demo snapshot"]
+    S["verification failure"] --> T["verification runner"] --> U["Verification report/finding comment\nwith failed steps + evidence refs"]
 ```
 
 ## Diagram 10: Where Provider Identity Comes From
@@ -480,11 +477,11 @@ flowchart LR
     F --> G["Brain Dump moves ticket to ai_review"]
     G --> H["LLM submits/fixes findings"]
     H --> I["LLM generates demo"]
-    I --> J["Brain Dump moves ticket to human_review"]
-    J --> K{"Human approves?"}
+    I --> J["Brain Dump moves ticket to ai_verification"]
+    J --> K{"Runner certifies?"}
     K -->|Yes| L["Ticket becomes done"]
-    K -->|No| M["Changes Requested comment preserves demo history"]
-    M --> N["Ticket returns to ready"]
+    K -->|No| M["Verification findings preserve evidence"]
+    M --> N["Ticket returns for rework or blocks"]
     N --> A
 ```
 

@@ -6,8 +6,6 @@ const mockUseDemoScript = vi.hoisted(() => vi.fn());
 
 vi.mock("../../lib/hooks", () => ({
   useDemoScript: mockUseDemoScript,
-  useUpdateDemoStep: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
-  useSubmitDemoFeedback: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
 }));
 
 vi.mock("../Toast", () => ({

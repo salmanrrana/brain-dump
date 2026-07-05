@@ -74,20 +74,20 @@ review tool, action: "generate-demo",
     },
     {
       order: 3,
-      description: "Click on a ticket in the 'human_review' column",
-      expectedOutcome: "Ticket modal opens showing demo panel",
+      description: "Click on a ticket in the 'ai_verification' column",
+      expectedOutcome: "Ticket modal opens showing verification-ready demo details",
       type: "manual"
     },
     {
       order: 4,
       description: "Verify the DemoPanel shows all demo steps",
-      expectedOutcome: "Steps are listed with pass/fail buttons",
+      expectedOutcome: "Steps are listed for the verification runner/auditor",
       type: "visual"
     },
     {
       order: 5,
-      description: "Click 'Approve' after marking all steps passed",
-      expectedOutcome: "Ticket moves to 'done' column",
+      description: "Confirm the ticket is waiting for AI verification",
+      expectedOutcome: "Ticket remains in 'ai_verification' until the runner certifies it",
       type: "manual"
     }
   ]
@@ -97,19 +97,18 @@ review tool, action: "generate-demo",
 
 After generating the demo:
 
-- Ticket status changes to `human_review`
+- Ticket status changes to `ai_verification`
 - A progress comment is added: "Demo script generated with X steps"
 - The Brain Dump UI will show the demo panel in the ticket detail
 
 ### Step 6: STOP and Wait
 
-**DO NOT continue working.** The human reviewer must:
+**DO NOT continue working.** The verification runner must:
 
-1. Open Brain Dump UI
-2. Navigate to the ticket
-3. Run through demo steps
-4. Mark each step passed/failed
-5. Submit feedback via `review` tool `submit-feedback`
+1. Boot the target project
+2. Execute the demo/automation steps
+3. Capture evidence
+4. Certify completion or report verification failures
 
 ## Demo Step Guidelines
 
@@ -148,35 +147,13 @@ After generating the demo:
 - Focus on acceptance criteria from the ticket
 - Include both happy path and key edge cases
 - Make steps specific and verifiable
-- The human reviewer will use this to approve/reject the work
+- The verification runner will use this to certify or reject the work with evidence
 
 ## After Demo Generation
 
-The ticket is now in `human_review`. Possible outcomes:
+The ticket is now in `ai_verification`. Possible outcomes:
 
-1. **Approved**: Human calls:
+1. **Certified**: The verification runner records evidence and moves the ticket to `done`.
+2. **Failed**: The verification runner records findings/evidence and returns the ticket for implementation or blocks it for attention.
 
-   ```
-   review tool, action: "submit-feedback",
-     ticketId: "<ticket-id>",
-     passed: true,
-     feedback: "All steps verified successfully"
-   ```
-
-   → ticket moves to `done`
-
-2. **Rejected**: Human calls:
-   ```
-   review tool, action: "submit-feedback",
-     ticketId: "<ticket-id>",
-     passed: false,
-     feedback: "Step 3 failed - modal did not open",
-     stepResults: [
-       { order: 1, passed: true },
-       { order: 2, passed: true },
-       { order: 3, passed: false, notes: "Button unresponsive" }
-     ]
-   ```
-   → ticket stays in `human_review` with feedback for you to address
-
-If rejected, read the feedback and iterate on the fix.
+If verification fails, read the runner findings and iterate on the fix.

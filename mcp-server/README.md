@@ -43,9 +43,9 @@ create, list, get, update-status, delete, update-criterion, list-by-epic, link-f
 
 create, update-state, complete, get, list, emit-event, get-events, clear-events, save-tasks, get-tasks, clear-tasks, get-task-snapshots
 
-### review (7 actions)
+### review (6 actions)
 
-submit-finding, mark-fixed, check-complete, generate-demo, get-demo, get-findings, update-demo-step
+submit-finding, mark-fixed, check-complete, generate-demo, get-demo, get-findings
 
 ### telemetry (7 actions)
 

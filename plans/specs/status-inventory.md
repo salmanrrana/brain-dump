@@ -40,7 +40,7 @@ Canonical status module: `core/workflow-steps.ts`.
 - [x] `core/workflow.ts:285` - complete-work status precondition now calls `assertTransition`.
 - [x] `core/review.ts:200` - submit-finding precondition now calls `assertTransition`.
 - [x] `core/review.ts:394` - generate-demo precondition now calls `assertTransition`.
-- [x] `core/review.ts:605` - submit-feedback precondition now calls `assertTransition`.
+- [x] `core/review.ts` - retired manual feedback guard now rejects the old approval path.
 
 ## Intentionally Retained Literals
 

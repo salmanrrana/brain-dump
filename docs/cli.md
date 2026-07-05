@@ -17,7 +17,7 @@ All commands output JSON by default. Add `--pretty` for human-readable output.
 | `epic`       | Create, list, update, delete epics — _create, list, update, delete, reconcile-learnings, get-learnings_                                                                            |
 | `workflow`   | Start work, complete work, start epic, launch Ralph — _start-work, complete-work, start-epic, launch-ticket, launch-epic_                                                          |
 | `comment`    | Add and list ticket comments — _add, list_                                                                                                                                         |
-| `review`     | Submit findings, generate demos, manage reviews — _submit-finding, mark-fixed, check-complete, generate-demo, get-demo, update-demo-step, get-findings_                            |
+| `review`     | Submit findings, generate demos, manage reviews — _submit-finding, mark-fixed, check-complete, generate-demo, get-demo, get-findings_                                              |
 | `session`    | Create, update, complete Ralph sessions — _create, update, complete, get, list, update-state, emit-event, get-events, clear-events_                                                |
 | `git`        | Link commits, PRs, sync ticket links — _link-commit, link-pr, sync_                                                                                                                |
 | `telemetry`  | Start, end, get, list telemetry sessions, record token usage — _start, end, get, list, log-tool, log-prompt, log-context, record-usage, recalculate-costs, deep-recalculate-costs_ |
@@ -868,28 +868,6 @@ brain-dump review get-demo --ticket <value> [--pretty]
 | ---------- | ------- | -------- | ------------------------------------- |
 | `--ticket` | string  | Yes      | Ticket ID                             |
 | `--pretty` | boolean | No       | Human-readable output (default: JSON) |
-
-### brain-dump review update-demo-step
-
-Update a demo step status during human review
-
-```bash
-brain-dump review update-demo-step --demo-script <value> --step-order <n> --step-status <pending|passed|failed|skipped> [--step-notes <value>] [--pretty]
-```
-
-| Flag            | Type    | Required | Description                                    |
-| --------------- | ------- | -------- | ---------------------------------------------- |
-| `--demo-script` | string  | Yes      | Demo script ID                                 |
-| `--step-order`  | number  | Yes      | Step order number                              |
-| `--step-status` | enum    | Yes      | Step status (pending, passed, failed, skipped) |
-| `--step-notes`  | string  | No       | Reviewer notes                                 |
-| `--pretty`      | boolean | No       | Human-readable output (default: JSON)          |
-
-**Examples:**
-
-```bash
-brain-dump review update-demo-step --demo-script abc --step-order 1 --step-status passed
-```
 
 ### brain-dump review get-findings
 

@@ -161,8 +161,6 @@ function serverOnlyImplementationModules(): Plugin {
           "checkComplete",
           "generateDemo",
           "getDemo",
-          "updateDemoStep",
-          "submitFeedback",
           "createSession",
           "updateState",
           "completeSession",
