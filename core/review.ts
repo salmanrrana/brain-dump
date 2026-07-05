@@ -39,6 +39,12 @@ import {
   updateEpicReviewRunTicketLink,
 } from "./epic-review-run.ts";
 import { completeActiveSessionsForTicket } from "./session.ts";
+import {
+  assertTransition,
+  isTicketStatus,
+  WorkflowTransitionError,
+  type WorkflowTransitionAction,
+} from "./workflow-steps.ts";
 
 // ============================================
 // Internal Helpers
@@ -197,9 +203,7 @@ export function submitFinding(db: DbHandle, params: SubmitFindingParams): Review
 
   const ticket = getTicketRow(db, ticketId);
 
-  if (ticket.status !== "ai_review") {
-    throw new InvalidStateError("ticket", ticket.status, "ai_review", "submit review finding");
-  }
+  assertTicketTransition(ticket.status, "ai_review", "submit-finding", "submit review finding");
 
   const workflowState = getOrCreateWorkflowState(db, ticketId);
   const epicReviewRunId = findLatestActiveEpicReviewRunIdForTicket(db, ticketId);
@@ -391,9 +395,7 @@ function validateDemoSteps(steps: GenerateDemoParams["steps"]): void {
 function validateDemoGeneration(db: DbHandle, ticketId: string): void {
   const ticket = getTicketRow(db, ticketId);
 
-  if (ticket.status !== "ai_review") {
-    throw new InvalidStateError("ticket", ticket.status, "ai_review", "generate demo script");
-  }
+  assertTicketTransition(ticket.status, "human_review", "generate-demo", "generate demo script");
 
   // Check that all critical/major findings are resolved
   const findings = db
@@ -602,9 +604,7 @@ function prepareFeedbackSubmission(
 ): { ticket: DbTicketRow; demo: DbDemoScriptRow; steps: DemoStep[] } {
   const ticket = getTicketRow(db, ticketId);
 
-  if (ticket.status !== "human_review") {
-    throw new InvalidStateError("ticket", ticket.status, "human_review", "submit demo feedback");
-  }
+  assertTicketTransition(ticket.status, "done", "submit-feedback-pass", "submit demo feedback");
 
   const demo = db.prepare("SELECT * FROM demo_scripts WHERE ticket_id = ?").get(ticketId) as
     | DbDemoScriptRow
@@ -721,4 +721,24 @@ export function submitFeedback(db: DbHandle, params: SubmitFeedbackParams): Feed
     newStatus,
     feedback,
   };
+}
+
+function assertTicketTransition(
+  from: string,
+  to: TicketStatus,
+  action: WorkflowTransitionAction,
+  errorAction: string
+): void {
+  if (!isTicketStatus(from)) {
+    throw new InvalidStateError("ticket", from, "known ticket status", errorAction);
+  }
+
+  try {
+    assertTransition(from, to, action);
+  } catch (err) {
+    if (err instanceof WorkflowTransitionError) {
+      throw new InvalidStateError("ticket", from, err.allowedFrom.join("|"), errorAction);
+    }
+    throw err;
+  }
 }

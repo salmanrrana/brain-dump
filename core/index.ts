@@ -104,6 +104,24 @@ export type {
   InitDatabaseResult,
 } from "./types.ts";
 
+export {
+  TICKET_STATUSES,
+  TICKET_STATUS_METADATA,
+  KANBAN_STATUSES,
+  OPEN_TICKET_STATUSES,
+  STATUS_OPTIONS,
+  STATUS_ORDER,
+  WorkflowTransitionError,
+  isTicketStatus,
+  getTicketStatusLabel,
+  getTicketStatusColorToken,
+  getAllowedTransitionSources,
+  canTransition,
+  assertTransition,
+} from "./workflow-steps.ts";
+
+export type { WorkflowTransitionAction, TicketStatusMetadata } from "./workflow-steps.ts";
+
 // Database initialization
 export {
   initDatabase,

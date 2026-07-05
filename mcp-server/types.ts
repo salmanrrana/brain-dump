@@ -27,13 +27,7 @@ export interface DbProject {
 }
 
 /** Ticket status in the workflow */
-export type TicketStatus =
-  | "backlog"
-  | "ready"
-  | "in_progress"
-  | "ai_review"
-  | "human_review"
-  | "done";
+export type TicketStatus = import("../core/workflow-steps.ts").TicketStatus;
 
 /** Priority levels for tickets */
 export type Priority = "low" | "medium" | "high";

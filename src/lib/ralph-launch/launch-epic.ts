@@ -5,9 +5,12 @@ import { dirname, join } from "path";
 import { and, eq, inArray } from "drizzle-orm";
 import {
   addEpicReviewRunAuditComments,
+  canTransition,
   createEpicReviewRun,
   createRealGitOperations,
   GitError,
+  isTicketStatus,
+  OPEN_TICKET_STATUSES,
   startWork,
   updateEpicReviewRun,
   updateEpicReviewRunTicketLink,
@@ -70,7 +73,10 @@ export function applyEpicLaunchStatusChanges(
   }));
 
   const firstTicket = epicTickets.find(
-    (ticket) => ticket.status === "backlog" || ticket.status === "ready"
+    (ticket) =>
+      isTicketStatus(ticket.status) &&
+      ticket.status !== "in_progress" &&
+      canTransition(ticket.status, "in_progress", "start-work")
   );
 
   if (firstTicket) {
@@ -272,12 +278,7 @@ export async function launchRalphForEpicCore(
   const epicTickets = db
     .select()
     .from(tickets)
-    .where(
-      and(
-        eq(tickets.epicId, epicId),
-        inArray(tickets.status, ["backlog", "ready", "in_progress", "ai_review", "human_review"])
-      )
-    )
+    .where(and(eq(tickets.epicId, epicId), inArray(tickets.status, OPEN_TICKET_STATUSES)))
     .all();
   if (epicTickets.length === 0) {
     return { success: false, message: "No pending tickets in this epic" };

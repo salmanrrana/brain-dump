@@ -1,13 +1,7 @@
 import { z } from "zod";
+import { TICKET_STATUSES } from "../../../core/workflow-steps.ts";
 
-export const ticketStatusSchema = z.enum([
-  "backlog",
-  "ready",
-  "in_progress",
-  "ai_review",
-  "human_review",
-  "done",
-]);
+export const ticketStatusSchema = z.enum(TICKET_STATUSES);
 
 export const ticketPrioritySchema = z.enum(["low", "medium", "high"]);
 

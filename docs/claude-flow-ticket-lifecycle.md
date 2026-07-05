@@ -4,6 +4,10 @@ The complete flow of a ticket through Brain Dump when using Claude Code as the A
 
 ## Ticket Status State Machine
 
+This diagram is illustrative. The enforced ticket status specification lives in
+`core/workflow-steps.ts`, with core tests in `core/__tests__/workflow-steps.test.ts`
+and adapter transition coverage in `mcp-server/tools/__tests__/status-transitions.test.ts`.
+
 ```mermaid
 stateDiagram-v2
     [*] --> backlog: User creates ticket<br/>(UI or MCP)

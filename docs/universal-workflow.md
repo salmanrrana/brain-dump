@@ -37,6 +37,10 @@ pnpm dev    # http://localhost:4242
 
 ## The Status Flow
 
+This diagram is illustrative. The enforced ticket status specification lives in
+`core/workflow-steps.ts`, with core tests in `core/__tests__/workflow-steps.test.ts`
+and adapter transition coverage in `mcp-server/tools/__tests__/status-transitions.test.ts`.
+
 ```
 ┌──────────┐
 │ backlog  │  Waiting to be picked up

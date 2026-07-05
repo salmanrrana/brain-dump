@@ -7,6 +7,7 @@ import {
   PRIORITY_BADGE_CONFIG,
   getPrStatusBadgeStyle,
 } from "../../lib/constants";
+import { KANBAN_STATUSES } from "../../../core/workflow-steps.ts";
 
 export interface EpicTicketsListProps {
   tickets: Array<{
@@ -21,14 +22,7 @@ export interface EpicTicketsListProps {
   }>;
 }
 
-const STATUS_GROUP_ORDER = [
-  "in_progress",
-  "ai_review",
-  "human_review",
-  "ready",
-  "backlog",
-  "done",
-] as const;
+const STATUS_GROUP_ORDER = KANBAN_STATUSES;
 
 function EpicTicketsListComponent({ tickets }: EpicTicketsListProps) {
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {

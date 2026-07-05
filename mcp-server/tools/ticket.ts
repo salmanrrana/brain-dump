@@ -27,6 +27,7 @@ import {
 } from "../../core/ticket.ts";
 import { linkFiles, getTicketsForFile } from "../../core/files.ts";
 import type { TicketStatus, Priority } from "../../core/types.ts";
+import { TICKET_STATUSES } from "../../core/workflow-steps.ts";
 import type { CriterionStatus } from "../../core/ticket.ts";
 
 const ACTIONS = [
@@ -43,7 +44,6 @@ const ACTIONS = [
   "get-files",
 ] as const;
 
-const STATUSES = ["backlog", "ready", "in_progress", "ai_review", "human_review", "done"] as const;
 const PRIORITIES = ["low", "medium", "high"] as const;
 const CRITERION_STATUSES = ["pending", "passed", "failed", "skipped"] as const;
 const ATTACHMENT_TYPES = [
@@ -68,7 +68,7 @@ export function registerTicketTool(server: McpServer, db: Database.Database): vo
     "ticket",
     `Manage tickets in Brain Dump.
 
-Status flow: backlog → ready → in_progress → ai_review → human_review → done
+Status flow: ${TICKET_STATUSES.join(" → ")}
 
 ### create - Create a new ticket (added to Backlog). Get projectId via project list/find-by-path first.
 ### list - List tickets with optional filters (newest first)
@@ -90,7 +90,7 @@ Status flow: backlog → ready → in_progress → ai_review → human_review �
       priority: z.enum(PRIORITIES).optional().describe("Priority level"),
       epicId: z.string().optional().describe("Epic ID"),
       tags: z.array(z.string()).optional().describe("Tags for categorization"),
-      status: z.enum(STATUSES).optional().describe("Ticket status"),
+      status: z.enum(TICKET_STATUSES).optional().describe("Ticket status"),
       limit: z.number().optional().describe("Max results to return"),
       confirm: z.boolean().optional().describe("Confirm deletion"),
       criterionId: z.string().optional().describe("Criterion ID"),
@@ -116,7 +116,7 @@ Status flow: backlog → ready → in_progress → ai_review → human_review �
       priority?: (typeof PRIORITIES)[number] | undefined;
       epicId?: string | undefined;
       tags?: string[] | undefined;
-      status?: (typeof STATUSES)[number] | undefined;
+      status?: TicketStatus | undefined;
       limit?: number | undefined;
       confirm?: boolean | undefined;
       criterionId?: string | undefined;

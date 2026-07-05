@@ -3,38 +3,14 @@ import { Link } from "@tanstack/react-router";
 import { Layers, ChevronRight } from "lucide-react";
 import type { Ticket } from "../../lib/hooks";
 import { StatusPill, type TicketStatus } from "../navigation/StatusPill";
+import { isTicketStatus, STATUS_ORDER } from "../../../core/workflow-steps.ts";
 
 // =============================================================================
 // Constants
 // =============================================================================
 
-/** Sort order for ticket statuses - lower numbers appear first */
-const STATUS_SORT_ORDER: Record<string, number> = {
-  in_progress: 0,
-  ready: 1,
-  ai_review: 2,
-  human_review: 3,
-  backlog: 4,
-  done: 5,
-};
-
 /** Sort order for ticket priorities - lower numbers appear first */
 const PRIORITY_SORT_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
-
-/** Valid ticket status values for type checking */
-const VALID_STATUSES: readonly TicketStatus[] = [
-  "backlog",
-  "ready",
-  "in_progress",
-  "ai_review",
-  "human_review",
-  "done",
-];
-
-/** Type guard to check if a string is a valid TicketStatus */
-function isValidTicketStatus(status: string): status is TicketStatus {
-  return VALID_STATUSES.includes(status as TicketStatus);
-}
 
 // =============================================================================
 // Types
@@ -69,7 +45,7 @@ interface RelatedTicketItemProps {
  */
 const RelatedTicketItem = memo<RelatedTicketItemProps>(({ ticket, testId }) => {
   // Safely get the status - default to "backlog" if invalid
-  const status: TicketStatus = isValidTicketStatus(ticket.status) ? ticket.status : "backlog";
+  const status: TicketStatus = isTicketStatus(ticket.status) ? ticket.status : "backlog";
 
   return (
     <li>
@@ -132,8 +108,8 @@ export const RelatedTickets: FC<RelatedTicketsProps> = ({
       .filter((t) => t.epicId === epicId && t.id !== currentTicketId)
       .sort((a, b) => {
         // Sort by status priority: in_progress first, then ready, then backlog, then done
-        const aOrder = STATUS_SORT_ORDER[a.status] ?? 99;
-        const bOrder = STATUS_SORT_ORDER[b.status] ?? 99;
+        const aOrder = isTicketStatus(a.status) ? STATUS_ORDER[a.status] : 99;
+        const bOrder = isTicketStatus(b.status) ? STATUS_ORDER[b.status] : 99;
         if (aOrder !== bOrder) return aOrder - bOrder;
 
         // Then by priority

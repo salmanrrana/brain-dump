@@ -1,3 +1,9 @@
+import {
+  KANBAN_STATUSES,
+  STATUS_OPTIONS as CORE_STATUS_OPTIONS,
+  STATUS_ORDER as CORE_STATUS_ORDER,
+} from "../../core/workflow-steps.ts";
+
 // Shared color options for projects and epics
 export const COLOR_OPTIONS = [
   { value: "", label: "Default" },
@@ -12,27 +18,13 @@ export const COLOR_OPTIONS = [
 ] as const;
 
 // Status options for ticket forms (full list including AI review states)
-export const STATUS_OPTIONS = [
-  { value: "backlog", label: "Backlog" },
-  { value: "ready", label: "Ready" },
-  { value: "in_progress", label: "In Progress" },
-  { value: "ai_review", label: "AI Review" },
-  { value: "human_review", label: "Human Review" },
-  { value: "done", label: "Done" },
-] as const;
+export const STATUS_OPTIONS = CORE_STATUS_OPTIONS;
 
 /**
  * Status columns in display order for the Kanban board.
  * Shared between KanbanBoard and keyboard navigation hook.
  */
-export const COLUMN_STATUSES = [
-  "backlog",
-  "ready",
-  "in_progress",
-  "ai_review",
-  "human_review",
-  "done",
-] as const;
+export const COLUMN_STATUSES = KANBAN_STATUSES;
 
 // Priority options for ticket forms
 export const PRIORITY_OPTIONS = [
@@ -43,14 +35,7 @@ export const PRIORITY_OPTIONS = [
 ] as const;
 
 // Status ordering for sorting (lower = earlier in workflow, unique values for distinct sorting)
-export const STATUS_ORDER: Record<string, number> = {
-  backlog: 0,
-  ready: 1,
-  in_progress: 2,
-  ai_review: 3,
-  human_review: 4,
-  done: 5,
-};
+export const STATUS_ORDER: Record<string, number> = CORE_STATUS_ORDER;
 
 // Priority ordering for sorting (lower = higher priority)
 export const PRIORITY_ORDER: Record<string, number> = {

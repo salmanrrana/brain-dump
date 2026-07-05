@@ -11,15 +11,7 @@ import { parseFlags, optionalFlag, optionalEnumFlag, boolFlag, numericFlag } fro
 import { outputResult, outputError } from "../lib/output.ts";
 import { getDb } from "../lib/db.ts";
 import { ValidationError } from "../../core/index.ts";
-
-const VALID_STATUSES = [
-  "backlog",
-  "ready",
-  "in_progress",
-  "ai_review",
-  "human_review",
-  "done",
-] as const;
+import { TICKET_STATUSES } from "../../core/workflow-steps.ts";
 
 // ── Pretty formatting ──────────────────────────────────────────
 
@@ -74,7 +66,7 @@ export function handle(action: string, args: string[]): void {
   const flags = parseFlags(allArgs);
   const pretty = boolFlag(flags, "pretty");
   const projectId = optionalFlag(flags, "project");
-  const status = optionalEnumFlag(flags, "status", VALID_STATUSES) as TicketStatus | undefined;
+  const status = optionalEnumFlag(flags, "status", TICKET_STATUSES) as TicketStatus | undefined;
   const limit = numericFlag(flags, "limit");
 
   try {

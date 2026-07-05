@@ -28,6 +28,7 @@ import {
 } from "../lib/args.ts";
 import { outputResult, outputError, showResourceHelp } from "../lib/output.ts";
 import { getDb } from "../lib/db.ts";
+import { TICKET_STATUSES } from "../../core/workflow-steps.ts";
 
 const ACTIONS = [
   "create",
@@ -41,15 +42,6 @@ const ACTIONS = [
   "link-files",
   "get-files",
   "delete",
-];
-
-const STATUSES: readonly TicketStatus[] = [
-  "backlog",
-  "ready",
-  "in_progress",
-  "ai_review",
-  "human_review",
-  "done",
 ];
 
 export function handle(action: string, args: string[]): void {
@@ -79,7 +71,7 @@ export function handle(action: string, args: string[]): void {
 
       case "list": {
         const projectId = optionalFlag(flags, "project");
-        const status = optionalEnumFlag<TicketStatus>(flags, "status", STATUSES);
+        const status = optionalEnumFlag<TicketStatus>(flags, "status", TICKET_STATUSES);
         const limit = numericFlag(flags, "limit");
 
         const result = listTickets(db, { projectId, status, limit });
@@ -98,7 +90,7 @@ export function handle(action: string, args: string[]): void {
         const ticketId = requireFlag(flags, "ticket");
         const title = optionalFlag(flags, "title");
         const description = optionalFlag(flags, "description");
-        const status = optionalEnumFlag<TicketStatus>(flags, "status", STATUSES);
+        const status = optionalEnumFlag<TicketStatus>(flags, "status", TICKET_STATUSES);
         const priority = optionalEnumFlag<Priority>(flags, "priority", ["low", "medium", "high"]);
         const epicId = optionalFlag(flags, "epic");
         const tagsStr = optionalFlag(flags, "tags");
@@ -124,7 +116,7 @@ export function handle(action: string, args: string[]): void {
 
       case "update-status": {
         const ticketId = requireFlag(flags, "ticket");
-        const status = requireEnumFlag<TicketStatus>(flags, "status", STATUSES);
+        const status = requireEnumFlag<TicketStatus>(flags, "status", TICKET_STATUSES);
         const result = updateTicketStatus(db, ticketId, status);
         outputResult(result, pretty);
         break;
@@ -168,7 +160,7 @@ export function handle(action: string, args: string[]): void {
       case "list-by-epic": {
         const epicId = requireFlag(flags, "epic");
         const projectId = optionalFlag(flags, "project");
-        const status = optionalEnumFlag<TicketStatus>(flags, "status", STATUSES);
+        const status = optionalEnumFlag<TicketStatus>(flags, "status", TICKET_STATUSES);
         const limit = numericFlag(flags, "limit");
         const result = listTicketsByEpic(db, { epicId, projectId, status, limit });
         outputResult(result, pretty);

@@ -7,6 +7,8 @@
  * No decorators, no class hierarchy — just typed data.
  */
 
+import { TICKET_STATUSES } from "../../core/workflow-steps.ts";
+
 // ── Types ──────────────────────────────────────────────────────
 
 export interface FlagDef {
@@ -41,6 +43,8 @@ const projectFlag: FlagDef = {
   required: false,
   description: "Project ID",
 };
+
+const ticketStatusEnum = [...TICKET_STATUSES];
 
 const ticketFlag: FlagDef = {
   name: "ticket",
@@ -163,7 +167,7 @@ export const COMMAND_REGISTRY: CommandDef[] = [
         type: "enum",
         required: false,
         description: "Ticket status",
-        enum: ["backlog", "ready", "in_progress", "ai_review", "human_review", "done"],
+        enum: ticketStatusEnum,
       },
       {
         name: "priority",
@@ -192,7 +196,7 @@ export const COMMAND_REGISTRY: CommandDef[] = [
         type: "enum",
         required: true,
         description: "Ticket status",
-        enum: ["backlog", "ready", "in_progress", "ai_review", "human_review", "done"],
+        enum: ticketStatusEnum,
       },
       prettyFlag,
     ],
@@ -262,7 +266,7 @@ export const COMMAND_REGISTRY: CommandDef[] = [
         type: "enum",
         required: false,
         description: "Filter by status",
-        enum: ["backlog", "ready", "in_progress", "ai_review", "human_review", "done"],
+        enum: ticketStatusEnum,
       },
       limitFlag,
       prettyFlag,
@@ -1417,7 +1421,7 @@ export const COMMAND_REGISTRY: CommandDef[] = [
         type: "enum",
         required: false,
         description: "Filter by ticket status",
-        enum: ["backlog", "ready", "in_progress", "ai_review", "human_review", "done"],
+        enum: ticketStatusEnum,
       },
       limitFlag,
       prettyFlag,

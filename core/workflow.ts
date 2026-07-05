@@ -32,6 +32,13 @@ import {
 import { addComment, type CommentAuthor } from "./comment.ts";
 import { generateBranchName, generateEpicBranchName, findBaseBranch } from "./git-utils.ts";
 import type { DbEpicWorkflowStateRow } from "./db-rows.ts";
+import {
+  assertTransition,
+  isTicketStatus,
+  WorkflowTransitionError,
+  type TicketStatus,
+  type WorkflowTransitionAction,
+} from "./workflow-steps.ts";
 
 // ============================================
 // Internal row types (raw SQL results)
@@ -132,13 +139,7 @@ export function startWork(
   //     when an agent re-read plans/prd.json (which still had
   //     \`passes: false\` for a ticket that had since been demoed into
   //     human_review) and naively called start-work.
-  if (
-    ticket.status === "ai_review" ||
-    ticket.status === "human_review" ||
-    ticket.status === "done"
-  ) {
-    throw new InvalidStateError("ticket", ticket.status, "backlog|ready", "start work");
-  }
+  assertTicketTransition(ticket.status, "in_progress", "start-work", "start work");
 
   // 3. Verify git repo
   const gitCheck = git.run("git rev-parse --git-dir", projectPath);
@@ -282,13 +283,7 @@ export function completeWork(
     throw new TicketNotFoundError(ticketId);
   }
 
-  if (ticket.status === "done") {
-    throw new InvalidStateError("ticket", "done", "in_progress", "complete work");
-  }
-
-  if (ticket.status === "ai_review" || ticket.status === "human_review") {
-    throw new InvalidStateError("ticket", ticket.status, "in_progress", "complete work");
-  }
+  assertTicketTransition(ticket.status, "ai_review", "complete-work", "complete work");
 
   const latestTestReport = db
     .prepare(
@@ -673,6 +668,26 @@ function resolveEpicBranch(
     usingEpicBranch: true,
     warnings,
   };
+}
+
+function assertTicketTransition(
+  from: string,
+  to: TicketStatus,
+  action: WorkflowTransitionAction,
+  errorAction: string
+): void {
+  if (!isTicketStatus(from)) {
+    throw new InvalidStateError("ticket", from, "known ticket status", errorAction);
+  }
+
+  try {
+    assertTransition(from, to, action);
+  } catch (err) {
+    if (err instanceof WorkflowTransitionError) {
+      throw new InvalidStateError("ticket", from, err.allowedFrom.join("|"), errorAction);
+    }
+    throw err;
+  }
 }
 
 /** Convert a raw DB ticket row to the public `TicketWithProject` type. */

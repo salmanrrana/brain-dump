@@ -16,6 +16,7 @@ import {
 import type { DbTicketRow, DbProjectRow, DbEpicRow, DbTicketSummaryRow } from "./db-rows.ts";
 import { safeJsonParse } from "./json.ts";
 import { autoTagFromMentions } from "./platform-mention-parser.ts";
+import { isTicketStatus, TICKET_STATUSES } from "./workflow-steps.ts";
 
 // ============================================
 // Internal Helpers
@@ -150,15 +151,6 @@ interface TicketAttachment {
 // ============================================
 // Valid Constants
 // ============================================
-
-const VALID_STATUSES: TicketStatus[] = [
-  "backlog",
-  "ready",
-  "in_progress",
-  "ai_review",
-  "human_review",
-  "done",
-];
 
 const VALID_PRIORITIES: Priority[] = ["low", "medium", "high"];
 
@@ -299,8 +291,8 @@ export function updateTicketStatus(
   ticketId: string,
   status: TicketStatus
 ): TicketWithProject {
-  if (!VALID_STATUSES.includes(status)) {
-    throw new ValidationError(`Invalid status: ${status}. Valid: ${VALID_STATUSES.join(", ")}`);
+  if (!isTicketStatus(status)) {
+    throw new ValidationError(`Invalid status: ${status}. Valid: ${TICKET_STATUSES.join(", ")}`);
   }
 
   // Verify ticket exists
@@ -358,9 +350,9 @@ export function updateTicket(
   }
 
   if (params.status !== undefined) {
-    if (!VALID_STATUSES.includes(params.status)) {
+    if (!isTicketStatus(params.status)) {
       throw new ValidationError(
-        `Invalid status: ${params.status}. Valid: ${VALID_STATUSES.join(", ")}`
+        `Invalid status: ${params.status}. Valid: ${TICKET_STATUSES.join(", ")}`
       );
     }
     setClauses.push("status = ?");

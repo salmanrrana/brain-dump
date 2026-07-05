@@ -1,5 +1,6 @@
 import { sqliteTable, text, integer, real, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
+import type { TicketStatus } from "../../core/workflow-steps.ts";
 
 // Projects table
 export const projects = sqliteTable(
@@ -43,10 +44,7 @@ export const tickets = sqliteTable(
     id: text("id").primaryKey(),
     title: text("title").notNull(),
     description: text("description"),
-    status: text("status")
-      .notNull()
-      .default("backlog")
-      .$type<"backlog" | "ready" | "in_progress" | "ai_review" | "human_review" | "done">(),
+    status: text("status").notNull().default("backlog").$type<TicketStatus>(),
     priority: text("priority").$type<"high" | "medium" | "low">(),
     position: real("position").notNull(),
     projectId: text("project_id")

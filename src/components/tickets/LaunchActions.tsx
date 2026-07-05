@@ -4,6 +4,7 @@ import type { UiLaunchProviderId } from "../../lib/launch-provider-contract";
 import type { LaunchModelSelection } from "../../lib/launch-model-catalog";
 import { useCostModels } from "../../lib/hooks";
 import { LaunchProviderMenu } from "../LaunchProviderMenu";
+import { TICKET_STATUS_METADATA } from "../../../core/workflow-steps.ts";
 
 export type LaunchType = UiLaunchProviderId;
 
@@ -20,14 +21,6 @@ export interface LaunchActionsProps {
   disabled?: boolean;
 }
 
-const WORKABLE_STATUSES: TicketStatus[] = [
-  "backlog",
-  "ready",
-  "in_progress",
-  "ai_review",
-  "human_review",
-];
-
 export const LaunchActions: FC<LaunchActionsProps> = ({
   ticketStatus,
   onLaunch,
@@ -41,7 +34,7 @@ export const LaunchActions: FC<LaunchActionsProps> = ({
     isLoading: modelCatalogLoading,
     error: modelCatalogError,
   } = useCostModels();
-  const isWorkable = WORKABLE_STATUSES.includes(ticketStatus);
+  const isWorkable = TICKET_STATUS_METADATA[ticketStatus].workable;
 
   const handleOptionClick = useCallback(
     (type: LaunchType, modelSelection: LaunchModelSelection) => {

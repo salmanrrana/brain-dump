@@ -6,6 +6,8 @@
  */
 
 import type Database from "better-sqlite3";
+import type { TicketStatus } from "./workflow-steps.ts";
+export type { TicketStatus } from "./workflow-steps.ts";
 
 // ============================================
 // Database Handle Type
@@ -20,14 +22,6 @@ export type DbHandle = Database.Database;
 // ============================================
 // Ticket Status & Priority
 // ============================================
-
-export type TicketStatus =
-  | "backlog"
-  | "ready"
-  | "in_progress"
-  | "ai_review"
-  | "human_review"
-  | "done";
 
 export type Priority = "low" | "medium" | "high";
 
