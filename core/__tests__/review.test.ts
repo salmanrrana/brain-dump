@@ -18,6 +18,7 @@ import {
   InvalidStateError,
   ValidationError,
 } from "../errors.ts";
+import type { DemoStep } from "../types.ts";
 
 let db: Database.Database;
 
@@ -612,6 +613,29 @@ describe("generateDemo", () => {
         ],
       })
     ).toThrow(/UI automation assert must contain at least one assertion/);
+  });
+
+  it("rejects API automation assertions without a defined expected value", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    const steps = [
+      {
+        order: 1,
+        description: "Check the status API",
+        expectedOutcome: "The status endpoint returns OK",
+        type: "automated",
+        automation: {
+          kind: "api",
+          request: { method: "GET", path: "/api/status" },
+          assert: [{ type: "status", expected: undefined }],
+        },
+      },
+    ] as unknown as DemoStep[];
+
+    expect(() => generateDemo(db, { ticketId: "ticket-1", steps })).toThrow(
+      /API automation assertion at index 0 is invalid/
+    );
   });
 
   it("completes active Ralph sessions when handing the ticket to ai_verification", () => {

@@ -275,4 +275,37 @@ describe("review tool generate-demo PR sync", () => {
     };
     expect(ticket.status).toBe("ai_review");
   });
+
+  it("rejects API automation assertions with missing expected values", async () => {
+    seedProject(db, { id: "proj-1", path: tempDir });
+    seedTicket(db, { id: "ticket-1", projectId: "proj-1", status: "ai_review" });
+
+    const server = new McpServer({ name: "test", version: "1.0.0" });
+    registerReviewTool(server, db);
+
+    const handler = getToolHandler(server, "review");
+    const result = (await handler(
+      {
+        action: "generate-demo",
+        ticketId: "ticket-1",
+        steps: [
+          {
+            order: 1,
+            description: "Check the status API",
+            expectedOutcome: "The status endpoint returns OK.",
+            type: "automated",
+            automation: {
+              kind: "api",
+              request: { method: "GET", path: "/api/status" },
+              assert: [{ type: "status" }],
+            },
+          },
+        ],
+      },
+      {}
+    )) as { content: Array<{ text: string }>; isError?: boolean };
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("API automation assertion at index 0 is invalid");
+  });
 });

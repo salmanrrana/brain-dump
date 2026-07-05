@@ -425,7 +425,8 @@ function validateApiAutomation(step: DemoStep, index: number): void {
     if (
       !isRecord(assertion) ||
       !["status", "jsonPath", "bodyContains"].includes(String(assertion.type)) ||
-      !Object.hasOwn(assertion, "expected")
+      !Object.hasOwn(assertion, "expected") ||
+      assertion.expected === undefined
     ) {
       throw new ValidationError(
         `${label} API automation assertion at index ${assertIndex} is invalid.`

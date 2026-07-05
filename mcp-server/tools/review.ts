@@ -50,6 +50,9 @@ const SEVERITIES = ["critical", "major", "minor", "suggestion"] as const;
 const FINDING_STATUSES = ["open", "fixed", "wont_fix", "duplicate"] as const;
 const MARK_FIXED_STATUSES = ["fixed", "wont_fix", "duplicate"] as const;
 const DEMO_STEP_TYPES = ["manual", "visual", "automated"] as const;
+const DEFINED_UNKNOWN_SCHEMA = z.unknown().refine((value) => value !== undefined, {
+  message: "Expected value is required.",
+});
 
 const DEMO_STEP_AUTOMATION_SCHEMA = z.union([
   z.object({
@@ -84,7 +87,7 @@ const DEMO_STEP_AUTOMATION_SCHEMA = z.union([
     assert: z.array(
       z.object({
         type: z.enum(["status", "jsonPath", "bodyContains"]),
-        expected: z.unknown(),
+        expected: DEFINED_UNKNOWN_SCHEMA,
       })
     ),
   }),
