@@ -657,6 +657,36 @@ export const COMMAND_REGISTRY: CommandDef[] = [
       prettyFlag,
     ],
   },
+  {
+    resource: "verify",
+    action: "run",
+    description: "Run AI verification for a ticket",
+    flags: [
+      ticketFlag,
+      {
+        name: "base-url",
+        type: "string",
+        required: false,
+        description: "Use an already-running app instead of booting the project",
+      },
+      prettyFlag,
+    ],
+    examples: [
+      "brain-dump verify --ticket abc --pretty",
+      "brain-dump verify --ticket abc --base-url http://127.0.0.1:4242 --pretty",
+    ],
+  },
+  {
+    resource: "verify",
+    action: "history",
+    description: "List verification run history for a ticket",
+    flags: [
+      ticketFlag,
+      { name: "history", type: "boolean", required: false, description: "Show history" },
+      prettyFlag,
+    ],
+    examples: ["brain-dump verify --ticket abc --history --pretty"],
+  },
 
   // ── session ────────────────────────────────────────────────
   {
@@ -1449,6 +1479,7 @@ export function getResourceDescription(resource: string): string {
     workflow: "Start work, complete work, start epic, launch Ralph",
     comment: "Add and list ticket comments",
     review: "Submit findings, generate demos, manage reviews",
+    verify: "Run AI verification and inspect verification history",
     session: "Create, update, complete Ralph sessions",
     git: "Link commits, PRs, sync ticket links",
     telemetry: "Start, end, get, list telemetry sessions, record token usage",

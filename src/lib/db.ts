@@ -594,6 +594,32 @@ function initReviewWorkflowTables() {
     console.log("demo_scripts table created successfully");
   }
 
+  const verificationRunsExists = sqlite
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='verification_runs'")
+    .get();
+
+  if (!verificationRunsExists) {
+    console.log("Creating verification_runs table...");
+    sqlite.exec(`
+      CREATE TABLE verification_runs (
+        id TEXT PRIMARY KEY NOT NULL,
+        ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+        round INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        certified INTEGER NOT NULL DEFAULT 0,
+        manifest TEXT NOT NULL,
+        git_sha TEXT,
+        started_at TEXT NOT NULL,
+        finished_at TEXT NOT NULL
+      )
+    `);
+    sqlite.exec(`CREATE INDEX idx_verification_runs_ticket ON verification_runs (ticket_id)`);
+    sqlite.exec(
+      `CREATE UNIQUE INDEX idx_verification_runs_round ON verification_runs (ticket_id, round)`
+    );
+    console.log("verification_runs table created successfully");
+  }
+
   const epicReviewRunsExists = sqlite
     .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='epic_review_runs'")
     .get();
@@ -671,6 +697,12 @@ function initReviewWorkflowTables() {
   );
   sqlite.exec(
     `CREATE INDEX IF NOT EXISTS idx_demo_scripts_run ON demo_scripts (epic_review_run_id)`
+  );
+  sqlite.exec(
+    `CREATE INDEX IF NOT EXISTS idx_verification_runs_ticket ON verification_runs (ticket_id)`
+  );
+  sqlite.exec(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_verification_runs_round ON verification_runs (ticket_id, round)`
   );
 }
 

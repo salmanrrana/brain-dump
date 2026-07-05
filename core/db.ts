@@ -396,6 +396,18 @@ function ensureBaseSchema(db: DbHandle, logger: Logger): void {
       passed INTEGER
     );
 
+    CREATE TABLE IF NOT EXISTS verification_runs (
+      id TEXT PRIMARY KEY,
+      ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+      round INTEGER NOT NULL,
+      status TEXT NOT NULL,
+      certified INTEGER NOT NULL DEFAULT 0,
+      manifest TEXT NOT NULL,
+      git_sha TEXT,
+      started_at TEXT NOT NULL,
+      finished_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS epic_workflow_state (
       id TEXT PRIMARY KEY,
       epic_id TEXT NOT NULL UNIQUE REFERENCES epics(id) ON DELETE CASCADE,
@@ -469,6 +481,8 @@ function ensureBaseSchema(db: DbHandle, logger: Logger): void {
     CREATE INDEX IF NOT EXISTS idx_epic_review_run_tickets_position ON epic_review_run_tickets(epic_review_run_id, position);
     CREATE INDEX IF NOT EXISTS idx_findings_ticket ON review_findings(ticket_id);
     CREATE INDEX IF NOT EXISTS idx_findings_status ON review_findings(status);
+    CREATE INDEX IF NOT EXISTS idx_verification_runs_ticket ON verification_runs(ticket_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_verification_runs_round ON verification_runs(ticket_id, round);
     CREATE INDEX IF NOT EXISTS idx_claude_tasks_ticket ON claude_tasks(ticket_id);
     CREATE INDEX IF NOT EXISTS idx_claude_task_snapshots_ticket ON claude_task_snapshots(ticket_id);
 
@@ -741,6 +755,31 @@ export function runMigrations(db: DbHandle, logger: Logger = silentLogger): void
   ).run();
   db.prepare(
     "CREATE INDEX IF NOT EXISTS idx_demo_scripts_run ON demo_scripts(epic_review_run_id)"
+  ).run();
+
+  if (!tableExists(db, "verification_runs")) {
+    db.prepare(
+      `
+      CREATE TABLE verification_runs (
+        id TEXT PRIMARY KEY,
+        ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+        round INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        certified INTEGER NOT NULL DEFAULT 0,
+        manifest TEXT NOT NULL,
+        git_sha TEXT,
+        started_at TEXT NOT NULL,
+        finished_at TEXT NOT NULL
+      )
+    `
+    ).run();
+    logger.info("Created verification_runs table");
+  }
+  db.prepare(
+    "CREATE INDEX IF NOT EXISTS idx_verification_runs_ticket ON verification_runs(ticket_id)"
+  ).run();
+  db.prepare(
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_verification_runs_round ON verification_runs(ticket_id, round)"
   ).run();
 
   // Ralph events table

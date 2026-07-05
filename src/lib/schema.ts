@@ -864,6 +864,31 @@ export type NewDemoScript = typeof demoScripts.$inferInsert;
 
 export type { DemoStep };
 
+// Permanent verification audit log - evidence files may be pruned, rows never are.
+export const verificationRuns = sqliteTable(
+  "verification_runs",
+  {
+    id: text("id").primaryKey(),
+    ticketId: text("ticket_id")
+      .notNull()
+      .references(() => tickets.id, { onDelete: "cascade" }),
+    round: integer("round").notNull(),
+    status: text("status", { enum: ["passed", "failed", "uncertified", "infra_error"] }).notNull(),
+    certified: integer("certified", { mode: "boolean" }).notNull().default(false),
+    manifest: text("manifest").notNull(),
+    gitSha: text("git_sha"),
+    startedAt: text("started_at").notNull(),
+    finishedAt: text("finished_at").notNull(),
+  },
+  (table) => [
+    index("idx_verification_runs_ticket").on(table.ticketId),
+    uniqueIndex("idx_verification_runs_round").on(table.ticketId, table.round),
+  ]
+);
+
+export type VerificationRun = typeof verificationRuns.$inferSelect;
+export type NewVerificationRun = typeof verificationRuns.$inferInsert;
+
 // Learning interface for epic workflow
 export interface WorkflowLearning {
   type: "pattern" | "anti-pattern" | "tool-usage" | "workflow"; // Type of learning

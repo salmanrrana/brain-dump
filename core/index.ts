@@ -238,6 +238,19 @@ export type {
   SubmitFeedbackParams,
 } from "./review.ts";
 
+// Verification runner business logic
+export { verifyTicket, listVerificationRuns } from "./verification.ts";
+
+export type {
+  VerificationRunStatus,
+  VerificationStepStatus,
+  VerificationEvidenceFile,
+  VerificationStepVerdict,
+  VerificationManifest,
+  VerificationRun,
+  VerifyTicketParams,
+} from "./verification.ts";
+
 // Session & event business logic
 export {
   createSession,

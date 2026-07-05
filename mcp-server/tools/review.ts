@@ -22,6 +22,7 @@ import {
   generateDemo,
   getDemo,
 } from "../../core/review.ts";
+import { listVerificationRuns } from "../../core/verification.ts";
 import type { MarkFixedStatus } from "../../core/review.ts";
 import type { DemoStep, FindingAgent, FindingSeverity, FindingStatus } from "../../core/types.ts";
 import { addComment, type CommentAuthor } from "../../core/comment.ts";
@@ -43,6 +44,7 @@ const ACTIONS = [
   "check-complete",
   "generate-demo",
   "get-demo",
+  "get-verification-history",
 ] as const;
 
 const AGENTS = ["code-reviewer", "silent-failure-hunter", "code-simplifier"] as const;
@@ -125,6 +127,7 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
 ### check-complete - Check if all critical/major findings resolved (returns canProceedToVerification)
 ### generate-demo - Generate demo script for AI verification (moves ticket to ai_verification). visual/automated steps require automation specs; manual steps must not include automation.
 ### get-demo - Get the demo script for a ticket
+### get-verification-history - Read verification run history for a ticket
 
 No MCP action uploads evidence or marks verification passed. The verification runner owns evidence writes and ai_verification -> done.`,
     {
@@ -351,6 +354,15 @@ No MCP action uploads evidence or marks verification passed. The verification ru
               return formatEmpty("demo script for this ticket");
             }
             return formatResult(demo);
+          }
+
+          case "get-verification-history": {
+            const ticketId = requireParam(params.ticketId, "ticketId", "get-verification-history");
+            const runs = listVerificationRuns(db, ticketId);
+            if (runs.length === 0) {
+              return formatEmpty("verification runs for this ticket");
+            }
+            return formatResult(runs, `Found ${runs.length} verification run(s)`);
           }
         }
       } catch (err) {

@@ -12,6 +12,7 @@
  *   workflow     Start work, complete work, start epic
  *   comment      Add and list ticket comments
  *   review       Submit findings, generate demos, manage reviews
+ *   verify       Run AI verification and inspect verification history
  *   session      Create, update, complete Ralph sessions
  *   git          Link commits, PRs, sync ticket links
  *   telemetry    Start, end, get, list telemetry sessions
@@ -53,6 +54,7 @@ import * as epic from "./commands/epic.ts";
 import * as workflow from "./commands/workflow.ts";
 import * as comment from "./commands/comment.ts";
 import * as review from "./commands/review.ts";
+import * as verify from "./commands/verify.ts";
 import * as session from "./commands/session.ts";
 import * as git from "./commands/git.ts";
 import * as telemetry from "./commands/telemetry.ts";
@@ -258,6 +260,9 @@ switch (resource) {
     break;
   case "review":
     runSync(review.handle, action, rest);
+    break;
+  case "verify":
+    runAsync(verify.handle, action, rest);
     break;
   case "session":
     runSync(session.handle, action, rest);
