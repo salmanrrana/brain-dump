@@ -231,11 +231,11 @@ describe("shared UI launch dispatcher", () => {
   );
 
   it.each([
-    ["ralph-native", "claude", undefined],
-    ["ralph-codex", "codex", undefined],
-    ["ralph-cursor-agent", "cursor-agent", undefined],
+    ["ralph-native", "claude", "claude-code"],
+    ["ralph-codex", "codex", "codex"],
+    ["ralph-cursor-agent", "cursor-agent", "cursor-agent"],
     ["ralph-copilot", "claude", "copilot-cli"],
-    ["ralph-opencode", "opencode", undefined],
+    ["ralph-opencode", "opencode", "opencode"],
     ["ralph-pi", "pi", "pi"],
   ] as const)(
     "maps %s to the shared Ralph ticket payload",

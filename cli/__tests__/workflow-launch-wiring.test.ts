@@ -112,7 +112,7 @@ describe("workflow launch-ticket CLI → launcher core wiring", () => {
   it.each([
     {
       provider: "claude-code",
-      expected: { aiBackend: "claude", workingMethodOverride: undefined },
+      expected: { aiBackend: "claude", workingMethodOverride: "claude-code" },
     },
     {
       provider: "pi",
@@ -177,6 +177,17 @@ describe("workflow launch-ticket CLI → launcher core wiring", () => {
         provider: "anthropic",
         modelName: "claude-sonnet-4-6",
       },
+    });
+  });
+
+  it("passes an explicit CLI-native provider as workingMethodOverride so project defaults cannot reroute it", async () => {
+    const { handle } = await import("../commands/workflow.ts");
+    await handle("launch-ticket", ["--ticket", "ticket-codex", "--provider", "codex"]);
+
+    expect(inputOf(launchTicketSpy)).toMatchObject({
+      ticketId: "ticket-codex",
+      aiBackend: "codex",
+      workingMethodOverride: "codex",
     });
   });
 

@@ -87,7 +87,8 @@ describe("getLaunchModelCatalog", () => {
     expect(concrete.map((c) => c.cliValue)).toContain("anthropic/claude-opus-4-7");
     expect(concrete.map((c) => c.cliValue)).toContain("openai/gpt-5.4");
     expect(concrete.map((c) => c.cliValue)).toContain("google/gemini-2.5-pro");
-    expect(concrete.map((c) => c.cliValue)).toContain("opensource/Qwen3 Coder 480B");
+    expect(concrete.map((c) => c.cliValue)).not.toContain("cursor/Composer 2");
+    expect(concrete.map((c) => c.cliValue)).not.toContain("opensource/Qwen3 Coder 480B");
   });
 
   it("OpenCode Go rows keep their cliValue routing prefix but display under the opencode brand", () => {

@@ -136,8 +136,6 @@ export const OPENCODE_PRICING_PROVIDERS = [
   "anthropic",
   "openai",
   "google",
-  "opensource",
-  "cursor",
   "opencode-go",
 ] as const satisfies readonly PricingProviderId[];
 
@@ -220,6 +218,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderDefinition> = {
     launchModes: ["interactive", "autonomous-ralph"],
     hookSupport: "full",
     ralphAiBackend: "claude",
+    workingMethodOverride: "claude-code",
     cli: { binary: "claude", versionArgs: ["--version"], modelFlag: BARE_MODEL_FLAG },
     environment: {
       envVars: ["CLAUDE_CODE", "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_TERMINAL_ID"],
@@ -274,6 +273,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderDefinition> = {
     launchModes: ["interactive", "autonomous-ralph"],
     hookSupport: "optional",
     ralphAiBackend: "cursor-agent",
+    workingMethodOverride: "cursor-agent",
     cli: { binary: "agent", versionArgs: ["--help"], modelFlag: BARE_MODEL_FLAG },
     environment: { explicitFlag: "CURSOR_AGENT" },
     commentAuthor: "cursor-agent",
@@ -301,6 +301,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderDefinition> = {
     launchModes: ["interactive", "autonomous-ralph"],
     hookSupport: "none",
     ralphAiBackend: "codex",
+    workingMethodOverride: "codex",
     cli: { binary: "codex", versionArgs: ["--version"], modelFlag: BARE_MODEL_FLAG },
     environment: {
       explicitFlag: "CODEX",
@@ -339,6 +340,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderDefinition> = {
     launchModes: ["interactive", "autonomous-ralph"],
     hookSupport: "mcp-preconditions",
     ralphAiBackend: "opencode",
+    workingMethodOverride: "opencode",
     cli: {
       binary: "opencode",
       versionArgs: ["--version"],

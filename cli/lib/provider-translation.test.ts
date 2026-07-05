@@ -35,12 +35,24 @@ const costModels = [
 ] as const;
 
 describe("translateProvider", () => {
-  it("maps CLI-native providers to the matching aiBackend with no workingMethodOverride", () => {
-    expect(translateProvider("claude-code")).toEqual({ aiBackend: "claude" });
-    expect(translateProvider("opencode")).toEqual({ aiBackend: "opencode" });
-    expect(translateProvider("codex")).toEqual({ aiBackend: "codex" });
+  it("maps CLI-native providers to the matching aiBackend and working method", () => {
+    expect(translateProvider("claude-code")).toEqual({
+      aiBackend: "claude",
+      workingMethodOverride: "claude-code",
+    });
+    expect(translateProvider("opencode")).toEqual({
+      aiBackend: "opencode",
+      workingMethodOverride: "opencode",
+    });
+    expect(translateProvider("codex")).toEqual({
+      aiBackend: "codex",
+      workingMethodOverride: "codex",
+    });
     expect(translateProvider("pi")).toEqual({ aiBackend: "pi", workingMethodOverride: "pi" });
-    expect(translateProvider("cursor-agent")).toEqual({ aiBackend: "cursor-agent" });
+    expect(translateProvider("cursor-agent")).toEqual({
+      aiBackend: "cursor-agent",
+      workingMethodOverride: "cursor-agent",
+    });
   });
 
   it("maps editor/Copilot providers onto workingMethodOverride with claude backend", () => {

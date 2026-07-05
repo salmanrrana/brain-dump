@@ -39,7 +39,14 @@ describe("provider registry", () => {
       aiBackend: "claude",
       workingMethodOverride: "copilot-cli",
     });
-    expect(translateProviderForRalph("opencode")).toEqual({ aiBackend: "opencode" });
+    expect(translateProviderForRalph("opencode")).toEqual({
+      aiBackend: "opencode",
+      workingMethodOverride: "opencode",
+    });
+    expect(translateProviderForRalph("codex")).toEqual({
+      aiBackend: "codex",
+      workingMethodOverride: "codex",
+    });
   });
 
   it("builds provider-prefixed model choices when the CLI requires them", () => {
