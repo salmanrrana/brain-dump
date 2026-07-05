@@ -115,8 +115,8 @@ export const updateDemoStep = createServerFn({ method: "POST" })
   });
 
 /**
- * Submit demo feedback from human reviewer
- * Called when user approves or rejects the demo
+ * Deprecated manual demo feedback path. Core validation rejects this now;
+ * verification runner completion replaces manual approval/rejection.
  */
 export const submitDemoFeedback = createServerFn({ method: "POST" })
   .inputValidator(

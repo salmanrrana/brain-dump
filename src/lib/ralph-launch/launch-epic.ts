@@ -54,7 +54,7 @@ const coreGit = createRealGitOperations();
  * - ONLY the first runnable ticket (status `backlog` or `ready`) is handed to
  *   `promoteFirstTicket` (which calls `startWork` → `in_progress` + branch).
  * - Every other ticket keeps its existing status: `backlog` stays `backlog`,
- *   `ready` stays `ready`. Tickets already in `ai_review` / `human_review` /
+ *   `ready` stays `ready`. Tickets already in `ai_review` / `ai_verification` /
  *   `done` are never touched.
  * - `rollback()` restores each ticket's captured pre-launch status, so a later
  *   launch step that fails cannot leave the board half-mutated.

@@ -99,7 +99,7 @@ describe("applyEpicLaunchStatusChanges", () => {
     const aiReview = seedTicket("ai_review", 1);
     const ready = seedTicket("ready", 2); // first runnable
     const backlog = seedTicket("backlog", 3);
-    const humanReview = seedTicket("human_review", 4);
+    const verification = seedTicket("ai_verification", 4);
     const done = seedTicket("done", 5);
     const alreadyInProgress = seedTicket("in_progress", 6);
 
@@ -112,7 +112,7 @@ describe("applyEpicLaunchStatusChanges", () => {
     // Everything else keeps its pre-launch status.
     expect(statusOf(backlog)).toBe("backlog");
     expect(statusOf(aiReview)).toBe("ai_review");
-    expect(statusOf(humanReview)).toBe("human_review");
+    expect(statusOf(verification)).toBe("ai_verification");
     expect(statusOf(done)).toBe("done");
     expect(statusOf(alreadyInProgress)).toBe("in_progress");
   });
@@ -138,7 +138,7 @@ describe("applyEpicLaunchStatusChanges", () => {
 
   it("makes no status changes when no ticket is runnable", () => {
     const aiReview = seedTicket("ai_review", 1);
-    const humanReview = seedTicket("human_review", 2);
+    const verification = seedTicket("ai_verification", 2);
 
     const epicTickets = db.select().from(schema.tickets).all() as TicketRecord[];
 
@@ -146,6 +146,6 @@ describe("applyEpicLaunchStatusChanges", () => {
 
     expect(firstTicketId).toBeNull();
     expect(statusOf(aiReview)).toBe("ai_review");
-    expect(statusOf(humanReview)).toBe("human_review");
+    expect(statusOf(verification)).toBe("ai_verification");
   });
 });

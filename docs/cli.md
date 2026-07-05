@@ -17,7 +17,7 @@ All commands output JSON by default. Add `--pretty` for human-readable output.
 | `epic`       | Create, list, update, delete epics — _create, list, update, delete, reconcile-learnings, get-learnings_                                                                            |
 | `workflow`   | Start work, complete work, start epic, launch Ralph — _start-work, complete-work, start-epic, launch-ticket, launch-epic_                                                          |
 | `comment`    | Add and list ticket comments — _add, list_                                                                                                                                         |
-| `review`     | Submit findings, generate demos, manage reviews — _submit-finding, mark-fixed, check-complete, generate-demo, get-demo, submit-feedback, update-demo-step, get-findings_           |
+| `review`     | Submit findings, generate demos, manage reviews — _submit-finding, mark-fixed, check-complete, generate-demo, get-demo, update-demo-step, get-findings_                            |
 | `session`    | Create, update, complete Ralph sessions — _create, update, complete, get, list, update-state, emit-event, get-events, clear-events_                                                |
 | `git`        | Link commits, PRs, sync ticket links — _link-commit, link-pr, sync_                                                                                                                |
 | `telemetry`  | Start, end, get, list telemetry sessions, record token usage — _start, end, get, list, log-tool, log-prompt, log-context, record-usage, recalculate-costs, deep-recalculate-costs_ |
@@ -140,15 +140,15 @@ brain-dump init --pretty
 Full-text ticket search with FTS5 and LIKE fallback
 
 ```bash
-brain-dump search [--project <value>] [--status <backlog|ready|in_progress|ai_review|human_review|done>] [--limit <n>] [--pretty]
+brain-dump search [--project <value>] [--status <backlog|ready|in_progress|ai_review|ai_verification|done>] [--limit <n>] [--pretty]
 ```
 
-| Flag        | Type    | Required | Description                                                                          |
-| ----------- | ------- | -------- | ------------------------------------------------------------------------------------ |
-| `--project` | string  | No       | Project ID                                                                           |
-| `--status`  | enum    | No       | Filter by ticket status (backlog, ready, in_progress, ai_review, human_review, done) |
-| `--limit`   | number  | No       | Max results                                                                          |
-| `--pretty`  | boolean | No       | Human-readable output (default: JSON)                                                |
+| Flag        | Type    | Required | Description                                                                             |
+| ----------- | ------- | -------- | --------------------------------------------------------------------------------------- |
+| `--project` | string  | No       | Project ID                                                                              |
+| `--status`  | enum    | No       | Filter by ticket status (backlog, ready, in_progress, ai_review, ai_verification, done) |
+| `--limit`   | number  | No       | Max results                                                                             |
+| `--pretty`  | boolean | No       | Human-readable output (default: JSON)                                                   |
 
 **Examples:**
 
@@ -359,19 +359,19 @@ brain-dump ticket get --ticket abc --pretty
 Update ticket fields (title, description, status, priority, tags, epic)
 
 ```bash
-brain-dump ticket update --ticket <value> [--title <value>] [--description <value>] [--status <backlog|ready|in_progress|ai_review|human_review|done>] [--priority <low|medium|high>] [--epic <value>] [--tags <value>] [--pretty]
+brain-dump ticket update --ticket <value> [--title <value>] [--description <value>] [--status <backlog|ready|in_progress|ai_review|ai_verification|done>] [--priority <low|medium|high>] [--epic <value>] [--tags <value>] [--pretty]
 ```
 
-| Flag            | Type    | Required | Description                                                                |
-| --------------- | ------- | -------- | -------------------------------------------------------------------------- |
-| `--ticket`      | string  | Yes      | Ticket ID                                                                  |
-| `--title`       | string  | No       | New title                                                                  |
-| `--description` | string  | No       | New description                                                            |
-| `--status`      | enum    | No       | Ticket status (backlog, ready, in_progress, ai_review, human_review, done) |
-| `--priority`    | enum    | No       | Priority (low, medium, high)                                               |
-| `--epic`        | string  | No       | Epic ID                                                                    |
-| `--tags`        | string  | No       | Comma-separated tags                                                       |
-| `--pretty`      | boolean | No       | Human-readable output (default: JSON)                                      |
+| Flag            | Type    | Required | Description                                                                   |
+| --------------- | ------- | -------- | ----------------------------------------------------------------------------- |
+| `--ticket`      | string  | Yes      | Ticket ID                                                                     |
+| `--title`       | string  | No       | New title                                                                     |
+| `--description` | string  | No       | New description                                                               |
+| `--status`      | enum    | No       | Ticket status (backlog, ready, in_progress, ai_review, ai_verification, done) |
+| `--priority`    | enum    | No       | Priority (low, medium, high)                                                  |
+| `--epic`        | string  | No       | Epic ID                                                                       |
+| `--tags`        | string  | No       | Comma-separated tags                                                          |
+| `--pretty`      | boolean | No       | Human-readable output (default: JSON)                                         |
 
 **Examples:**
 
@@ -385,14 +385,14 @@ brain-dump ticket update --ticket abc --title "New Title" --priority high
 Update ticket status (MCP naming alias)
 
 ```bash
-brain-dump ticket update-status --ticket <value> --status <backlog|ready|in_progress|ai_review|human_review|done> [--pretty]
+brain-dump ticket update-status --ticket <value> --status <backlog|ready|in_progress|ai_review|ai_verification|done> [--pretty]
 ```
 
-| Flag       | Type    | Required | Description                                                                |
-| ---------- | ------- | -------- | -------------------------------------------------------------------------- |
-| `--ticket` | string  | Yes      | Ticket ID                                                                  |
-| `--status` | enum    | Yes      | Ticket status (backlog, ready, in_progress, ai_review, human_review, done) |
-| `--pretty` | boolean | No       | Human-readable output (default: JSON)                                      |
+| Flag       | Type    | Required | Description                                                                   |
+| ---------- | ------- | -------- | ----------------------------------------------------------------------------- |
+| `--ticket` | string  | Yes      | Ticket ID                                                                     |
+| `--status` | enum    | Yes      | Ticket status (backlog, ready, in_progress, ai_review, ai_verification, done) |
+| `--pretty` | boolean | No       | Human-readable output (default: JSON)                                         |
 
 ### brain-dump ticket update-criterion
 
@@ -433,16 +433,16 @@ brain-dump ticket update-attachment --ticket <value> --attachment <value> [--att
 List tickets in an epic
 
 ```bash
-brain-dump ticket list-by-epic --epic <value> [--project <value>] [--status <backlog|ready|in_progress|ai_review|human_review|done>] [--limit <n>] [--pretty]
+brain-dump ticket list-by-epic --epic <value> [--project <value>] [--status <backlog|ready|in_progress|ai_review|ai_verification|done>] [--limit <n>] [--pretty]
 ```
 
-| Flag        | Type    | Required | Description                                                                   |
-| ----------- | ------- | -------- | ----------------------------------------------------------------------------- |
-| `--epic`    | string  | Yes      | Epic ID                                                                       |
-| `--project` | string  | No       | Project ID                                                                    |
-| `--status`  | enum    | No       | Filter by status (backlog, ready, in_progress, ai_review, human_review, done) |
-| `--limit`   | number  | No       | Max results                                                                   |
-| `--pretty`  | boolean | No       | Human-readable output (default: JSON)                                         |
+| Flag        | Type    | Required | Description                                                                      |
+| ----------- | ------- | -------- | -------------------------------------------------------------------------------- |
+| `--epic`    | string  | Yes      | Epic ID                                                                          |
+| `--project` | string  | No       | Project ID                                                                       |
+| `--status`  | enum    | No       | Filter by status (backlog, ready, in_progress, ai_review, ai_verification, done) |
+| `--limit`   | number  | No       | Max results                                                                      |
+| `--pretty`  | boolean | No       | Human-readable output (default: JSON)                                            |
 
 **Examples:**
 
@@ -844,7 +844,7 @@ brain-dump review check-complete --ticket <value> [--pretty]
 
 ### brain-dump review generate-demo
 
-Generate a demo script for human review
+Generate a demo script for AI verification
 
 ```bash
 brain-dump review generate-demo --ticket <value> --steps-file <value> [--pretty]
@@ -868,21 +868,6 @@ brain-dump review get-demo --ticket <value> [--pretty]
 | ---------- | ------- | -------- | ------------------------------------- |
 | `--ticket` | string  | Yes      | Ticket ID                             |
 | `--pretty` | boolean | No       | Human-readable output (default: JSON) |
-
-### brain-dump review submit-feedback
-
-Submit demo feedback (human reviewer only)
-
-```bash
-brain-dump review submit-feedback --ticket <value> --passed --feedback <value> [--pretty]
-```
-
-| Flag         | Type    | Required | Description                           |
-| ------------ | ------- | -------- | ------------------------------------- |
-| `--ticket`   | string  | Yes      | Ticket ID                             |
-| `--passed`   | boolean | Yes      | Whether demo passed                   |
-| `--feedback` | string  | Yes      | Reviewer feedback                     |
-| `--pretty`   | boolean | No       | Human-readable output (default: JSON) |
 
 ### brain-dump review update-demo-step
 

@@ -59,16 +59,16 @@ Brain Dump provides these MCP tools (prefix with `brain-dump/` if needed):
 
 The enforced ticket status specification lives in `core/workflow-steps.ts`. Run `pnpm workflow:prompts` after changing workflow statuses or transitions.
 
-Status flow: `backlog -> ready -> in_progress -> ai_review -> human_review -> done`
+Status flow: `backlog -> ready -> in_progress -> ai_review -> ai_verification -> done`
 
-| Status         | Label        | Active | Kanban column |
-| -------------- | ------------ | ------ | ------------- |
-| `backlog`      | Backlog      | no     | yes           |
-| `ready`        | Ready        | no     | yes           |
-| `in_progress`  | In Progress  | yes    | yes           |
-| `ai_review`    | AI Review    | yes    | yes           |
-| `human_review` | Human Review | yes    | yes           |
-| `done`         | Done         | no     | yes           |
+| Status            | Label           | Active | Kanban column |
+| ----------------- | --------------- | ------ | ------------- |
+| `backlog`         | Backlog         | no     | yes           |
+| `ready`           | Ready           | no     | yes           |
+| `in_progress`     | In Progress     | yes    | yes           |
+| `ai_review`       | AI Review       | yes    | yes           |
+| `ai_verification` | AI Verification | yes    | yes           |
+| `done`            | Done            | no     | yes           |
 
 <!-- END GENERATED: workflow-sequence -->
 

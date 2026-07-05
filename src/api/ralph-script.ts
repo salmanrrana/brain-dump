@@ -802,14 +802,14 @@ ${aiInvocation}
     fi
 
     # Detect stuck state: if incomplete count hasn't changed for MAX_NO_PROGRESS iterations,
-    # all tickets are likely in human_review or blocked. Stop looping.
+    # tickets may be blocked in ai_verification or by repeated AI failures. Stop looping.
     if [ "$INCOMPLETE" = "$LAST_INCOMPLETE_COUNT" ] && [ $AI_EXIT_CODE -eq 0 ]; then
       NO_PROGRESS_COUNT=$((NO_PROGRESS_COUNT + 1))
       if [ $NO_PROGRESS_COUNT -ge $MAX_NO_PROGRESS ]; then
         echo ""
         echo -e "\\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
         echo -e "\\033[0;33m⏸️  No progress for $MAX_NO_PROGRESS iterations ($INCOMPLETE tickets still incomplete).\\033[0m"
-        echo -e "\\033[0;33m   Tickets are likely in human_review or blocked.\\033[0m"
+        echo -e "\\033[0;33m   Tickets are likely blocked in ai_verification or by repeated failures.\\033[0m"
         echo -e "\\033[0;33m   Ralph is stopping to avoid wasting iterations.\\033[0m"
         echo -e "\\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
         echo "[$(date -Iseconds)] STALLED: No progress for $MAX_NO_PROGRESS iterations. $INCOMPLETE/$TOTAL incomplete." >> "$PROGRESS_FILE"

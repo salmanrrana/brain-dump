@@ -112,8 +112,8 @@ function ListView() {
 
       if (change.toStatus === "ai_review") {
         showToast("success", `"${change.ticketTitle}" is ready for AI review!`);
-      } else if (change.toStatus === "human_review") {
-        showToast("success", `"${change.ticketTitle}" is ready for human review!`);
+      } else if (change.toStatus === "ai_verification") {
+        showToast("success", `"${change.ticketTitle}" is ready for AI verification!`);
       } else if (change.toStatus === "done") {
         showToast("success", `"${change.ticketTitle}" has been completed!`);
       } else {

@@ -11,11 +11,15 @@ export const TICKET_STATUSES = [
   "ready",
   "in_progress",
   "ai_review",
-  "human_review",
+  "ai_verification",
   "done",
 ] as const;
 
-export type TicketStatus = (typeof TICKET_STATUSES)[number];
+export const LEGACY_TICKET_STATUSES = ["human_review"] as const;
+
+export type ActiveTicketStatus = (typeof TICKET_STATUSES)[number];
+export type LegacyTicketStatus = (typeof LEGACY_TICKET_STATUSES)[number];
+export type TicketStatus = ActiveTicketStatus | LegacyTicketStatus;
 
 export interface TicketStatusMetadata {
   label: string;
@@ -54,12 +58,19 @@ export const TICKET_STATUS_METADATA: Record<TicketStatus, TicketStatusMetadata> 
     workable: true,
     active: true,
   },
-  human_review: {
-    label: "Human Review",
+  ai_verification: {
+    label: "AI Verification",
     colorToken: "var(--status-review)",
     kanbanColumn: true,
     workable: true,
     active: true,
+  },
+  human_review: {
+    label: "Human Review (Legacy)",
+    colorToken: "var(--status-review)",
+    kanbanColumn: false,
+    workable: false,
+    active: false,
   },
   done: {
     label: "Done",
@@ -86,8 +97,9 @@ export const STATUS_ORDER: Record<TicketStatus, number> = {
   ready: 1,
   in_progress: 2,
   ai_review: 3,
-  human_review: 4,
+  ai_verification: 4,
   done: 5,
+  human_review: 99,
 };
 
 export type WorkflowTransitionAction =
@@ -95,8 +107,8 @@ export type WorkflowTransitionAction =
   | "complete-work"
   | "submit-finding"
   | "generate-demo"
-  | "submit-feedback-pass"
-  | "submit-feedback-reject"
+  | "verify-pass"
+  | "verify-fail"
   | "reconcile-learnings";
 
 export interface WorkflowTransitionRule {
@@ -111,9 +123,9 @@ export const WORKFLOW_TRANSITIONS: readonly WorkflowTransitionRule[] = [
   { from: "in_progress", to: "in_progress", actions: ["start-work"] },
   { from: "in_progress", to: "ai_review", actions: ["complete-work"] },
   { from: "ai_review", to: "ai_review", actions: ["submit-finding"] },
-  { from: "ai_review", to: "human_review", actions: ["generate-demo"] },
-  { from: "human_review", to: "done", actions: ["submit-feedback-pass"] },
-  { from: "human_review", to: "ready", actions: ["submit-feedback-reject"] },
+  { from: "ai_review", to: "ai_verification", actions: ["generate-demo"] },
+  { from: "ai_verification", to: "done", actions: ["verify-pass"] },
+  { from: "ai_verification", to: "in_progress", actions: ["verify-fail"] },
   { from: "done", to: "done", actions: ["reconcile-learnings"] },
 ];
 
@@ -132,6 +144,13 @@ export class WorkflowTransitionError extends Error {
 }
 
 export function isTicketStatus(value: string): value is TicketStatus {
+  return (
+    (TICKET_STATUSES as readonly string[]).includes(value) ||
+    (LEGACY_TICKET_STATUSES as readonly string[]).includes(value)
+  );
+}
+
+export function isActiveTicketStatus(value: string): value is ActiveTicketStatus {
   return (TICKET_STATUSES as readonly string[]).includes(value);
 }
 

@@ -24,7 +24,7 @@ via commands, not separate agent files.
 
 Documentation for AI agents working with Brain Dump tickets.
 
-- Workflow state machine (backlog → ready → in_progress → ai_review → human_review → done)
+- Workflow state machine (backlog → ready → in_progress → ai_review → ai_verification → done)
 - MCP tool reference and rules
 - Troubleshooting
 

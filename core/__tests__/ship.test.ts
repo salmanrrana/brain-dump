@@ -340,7 +340,7 @@ describe("syncPrVerificationChecklist", () => {
         {
           order: 1,
           description: "Generate the demo script",
-          expectedOutcome: "The ticket moves to human review.",
+          expectedOutcome: "The ticket moves to AI verification.",
           type: "manual",
         },
       ]),
@@ -391,7 +391,7 @@ describe("syncPrVerificationChecklist", () => {
     expect(calls[1]?.args[2]).toBe("42");
     expect(calls[1]?.args[3]).toBe("--body");
     expect(calls[1]?.args[4]).toContain("1. Generate the demo script");
-    expect(calls[1]?.args[4]).toContain("Expected: The ticket moves to human review.");
+    expect(calls[1]?.args[4]).toContain("Expected: The ticket moves to AI verification.");
     expect(calls[1]?.args[4]).toContain("2. Confirm the PR badge updates");
     expect(calls[1]?.args[4]).toContain("## Notes");
   });
@@ -414,7 +414,7 @@ describe("syncPrVerificationChecklist", () => {
       {
         order: 1,
         description: "Generate the demo script",
-        expectedOutcome: "The ticket moves to human review.",
+        expectedOutcome: "The ticket moves to AI verification.",
         type: "manual" as const,
       },
     ];

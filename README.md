@@ -174,7 +174,7 @@ brain-dump admin check --full
 Status flow:
 
 ```text
-ready → in_progress → ai_review → human_review → done
+ready → in_progress → ai_review → ai_verification → done
                           ↑
                     [fix loop]
 ```
@@ -183,7 +183,7 @@ ready → in_progress → ai_review → human_review → done
 2. Implement and run gates (`pnpm check`).
 3. Complete work (`workflow` tool, `action: "complete-work"`), ticket moves to `ai_review`.
 4. Review agents run (code reviewer + silent failure hunter + code simplifier) and fix loop repeats until critical/major findings are closed.
-5. Generate demo and human approve to move to `done`.
+5. Generate demo to hand off to AI verification; the runner certifies evidence and moves the ticket to `done`.
 
 [Detailed workflow guide →](docs/universal-workflow.md)
 
@@ -191,17 +191,17 @@ ready → in_progress → ai_review → human_review → done
 
 Brain Dump exposes 9 MCP tools. Each tool uses an `action` field.
 
-| Tool        | Purpose                                     |
-| ----------- | ------------------------------------------- |
-| `workflow`  | Start/complete work, epic starts, git links |
-| `ticket`    | Ticket CRUD, status, criteria, attachments  |
-| `session`   | Ralph sessions, events, task tracking       |
-| `review`    | Findings, demo scripts, human feedback      |
-| `telemetry` | AI usage/session telemetry                  |
-| `comment`   | Ticket comments/work summaries              |
-| `epic`      | Epic CRUD + learnings                       |
-| `project`   | Project registration/discovery              |
-| `admin`     | Health, settings, compliance ops            |
+| Tool        | Purpose                                      |
+| ----------- | -------------------------------------------- |
+| `workflow`  | Start/complete work, epic starts, git links  |
+| `ticket`    | Ticket CRUD, status, criteria, attachments   |
+| `session`   | Ralph sessions, events, task tracking        |
+| `review`    | Findings, demo scripts, verification handoff |
+| `telemetry` | AI usage/session telemetry                   |
+| `comment`   | Ticket comments/work summaries               |
+| `epic`      | Epic CRUD + learnings                        |
+| `project`   | Project registration/discovery               |
+| `admin`     | Health, settings, compliance ops             |
 
 Examples:
 
@@ -405,7 +405,7 @@ brain-dump log --pretty                            # See activity stream
 Every ticket goes through a quality workflow:
 
 ```
-ready → in_progress → ai_review → human_review → done
+ready → in_progress → ai_review → ai_verification → done
                           ↑
                     [fix loop]
 ```
@@ -414,7 +414,7 @@ ready → in_progress → ai_review → human_review → done
 2. **AI review** - Three agents (code-reviewer, silent-failure-hunter, code-simplifier) find issues
 3. **Fix loop** - AI fixes findings, rinse and repeat until no critical/major issues
 4. **Demo** - AI generates step-by-step test instructions
-5. **Human approval** - You run the demo and approve or request changes
+5. **AI verification** - The runner executes demo steps, records evidence, and completes or loops back
 
 All automatic via MCP tools. Same workflow in Claude Code, Codex, Cursor, VS Code, OpenCode, Copilot CLI, and Pi.
 

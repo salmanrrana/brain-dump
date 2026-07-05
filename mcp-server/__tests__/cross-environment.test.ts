@@ -350,7 +350,7 @@ describe("MCP Protocol Compatibility", () => {
       const preconditions = {
         submit_review_finding: "ticket must be in ai_review",
         generate_demo_script: "no critical/major findings open",
-        submit_demo_feedback: "ticket must be in human_review",
+        verify_ticket: "ticket must be in ai_verification",
       };
 
       Object.values(preconditions).forEach((precond) => {

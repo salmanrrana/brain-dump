@@ -22,8 +22,6 @@ import {
   generateDemo,
   getDemo,
   updateDemoStep,
-  validateSubmitFeedback,
-  submitFeedback,
 } from "../../core/review.ts";
 import type { MarkFixedStatus, DemoStepStatus } from "../../core/review.ts";
 import type { FindingAgent, FindingSeverity, FindingStatus } from "../../core/types.ts";
@@ -47,7 +45,6 @@ const ACTIONS = [
   "generate-demo",
   "get-demo",
   "update-demo-step",
-  "submit-feedback",
 ] as const;
 
 const AGENTS = ["code-reviewer", "silent-failure-hunter", "code-simplifier"] as const;
@@ -75,14 +72,6 @@ function formatPrdSyncNote(result: PrdSyncResult): string {
   return result.success ? result.message : `PRD sync warning: ${result.message}`;
 }
 
-function requirePrdSyncForFeedback(result: PrdSyncResult, passed: boolean): string {
-  if (passed || result.success) {
-    return result.message;
-  }
-
-  throw new Error(`Cannot submit demo feedback because PRD sync failed: ${result.message}`);
-}
-
 /**
  * Register the consolidated review tool with the MCP server.
  */
@@ -94,11 +83,12 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
 ### submit-finding - Submit a review finding (ticket must be in ai_review)
 ### mark-fixed - Mark finding as fixed, wont_fix, or duplicate
 ### get-findings - Get findings for a ticket (filterable by status, severity, agent)
-### check-complete - Check if all critical/major findings resolved (returns canProceedToHumanReview)
-### generate-demo - Generate demo script for human review (moves ticket to human_review)
+### check-complete - Check if all critical/major findings resolved (returns canProceedToVerification)
+### generate-demo - Generate demo script for AI verification (moves ticket to ai_verification)
 ### get-demo - Get the demo script for a ticket
-### update-demo-step - Update a demo step's status during human review
-### submit-feedback - Submit final demo feedback from human reviewer (moves to done if passed)`,
+### update-demo-step - Update a demo step's status during verification/debug review
+
+No MCP action uploads evidence or marks verification passed. The verification runner owns evidence writes and ai_verification -> done.`,
     {
       action: z.enum(ACTIONS).describe("The operation to perform"),
       ticketId: z.string().optional().describe("Ticket ID"),
@@ -283,7 +273,7 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
 
             const demoParams = { ticketId, steps };
             validateGenerateDemo(db, demoParams);
-            const prdSync = syncPrdPassMarker(db, ticketId, true);
+            const prdSync = syncPrdPassMarker(db, ticketId, false);
             if (prdSync.required && !prdSync.success) {
               throw new Error(`Cannot generate demo because PRD sync failed: ${prdSync.message}`);
             }
@@ -313,7 +303,7 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
             // Add audit comment to ticket
             addComment(db, {
               ticketId,
-              content: `Demo script generated with ${steps.length} steps. Ticket is now ready for human review.${demo.epicReviewRunId ? `\n\nEpic review run: ${demo.epicReviewRunId}` : ""}`,
+              content: `Demo script generated with ${steps.length} steps. Ticket is now ready for AI verification.${demo.epicReviewRunId ? `\n\nEpic review run: ${demo.epicReviewRunId}` : ""}`,
               author: detectAuthor() as CommentAuthor,
               type: "progress",
             });
@@ -321,7 +311,7 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
             log.info(`Generated demo script for ticket ${ticketId} with ${steps.length} steps`);
             return formatResult(
               demo,
-              `Demo script generated! Ticket moved to human_review.\n\n${prdNote}\n\n${syncNote}`
+              `Demo script generated! Ticket moved to ai_verification.\n\n${prdNote}\n\n${syncNote}`
             );
           }
 
@@ -353,41 +343,6 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
             );
             log.info(`Updated demo step ${stepOrder} to ${stepStatus}`);
             return formatResult(demo, `Step ${stepOrder} updated to ${stepStatus}`);
-          }
-
-          case "submit-feedback": {
-            const ticketId = requireParam(params.ticketId, "ticketId", "submit-feedback");
-            const passed = requireParam(params.passed, "passed", "submit-feedback");
-            const feedback = requireParam(params.feedback, "feedback", "submit-feedback");
-
-            const feedbackParams = {
-              ticketId,
-              passed,
-              feedback,
-              ...(params.stepResults !== undefined
-                ? {
-                    stepResults: params.stepResults.map((sr) => ({
-                      order: sr.order,
-                      passed: sr.passed,
-                      ...(sr.notes !== undefined ? { notes: sr.notes } : {}),
-                    })),
-                  }
-                : {}),
-            };
-            validateSubmitFeedback(db, feedbackParams);
-            const prdNote = requirePrdSyncForFeedback(
-              syncPrdPassMarker(db, ticketId, passed),
-              passed
-            );
-            const result = submitFeedback(db, feedbackParams);
-
-            log.info(`Demo feedback for ${ticketId}: ${passed ? "PASSED" : "REJECTED"}`);
-            return formatResult(
-              result,
-              passed
-                ? `Demo approved! Ticket moved to done.\n\n${prdNote}`
-                : `Demo rejected. Ticket moved to ready for rework.\n\n${prdNote}`
-            );
           }
         }
       } catch (err) {

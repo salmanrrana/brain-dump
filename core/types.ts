@@ -241,6 +241,8 @@ export interface ReviewFinding {
 
 export interface ReviewCompletionStatus {
   complete: boolean;
+  canProceedToVerification: boolean;
+  /** @deprecated Use canProceedToVerification. Kept for existing MCP/hook parsers. */
   canProceedToHumanReview: boolean;
   openCritical: number;
   openMajor: number;

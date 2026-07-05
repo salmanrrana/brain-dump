@@ -10,7 +10,7 @@ Use the `brain-dump` CLI directly. Do not rely on MCP. Prefer CLI commands plus 
 <!-- BEGIN GENERATED: workflow-sequence -->
 ## Generated CLI Workflow
 
-Status flow: `backlog -> ready -> in_progress -> ai_review -> human_review -> done`
+Status flow: `backlog -> ready -> in_progress -> ai_review -> ai_verification -> done`
 
 1. Inspect context: `brain-dump context --ticket <ticket-id> --pretty`.
 2. Start work: `brain-dump workflow start-work --ticket <ticket-id> --pretty`.
@@ -29,8 +29,8 @@ Status flow: `backlog -> ready -> in_progress -> ai_review -> human_review -> do
 - Use the project's own commands, not Brain Dump's commands. Do not assume pnpm, npm, TypeScript, lint, or test scripts exist.
 - If no automated validation command is discoverable, perform a targeted manual smoke check and record that no project validation command was found.
 - Before complete-work, add a test_report comment with exact pass/fail/skipped command results and omit author so Brain Dump auto-detects the provider.
-- Before demo, all critical/major findings must be fixed and check-complete must allow human review.
-- Before session completion, generate-demo must have been called and the ticket must be in human_review.
+- Before demo, all critical/major findings must be fixed and check-complete must allow verification handoff.
+- Before session completion, generate-demo must have been called and the ticket must be in ai_verification.
 <!-- END GENERATED: workflow-sequence -->
 
 ## Useful CLI shortcuts

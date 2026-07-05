@@ -48,7 +48,8 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
   ready: { label: "Ready", color: "var(--accent-primary)" },
   in_progress: { label: "In Progress", color: "var(--status-warning)" },
   ai_review: { label: "AI Review", color: "var(--status-info)" },
-  human_review: { label: "Human Review", color: "var(--status-info)" },
+  ai_verification: { label: "AI Verification", color: "var(--status-info)" },
+  human_review: { label: "Human Review (Legacy)", color: "var(--status-info)" },
   done: { label: "Done", color: "var(--status-success)" },
 };
 

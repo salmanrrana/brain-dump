@@ -171,7 +171,7 @@ describe("prepareEpicLaunch", () => {
 });
 
 describe("review-mode prompt builders", () => {
-  it("keeps ai_review tickets incomplete but treats human_review as handed off", () => {
+  it("keeps ai_review and ai_verification tickets incomplete until done", () => {
     const prd = generateEnhancedPRD("Brain Dump", "/tmp/brain-dump", [
       {
         id: "ticket-ai-review",
@@ -182,9 +182,9 @@ describe("review-mode prompt builders", () => {
         tags: "[]",
       },
       {
-        id: "ticket-human-review",
-        title: "Ready for humans",
-        status: "human_review",
+        id: "ticket-ai-verification",
+        title: "Ready for verification",
+        status: "ai_verification",
         description: "",
         priority: "high",
         tags: "[]",
@@ -192,7 +192,9 @@ describe("review-mode prompt builders", () => {
     ] as Parameters<typeof generateEnhancedPRD>[2]);
 
     expect(prd.userStories.find((story) => story.id === "ticket-ai-review")?.passes).toBe(false);
-    expect(prd.userStories.find((story) => story.id === "ticket-human-review")?.passes).toBe(true);
+    expect(prd.userStories.find((story) => story.id === "ticket-ai-verification")?.passes).toBe(
+      false
+    );
   });
 
   it("builds implementation gates around project-native verification commands", () => {
@@ -211,7 +213,10 @@ describe("review-mode prompt builders", () => {
 
     expect(prompt).toContain("If any candidate is already `ai_review`, pick ONE of those first");
     expect(prompt).toContain("resume at the AI Review phase");
-    expect(prompt).toContain("A ticket in `ai_review` is NOT complete; resume it instead.");
+    expect(prompt).toContain("A ticket in `ai_review` or `ai_verification` is NOT complete");
+    expect(prompt).toContain(
+      "Tickets in `ai_verification` are incomplete but waiting on the verification runner"
+    );
   });
 
   it("builds a review prompt that stays scoped to the selected ticket and preserves steering text", () => {

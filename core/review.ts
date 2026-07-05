@@ -12,7 +12,6 @@ import type {
   ReviewCompletionStatus,
   DemoScript,
   DemoStep,
-  FeedbackResult,
   FindingSeverity,
   FindingStatus,
   FindingAgent,
@@ -134,43 +133,6 @@ function getOrCreateWorkflowState(db: DbHandle, ticketId: string): DbTicketWorkf
   }
 
   return state;
-}
-
-function formatDemoStepStatus(status: DemoStep["status"] | undefined): string {
-  return status ?? "pending";
-}
-
-function formatChangeRequestComment(feedback: string, steps: DemoStep[]): string {
-  const failedSteps = steps.filter((step) => step.status === "failed");
-  const failedSection =
-    failedSteps.length > 0
-      ? failedSteps
-          .map(
-            (step) =>
-              `- **Step ${step.order}: ${step.description}**\n  - Expected: ${step.expectedOutcome}\n  - Status: ${formatDemoStepStatus(step.status)}\n  - Reviewer notes: ${step.notes?.trim() || "None provided"}`
-          )
-          .join("\n")
-      : "No failed steps were marked.";
-
-  const checklistSnapshot = steps
-    .map(
-      (step) =>
-        `- Step ${step.order}: ${step.description}\n  - Expected: ${step.expectedOutcome}\n  - Status: ${formatDemoStepStatus(step.status)}\n  - Reviewer notes: ${step.notes?.trim() || "None provided"}`
-    )
-    .join("\n");
-
-  return [
-    "## Changes Requested",
-    "",
-    "### Overall Feedback",
-    feedback.trim() || "No overall feedback provided.",
-    "",
-    "### Failed Demo Steps",
-    failedSection,
-    "",
-    "### Full Demo Checklist Snapshot",
-    checklistSnapshot || "No demo steps were recorded.",
-  ].join("\n");
 }
 
 // ============================================
@@ -348,6 +310,7 @@ export function checkComplete(db: DbHandle, ticketId: string): ReviewCompletionS
 
   return {
     complete: canProceed,
+    canProceedToVerification: canProceed,
     canProceedToHumanReview: canProceed,
     openCritical,
     openMajor,
@@ -395,7 +358,7 @@ function validateDemoSteps(steps: GenerateDemoParams["steps"]): void {
 function validateDemoGeneration(db: DbHandle, ticketId: string): void {
   const ticket = getTicketRow(db, ticketId);
 
-  assertTicketTransition(ticket.status, "human_review", "generate-demo", "generate demo script");
+  assertTicketTransition(ticket.status, "ai_verification", "generate-demo", "generate demo script");
 
   // Check that all critical/major findings are resolved
   const findings = db
@@ -427,13 +390,13 @@ export function validateGenerateDemo(db: DbHandle, params: GenerateDemoParams): 
 }
 
 /**
- * Generate a demo script for human review.
+ * Generate a demo script for AI verification.
  *
  * Validates that:
  * 1. The ticket is in ai_review status
  * 2. All critical/major findings are fixed
  *
- * Transitions the ticket to human_review status.
+ * Transitions the ticket to ai_verification status.
  *
  * @throws TicketNotFoundError if the ticket doesn't exist
  * @throws InvalidStateError if the ticket is not in ai_review
@@ -473,17 +436,20 @@ export function generateDemo(db: DbHandle, params: GenerateDemoParams): DemoScri
     `UPDATE ticket_workflow_state SET demo_generated = 1, updated_at = ? WHERE ticket_id = ?`
   ).run(now, ticketId);
 
-  // Transition ticket to human_review
-  db.prepare("UPDATE tickets SET status = 'human_review', updated_at = ? WHERE id = ?").run(
+  // Transition ticket to AI verification.
+  db.prepare("UPDATE tickets SET status = 'ai_verification', updated_at = ? WHERE id = ?").run(
     now,
     ticketId
   );
+  db.prepare(
+    "UPDATE ticket_workflow_state SET current_phase = 'ai_verification', updated_at = ? WHERE ticket_id = ?"
+  ).run(now, ticketId);
 
   completeActiveSessionsForTicket(
     db,
     ticketId,
     "success",
-    "Demo generated; ticket handed to human review."
+    "Demo generated; ticket handed to AI verification."
   );
 
   if (linkedEpicReviewRunId) {
@@ -538,7 +504,7 @@ export function getDemo(db: DbHandle, ticketId: string): DemoScript | null {
 export type DemoStepStatus = "pending" | "passed" | "failed" | "skipped";
 
 /**
- * Update a single demo step's status during human review.
+ * Update a single demo step's status during verification/debug review.
  *
  * @throws ValidationError if the demo script or step doesn't exist
  */
@@ -598,129 +564,26 @@ export interface SubmitFeedbackParams {
   }>;
 }
 
-function prepareFeedbackSubmission(
-  db: DbHandle,
-  ticketId: string
-): { ticket: DbTicketRow; demo: DbDemoScriptRow; steps: DemoStep[] } {
-  const ticket = getTicketRow(db, ticketId);
-
-  assertTicketTransition(ticket.status, "done", "submit-feedback-pass", "submit demo feedback");
-
-  const demo = db.prepare("SELECT * FROM demo_scripts WHERE ticket_id = ?").get(ticketId) as
-    | DbDemoScriptRow
-    | undefined;
-  if (!demo) {
-    throw new ValidationError(`No demo script found for ticket ${ticketId}.`);
-  }
-
-  try {
-    const parsedSteps = JSON.parse(demo.steps || "[]") as unknown;
-    if (!Array.isArray(parsedSteps)) {
-      throw new ValidationError(
-        `Demo script for ticket ${ticketId} has invalid step data. Cannot apply feedback.`
-      );
-    }
-
-    return {
-      ticket,
-      demo,
-      steps: parsedSteps as DemoStep[],
-    };
-  } catch (err) {
-    if (err instanceof ValidationError) {
-      throw err;
-    }
-    throw new ValidationError(
-      `Demo script for ticket ${ticketId} has corrupted step data. Cannot apply feedback.`
-    );
-  }
-}
-
 /**
- * Validate final demo feedback without mutating database state.
- *
- * Adapters that must coordinate external state, such as `plans/prd.json`, use
- * this as a preflight before touching that external state.
+ * Manual demo feedback has been retired. AI verification runner code owns the
+ * ai_verification -> done / in_progress transitions.
  */
 export function validateSubmitFeedback(db: DbHandle, params: SubmitFeedbackParams): void {
-  prepareFeedbackSubmission(db, params.ticketId);
+  getTicketRow(db, params.ticketId);
+  throw new ValidationError(
+    "Manual demo feedback has been retired. Run the verification runner for ai_verification tickets instead."
+  );
 }
 
 /**
- * Submit final demo feedback from human reviewer.
- *
- * If passed: transitions ticket to "done".
- * If rejected: transitions ticket to "ready", resets demo_generated flag, and preserves demo feedback.
+ * Deprecated manual demo feedback path. AI verification runner code owns ticket completion.
  *
  * @throws TicketNotFoundError if the ticket doesn't exist
- * @throws InvalidStateError if the ticket is not in human_review
- * @throws ValidationError if no demo script exists for the ticket
+ * @throws ValidationError always because manual feedback is retired
  */
-export function submitFeedback(db: DbHandle, params: SubmitFeedbackParams): FeedbackResult {
-  const { ticketId, passed, feedback, stepResults } = params;
-
-  const { steps } = prepareFeedbackSubmission(db, ticketId);
-  const now = new Date().toISOString();
-
-  // Update demo script
-  db.prepare(
-    `UPDATE demo_scripts SET feedback = ?, passed = ?, completed_at = ? WHERE ticket_id = ?`
-  ).run(feedback, passed ? 1 : 0, now, ticketId);
-
-  // Update individual step results if provided
-  if (stepResults && stepResults.length > 0) {
-    for (const result of stepResults) {
-      const step = steps.find((s) => s.order === result.order);
-      if (step) {
-        step.status = result.status ?? (result.passed === true ? "passed" : "failed");
-        if (result.notes) {
-          step.notes = result.notes;
-        }
-      }
-    }
-    db.prepare("UPDATE demo_scripts SET steps = ? WHERE ticket_id = ?").run(
-      JSON.stringify(steps),
-      ticketId
-    );
-  }
-
-  let newStatus: TicketStatus;
-
-  if (passed) {
-    newStatus = "done";
-    db.prepare(
-      "UPDATE tickets SET status = 'done', completed_at = ?, updated_at = ? WHERE id = ?"
-    ).run(now, now, ticketId);
-
-    // Update workflow state to done phase
-    db.prepare(
-      "UPDATE ticket_workflow_state SET current_phase = 'done', updated_at = ? WHERE ticket_id = ?"
-    ).run(now, ticketId);
-  } else {
-    newStatus = "ready";
-    const commentId = randomUUID();
-    db.prepare(
-      "INSERT INTO ticket_comments (id, ticket_id, content, author, type, created_at) VALUES (?, ?, ?, 'brain-dump', 'change_request', ?)"
-    ).run(commentId, ticketId, formatChangeRequestComment(feedback, steps), now);
-
-    db.prepare("UPDATE tickets SET status = 'ready', updated_at = ? WHERE id = ?").run(
-      now,
-      ticketId
-    );
-
-    // Reset demo_generated so the next implementation pass can generate a fresh demo without
-    // deleting the rejection feedback that explains the requested changes.
-    db.prepare(
-      "UPDATE ticket_workflow_state SET current_phase = 'implementation', demo_generated = 0, updated_at = ? WHERE ticket_id = ?"
-    ).run(now, ticketId);
-  }
-
-  return {
-    ticketId,
-    passed,
-    newStatus,
-    feedback,
-  };
+export function submitFeedback(db: DbHandle, params: SubmitFeedbackParams): never {
+  validateSubmitFeedback(db, params);
+  throw new ValidationError("Manual demo feedback has been retired.");
 }
 
 function assertTicketTransition(

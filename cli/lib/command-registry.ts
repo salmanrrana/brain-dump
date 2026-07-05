@@ -609,7 +609,7 @@ export const COMMAND_REGISTRY: CommandDef[] = [
   {
     resource: "review",
     action: "generate-demo",
-    description: "Generate a demo script for human review",
+    description: "Generate a demo script for AI verification",
     flags: [
       ticketFlag,
       {
@@ -626,17 +626,6 @@ export const COMMAND_REGISTRY: CommandDef[] = [
     action: "get-demo",
     description: "Get the demo script for a ticket",
     flags: [ticketFlag, prettyFlag],
-  },
-  {
-    resource: "review",
-    action: "submit-feedback",
-    description: "Submit demo feedback (human reviewer only)",
-    flags: [
-      ticketFlag,
-      { name: "passed", type: "boolean", required: true, description: "Whether demo passed" },
-      { name: "feedback", type: "string", required: true, description: "Reviewer feedback" },
-      prettyFlag,
-    ],
   },
   {
     resource: "review",

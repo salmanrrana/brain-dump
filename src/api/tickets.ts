@@ -6,7 +6,7 @@ import { tagFilterConditions } from "../lib/sql-helpers";
 import { randomUUID } from "crypto";
 import { ensureExists, safeJsonStringify } from "../lib/utils";
 import { autoExtractLearnings } from "../../core/index";
-import { isTicketStatus } from "../../core/workflow-steps.ts";
+import { isActiveTicketStatus } from "../../core/workflow-steps.ts";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("tickets-api");
@@ -220,7 +220,7 @@ export const updateTicketStatus = createServerFn({ method: "POST" })
     if (!input.id) {
       throw new Error("Ticket ID is required");
     }
-    if (!isTicketStatus(input.status)) {
+    if (!isActiveTicketStatus(input.status)) {
       throw new Error(`Invalid status: ${input.status}`);
     }
     return input;

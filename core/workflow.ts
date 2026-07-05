@@ -132,13 +132,13 @@ export function startWork(
   }
 
   // 2a. Refuse to regress a ticket already past implementation. Without this
-  //     guard, calling start-work on a ticket in ai_review / human_review /
+  //     guard, calling start-work on a ticket in ai_review / ai_verification /
   //     done silently drops it back to in_progress AND wipes the review
   //     findings + demo flags in ticket_workflow_state (see step 7 below),
   //     which is a silent data loss bug. Observed in the wild with Ralph
   //     when an agent re-read plans/prd.json (which still had
   //     \`passes: false\` for a ticket that had since been demoed into
-  //     human_review) and naively called start-work.
+  //     post-review status) and naively called start-work.
   assertTicketTransition(ticket.status, "in_progress", "start-work", "start work");
 
   // 3. Verify git repo
@@ -262,7 +262,7 @@ export function startWork(
  *
  * Throws:
  * - `TicketNotFoundError` if ticket doesn't exist
- * - `InvalidStateError` if ticket is already done, ai_review, or human_review
+ * - `InvalidStateError` if ticket is already done, ai_review, or ai_verification
  */
 export function completeWork(
   db: Database.Database,
@@ -396,7 +396,7 @@ export function completeWork(
     'Fix critical/major findings with review({ action: "mark-fixed", fixStatus: "fixed", ... })',
     'Verify with review({ action: "check-complete", ... })',
     'Generate demo script with review({ action: "generate-demo", ... })',
-    'STOP — ticket requires human approval via review({ action: "submit-feedback", ... })',
+    "STOP — ticket requires AI verification; the runner owns completion.",
   ];
 
   return {

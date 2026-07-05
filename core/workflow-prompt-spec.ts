@@ -38,13 +38,13 @@ export const WORKFLOW_PHASES: readonly WorkflowPhaseSpec[] = [
   {
     title: "Demo",
     summary:
-      "Generate 3-7 manual test steps after review completion. This moves the ticket to human_review.",
+      "Generate 3-7 manual test steps after review completion. This moves the ticket to ai_verification for runner certification.",
     toolCalls: ['review({ action: "generate-demo", ticketId, steps })'],
   },
   {
     title: "Stop",
     summary:
-      "Complete the Ralph session and stop. Never approve, submit feedback, or move the ticket to done.",
+      "Complete the Ralph session and stop. Never run verification or move the ticket to done yourself.",
     toolCalls: ['session({ action: "complete", sessionId, outcome: "success" })'],
   },
 ];
@@ -55,14 +55,14 @@ export const VALIDATION_GATE_RULES = [
   "Use the project's own commands, not Brain Dump's commands. Do not assume pnpm, npm, TypeScript, lint, or test scripts exist.",
   "If no automated validation command is discoverable, perform a targeted manual smoke check and record that no project validation command was found.",
   "Before complete-work, add a test_report comment with exact pass/fail/skipped command results and omit author so Brain Dump auto-detects the provider.",
-  "Before demo, all critical/major findings must be fixed and check-complete must allow human review.",
-  "Before session completion, generate-demo must have been called and the ticket must be in human_review.",
+  "Before demo, all critical/major findings must be fixed and check-complete must allow verification handoff.",
+  "Before session completion, generate-demo must have been called and the ticket must be in ai_verification.",
 ] as const;
 
 export const HARD_GUARDS = [
   "Do not use local substitutes for Brain Dump MCP/CLI workflow actions.",
   "Do not skip review check-complete before generate-demo.",
-  "Do not call review submit-feedback yourself.",
+  "Do not run verification yourself.",
   "Do not move tickets to done yourself.",
   "Do not continue to another ticket after demo handoff.",
 ] as const;
@@ -80,8 +80,8 @@ const TRANSITION_ACTION_LABELS: Record<WorkflowTransitionAction, string> = {
   "complete-work": "workflow complete-work",
   "submit-finding": "review submit-finding",
   "generate-demo": "review generate-demo",
-  "submit-feedback-pass": "review submit-feedback passed",
-  "submit-feedback-reject": "review submit-feedback changes requested",
+  "verify-pass": "verification runner certified pass",
+  "verify-fail": "verification runner failure loop-back",
   "reconcile-learnings": "reconcile learnings",
 };
 
@@ -98,10 +98,10 @@ Before anything else, read \`plans/prd.json\` from the project root. That file c
 2. For each \`passes: false\` candidate, call \`ticket({ action: "get", ticketId: "<id>" })\` to check \`status\`. The PRD's \`passes\` flag can lag behind real ticket status between iterations.
 3. If any candidate is already \`ai_review\`, pick ONE of those first and resume at the AI Review phase. Do NOT call \`start-work\` or \`complete-work\` for it; use \`review({ action: "get-findings", ... })\`, fix open critical/major findings, \`review({ action: "check-complete", ... })\`, then \`review({ action: "generate-demo", ... })\`.
 4. Otherwise pick ONE candidate whose status is \`backlog\`, \`ready\`, or \`in_progress\` and work only on that ticket through the full implementation workflow.
-5. Skip candidates whose status is \`human_review\` or \`done\`; those are waiting on humans or already complete.
+5. Skip candidates whose status is \`done\`; those are already complete. Tickets in \`ai_verification\` are incomplete but waiting on the verification runner, not implementation.
 6. Do NOT call \`ticket\` with \`action: "list"\` across the whole project to discover work. The PRD is scoped; the project backlog is not.
 7. Do NOT pick tickets whose IDs do not appear in \`plans/prd.json\`, even if they look related or higher-priority.
-8. If every PRD entry is either \`passes: true\` or has a ticket status of \`human_review\` / \`done\`, output the exact token \`PRD_COMPLETE\` and stop. Do not look for more work outside the PRD. A ticket in \`ai_review\` is NOT complete; resume it instead.
+8. If every PRD entry is either \`passes: true\` or has ticket status \`done\`, output the exact token \`PRD_COMPLETE\` and stop. Do not look for more work outside the PRD. A ticket in \`ai_review\` or \`ai_verification\` is NOT complete; resume/retry only when the workflow instructions say to.
 9. If \`plans/prd.json\` is missing or empty, output \`PRD_COMPLETE\` and stop. Do not fall back to project-wide ticket discovery.`;
 }
 
@@ -112,14 +112,14 @@ Use Brain Dump MCP tools literally. No local substitutes for branching, review, 
 
 ${WORKFLOW_PHASES.map((phase, index) => `${index + 1}. **${phase.title}** - ${phase.summary}`).join("\n")}
 
-If all tickets are in \`human_review\` or \`done\`, output: \`PRD_COMPLETE\`.`;
+If all tickets are \`done\`, output: \`PRD_COMPLETE\`.`;
 }
 
 export function renderWorkflowRules(): string {
   return `## Rules
 - Strict phase order: Implementation -> AI Review -> Demo -> STOP
 - ONE ticket per iteration, minimal focused changes
-- Never call review submit-feedback or move tickets to done; humans only
+- Never run verification or move tickets to done; the runner owns completion
 - If stuck, note progress in \`plans/progress.txt\` and move to next ticket
 - Scope is fixed by \`plans/prd.json\`. Never work on tickets outside it.`;
 }

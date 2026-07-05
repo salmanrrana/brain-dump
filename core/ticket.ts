@@ -16,7 +16,7 @@ import {
 import type { DbTicketRow, DbProjectRow, DbEpicRow, DbTicketSummaryRow } from "./db-rows.ts";
 import { safeJsonParse } from "./json.ts";
 import { autoTagFromMentions } from "./platform-mention-parser.ts";
-import { isTicketStatus, TICKET_STATUSES } from "./workflow-steps.ts";
+import { isActiveTicketStatus, TICKET_STATUSES } from "./workflow-steps.ts";
 
 // ============================================
 // Internal Helpers
@@ -291,7 +291,7 @@ export function updateTicketStatus(
   ticketId: string,
   status: TicketStatus
 ): TicketWithProject {
-  if (!isTicketStatus(status)) {
+  if (!isActiveTicketStatus(status)) {
     throw new ValidationError(`Invalid status: ${status}. Valid: ${TICKET_STATUSES.join(", ")}`);
   }
 
@@ -350,7 +350,7 @@ export function updateTicket(
   }
 
   if (params.status !== undefined) {
-    if (!isTicketStatus(params.status)) {
+    if (!isActiveTicketStatus(params.status)) {
       throw new ValidationError(
         `Invalid status: ${params.status}. Valid: ${TICKET_STATUSES.join(", ")}`
       );

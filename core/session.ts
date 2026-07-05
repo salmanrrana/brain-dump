@@ -630,15 +630,15 @@ export function clearActiveSessionsForProject(
  * Complete all active Ralph sessions for a ticket.
  *
  * This is used when the workflow reaches a terminal agent-owned handoff point
- * (for example demo generation moves the ticket to human_review). It prevents
+ * (for example demo generation moves the ticket to ai_verification). It prevents
  * stale active sessions from making the UI show Ralph as still "testing" or
- * "reviewing" after the ticket has already been handed to the human reviewer.
+ * "reviewing" after the ticket has already been handed to verification.
  */
 export function completeActiveSessionsForTicket(
   db: DbHandle,
   ticketId: string,
   outcome: SessionOutcome = "success",
-  reason = "ticket handed to human review",
+  reason = "ticket handed to verification",
   errorMessage?: string
 ): CompleteActiveSessionsForTicketResult {
   getTicketRow(db, ticketId);

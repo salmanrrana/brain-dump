@@ -41,16 +41,16 @@ pnpm dev    # http://localhost:4242
 
 The enforced ticket status specification lives in `core/workflow-steps.ts`. Run `pnpm workflow:prompts` after changing workflow statuses or transitions.
 
-Status flow: `backlog -> ready -> in_progress -> ai_review -> human_review -> done`
+Status flow: `backlog -> ready -> in_progress -> ai_review -> ai_verification -> done`
 
-| Status         | Label        | Active | Kanban column |
-| -------------- | ------------ | ------ | ------------- |
-| `backlog`      | Backlog      | no     | yes           |
-| `ready`        | Ready        | no     | yes           |
-| `in_progress`  | In Progress  | yes    | yes           |
-| `ai_review`    | AI Review    | yes    | yes           |
-| `human_review` | Human Review | yes    | yes           |
-| `done`         | Done         | no     | yes           |
+| Status            | Label           | Active | Kanban column |
+| ----------------- | --------------- | ------ | ------------- |
+| `backlog`         | Backlog         | no     | yes           |
+| `ready`           | Ready           | no     | yes           |
+| `in_progress`     | In Progress     | yes    | yes           |
+| `ai_review`       | AI Review       | yes    | yes           |
+| `ai_verification` | AI Verification | yes    | yes           |
+| `done`            | Done            | no     | yes           |
 
 <!-- END GENERATED: workflow-sequence -->
 
@@ -164,7 +164,7 @@ Requirements to call this:
 What happens:
 
 - Demo script created with step-by-step instructions
-- Ticket status: → `human_review`
+- Ticket status: → `ai_verification`
 - Ticket comment: "Demo script generated with {n} steps"
 
 **Demo steps include:**
@@ -174,32 +174,29 @@ What happens:
 - Edge case testing
 - Visual confirmation points
 
-### Phase 6: Human Review (Demo Approval)
+### Phase 6: AI Verification
 
-**You (the human) do:**
+**The verification runner does:**
 
-1. Open ticket detail
-2. Find "Demo Ready" badge
-3. Click "Start Demo Review"
-4. Run through each step
-5. Mark step as "Passed", "Failed", or "Skipped"
-6. Approve or request changes
+1. Boots the target project from the current code
+2. Executes generated demo steps
+3. Captures evidence and runner notes
+4. Moves certified passes to `done`
+5. Loops failed verification back to implementation
 
-**If Approved**: Ticket → `done` ✓
+**If Certified**: Ticket → `done` ✓
 
-**If Changes Requested**: Ticket stays in `human_review` with feedback
+**If Verification Fails**: Ticket → `in_progress` with findings and evidence
 
-- AI reads feedback comment
+- AI reads verification findings
 - AI fixes issues
 - Loop back to Phase 4: AI Review
 
 **Ticket comments show:**
 
-- Step 1 of 5: Setup database
-- Step 2 of 5: Create user account
-- ✓ Step 3 of 5: Login succeeds
-- ✗ Step 4 of 5: Profile page missing avatar field
-- "Requested changes: Add avatar support to user profile"
+- Demo script generated with 5 steps
+- Verification run failed: profile page missing avatar field
+- Verification evidence attached for failed step
 
 ### Phase 7: Reconcile Learnings (Optional)
 
@@ -323,16 +320,15 @@ brain-dump doctor
 
 These tools enforce the workflow in all environments:
 
-| Tool + Action                | Purpose                  | Preconditions               |
-| ---------------------------- | ------------------------ | --------------------------- |
-| `workflow` `start-work`      | Begin work               | No other ticket in_progress |
-| `workflow` `complete-work`   | Finish implementation    | Validation passed           |
-| `review` `submit-finding`    | Report issue from review | Ticket in ai_review         |
-| `review` `mark-fixed`        | Mark issue resolved      | Finding exists              |
-| `review` `check-complete`    | Check if review passed   | Findings submitted          |
-| `review` `generate-demo`     | Create test instructions | No critical/major findings  |
-| `review` `submit-feedback`   | Record human feedback    | Demo script exists          |
-| `epic` `reconcile-learnings` | Update project docs      | Ticket in done              |
+| Tool + Action                | Purpose                     | Preconditions               |
+| ---------------------------- | --------------------------- | --------------------------- |
+| `workflow` `start-work`      | Begin work                  | No other ticket in_progress |
+| `workflow` `complete-work`   | Finish implementation       | Validation passed           |
+| `review` `submit-finding`    | Report issue from review    | Ticket in ai_review         |
+| `review` `mark-fixed`        | Mark issue resolved         | Finding exists              |
+| `review` `check-complete`    | Check if review passed      | Findings submitted          |
+| `review` `generate-demo`     | Create verification handoff | No critical/major findings  |
+| `epic` `reconcile-learnings` | Update project docs         | Ticket in done              |
 
 ## Telemetry & Observability
 
@@ -349,7 +345,7 @@ Activity
 🤖 claude - Fixed: Missing validation [critical]
 🤖 claude - AI review passed after 2 iterations
 🤖 claude - Demo script generated with 5 steps
-👤 user - Approved. "Looks great!"
+🤖 runner - Verification passed with sealed evidence
 ```
 
 Plus detailed telemetry:
@@ -518,9 +514,9 @@ Ralph:
 4. Calls `workflow` `complete-work`
 5. Runs AI review
 6. Generates demo
-7. Repeats until all tickets are in `human_review` or `done`
+7. Repeats until all tickets are in `ai_verification` or `done`
 
-Ralph respects the same workflow as interactive mode. All tickets are reviewed and demo-ready before Ralph stops.
+Ralph respects the same workflow as interactive mode. All tickets are reviewed and handed to AI verification before Ralph stops.
 
 ## Architecture
 

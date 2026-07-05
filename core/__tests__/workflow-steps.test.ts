@@ -17,9 +17,9 @@ const PROJECT_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const AUDITED_DIRS = ["core", "mcp-server", "cli", "src", "hooks", "scripts"];
 const SOURCE_EXTENSIONS = new Set([".ts", ".tsx"]);
 const ARRAY_REDECLARATION =
-  '"backlog", "ready", "in_progress", "ai_review", "human_review", "done"';
+  '"backlog", "ready", "in_progress", "ai_review", "ai_verification", "done"';
 const UNION_REDECLARATION =
-  '| "backlog" | "ready" | "in_progress" | "ai_review" | "human_review" | "done"';
+  '| "backlog" | "ready" | "in_progress" | "ai_review" | "ai_verification" | "done"';
 
 describe("workflow status specification", () => {
   it("defines the ticket statuses and metadata in workflow order", () => {
@@ -28,7 +28,7 @@ describe("workflow status specification", () => {
       "ready",
       "in_progress",
       "ai_review",
-      "human_review",
+      "ai_verification",
       "done",
     ]);
     expect(KANBAN_STATUSES).toEqual(TICKET_STATUSES);
@@ -37,8 +37,9 @@ describe("workflow status specification", () => {
       ready: 1,
       in_progress: 2,
       ai_review: 3,
-      human_review: 4,
+      ai_verification: 4,
       done: 5,
+      human_review: 99,
     });
     expect(getTicketStatusLabel("ai_review")).toBe("AI Review");
     expect(isTicketStatus("done")).toBe(true);
@@ -49,9 +50,9 @@ describe("workflow status specification", () => {
     expect(canTransition("backlog", "in_progress", "start-work")).toBe(true);
     expect(canTransition("ready", "in_progress", "start-work")).toBe(true);
     expect(canTransition("in_progress", "ai_review", "complete-work")).toBe(true);
-    expect(canTransition("ai_review", "human_review", "generate-demo")).toBe(true);
-    expect(canTransition("human_review", "done", "submit-feedback-pass")).toBe(true);
-    expect(canTransition("human_review", "ready", "submit-feedback-reject")).toBe(true);
+    expect(canTransition("ai_review", "ai_verification", "generate-demo")).toBe(true);
+    expect(canTransition("ai_verification", "done", "verify-pass")).toBe(true);
+    expect(canTransition("ai_verification", "in_progress", "verify-fail")).toBe(true);
   });
 
   it("rejects implementation regressions from review or completed statuses", () => {

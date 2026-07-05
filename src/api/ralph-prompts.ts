@@ -108,12 +108,12 @@ ${steeringSection}
 3. Log findings with \`review({ action: "submit-finding", ticketId: "${profile.selectedTicket.id}", ... })\`.
 4. Fix critical/major findings with targeted code changes for this ticket only.
 5. Mark resolved findings with \`review({ action: "mark-fixed", fixStatus: "fixed", ... })\`.
-6. Call \`review({ action: "check-complete", ticketId: "${profile.selectedTicket.id}" })\` and do not proceed until \`canProceedToHumanReview: true\`.
+6. Call \`review({ action: "check-complete", ticketId: "${profile.selectedTicket.id}" })\` and do not proceed until the result allows verification handoff.
 7. Call \`review({ action: "generate-demo", ticketId: "${profile.selectedTicket.id}", steps: [...] })\` when the review is complete, then STOP.
 
 ## Review Gates
 - Fix all critical/major findings before demo generation.
-- \`review({ action: "check-complete", ticketId: "${profile.selectedTicket.id}" })\` must return \`canProceedToHumanReview: true\` before demo generation.
+- \`review({ action: "check-complete", ticketId: "${profile.selectedTicket.id}" })\` must allow verification handoff before demo generation.
 - Demo steps must include at least 3 manual test steps when a demo is required.
 
 ${renderSessionStateTracking(profile.selectedTicket.id)}
@@ -266,14 +266,14 @@ ${steeringSection}
 2. Submit findings with \`review({ action: "submit-finding", ticketId: "${profile.selectedTicket.id}", ... })\`.
 3. Fix critical/major findings for this ticket only.
 4. Mark fixes with \`review({ action: "mark-fixed", fixStatus: "fixed", ... })\`.
-5. Verify \`review({ action: "check-complete", ticketId: "${profile.selectedTicket.id}" })\` returns \`canProceedToHumanReview: true\`.
+5. Verify \`review({ action: "check-complete", ticketId: "${profile.selectedTicket.id}" })\` allows verification handoff.
 6. Generate a demo with at least 3 manual steps, then STOP.
 
 ## Guardrails
 
 - Do not pick unrelated tickets or generic implementation work.
 - Do not skip \`review.check-complete\` before \`review.generate-demo\`.
-- Do not call \`review.submit-feedback\` yourself or move tickets to \`done\`.
+- Do not run verification yourself or move tickets to \`done\`.
 ${humanRequestedChangesSection}
 ${descriptionSection}
 ## Acceptance Criteria
@@ -381,7 +381,7 @@ export function generateEnhancedPRD(
     return {
       id: ticket.id,
       title: ticket.title,
-      passes: ticket.status === "human_review" || ticket.status === "done",
+      passes: ticket.status === "done",
       ...(humanRequestedChanges ? { humanRequestedChanges } : {}),
       overview,
       types,

@@ -466,7 +466,7 @@ export const getEpicDetail = createServerFn({ method: "GET" })
             title: row.ticketTitle,
             status:
               row.ticketRunStatus === "running" &&
-              (row.ticketStatus === "human_review" || row.ticketStatus === "done")
+              (row.ticketStatus === "ai_verification" || row.ticketStatus === "done")
                 ? "completed"
                 : (row.ticketRunStatus ?? "queued"),
             summary: row.ticketRunSummary,
@@ -493,7 +493,7 @@ export const getEpicDetail = createServerFn({ method: "GET" })
                   title: row.ticketTitle,
                   status:
                     row.ticketRunStatus === "running" &&
-                    (row.ticketStatus === "human_review" || row.ticketStatus === "done")
+                    (row.ticketStatus === "ai_verification" || row.ticketStatus === "done")
                       ? "completed"
                       : (row.ticketRunStatus ?? "queued"),
                   summary: row.ticketRunSummary,

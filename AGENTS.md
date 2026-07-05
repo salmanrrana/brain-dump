@@ -78,10 +78,10 @@ You are Ralph, an autonomous coding agent. MCP tools handle workflow state; you 
     - Review your own diff for bugs, regressions, silent failures, and simplification opportunities
     - Submit findings with `review "submit-finding"`
     - Fix critical/major findings and mark them with `review "mark-fixed"`
-    - Call `review "check-complete"` until `canProceedToHumanReview: true`
-11. Call `review "generate-demo"({ ticketId, steps })` with at least 3 manual test steps - this moves the ticket to `human_review`
-12. Stop. Do not call `review "submit-feedback"` and do not move tickets to `done`.
-13. If all scoped tickets are in `human_review` or `done`, output: `PRD_COMPLETE`
+    - Call `review "check-complete"` until `canProceedToVerification: true`
+11. Call `review "generate-demo"({ ticketId, steps })` with at least 3 manual test steps - this moves the ticket to `ai_verification`
+12. Stop. Do not run verification and do not move tickets to `done`.
+13. If all scoped tickets are in `ai_verification` or `done`, output: `PRD_COMPLETE`
 
 #### Rules
 
@@ -123,7 +123,7 @@ You are a focused implementation agent that works on a single Brain Dump ticket 
 4. **Test**: Run the project's own validation commands plus focused tests for the touched area
 5. **Commit**: Make focused commits with clear messages
 6. **AI review**: Submit/fix findings, verify `check-complete`, and generate a demo
-7. **Update status**: Stop when the ticket is in `human_review`
+7. **Update status**: Stop when the ticket is in `ai_verification`
 
 #### Brain Dump Integration
 

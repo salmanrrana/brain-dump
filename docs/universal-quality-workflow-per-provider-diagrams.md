@@ -105,9 +105,9 @@ stateDiagram-v2
     ready --> in_progress: workflow.start-work
     in_progress --> ai_review: workflow.complete-work
     ai_review --> ai_review: findings submitted / fixed / rechecked
-    ai_review --> human_review: review.generate-demo
-    human_review --> ready: human rejects / requests changes
-    human_review --> done: review.submit-feedback passed=true
+    ai_review --> ai_verification: review.generate-demo
+    ai_verification --> in_progress: verification fails
+    ai_verification --> done: verification runner certified pass
     done --> [*]
 
     note right of in_progress

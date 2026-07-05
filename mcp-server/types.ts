@@ -267,7 +267,7 @@ export interface DemoStep {
   preconditions?: string[];
 }
 
-/** Demo script generated for human review */
+/** Demo script generated for AI verification */
 export interface DbDemoScript {
   id: string;
   ticketId: string;

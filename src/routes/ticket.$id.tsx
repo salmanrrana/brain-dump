@@ -563,11 +563,13 @@ function TicketDetailPage() {
   const showWorkflow =
     ticket.status === "in_progress" ||
     ticket.status === "ai_review" ||
-    ticket.status === "human_review" ||
+    ticket.status === "ai_verification" ||
     ticket.status === "done";
   const showFindings =
-    ticket.status === "ai_review" || ticket.status === "human_review" || ticket.status === "done";
-  const showDemo = ticket.status === "human_review" || ticket.status === "done";
+    ticket.status === "ai_review" ||
+    ticket.status === "ai_verification" ||
+    ticket.status === "done";
+  const showDemo = ticket.status === "ai_verification" || ticket.status === "done";
 
   return (
     <DetailPageLayout>
@@ -632,9 +634,7 @@ function TicketDetailPage() {
             />
           </DetailPageProse>
 
-          {/* Demo Review Panel - interactive in human_review, read-only after
-              completion. Lives in the primary column because it is interactive
-              reading, not at-a-glance monitoring. */}
+          {/* Verification handoff/evidence panel. */}
           {showDemo && <DemoPanel ticketId={ticket.id} />}
 
           {/* Activity Section - the activity log is primary reading, rendered

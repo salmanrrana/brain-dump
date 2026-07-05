@@ -46,6 +46,7 @@ const STATUS_COLOR_HEX: Record<TicketStatus, string> = {
   ready: "#3b82f6",
   in_progress: "#eab308",
   ai_review: "#06b6d4",
+  ai_verification: "#8b5cf6",
   human_review: "#ec4899",
   done: "#22c55e",
 };

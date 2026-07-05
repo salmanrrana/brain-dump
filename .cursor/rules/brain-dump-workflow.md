@@ -11,12 +11,12 @@ When working on Brain Dump tickets, follow this quality workflow to ensure consi
 
 ## Generated Workflow
 
-Status flow: `backlog -> ready -> in_progress -> ai_review -> human_review -> done`
+Status flow: `backlog -> ready -> in_progress -> ai_review -> ai_verification -> done`
 
 - **Implementation**: start-work -> create or reuse a session -> implement -> validate -> commit -> complete-work. Skip this phase only when the selected ticket is already in ai_review.
 - **AI Review**: Self-review the diff, submit every finding through Brain Dump, fix critical/major findings, then check completion.
-- **Demo**: Generate 3-7 manual test steps after review completion. This moves the ticket to human_review.
-- **Stop**: Complete the Ralph session and stop. Never approve, submit feedback, or move the ticket to done.
+- **Demo**: Generate 3-7 manual test steps after review completion. This moves the ticket to ai_verification for runner certification.
+- **Stop**: Complete the Ralph session and stop. Never run verification or move the ticket to done yourself.
 
 ## Required MCP Actions
 
@@ -38,14 +38,14 @@ Status flow: `backlog -> ready -> in_progress -> ai_review -> human_review -> do
 - [ ] Use the project's own commands, not Brain Dump's commands. Do not assume pnpm, npm, TypeScript, lint, or test scripts exist.
 - [ ] If no automated validation command is discoverable, perform a targeted manual smoke check and record that no project validation command was found.
 - [ ] Before complete-work, add a test_report comment with exact pass/fail/skipped command results and omit author so Brain Dump auto-detects the provider.
-- [ ] Before demo, all critical/major findings must be fixed and check-complete must allow human review.
-- [ ] Before session completion, generate-demo must have been called and the ticket must be in human_review.
+- [ ] Before demo, all critical/major findings must be fixed and check-complete must allow verification handoff.
+- [ ] Before session completion, generate-demo must have been called and the ticket must be in ai_verification.
 
 ## Stop Conditions
 
 - Do not use local substitutes for Brain Dump MCP/CLI workflow actions.
 - Do not skip review check-complete before generate-demo.
-- Do not call review submit-feedback yourself.
+- Do not run verification yourself.
 - Do not move tickets to done yourself.
 - Do not continue to another ticket after demo handoff.
 <!-- END GENERATED: workflow-sequence -->

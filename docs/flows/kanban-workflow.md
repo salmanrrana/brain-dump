@@ -8,17 +8,17 @@ Your kanban board is the single source of truth. Every ticket, every status chan
 
 ## TL;DR — Quick Reference
 
-| Action         | How                                        |
-| -------------- | ------------------------------------------ |
-| Create project | Settings → "Add Project" → Select folder   |
-| Create ticket  | Click "+" in any column                    |
-| Start work     | Click "Start with Claude" on ticket        |
-| Move ticket    | Drag to new column                         |
-| Complete work  | `workflow "complete-work"` or drag to Done |
+| Action         | How                                                    |
+| -------------- | ------------------------------------------------------ |
+| Create project | Settings → "Add Project" → Select folder               |
+| Create ticket  | Click "+" in any column                                |
+| Start work     | Click "Start with Claude" on ticket                    |
+| Move ticket    | Drag to new column                                     |
+| Complete work  | `workflow "complete-work"` then AI review/verification |
 
-**Status flow:** `backlog` -> `ready` -> `in_progress` -> `ai_review` -> `human_review` -> `done`
+**Status flow:** `backlog` -> `ready` -> `in_progress` -> `ai_review` -> `ai_verification` -> `done`
 
-**AI flow:** `in_progress` → `ai_review` → `human_review` → `done`
+**AI flow:** `in_progress` → `ai_review` → `ai_verification` → `done`
 
 ---
 
@@ -56,9 +56,9 @@ Here's what happens when you work a ticket from start to finish:
 │     └─ Work summary comment added                                           │
 │     └─ PRD updated: passes = true                                           │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│  6. REVIEW & DONE                                                           │
-│     └─ Human reviews PR                                                     │
-│     └─ Drag to "Done" column                                                │
+│  6. REVIEW & VERIFY                                                         │
+│     └─ AI review findings are fixed                                         │
+│     └─ Verification runner certifies evidence                               │
 │     └─ Status: done, completedAt: timestamp                                 │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -186,16 +186,16 @@ flowchart LR
 
 The enforced ticket status specification lives in `core/workflow-steps.ts`. Run `pnpm workflow:prompts` after changing workflow statuses or transitions.
 
-Status flow: `backlog -> ready -> in_progress -> ai_review -> human_review -> done`
+Status flow: `backlog -> ready -> in_progress -> ai_review -> ai_verification -> done`
 
-| Status         | Label        | Active | Kanban column |
-| -------------- | ------------ | ------ | ------------- |
-| `backlog`      | Backlog      | no     | yes           |
-| `ready`        | Ready        | no     | yes           |
-| `in_progress`  | In Progress  | yes    | yes           |
-| `ai_review`    | AI Review    | yes    | yes           |
-| `human_review` | Human Review | yes    | yes           |
-| `done`         | Done         | no     | yes           |
+| Status            | Label           | Active | Kanban column |
+| ----------------- | --------------- | ------ | ------------- |
+| `backlog`         | Backlog         | no     | yes           |
+| `ready`           | Ready           | no     | yes           |
+| `in_progress`     | In Progress     | yes    | yes           |
+| `ai_review`       | AI Review       | yes    | yes           |
+| `ai_verification` | AI Verification | yes    | yes           |
+| `done`            | Done            | no     | yes           |
 
 ### Generated Kanban Columns
 
@@ -214,7 +214,7 @@ flowchart LR
         subgraph Col4["AI Review"]
             T4["Ticket"]
         end
-        subgraph Col5["Human Review"]
+        subgraph Col5["AI Verification"]
             T5["Ticket"]
         end
         subgraph Col6["Done"]

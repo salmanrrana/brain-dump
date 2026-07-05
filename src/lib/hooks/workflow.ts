@@ -172,8 +172,8 @@ export function useUpdateDemoStep() {
 }
 
 /**
- * Hook for submitting final demo feedback from human reviewer.
- * This approves or rejects the demo and updates ticket status.
+ * Deprecated hook for the retired manual demo feedback path.
+ * Verification runner completion replaces manual approval/rejection.
  */
 export function useSubmitDemoFeedback() {
   const queryClient = useQueryClient();

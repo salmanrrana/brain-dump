@@ -71,7 +71,8 @@ const COLUMN_LABELS: Record<TicketStatus, string> = {
   ready: "Ready",
   in_progress: "In Progress",
   ai_review: "AI Review",
-  human_review: "Human Review",
+  ai_verification: "AI Verification",
+  human_review: "Human Review (Legacy)",
   done: "Done",
 };
 
@@ -83,6 +84,7 @@ const COLUMN_COLORS: Record<TicketStatus, string> = {
   ready: "var(--status-ready)",
   in_progress: "var(--status-in-progress)",
   ai_review: "var(--accent-warning)",
+  ai_verification: "var(--accent-primary)",
   human_review: "var(--accent-primary)",
   done: "var(--status-done)",
 };
@@ -206,8 +208,9 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
       ready: [],
       in_progress: [],
       ai_review: [],
-      human_review: [],
+      ai_verification: [],
       done: [],
+      human_review: [],
     };
 
     if (!tickets) return grouped;
@@ -234,8 +237,9 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
       ready: [],
       in_progress: [],
       ai_review: [],
-      human_review: [],
+      ai_verification: [],
       done: [],
+      human_review: [],
     };
 
     for (const status of COLUMNS) {

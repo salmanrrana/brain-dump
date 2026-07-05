@@ -53,6 +53,7 @@ export function getStatusColor(status: string): string {
     case "in_progress":
       return "text-amber-400";
     case "ai_review":
+    case "ai_verification":
     case "human_review":
       return "text-purple-400";
     case "ready":
@@ -119,7 +120,8 @@ export const STATUS_BADGE_CONFIG: Record<string, { label: string; className: str
   ready: { label: "Ready", className: "bg-blue-900/50 text-blue-300" },
   in_progress: { label: "In Progress", className: "bg-amber-900/50 text-amber-300" },
   ai_review: { label: "AI Review", className: "bg-orange-900/50 text-orange-300" },
-  human_review: { label: "Human Review", className: "bg-rose-900/50 text-rose-300" },
+  ai_verification: { label: "AI Verification", className: "bg-purple-900/50 text-purple-300" },
+  human_review: { label: "Human Review (Legacy)", className: "bg-rose-900/50 text-rose-300" },
   done: { label: "Done", className: "bg-green-900/50 text-green-300" },
 };
 

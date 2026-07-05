@@ -5,7 +5,7 @@ import { ticketWorkflowState, reviewFindings, demoScripts, tickets } from "../li
 import { eq, sql } from "drizzle-orm";
 
 /** Valid workflow phases for display */
-const VALID_PHASES = ["started", "implementation", "ai_review", "human_review", "done"] as const;
+const VALID_PHASES = ["started", "implementation", "ai_review", "ai_verification", "done"] as const;
 type WorkflowPhase = (typeof VALID_PHASES)[number];
 
 /**
@@ -13,15 +13,15 @@ type WorkflowPhase = (typeof VALID_PHASES)[number];
  * Combines workflow state, review findings summary, and demo status.
  */
 export interface WorkflowDisplayState {
-  /** Current workflow phase: started, implementation, ai_review, human_review, done */
+  /** Current workflow phase: started, implementation, ai_review, ai_verification, done */
   currentPhase: WorkflowPhase;
   /** Number of completed review iterations */
   reviewIteration: number;
   /** Whether demo script has been generated */
   demoGenerated: boolean;
-  /** Whether demo has been completed by human */
+  /** Whether demo/verification has been completed */
   demoCompleted: boolean;
-  /** Whether demo was approved (only set if demoCompleted is true) */
+  /** Whether demo/verification passed (only set if demoCompleted is true) */
   demoApproved: boolean | null;
   /** Review findings summary by severity */
   findingsSummary: {
@@ -147,8 +147,8 @@ export const getWorkflowDisplayState = createServerFn({ method: "GET" })
         case "done":
           currentPhase = "done";
           break;
-        case "human_review":
-          currentPhase = "human_review";
+        case "ai_verification":
+          currentPhase = "ai_verification";
           break;
         case "ai_review":
           currentPhase = "ai_review";

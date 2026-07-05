@@ -1,5 +1,5 @@
 /**
- * Review commands: submit-finding, mark-fixed, check-complete, generate-demo, get-demo, submit-feedback, get-findings.
+ * Review commands: submit-finding, mark-fixed, check-complete, generate-demo, get-demo, get-findings.
  */
 
 import { readFileSync } from "fs";
@@ -10,8 +10,6 @@ import {
   validateGenerateDemo,
   generateDemo,
   getDemo,
-  validateSubmitFeedback,
-  submitFeedback,
   getFindings,
   updateDemoStep,
   updatePrdForDbTicketIfPresent,
@@ -45,7 +43,6 @@ const ACTIONS = [
   "generate-demo",
   "get-demo",
   "update-demo-step",
-  "submit-feedback",
   "get-findings",
 ];
 
@@ -125,7 +122,7 @@ export function handle(action: string, args: string[]): void {
         }
         const demoParams = { ticketId, steps };
         validateGenerateDemo(db, demoParams);
-        const prdSync = updatePrdForDbTicketIfPresent(db, ticketId, true);
+        const prdSync = updatePrdForDbTicketIfPresent(db, ticketId, false);
         if (prdSync.required && !prdSync.success) {
           throw new ValidationError(
             `Cannot generate demo because PRD sync failed: ${prdSync.message}`
@@ -158,23 +155,6 @@ export function handle(action: string, args: string[]): void {
         const stepNotes = optionalFlag(flags, "step-notes");
         const result = updateDemoStep(db, demoScriptId, stepOrder, stepStatus, stepNotes);
         outputResult(result, pretty);
-        break;
-      }
-
-      case "submit-feedback": {
-        const ticketId = requireFlag(flags, "ticket");
-        const passed = boolFlag(flags, "passed");
-        const feedback = optionalFlag(flags, "feedback") ?? "";
-        const feedbackParams = { ticketId, passed, feedback };
-        validateSubmitFeedback(db, feedbackParams);
-        const prdSync = updatePrdForDbTicketIfPresent(db, ticketId, passed);
-        if (!passed && prdSync.required && !prdSync.success) {
-          throw new ValidationError(
-            `Cannot submit demo feedback because PRD sync failed: ${prdSync.message}`
-          );
-        }
-        const result = submitFeedback(db, feedbackParams);
-        outputResult({ ...result, prdSync }, pretty);
         break;
       }
 

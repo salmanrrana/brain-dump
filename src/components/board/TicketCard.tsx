@@ -1,5 +1,5 @@
 import { memo, useMemo } from "react";
-import { PlayCircle } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 import type { TicketSummary } from "../../api/tickets";
 import { GitInfo } from "./GitInfo";
 import { TicketTags } from "./TicketTags";
@@ -87,11 +87,11 @@ export const TicketCard = memo(function TicketCard({
         {ticket.title}
       </h3>
 
-      {/* Demo Ready Badge - shown when ticket is in human_review status */}
-      {ticket.status === "human_review" && (
+      {/* Verification badge - shown when the runner needs to certify the ticket */}
+      {ticket.status === "ai_verification" && (
         <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-[var(--info-muted)] text-[var(--info)] text-xs font-medium w-fit">
-          <PlayCircle size={12} />
-          <span>Demo Ready</span>
+          <ShieldCheck size={12} />
+          <span>Verification Ready</span>
         </div>
       )}
 

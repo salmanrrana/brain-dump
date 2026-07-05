@@ -172,7 +172,7 @@ describe("review tool generate-demo PR sync", () => {
           {
             order: 1,
             description: "Generate the demo script",
-            expectedOutcome: "The ticket moves to human_review.",
+            expectedOutcome: "The ticket moves to ai_verification.",
             type: "manual",
           },
         ],
@@ -181,22 +181,22 @@ describe("review tool generate-demo PR sync", () => {
     )) as { content: Array<{ text: string }> };
 
     expect(result.content[0]?.text).toContain(
-      "Demo script generated! Ticket moved to human_review."
+      "Demo script generated! Ticket moved to ai_verification."
     );
     expect(result.content[0]?.text).toContain(
-      "PRD updated: Ticket ready for demo marked as passing"
+      "PRD updated: Ticket ready for demo marked as not yet passing"
     );
     expect(result.content[0]?.text).toContain("Updated PR #42 with 2 demo steps.");
-    expect(readPrdPasses(tempDir)).toBe(true);
+    expect(readPrdPasses(tempDir)).toBe(false);
     expect(readFileSync(editedBodyPath, "utf8")).toContain("1. Generate the demo script");
     expect(readFileSync(editedBodyPath, "utf8")).toContain(
-      "Expected: The ticket moves to human_review."
+      "Expected: The ticket moves to ai_verification."
     );
 
     const ticket = db.prepare("SELECT status FROM tickets WHERE id = ?").get("ticket-1") as {
       status: string;
     };
-    expect(ticket.status).toBe("human_review");
+    expect(ticket.status).toBe("ai_verification");
   });
 
   it("keeps demo generation successful when PR sync fails and reports a warning", async () => {
@@ -216,7 +216,7 @@ describe("review tool generate-demo PR sync", () => {
           {
             order: 1,
             description: "Generate the demo script",
-            expectedOutcome: "The ticket moves to human_review.",
+            expectedOutcome: "The ticket moves to ai_verification.",
             type: "manual",
           },
         ],
@@ -225,7 +225,7 @@ describe("review tool generate-demo PR sync", () => {
     )) as { content: Array<{ text: string }> };
 
     expect(result.content[0]?.text).toContain(
-      "Demo script generated! Ticket moved to human_review."
+      "Demo script generated! Ticket moved to ai_verification."
     );
     expect(result.content[0]?.text).toContain(
       "PR checklist sync warning: Failed to update the PR body: edit failed"
@@ -234,7 +234,7 @@ describe("review tool generate-demo PR sync", () => {
     const ticket = db.prepare("SELECT status FROM tickets WHERE id = ?").get("ticket-1") as {
       status: string;
     };
-    expect(ticket.status).toBe("human_review");
+    expect(ticket.status).toBe("ai_verification");
   });
 
   it("blocks demo generation when an existing scoped PRD is malformed", async () => {
@@ -253,7 +253,7 @@ describe("review tool generate-demo PR sync", () => {
           {
             order: 1,
             description: "Generate the demo script",
-            expectedOutcome: "The ticket moves to human_review.",
+            expectedOutcome: "The ticket moves to ai_verification.",
             type: "manual",
           },
         ],
@@ -268,294 +268,5 @@ describe("review tool generate-demo PR sync", () => {
       status: string;
     };
     expect(ticket.status).toBe("ai_review");
-  });
-});
-
-describe("review tool submit-feedback PRD sync", () => {
-  it("resets the PRD pass marker when human review rejects the demo", async () => {
-    const ticketId = "ticket-1";
-    seedProject(db, { id: "proj-1", path: tempDir });
-    seedTicket(db, {
-      id: ticketId,
-      projectId: "proj-1",
-      status: "human_review",
-    });
-    db.prepare(
-      "INSERT INTO demo_scripts (id, ticket_id, steps, generated_at) VALUES (?, ?, ?, ?)"
-    ).run(
-      "demo-1",
-      ticketId,
-      JSON.stringify([
-        {
-          order: 1,
-          description: "Review the demo",
-          expectedOutcome: "The reviewer can request changes.",
-          type: "manual",
-        },
-      ]),
-      new Date().toISOString()
-    );
-    writePrd(tempDir, ticketId, true);
-
-    const server = new McpServer({ name: "test", version: "1.0.0" });
-    registerReviewTool(server, db);
-
-    const handler = getToolHandler(server, "review");
-    const result = (await handler(
-      {
-        action: "submit-feedback",
-        ticketId,
-        passed: false,
-        feedback: "The public copy still needs one correction.",
-      },
-      {}
-    )) as { content: Array<{ text: string }> };
-
-    expect(result.content[0]?.text).toContain("Demo rejected. Ticket moved to ready for rework.");
-    expect(result.content[0]?.text).toContain(
-      "PRD updated: Ticket ready for demo marked as not yet passing"
-    );
-    expect(readPrdPasses(tempDir)).toBe(false);
-
-    const ticket = db.prepare("SELECT status FROM tickets WHERE id = ?").get(ticketId) as {
-      status: string;
-    };
-    expect(ticket.status).toBe("ready");
-  });
-
-  it("allows rejected feedback when the current scoped PRD is absent", async () => {
-    const ticketId = "ticket-1";
-    seedProject(db, { id: "proj-1", path: tempDir });
-    seedTicket(db, {
-      id: ticketId,
-      projectId: "proj-1",
-      status: "human_review",
-    });
-    db.prepare(
-      "INSERT INTO demo_scripts (id, ticket_id, steps, generated_at) VALUES (?, ?, ?, ?)"
-    ).run(
-      "demo-1",
-      ticketId,
-      JSON.stringify([
-        {
-          order: 1,
-          description: "Review the demo",
-          expectedOutcome: "The reviewer can request changes.",
-          type: "manual",
-        },
-      ]),
-      new Date().toISOString()
-    );
-
-    const server = new McpServer({ name: "test", version: "1.0.0" });
-    registerReviewTool(server, db);
-
-    const handler = getToolHandler(server, "review");
-    const result = (await handler(
-      {
-        action: "submit-feedback",
-        ticketId,
-        passed: false,
-        feedback: "The public copy still needs one correction.",
-      },
-      {}
-    )) as { content: Array<{ text: string }>; isError?: boolean };
-
-    expect(result.isError).toBeUndefined();
-    expect(result.content[0]?.text).toContain("Demo rejected. Ticket moved to ready for rework.");
-    expect(result.content[0]?.text).toContain("PRD sync skipped: PRD file not found");
-
-    const ticket = db.prepare("SELECT status FROM tickets WHERE id = ?").get(ticketId) as {
-      status: string;
-    };
-    expect(ticket.status).toBe("ready");
-  });
-
-  it("blocks rejected feedback when an owning PRD cannot be reset", async () => {
-    const ticketId = "ticket-1";
-    seedProject(db, { id: "proj-1", path: tempDir });
-    seedTicket(db, {
-      id: ticketId,
-      projectId: "proj-1",
-      status: "human_review",
-    });
-    db.prepare(
-      "INSERT INTO demo_scripts (id, ticket_id, steps, generated_at) VALUES (?, ?, ?, ?)"
-    ).run(
-      "demo-1",
-      ticketId,
-      JSON.stringify([
-        {
-          order: 1,
-          description: "Review the demo",
-          expectedOutcome: "The reviewer can request changes.",
-          type: "manual",
-        },
-      ]),
-      new Date().toISOString()
-    );
-    writePrd(tempDir, ticketId, true);
-    chmodSync(join(tempDir, "plans", "prd.json"), 0o444);
-
-    const server = new McpServer({ name: "test", version: "1.0.0" });
-    registerReviewTool(server, db);
-
-    const handler = getToolHandler(server, "review");
-    const result = (await handler(
-      {
-        action: "submit-feedback",
-        ticketId,
-        passed: false,
-        feedback: "The public copy still needs one correction.",
-      },
-      {}
-    )) as { content: Array<{ text: string }>; isError?: boolean };
-
-    expect(result.isError).toBe(true);
-    expect(result.content[0]?.text).toContain(
-      "Cannot submit demo feedback because PRD sync failed"
-    );
-    expect(readPrdPasses(tempDir)).toBe(true);
-
-    const ticket = db.prepare("SELECT status FROM tickets WHERE id = ?").get(ticketId) as {
-      status: string;
-    };
-    expect(ticket.status).toBe("human_review");
-  });
-
-  it("blocks rejected feedback when an existing scoped PRD is malformed", async () => {
-    const ticketId = "ticket-1";
-    seedProject(db, { id: "proj-1", path: tempDir });
-    seedTicket(db, {
-      id: ticketId,
-      projectId: "proj-1",
-      status: "human_review",
-    });
-    db.prepare(
-      "INSERT INTO demo_scripts (id, ticket_id, steps, generated_at) VALUES (?, ?, ?, ?)"
-    ).run(
-      "demo-1",
-      ticketId,
-      JSON.stringify([
-        {
-          order: 1,
-          description: "Review the demo",
-          expectedOutcome: "The reviewer can request changes.",
-          type: "manual",
-        },
-      ]),
-      new Date().toISOString()
-    );
-    writeMalformedPrd(tempDir);
-
-    const server = new McpServer({ name: "test", version: "1.0.0" });
-    registerReviewTool(server, db);
-
-    const handler = getToolHandler(server, "review");
-    const result = (await handler(
-      {
-        action: "submit-feedback",
-        ticketId,
-        passed: false,
-        feedback: "The public copy still needs one correction.",
-      },
-      {}
-    )) as { content: Array<{ text: string }>; isError?: boolean };
-
-    expect(result.isError).toBe(true);
-    expect(result.content[0]?.text).toContain(
-      "Cannot submit demo feedback because PRD sync failed"
-    );
-
-    const ticket = db.prepare("SELECT status FROM tickets WHERE id = ?").get(ticketId) as {
-      status: string;
-    };
-    expect(ticket.status).toBe("human_review");
-  });
-
-  it("allows approved feedback when an existing scoped PRD is malformed", async () => {
-    const ticketId = "ticket-1";
-    seedProject(db, { id: "proj-1", path: tempDir });
-    seedTicket(db, {
-      id: ticketId,
-      projectId: "proj-1",
-      status: "human_review",
-    });
-    db.prepare(
-      "INSERT INTO demo_scripts (id, ticket_id, steps, generated_at) VALUES (?, ?, ?, ?)"
-    ).run(
-      "demo-1",
-      ticketId,
-      JSON.stringify([
-        {
-          order: 1,
-          description: "Review the demo",
-          expectedOutcome: "The reviewer can approve it.",
-          type: "manual",
-        },
-      ]),
-      new Date().toISOString()
-    );
-    writeMalformedPrd(tempDir);
-
-    const server = new McpServer({ name: "test", version: "1.0.0" });
-    registerReviewTool(server, db);
-
-    const handler = getToolHandler(server, "review");
-    const result = (await handler(
-      {
-        action: "submit-feedback",
-        ticketId,
-        passed: true,
-        feedback: "Looks good.",
-      },
-      {}
-    )) as { content: Array<{ text: string }>; isError?: boolean };
-
-    expect(result.isError).toBeUndefined();
-    expect(result.content[0]?.text).toContain("Demo approved! Ticket moved to done.");
-    expect(result.content[0]?.text).toContain("Failed to read current PRD");
-
-    const ticket = db.prepare("SELECT status FROM tickets WHERE id = ?").get(ticketId) as {
-      status: string;
-    };
-    expect(ticket.status).toBe("done");
-  });
-
-  it("does not mutate the PRD pass marker when core feedback validation fails", async () => {
-    const ticketId = "ticket-1";
-    seedProject(db, { id: "proj-1", path: tempDir });
-    seedTicket(db, {
-      id: ticketId,
-      projectId: "proj-1",
-      status: "human_review",
-    });
-    db.prepare(
-      "INSERT INTO demo_scripts (id, ticket_id, steps, generated_at) VALUES (?, ?, ?, ?)"
-    ).run("demo-1", ticketId, "{bad json", new Date().toISOString());
-    writePrd(tempDir, ticketId, false);
-
-    const server = new McpServer({ name: "test", version: "1.0.0" });
-    registerReviewTool(server, db);
-
-    const handler = getToolHandler(server, "review");
-    const result = (await handler(
-      {
-        action: "submit-feedback",
-        ticketId,
-        passed: true,
-        feedback: "Looks good.",
-      },
-      {}
-    )) as { content: Array<{ text: string }>; isError?: boolean };
-
-    expect(result.isError).toBe(true);
-    expect(result.content[0]?.text).toContain("corrupted step data");
-    expect(readPrdPasses(tempDir)).toBe(false);
-
-    const ticket = db.prepare("SELECT status FROM tickets WHERE id = ?").get(ticketId) as {
-      status: string;
-    };
-    expect(ticket.status).toBe("human_review");
   });
 });

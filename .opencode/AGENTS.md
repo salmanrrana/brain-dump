@@ -30,7 +30,7 @@ local review skills, text descriptions), no record of your work appears in Brain
 3. `workflow "complete-work"` — moves to review phase
 4. `review "submit-finding"` — logs review issues (NOT local `/review` skills)
 5. `review "check-complete"` — verifies review done
-6. `review "generate-demo"` — creates human test steps (NOT text descriptions)
+6. `review "generate-demo"` — creates verification handoff steps (NOT text descriptions)
 7. `session "complete"` — completes the session
 
 ## Telemetry
@@ -46,7 +46,7 @@ pass/fail/skipped results in a test_report comment.
 ## Rules
 
 - NEVER skip MCP tool calls in the workflow
-- NEVER set ticket to "done" (only humans approve via `review "submit-feedback"`)
+- NEVER set ticket to "done" (only the verification runner certifies completion)
 - STOP after generating demo script
 - Always commit with format: `feat(<ticket-id>): <description>`
 

@@ -16,9 +16,9 @@ stateDiagram-v2
     in_progress --> in_progress: workflow start-work
     in_progress --> ai_review: workflow complete-work
     ai_review --> ai_review: review submit-finding
-    ai_review --> human_review: review generate-demo
-    human_review --> done: review submit-feedback passed
-    human_review --> ready: review submit-feedback changes requested
+    ai_review --> ai_verification: review generate-demo
+    ai_verification --> done: verification runner certified pass
+    ai_verification --> in_progress: verification runner failure loop-back
     done --> done: reconcile learnings
     done --> [*]
 
@@ -26,7 +26,7 @@ stateDiagram-v2
     note right of ready: Ready
     note right of in_progress: In Progress
     note right of ai_review: AI Review
-    note right of human_review: Human Review
+    note right of ai_verification: AI Verification
     note right of done: Done
 ```
 
@@ -425,8 +425,8 @@ sequenceDiagram
         MCP->>Core: checkComplete(db, { ticketId })
         Core->>DB: SELECT FROM review_findings<br/>WHERE ticketId AND severity IN ('critical','major')<br/>AND status = 'open'
         Note over Core: 0 open critical/major findings
-        Core-->>MCP: { canProceedToHumanReview: true,<br/>openCritical: 0, openMajor: 0 }
-        MCP-->>Claude: Ready for human review
+        Core-->>MCP: { canProceedToVerification: true,<br/>openCritical: 0, openMajor: 0 }
+        MCP-->>Claude: Ready for AI verification handoff
     end
 ```
 
@@ -451,7 +451,7 @@ flowchart TB
     Check --> MarkReview["mark-review-completed.sh<br/>creates .claude/.review-completed"]
 ```
 
-## Phase 5: Demo Generation (Transition to Human Review)
+## Phase 5: Demo Generation (Transition to AI Verification)
 
 ```mermaid
 sequenceDiagram
@@ -466,10 +466,10 @@ sequenceDiagram
 
         MCP->>Core: generateDemo(db, { ticketId, steps })
         Core->>DB: INSERT INTO demo_scripts<br/>{ ticketId, steps: [...] }
-        Core->>DB: UPDATE ticket SET status = "human_review"
-        Core->>DB: UPDATE ticket_workflow_state<br/>SET currentPhase = "human_review",<br/>demoGenerated = true
+        Core->>DB: UPDATE ticket SET status = "ai_verification"
+        Core->>DB: UPDATE ticket_workflow_state<br/>SET currentPhase = "ai_verification",<br/>demoGenerated = true
         Core-->>MCP: Demo script generated
-        MCP-->>Claude: Ticket moved to human_review
+        MCP-->>Claude: Ticket moved to ai_verification
     end
 
     rect rgb(30, 50, 30)
@@ -483,56 +483,45 @@ sequenceDiagram
     Note over Claude: Claude STOPS here.<br/>Does not continue to next ticket<br/>unless AUTO_SPAWN_NEXT_TICKET=1
 ```
 
-## Phase 6: Human Review
+## Phase 6: AI Verification
 
-This phase happens in the Brain Dump web UI, not in Claude Code.
+This phase is owned by the verification runner, not by the implementing agent.
 
 ```mermaid
 sequenceDiagram
-    participant Human as Human Reviewer
-    participant UI as Brain Dump UI (localhost:4242)
-    participant SF as Server Functions
+    participant Runner as Verification Runner
     participant Core as Core Layer
     participant DB as SQLite
 
-    Human->>UI: Open ticket ABC-123
-    UI->>SF: getTicket("ABC-123")
-    SF->>DB: SELECT ticket, demo_script, findings
-    DB-->>UI: Ticket + demo steps + review findings
+    Runner->>Core: verify ticket ABC-123
+    Core->>DB: SELECT ticket, demo_script, findings
+    DB-->>Runner: Ticket + demo steps + review findings
 
-    Note over Human,UI: Human sees demo script:<br/>1. Navigate to /login ✓<br/>2. Enter invalid credentials ✓<br/>3. Enter valid credentials ✓<br/>4. Check responsive layout ✓
-
-    Human->>UI: Execute each demo step<br/>Mark pass/fail for each
+    Note over Runner: Runner boots the app,<br/>executes all demo steps,<br/>and captures evidence.
 
     rect rgb(30, 50, 30)
-        Note over Human,DB: Option A: Approve
-        Human->>UI: Click "Approve"
-        UI->>SF: submitFeedback({ ticketId, passed: true,<br/>feedback: "Looks great!" })
-        SF->>Core: submitFeedback(db, { ... })
-        Core->>DB: UPDATE demo_scripts<br/>SET passed = true,<br/>feedback = "Looks great!",<br/>completedAt = now()
+        Note over Runner,DB: Option A: Certified Pass
+        Core->>DB: UPDATE demo_scripts<br/>SET passed = true,<br/>feedback = "Verification passed",<br/>completedAt = now()
         Core->>DB: UPDATE ticket<br/>SET status = "done",<br/>completedAt = now()
         Core->>DB: UPDATE ticket_workflow_state<br/>SET currentPhase = "done"
-        Core-->>UI: Ticket completed!
+        Core-->>Runner: Ticket completed!
     end
 
     rect rgb(60, 30, 30)
-        Note over Human,DB: Option B: Request Changes
-        Human->>UI: Click "Request Changes"
-        UI->>SF: submitFeedback({ ticketId, passed: false,<br/>feedback: "Login button misaligned on mobile" })
-        SF->>Core: submitFeedback(db, { ... })
+        Note over Runner,DB: Option B: Verification Failure
         Core->>DB: UPDATE demo_scripts<br/>SET passed = false,<br/>feedback = "Login button misaligned..."
-        Core->>DB: Preserve failed step statuses<br/>and reviewer notes
-        Core->>DB: INSERT highlighted Changes Requested<br/>activity comment with demo snapshot
-        Core->>DB: UPDATE ticket<br/>SET status = "ready"
-        Core->>DB: UPDATE ticket_workflow_state<br/>SET currentPhase = "ready"
-        Core-->>UI: Ticket returned to ready
-        Note over Human: Next Claude launch prioritizes<br/>the unresolved human change request
+        Core->>DB: Preserve failed step statuses<br/>and runner notes
+        Core->>DB: INSERT verification findings<br/>with evidence references
+        Core->>DB: UPDATE ticket<br/>SET status = "in_progress"
+        Core->>DB: UPDATE ticket_workflow_state<br/>SET currentPhase = "implementation"
+        Core-->>Runner: Ticket returned for implementation
+        Note over Runner: Next Ralph launch prioritizes<br/>the unresolved verification failures
     end
 ```
 
-Rejected human reviews do not reuse the same active demo as the next work item. The failed attempt remains available through the highlighted `Changes Requested` activity comment, including failed demo steps, expected outcomes, statuses, and reviewer notes. When Claude is launched again, the prompt context includes those human-requested changes before the normal ticket description and acceptance criteria.
+Failed verification attempts remain available through the verification report and findings, including failed demo steps, expected outcomes, statuses, evidence, and runner notes. When Claude is launched again, the prompt context includes those verification failures before the normal ticket description and acceptance criteria.
 
-After relaunch, Claude must run the same full cycle as any other implementation pass: `workflow start-work`, implementation, `comment.add` test report, `workflow complete-work`, AI review findings, `review check-complete`, and a newly generated demo. The latest generated demo becomes the active checklist for the next `human_review` attempt.
+After relaunch, Claude must run the same full cycle as any other implementation pass: `workflow start-work`, implementation, `comment.add` test report, `workflow complete-work`, AI review findings, `review check-complete`, and a newly generated demo. The latest generated demo becomes the active checklist for the next `ai_verification` attempt.
 
 ## Phase 7: Session End (Cleanup)
 
@@ -680,16 +669,16 @@ flowchart TB
     Fix --> MarkFixed["review { mark-fixed }"]
     MarkFixed --> CheckComplete["review { check-complete }"]
 
-    CheckComplete -->|"canProceed: true"| Demo["review { generate-demo }<br/>Ticket → human_review"]
+    CheckComplete -->|"canProceed: true"| Demo["review { generate-demo }<br/>Ticket → ai_verification"]
     CheckComplete -->|"canProceed: false"| Fix
 
     Demo --> CompleteSession["session { complete,<br/>outcome: success }"]
-    CompleteSession --> Stop["STOP<br/>Wait for human review"]
+    CompleteSession --> Stop["STOP<br/>Wait for verification runner"]
 
     Stop -->|"AUTO_SPAWN_NEXT_TICKET=1"| SpawnNext["Spawn new terminal<br/>with next ticket"]
     SpawnNext --> ReadPRD
 
-    Stop -->|"Human requests changes"| ChangeRequest["Ticket returns to ready<br/>failed demo preserved in activity"]
+    Stop -->|"Verification fails"| ChangeRequest["Ticket returns to in_progress<br/>failed evidence preserved in activity"]
     ChangeRequest --> ReadPRD
 
     style Stop fill:#dc2626,color:#fff
@@ -779,16 +768,16 @@ graph TB
     end
 
     subgraph "Phase 5: Demo Generation"
-        F1["Generate demo (3-7 steps)"] --> F2["Ticket → human_review"]
+        F1["Generate demo (3-7 steps)"] --> F2["Ticket → ai_verification"]
         F2 --> F3["Session complete"]
         F3 --> F4["Claude STOPS"]
     end
 
-    subgraph "Phase 6: Human Review"
-        G1["Human executes demo steps"] --> G2{Passed?}
+    subgraph "Phase 6: AI Verification"
+        G1["Runner executes demo steps"] --> G2{Certified?}
         G2 -->|Yes| G3["Ticket → done"]
-        G2 -->|No| G4["Changes Requested activity<br/>preserves failed demo history"]
-        G4 --> G5["Ticket → ready<br/>(full cycle repeats)"]
+        G2 -->|No| G4["Verification report<br/>preserves failed evidence"]
+        G4 --> G5["Ticket → in_progress<br/>(full cycle repeats)"]
     end
 
     subgraph "Phase 7: Cleanup"

@@ -129,17 +129,17 @@ The `mcp-server/` directory is a standalone TypeScript MCP server (runs with `ts
 
 Architecture: `core/` (pure functions) → `mcp-server/tools/` (MCP layer) → skills (progressive disclosure).
 
-| Tool        | Actions | Purpose                            |
-| ----------- | ------- | ---------------------------------- |
-| `workflow`  | 6       | Ticket/epic lifecycle, git linking |
-| `ticket`    | 10      | CRUD, status, criteria, files      |
-| `session`   | 12      | Ralph sessions, events, tasks      |
-| `review`    | 8       | Findings, demos, feedback          |
-| `telemetry` | 7       | AI interaction metrics             |
-| `comment`   | 2       | Ticket comments                    |
-| `epic`      | 6       | Epic CRUD, learnings               |
-| `project`   | 4       | Project CRUD                       |
-| `admin`     | 10      | Health, settings, compliance       |
+| Tool        | Actions | Purpose                               |
+| ----------- | ------- | ------------------------------------- |
+| `workflow`  | 6       | Ticket/epic lifecycle, git linking    |
+| `ticket`    | 10      | CRUD, status, criteria, files         |
+| `session`   | 12      | Ralph sessions, events, tasks         |
+| `review`    | 7       | Findings, demos, verification handoff |
+| `telemetry` | 7       | AI interaction metrics                |
+| `comment`   | 2       | Ticket comments                       |
+| `epic`      | 6       | Epic CRUD, learnings                  |
+| `project`   | 4       | Project CRUD                          |
+| `admin`     | 10      | Health, settings, compliance          |
 
 See [docs/mcp-tools.md](docs/mcp-tools.md) for the full reference.
 
@@ -160,7 +160,7 @@ load the `brain-dump-workflow` skill for the complete tool call sequence.
 ### Status Flow
 
 ```
-backlog → ready → in_progress → ai_review → human_review → done
+backlog → ready → in_progress → ai_review → ai_verification → done
 ```
 
 ### Quick Reference

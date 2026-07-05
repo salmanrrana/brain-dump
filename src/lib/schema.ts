@@ -672,7 +672,7 @@ export const ticketWorkflowState = sqliteTable(
       .notNull()
       .unique()
       .references(() => tickets.id, { onDelete: "cascade" }),
-    currentPhase: text("current_phase").notNull().default("implementation"), // 'implementation', 'ai_review', 'human_review', 'done'
+    currentPhase: text("current_phase").notNull().default("implementation"), // 'implementation', 'ai_review', 'ai_verification', 'done'
     reviewIteration: integer("review_iteration").default(0), // How many review iterations completed
     findingsCount: integer("findings_count").default(0), // Total findings reported
     findingsFixed: integer("findings_fixed").default(0), // Findings marked as fixed
@@ -831,7 +831,7 @@ export const reviewFindings = sqliteTable(
 export type ReviewFinding = typeof reviewFindings.$inferSelect;
 export type NewReviewFinding = typeof reviewFindings.$inferInsert;
 
-// Demo scripts table - stores demo steps for human review
+// Demo scripts table - stores demo steps for AI verification
 export const demoScripts = sqliteTable(
   "demo_scripts",
   {

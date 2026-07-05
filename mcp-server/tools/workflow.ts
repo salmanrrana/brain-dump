@@ -376,7 +376,7 @@ function handleCompleteWork(
     )
     .get(ticketId) as { project_path: string; project_name: string; title: string } | undefined;
 
-  // Keep PRD incomplete until review.generate-demo moves the ticket to human_review.
+  // Keep PRD incomplete until the verification runner certifies the ticket done.
   // Otherwise Ralph sees passes:true after implementation and skips the required
   // AI review/demo handoff in the next loop iteration.
   let prdWarning = "";
@@ -392,7 +392,7 @@ function handleCompleteWork(
 
 **Action Required:** Manually update \`plans/prd.json\`:
 1. Find the ticket with ID containing \`${ticketId.substring(0, 8)}\`
-2. Keep \`"passes": false\` for that ticket while it is in \`ai_review\`
+2. Keep \`"passes": false\` for that ticket while it is not \`done\`
 3. Save the file
 
 ---
@@ -469,7 +469,7 @@ review({ action: "mark-fixed", findingId: "...", fixStatus: "fixed", fixDescript
 \`\`\`
 review({ action: "check-complete", ticketId: "${ticketId}" })
 \`\`\`
-Must return \`canProceedToHumanReview: true\` (all critical/major fixed)
+Must allow verification handoff (all critical/major fixed)
 
 ### Step 5: Generate Demo Script
 \`\`\`
@@ -481,10 +481,10 @@ review({
   ]
 })
 \`\`\`
-This moves ticket to **human_review**.
+This moves ticket to **ai_verification**.
 
 ### Step 6: STOP
-**DO NOT proceed further.** The ticket requires human approval via \`review({ action: "submit-feedback", ... })\`.`);
+**DO NOT proceed further.** The verification runner owns evidence collection and completion.`);
 
   // Changed files for reference
   if (result.changedFiles.length > 0) {

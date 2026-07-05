@@ -149,12 +149,12 @@ cp scripts/skills/*.md ~/.claude/commands/
 
 ### `/demo`
 
-**Purpose**: Generate a demo script for human review
+**Purpose**: Generate a demo script for AI verification
 
 **When to use**:
 
 - After AI review passes (all critical/major issues fixed)
-- Before human approves and marks ticket done
+- Before the verification runner certifies and marks ticket done
 - Creating reproducible test steps for verification
 
 **What it does**:
@@ -162,15 +162,15 @@ cp scripts/skills/*.md ~/.claude/commands/
 1. Verifies all review findings are fixed
 2. Creates step-by-step demo walkthrough
 3. Includes expected outcomes for each step
-4. Moves ticket to `human_review` status
+4. Moves ticket to `ai_verification` status
 
 **Example**:
 
 ```
 /demo
 → Creates 5-step demo walkthrough
-→ Human reviews each step
-→ If all pass → ticket moves to done
+→ Verification runner executes each step
+→ If certified → ticket moves to done
 → If issues → ticket returns to in_progress
 ```
 

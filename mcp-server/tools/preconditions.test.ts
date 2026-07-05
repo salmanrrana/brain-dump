@@ -57,7 +57,7 @@ describe("MCP Tool Preconditions", () => {
         complete_ticket_work: ["in_progress"], // Can only complete from in_progress
         submit_review_finding: ["ai_review"], // Can only submit findings while in review
         generate_demo_script: ["ai_review"], // Can only generate demo from ai_review
-        submit_demo_feedback: ["human_review"], // Can only submit feedback while in human_review
+        verify_ticket: ["ai_verification"], // Runner owns verification completion
         reconcile_learnings: ["done"], // Can only reconcile from done
       };
 
@@ -72,7 +72,7 @@ describe("MCP Tool Preconditions", () => {
       const prohibitedOperations = {
         submit_review_finding: "Ticket must be in ai_review status",
         generate_demo_script: "Ticket must be in ai_review to generate demo",
-        submit_demo_feedback: "Ticket must be in human_review",
+        verify_ticket: "Ticket must be in ai_verification",
       };
 
       Object.entries(prohibitedOperations).forEach(([, expectedError]) => {
@@ -141,7 +141,13 @@ describe("MCP Tool Preconditions", () => {
       // This ensures we only record learnings from completed work
 
       const allowedStatus = "done";
-      const prohibitedStatuses = ["backlog", "ready", "in_progress", "ai_review", "human_review"];
+      const prohibitedStatuses = [
+        "backlog",
+        "ready",
+        "in_progress",
+        "ai_review",
+        "ai_verification",
+      ];
 
       expect(prohibitedStatuses).not.toContain(allowedStatus);
       expect(prohibitedStatuses).toHaveLength(5);
@@ -192,14 +198,14 @@ describe("MCP Tool Preconditions", () => {
   describe("Precondition Enforcement for Workflow State", () => {
     it("should enforce strict state transitions", () => {
       // The workflow has only valid transition paths:
-      // backlog/ready → in_progress → ai_review → human_review → done
+      // backlog/ready → in_progress → ai_review → ai_verification → done
 
       const stateTransitions = {
         backlog: ["in_progress"],
         ready: ["in_progress"],
         in_progress: ["ai_review"],
-        ai_review: ["human_review", "in_progress"], // Can loop back
-        human_review: ["done", "in_progress"], // Can return for fixes
+        ai_review: ["ai_verification"],
+        ai_verification: ["done", "in_progress"], // Runner can certify or loop back
         done: [], // Final state
       };
 
@@ -207,7 +213,7 @@ describe("MCP Tool Preconditions", () => {
       Object.entries(stateTransitions).forEach(([fromState, toStates]) => {
         expect(Array.isArray(toStates)).toBe(true);
         // No state should cycle back to earlier states (except looping)
-        if (fromState === "ai_review") {
+        if (fromState === "ai_verification") {
           expect(toStates).toContain("in_progress"); // Loop back allowed
         }
       });

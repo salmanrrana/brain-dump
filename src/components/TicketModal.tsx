@@ -37,7 +37,7 @@ import {
 import { RalphStatusBadge } from "./RalphStatusBadge";
 import { useToast } from "./Toast";
 import ErrorAlert from "./ErrorAlert";
-import type { TicketStatus, TicketPriority } from "../api/tickets";
+import type { TicketPriority } from "../api/tickets";
 import {
   STATUS_OPTIONS,
   PRIORITY_OPTIONS,
@@ -769,7 +769,11 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                     <div className="relative">
                       <select
                         value={field.state.value}
-                        onChange={(e) => field.handleChange(e.target.value as TicketStatus)}
+                        onChange={(e) =>
+                          field.handleChange(
+                            e.target.value as (typeof STATUS_OPTIONS)[number]["value"]
+                          )
+                        }
                         className="w-full px-3 py-2 bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl text-[var(--text-primary)] appearance-none focus:border-[var(--accent-primary)] focus:ring-1 focus:ring-[var(--accent-primary)]/30 transition-colors"
                       >
                         {STATUS_OPTIONS.map((opt) => (
@@ -1105,8 +1109,8 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
             </Suspense>
           )}
 
-          {/* Demo Review Panel — interactive in human_review, read-only after completion */}
-          {(currentStatus === "human_review" || currentStatus === "done") && (
+          {/* Verification handoff/evidence panel */}
+          {(currentStatus === "ai_verification" || currentStatus === "done") && (
             <Suspense fallback={<SectionFallback />}>
               <DemoPanel ticketId={ticket.id} />
             </Suspense>
