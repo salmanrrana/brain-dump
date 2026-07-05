@@ -16,6 +16,7 @@ export async function handle(action: string, args: string[]): Promise<void> {
 
   if (!action || action === "--help" || action === "help") {
     showResourceHelp("verify");
+    return;
   }
 
   try {
