@@ -301,6 +301,11 @@ function renderMarkdown(content: string): React.ReactNode {
       continue;
     }
 
+    // Internal markers (e.g. "<!-- verification-run:<id> -->") are metadata, not content.
+    if (/^\s*<!--.*-->\s*$/.test(line)) {
+      continue;
+    }
+
     if (line.trim().startsWith("|") && isTableDivider(lines[lineIndex + 1] ?? "")) {
       const tableLines = [line, lines[lineIndex + 1] ?? ""];
       lineIndex += 2;

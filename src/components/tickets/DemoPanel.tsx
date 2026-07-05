@@ -164,16 +164,22 @@ function Lightbox({ attachment, onClose }: { attachment: Attachment; onClose: ()
   const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const previouslyFocused =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     closeButtonRef.current?.focus();
 
     function handleKeyDown(event: KeyboardEvent): void {
       if (event.key === "Escape") {
+        // Capture-phase stopPropagation keeps parent modals (e.g. TicketModal's
+        // document-level Escape handler) from also closing while the lightbox is open.
         event.preventDefault();
+        event.stopPropagation();
         onClose();
         return;
       }
 
       if (event.key !== "Tab") return;
+      event.stopPropagation();
 
       const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
         'button, [href], [tabindex]:not([tabindex="-1"])'
@@ -191,8 +197,11 @@ function Lightbox({ attachment, onClose }: { attachment: Attachment; onClose: ()
       }
     }
 
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
+    document.addEventListener("keydown", handleKeyDown, true);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown, true);
+      previouslyFocused?.focus();
+    };
   }, [onClose]);
 
   return (
@@ -319,17 +328,30 @@ function EvidenceList({
           );
         }
 
+        if (attachment) {
+          return (
+            <a
+              key={`${file.path}-${file.hash}`}
+              href={attachment.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)] p-2 text-xs text-[var(--text-secondary)] hover:border-[var(--accent-primary)] hover:text-[var(--text-primary)]"
+            >
+              <FileJson size={14} aria-hidden="true" />
+              <span className="min-w-0 flex-1 truncate">{label}</span>
+            </a>
+          );
+        }
+
         return (
-          <a
+          <span
             key={`${file.path}-${file.hash}`}
-            href={attachment?.url ?? `#${label}`}
-            target={attachment ? "_blank" : undefined}
-            rel={attachment ? "noopener noreferrer" : undefined}
-            className="flex items-center gap-2 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)] p-2 text-xs text-[var(--text-secondary)] hover:border-[var(--accent-primary)] hover:text-[var(--text-primary)]"
+            title="Evidence file not uploaded as an attachment"
+            className="flex items-center gap-2 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)] p-2 text-xs text-[var(--text-tertiary)]"
           >
             <FileJson size={14} aria-hidden="true" />
             <span className="min-w-0 flex-1 truncate">{label}</span>
-          </a>
+          </span>
         );
       })}
     </div>
@@ -373,7 +395,7 @@ function ReadOnlyDemoStep({
         {(verdict?.message || step.notes) && (
           <div>
             <p className="mb-1 text-sm font-medium text-[var(--text-primary)]">Runner Notes:</p>
-            <p className="text-sm text-[var(--text-secondary)]">{verdict?.message ?? step.notes}</p>
+            <p className="text-sm text-[var(--text-secondary)]">{verdict?.message || step.notes}</p>
           </div>
         )}
         {verdict && (

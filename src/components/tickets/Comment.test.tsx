@@ -77,7 +77,7 @@ describe("Comment", () => {
         comment={{
           id: "comment-verification",
           ticketId: "ticket-1",
-          content: "## Verification passed\n\nEvidence captured.",
+          content: "<!-- verification-run:run-42 -->\n## Verification passed\n\nEvidence captured.",
           author: "opencode ralph",
           type: "verification_report",
           createdAt: new Date().toISOString(),
@@ -87,6 +87,8 @@ describe("Comment", () => {
 
     expect(screen.getByText("OpenCode Ralph")).toBeInTheDocument();
     expect(screen.getByText("Verification Report")).toBeInTheDocument();
+    // The internal run marker is metadata and must not be shown to auditors.
+    expect(screen.queryByText(/verification-run:run-42/)).not.toBeInTheDocument();
   });
 
   it("renders verification report verdict tables with evidence links", () => {
