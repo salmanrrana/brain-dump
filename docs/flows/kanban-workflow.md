@@ -197,44 +197,41 @@ Status flow: `backlog -> ready -> in_progress -> ai_review -> human_review -> do
 | `human_review` | Human Review | yes    | yes           |
 | `done`         | Done         | no     | yes           |
 
+### Generated Kanban Columns
+
+```mermaid
+flowchart LR
+    subgraph Board["Kanban Board"]
+        subgraph Col1["Backlog"]
+            T1["Ticket"]
+        end
+        subgraph Col2["Ready"]
+            T2["Ticket"]
+        end
+        subgraph Col3["In Progress"]
+            T3["Ticket"]
+        end
+        subgraph Col4["AI Review"]
+            T4["Ticket"]
+        end
+        subgraph Col5["Human Review"]
+            T5["Ticket"]
+        end
+        subgraph Col6["Done"]
+            T6["Ticket"]
+        end
+    end
+```
+
 <!-- END GENERATED: workflow-sequence -->
 
 ---
 
 ## Kanban Board
 
-### 7 Columns
+### Columns
 
-```mermaid
-flowchart LR
-    subgraph Board["Kanban Board"]
-        subgraph Col1["Backlog"]
-            T1["Ticket 1"]
-            T2["Ticket 2"]
-        end
-        subgraph Col2["Ready"]
-            T3["Ticket 3"]
-        end
-        subgraph Col3["In Progress"]
-            T4["Ticket 4"]
-        end
-        subgraph Col4["Review"]
-            T5["Ticket 5"]
-        end
-        subgraph Col5["AI Review 🤖"]
-            T6["Ticket 6"]
-        end
-        subgraph Col6["Human Review 👤"]
-            T7["Ticket 7"]
-        end
-        subgraph Col7["Done ✅"]
-            T8["Ticket 8"]
-        end
-    end
-
-    style Col5 fill:#fbbf24,color:#000
-    style Col6 fill:#fb7185,color:#000
-```
+The canonical column list is generated in the ticket status flow section above.
 
 ### Drag and Drop
 

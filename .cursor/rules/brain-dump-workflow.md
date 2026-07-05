@@ -33,7 +33,7 @@ Status flow: `backlog -> ready -> in_progress -> ai_review -> human_review -> do
 
 ## Quality Gates
 
-- [ ] Before complete-work: discover and run this project's validation commands. Discover and run this project's validation commands from docs/config before completing.
+- [ ] Before complete-work: Discover and run this project's validation commands from docs/config.
 - [ ] Read AGENTS.md, CLAUDE.md, README, CONTRIBUTING, package scripts, pyproject.toml, go.mod, Makefile/Justfile, and CI files before choosing commands.
 - [ ] Use the project's own commands, not Brain Dump's commands. Do not assume pnpm, npm, TypeScript, lint, or test scripts exist.
 - [ ] If no automated validation command is discoverable, perform a targeted manual smoke check and record that no project validation command was found.

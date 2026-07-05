@@ -10,15 +10,16 @@ This diagram is generated from `core/workflow-steps.ts`. Run `pnpm workflow:prom
 
 ```mermaid
 stateDiagram-v2
-    [*] --> backlog: User creates ticket
-    backlog --> ready: User marks ready
-    ready --> in_progress: workflow start-work
+    [*] --> backlog: ticket created
     backlog --> in_progress: workflow start-work
+    ready --> in_progress: workflow start-work
+    in_progress --> in_progress: workflow start-work
     in_progress --> ai_review: workflow complete-work
-    ai_review --> ai_review: review findings fixed
+    ai_review --> ai_review: review submit-finding
     ai_review --> human_review: review generate-demo
     human_review --> done: review submit-feedback passed
     human_review --> ready: review submit-feedback changes requested
+    done --> done: reconcile learnings
     done --> [*]
 
     note right of backlog: Backlog

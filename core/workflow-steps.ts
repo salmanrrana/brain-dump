@@ -99,13 +99,13 @@ export type WorkflowTransitionAction =
   | "submit-feedback-reject"
   | "reconcile-learnings";
 
-interface TransitionRule {
+export interface WorkflowTransitionRule {
   from: TicketStatus;
   to: TicketStatus;
   actions: readonly WorkflowTransitionAction[];
 }
 
-const TRANSITION_RULES: readonly TransitionRule[] = [
+export const WORKFLOW_TRANSITIONS: readonly WorkflowTransitionRule[] = [
   { from: "backlog", to: "in_progress", actions: ["start-work"] },
   { from: "ready", to: "in_progress", actions: ["start-work"] },
   { from: "in_progress", to: "in_progress", actions: ["start-work"] },
@@ -147,7 +147,7 @@ export function getAllowedTransitionSources(
   to: TicketStatus,
   action: WorkflowTransitionAction
 ): TicketStatus[] {
-  return TRANSITION_RULES.filter((rule) => rule.to === to && rule.actions.includes(action)).map(
+  return WORKFLOW_TRANSITIONS.filter((rule) => rule.to === to && rule.actions.includes(action)).map(
     (rule) => rule.from
   );
 }
@@ -157,7 +157,7 @@ export function canTransition(
   to: TicketStatus,
   action: WorkflowTransitionAction
 ): boolean {
-  return TRANSITION_RULES.some(
+  return WORKFLOW_TRANSITIONS.some(
     (rule) => rule.from === from && rule.to === to && rule.actions.includes(action)
   );
 }

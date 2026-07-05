@@ -78,7 +78,7 @@ Rules:
 const PROMPTS: PromptDefinition[] = [
   {
     name: "brain-dump-workflow",
-    description: "Brain Dump 5-step workflow guide for implementation, review, and demo handoff.",
+    description: "Brain Dump 4-phase workflow guide for implementation, review, and demo handoff.",
     content: WORKFLOW_PROMPT_CONTENT,
   },
   {

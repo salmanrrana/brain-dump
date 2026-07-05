@@ -4,6 +4,7 @@ import {
   renderCursorRuleSection,
   renderDocsStatusFlow,
   renderHowToAddWorkflowStepDocs,
+  renderKanbanWorkflowStatusSection,
   renderMcpSkillSection,
   renderMermaidStatusDiagram,
   renderPiCliWorkflowSection,
@@ -33,6 +34,7 @@ const targets: Target[] = [
   { path: ".github/skills/brain-dump-workflow.skill.md", render: renderMcpSkillSection },
   { path: ".github/skills/ralph-workflow/SKILL.md", render: renderMcpSkillSection },
   { path: ".opencode/skill/brain-dump-workflow/SKILL.md", render: renderMcpSkillSection },
+  { path: ".opencode/skill/ralph-autonomous/SKILL.md", render: renderMcpSkillSection },
   { path: ".opencode/agent/ralph.md", render: renderMcpSkillSection },
   { path: ".opencode/agent/ticket-worker.md", render: renderMcpSkillSection },
   { path: ".pi/skills/brain-dump-workflow/SKILL.md", render: renderPiCliWorkflowSection },
@@ -43,7 +45,7 @@ const targets: Target[] = [
   { path: ".pi/prompts/next-ticket.md", render: renderPiPromptWorkflowSection },
   { path: "docs/claude-flow-ticket-lifecycle.md", render: renderMermaidStatusDiagram },
   { path: "docs/universal-workflow.md", render: renderDocsStatusFlow },
-  { path: "docs/flows/kanban-workflow.md", render: renderDocsStatusFlow },
+  { path: "docs/flows/kanban-workflow.md", render: renderKanbanWorkflowStatusSection },
   { path: "CLAUDE.md", render: renderHowToAddWorkflowStepDocs },
 ];
 

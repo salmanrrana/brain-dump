@@ -198,7 +198,7 @@ describe("review-mode prompt builders", () => {
   it("builds implementation gates around project-native verification commands", () => {
     const prompt = getRalphPrompt();
 
-    expect(prompt).toContain("discover and run this project's validation commands");
+    expect(prompt.toLowerCase()).toContain("discover and run this project's validation commands");
     expect(prompt).toContain("Use the project's own commands, not Brain Dump's commands");
     expect(prompt).toContain(
       "If no automated validation command is discoverable, perform a targeted manual smoke check"

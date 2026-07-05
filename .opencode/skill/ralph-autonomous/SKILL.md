@@ -30,19 +30,64 @@ Ralph evaluates tickets based on:
 3. **Complexity** (quick wins vs major features)
 4. **Current Context** (progress from previous sessions)
 
-## Standard Operating Procedure
+## Canonical Workflow
 
-### Session Start
+The workflow sequence is generated from the canonical Brain Dump workflow spec.
 
-```bash
-# 1. Load current context
-read('plans/prd.json')           # Get incomplete tickets
-read('plans/progress.txt')         # Previous session context
+<!-- BEGIN GENERATED: workflow-sequence -->
 
-# 2. Analyze ticket landscape
-list_tickets()                     # Current state overview
-find_project_by_path()            # Verify project context
-```
+## Generated Workflow
+
+Status flow: `backlog -> ready -> in_progress -> ai_review -> human_review -> done`
+
+### Step 1: Implementation
+
+start-work -> create or reuse a session -> implement -> validate -> commit -> complete-work. Skip this phase only when the selected ticket is already in ai_review.
+
+- `workflow({ action: "start-work", ticketId })`
+- `session({ action: "create", ticketId }) or session({ action: "get", ticketId })`
+- `comment({ action: "add", ticketId, content, commentType: "test_report" })`
+- `workflow({ action: "complete-work", ticketId, summary })`
+
+### Step 2: AI Review
+
+Self-review the diff, submit every finding through Brain Dump, fix critical/major findings, then check completion.
+
+- `review({ action: "get-findings", ticketId })`
+- `review({ action: "submit-finding", ticketId, agent, severity, category, description })`
+- `review({ action: "mark-fixed", findingId, fixStatus: "fixed" })`
+- `review({ action: "check-complete", ticketId })`
+
+### Step 3: Demo
+
+Generate 3-7 manual test steps after review completion. This moves the ticket to human_review.
+
+- `review({ action: "generate-demo", ticketId, steps })`
+
+### Step 4: Stop
+
+Complete the Ralph session and stop. Never approve, submit feedback, or move the ticket to done.
+
+- `session({ action: "complete", sessionId, outcome: "success" })`
+
+### Validation Gates
+
+- Before complete-work: Discover and run this project's validation commands from docs/config.
+- Read AGENTS.md, CLAUDE.md, README, CONTRIBUTING, package scripts, pyproject.toml, go.mod, Makefile/Justfile, and CI files before choosing commands.
+- Use the project's own commands, not Brain Dump's commands. Do not assume pnpm, npm, TypeScript, lint, or test scripts exist.
+- If no automated validation command is discoverable, perform a targeted manual smoke check and record that no project validation command was found.
+- Before complete-work, add a test_report comment with exact pass/fail/skipped command results and omit author so Brain Dump auto-detects the provider.
+- Before demo, all critical/major findings must be fixed and check-complete must allow human review.
+- Before session completion, generate-demo must have been called and the ticket must be in human_review.
+
+### Hard Guards
+
+- Do not use local substitutes for Brain Dump MCP/CLI workflow actions.
+- Do not skip review check-complete before generate-demo.
+- Do not call review submit-feedback yourself.
+- Do not move tickets to done yourself.
+- Do not continue to another ticket after demo handoff.
+<!-- END GENERATED: workflow-sequence -->
 
 ### Ticket Selection Algorithm
 
@@ -74,29 +119,6 @@ function selectTicket(prdTickets: PrdTicket[]): Ticket {
   // Choose optimal ticket
   return sorted[0]; // Highest priority, least blocked
 }
-```
-
-### Work Execution Pattern
-
-```bash
-# 1. Initialize ticket work
-workflow "start-work"(selectedTicketId)
-
-# 2. Implementation phase
-# - Read existing code patterns
-# - Follow project conventions
-# - Write minimal, focused changes
-
-# 3. Verification
-# Discover validation commands from project docs/config.
-# Do not assume pnpm/npm; use the project-standard commands.
-
-# 4. Complete implementation
-workflow "complete-work"(ticketId, summary)
-
-# 5. AI review and demo handoff
-review "check-complete"(ticketId)
-review "generate-demo"(ticketId, steps)
 ```
 
 ## Intelligent Decision Making
@@ -245,25 +267,11 @@ If Ralph makes mistakes:
 
 ### MCP Server Down
 
-```bash
-# Fallback to manual workflow
-if (!mcp_tools_available()) {
-  git checkout -b "feature/ralph-manual"
-  # Work without ticket tracking
-  # Update PRD manually when done
-}
-```
+Stop and report the MCP outage. Do not create local branches, update statuses, or continue ticket work through local substitutes.
 
 ### Database Issues
 
-```bash
-# Work offline if needed
-if (!database_accessible()) {
-  create_local_branch()
-  implement_changes()
-  # Sync tickets when database recovers
-}
-```
+Stop and report the database error. Workflow state must remain auditable through Brain Dump tools.
 
 ## Optimization Patterns
 

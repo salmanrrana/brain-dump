@@ -1,4 +1,10 @@
-import { TICKET_STATUSES, TICKET_STATUS_METADATA } from "./workflow-steps.ts";
+import {
+  KANBAN_STATUSES,
+  TICKET_STATUSES,
+  TICKET_STATUS_METADATA,
+  WORKFLOW_TRANSITIONS,
+  type WorkflowTransitionAction,
+} from "./workflow-steps.ts";
 
 export interface WorkflowPhaseSpec {
   title: string;
@@ -44,7 +50,7 @@ export const WORKFLOW_PHASES: readonly WorkflowPhaseSpec[] = [
 ];
 
 export const VALIDATION_GATE_RULES = [
-  "Before complete-work: discover and run this project's validation commands. Discover and run this project's validation commands from docs/config before completing.",
+  "Before complete-work: Discover and run this project's validation commands from docs/config.",
   "Read AGENTS.md, CLAUDE.md, README, CONTRIBUTING, package scripts, pyproject.toml, go.mod, Makefile/Justfile, and CI files before choosing commands.",
   "Use the project's own commands, not Brain Dump's commands. Do not assume pnpm, npm, TypeScript, lint, or test scripts exist.",
   "If no automated validation command is discoverable, perform a targeted manual smoke check and record that no project validation command was found.",
@@ -68,6 +74,16 @@ export const SESSION_STATES = [
   "committing",
   "reviewing",
 ] as const;
+
+const TRANSITION_ACTION_LABELS: Record<WorkflowTransitionAction, string> = {
+  "start-work": "workflow start-work",
+  "complete-work": "workflow complete-work",
+  "submit-finding": "review submit-finding",
+  "generate-demo": "review generate-demo",
+  "submit-feedback-pass": "review submit-feedback passed",
+  "submit-feedback-reject": "review submit-feedback changes requested",
+  "reconcile-learnings": "reconcile learnings",
+};
 
 export function getStatusFlowText(): string {
   return TICKET_STATUSES.join(" -> ");
@@ -195,11 +211,12 @@ Status flow: \`${getStatusFlowText()}\`
 1. Inspect context: \`brain-dump context --ticket <ticket-id> --pretty\`.
 2. Start work: \`brain-dump workflow start-work --ticket <ticket-id> --pretty\`.
 3. Implement focused changes and run project validation discovered from docs/config.
-4. Record validation in a ticket comment if the CLI surface is available, then commit with \`feat(<ticket-id>): <description>\`.
-5. Complete work: \`brain-dump workflow complete-work --ticket <ticket-id> --summary "<summary>" --pretty\`.
-6. Review: use \`brain-dump review submit-finding\`, \`brain-dump review mark-fixed\`, and \`brain-dump review check-complete --ticket <ticket-id> --pretty\`.
-7. Demo: \`brain-dump review generate-demo --ticket <ticket-id> --steps-file <steps.json> --pretty\`.
-8. Stop after demo handoff. Do not approve or move the ticket to done.
+4. Record validation before completion: \`brain-dump comment add --ticket <ticket-id> --type test_report --content "<commands and results>" --pretty\`. Stop if this command fails.
+5. Commit with \`feat(<ticket-id>): <description>\`.
+6. Complete work only after the test_report exists: \`brain-dump workflow complete-work --ticket <ticket-id> --summary "<summary>" --pretty\`.
+7. Review: use \`brain-dump review submit-finding\`, \`brain-dump review mark-fixed\`, and \`brain-dump review check-complete --ticket <ticket-id> --pretty\`.
+8. Demo: \`brain-dump review generate-demo --ticket <ticket-id> --steps-file <steps.json> --pretty\`.
+9. Stop after demo handoff. Do not approve or move the ticket to done.
 
 ### Validation Gates
 
@@ -212,6 +229,7 @@ export function renderPiPromptWorkflowSection(): string {
 - Use the \`brain-dump\` CLI only. Do not use MCP.
 - Status flow: \`${getStatusFlowText()}\`.
 - Run project validation discovered from docs/config before \`workflow complete-work\`.
+- Record validation with \`brain-dump comment add --ticket <ticket-id> --type test_report --content "<commands and results>" --pretty\` before \`workflow complete-work\`; stop if the comment command fails.
 - Use \`brain-dump review check-complete --ticket <ticket-id> --pretty\` before generating demo steps.
 - Stop after \`brain-dump review generate-demo\`; do not approve or move tickets to done.`;
 }
@@ -221,16 +239,9 @@ export function renderMermaidStatusDiagram(): string {
 
 \`\`\`mermaid
 stateDiagram-v2
-    [*] --> backlog: User creates ticket
-    backlog --> ready: User marks ready
-    ready --> in_progress: workflow start-work
-    backlog --> in_progress: workflow start-work
-    in_progress --> ai_review: workflow complete-work
-    ai_review --> ai_review: review findings fixed
-    ai_review --> human_review: review generate-demo
-    human_review --> done: review submit-feedback passed
-    human_review --> ready: review submit-feedback changes requested
-    done --> [*]
+    [*] --> ${TICKET_STATUSES[0]}: ticket created
+${WORKFLOW_TRANSITIONS.map((rule) => `    ${rule.from} --> ${rule.to}: ${rule.actions.map((action) => TRANSITION_ACTION_LABELS[action]).join(" / ")}`).join("\n")}
+    ${TICKET_STATUSES[TICKET_STATUSES.length - 1]} --> [*]
 
 ${TICKET_STATUSES.map((status) => `    note right of ${status}: ${TICKET_STATUS_METADATA[status].label}`).join("\n")}
 \`\`\``;
@@ -247,6 +258,19 @@ ${TICKET_STATUSES.map((status) => {
   const metadata = TICKET_STATUS_METADATA[status];
   return `| \`${status}\` | ${metadata.label} | ${metadata.active ? "yes" : "no"} | ${metadata.kanbanColumn ? "yes" : "no"} |`;
 }).join("\n")}`;
+}
+
+export function renderKanbanWorkflowStatusSection(): string {
+  return `${renderDocsStatusFlow()}
+
+### Generated Kanban Columns
+
+\`\`\`mermaid
+flowchart LR
+    subgraph Board["Kanban Board"]
+${KANBAN_STATUSES.map((status, index) => `        subgraph Col${index + 1}["${TICKET_STATUS_METADATA[status].label}"]\n            T${index + 1}["Ticket"]\n        end`).join("\n")}
+    end
+\`\`\``;
 }
 
 export function renderHowToAddWorkflowStepDocs(): string {

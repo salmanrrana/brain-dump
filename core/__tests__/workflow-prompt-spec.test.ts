@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TICKET_STATUSES } from "../workflow-steps.ts";
+import { TICKET_STATUSES, WORKFLOW_TRANSITIONS } from "../workflow-steps.ts";
 import {
   getStatusFlowText,
   renderDocsStatusFlow,
@@ -33,7 +33,10 @@ describe("workflow prompt specification", () => {
   });
 
   it("renders the docs state diagram from the current transition labels", () => {
-    expect(renderMermaidStatusDiagram()).toContain("ai_review --> human_review");
-    expect(renderMermaidStatusDiagram()).toContain("human_review --> done");
+    const diagram = renderMermaidStatusDiagram();
+
+    for (const transition of WORKFLOW_TRANSITIONS) {
+      expect(diagram).toContain(`${transition.from} --> ${transition.to}`);
+    }
   });
 });

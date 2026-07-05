@@ -15,15 +15,16 @@ Status flow: `backlog -> ready -> in_progress -> ai_review -> human_review -> do
 1. Inspect context: `brain-dump context --ticket <ticket-id> --pretty`.
 2. Start work: `brain-dump workflow start-work --ticket <ticket-id> --pretty`.
 3. Implement focused changes and run project validation discovered from docs/config.
-4. Record validation in a ticket comment if the CLI surface is available, then commit with `feat(<ticket-id>): <description>`.
-5. Complete work: `brain-dump workflow complete-work --ticket <ticket-id> --summary "<summary>" --pretty`.
-6. Review: use `brain-dump review submit-finding`, `brain-dump review mark-fixed`, and `brain-dump review check-complete --ticket <ticket-id> --pretty`.
-7. Demo: `brain-dump review generate-demo --ticket <ticket-id> --steps-file <steps.json> --pretty`.
-8. Stop after demo handoff. Do not approve or move the ticket to done.
+4. Record validation before completion: `brain-dump comment add --ticket <ticket-id> --type test_report --content "<commands and results>" --pretty`. Stop if this command fails.
+5. Commit with `feat(<ticket-id>): <description>`.
+6. Complete work only after the test_report exists: `brain-dump workflow complete-work --ticket <ticket-id> --summary "<summary>" --pretty`.
+7. Review: use `brain-dump review submit-finding`, `brain-dump review mark-fixed`, and `brain-dump review check-complete --ticket <ticket-id> --pretty`.
+8. Demo: `brain-dump review generate-demo --ticket <ticket-id> --steps-file <steps.json> --pretty`.
+9. Stop after demo handoff. Do not approve or move the ticket to done.
 
 ### Validation Gates
 
-- Before complete-work: discover and run this project's validation commands. Discover and run this project's validation commands from docs/config before completing.
+- Before complete-work: Discover and run this project's validation commands from docs/config.
 - Read AGENTS.md, CLAUDE.md, README, CONTRIBUTING, package scripts, pyproject.toml, go.mod, Makefile/Justfile, and CI files before choosing commands.
 - Use the project's own commands, not Brain Dump's commands. Do not assume pnpm, npm, TypeScript, lint, or test scripts exist.
 - If no automated validation command is discoverable, perform a targeted manual smoke check and record that no project validation command was found.
