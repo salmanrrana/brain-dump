@@ -168,6 +168,12 @@ describe("review tool generate-demo PR sync", () => {
             description: "Confirm the PR badge updates",
             expectedOutcome: "The linked PR badge is visible.",
             type: "visual",
+            automation: {
+              kind: "ui",
+              route: "/tickets/ticket-1",
+              assert: [{ type: "visible", selector: "[data-testid='pr-badge']" }],
+              screenshot: true,
+            },
           },
           {
             order: 1,

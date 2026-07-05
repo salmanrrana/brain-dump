@@ -492,7 +492,17 @@ describe("generateDemo", () => {
       ticketId: "ticket-1",
       steps: [
         { order: 1, description: "Open the app", expectedOutcome: "App loads", type: "manual" },
-        { order: 2, description: "Click button", expectedOutcome: "Action occurs", type: "visual" },
+        {
+          order: 2,
+          description: "Check the status API",
+          expectedOutcome: "The status endpoint returns OK",
+          type: "automated",
+          automation: {
+            kind: "api",
+            request: { method: "GET", path: "/api/status" },
+            assert: [{ type: "status", expected: 200 }],
+          },
+        },
       ],
     });
 
@@ -506,6 +516,102 @@ describe("generateDemo", () => {
       status: string;
     };
     expect(ticket.status).toBe("ai_verification");
+    expect(demo.steps[1]!.automation).toMatchObject({ kind: "api" });
+  });
+
+  it("accepts and persists UI automation specs for visual steps", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    const demo = generateDemo(db, {
+      ticketId: "ticket-1",
+      steps: [
+        {
+          order: 1,
+          description: "Open the ticket detail page",
+          expectedOutcome: "The ticket title is visible",
+          type: "visual",
+          automation: {
+            kind: "ui",
+            route: "/tickets/ticket-1",
+            actions: [{ act: "waitFor", selector: "h1" }],
+            assert: [{ type: "text", selector: "h1", expected: "Ticket ticket-1" }],
+            screenshot: true,
+          },
+        },
+      ],
+    });
+
+    expect(demo.steps[0]!.automation).toMatchObject({ kind: "ui", screenshot: true });
+    const row = db
+      .prepare("SELECT steps FROM demo_scripts WHERE ticket_id = ?")
+      .get("ticket-1") as {
+      steps: string;
+    };
+    expect(JSON.parse(row.steps)[0].automation.kind).toBe("ui");
+  });
+
+  it("rejects automated steps without automation", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    expect(() =>
+      generateDemo(db, {
+        ticketId: "ticket-1",
+        steps: [
+          { order: 1, description: "Call API", expectedOutcome: "API succeeds", type: "automated" },
+        ],
+      })
+    ).toThrow(/requires automation/);
+  });
+
+  it("rejects manual steps with automation", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    expect(() =>
+      generateDemo(db, {
+        ticketId: "ticket-1",
+        steps: [
+          {
+            order: 1,
+            description: "Manual smoke test",
+            expectedOutcome: "Manual result is recorded",
+            type: "manual",
+            automation: {
+              kind: "api",
+              request: { method: "GET", path: "/api/status" },
+              assert: [{ type: "status", expected: 200 }],
+            },
+          },
+        ],
+      })
+    ).toThrow(/must not include automation/);
+  });
+
+  it("rejects malformed automation specs with a helpful error", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    expect(() =>
+      generateDemo(db, {
+        ticketId: "ticket-1",
+        steps: [
+          {
+            order: 1,
+            description: "Open the app",
+            expectedOutcome: "App loads",
+            type: "visual",
+            automation: {
+              kind: "ui",
+              route: "/",
+              assert: [],
+              screenshot: true,
+            },
+          },
+        ],
+      })
+    ).toThrow(/UI automation assert must contain at least one assertion/);
   });
 
   it("completes active Ralph sessions when handing the ticket to ai_verification", () => {
@@ -628,7 +734,12 @@ describe("generateDemo", () => {
           order: 2,
           description: "Confirm refresh",
           expectedOutcome: "Two steps exist",
-          type: "visual",
+          type: "automated",
+          automation: {
+            kind: "api",
+            request: { method: "GET", path: "/api/demo" },
+            assert: [{ type: "status", expected: 200 }],
+          },
         },
       ],
     });
@@ -725,6 +836,31 @@ describe("getDemo", () => {
     expect(demo).toBeNull();
   });
 
+  it("loads legacy stored demo scripts without automation", () => {
+    seedProject();
+    seedAiReviewTicket();
+    db.prepare(
+      `INSERT INTO demo_scripts (id, ticket_id, steps, generated_at)
+       VALUES (?, ?, ?, ?)`
+    ).run(
+      "demo-1",
+      "ticket-1",
+      JSON.stringify([
+        {
+          order: 1,
+          description: "Legacy visual step",
+          expectedOutcome: "A human can still inspect it",
+          type: "visual",
+        },
+      ]),
+      "2026-03-07T12:00:00.000Z"
+    );
+
+    const demo = getDemo(db, "ticket-1");
+
+    expect(demo!.steps[0]).toMatchObject({ description: "Legacy visual step", type: "visual" });
+  });
+
   it("throws TicketNotFoundError for nonexistent ticket", () => {
     expect(() => getDemo(db, "nonexistent")).toThrow(TicketNotFoundError);
   });
@@ -743,7 +879,18 @@ describe("updateDemoStep", () => {
       ticketId: "ticket-1",
       steps: [
         { order: 1, description: "Step 1", expectedOutcome: "OK", type: "manual" },
-        { order: 2, description: "Step 2", expectedOutcome: "OK", type: "visual" },
+        {
+          order: 2,
+          description: "Step 2",
+          expectedOutcome: "OK",
+          type: "visual",
+          automation: {
+            kind: "ui",
+            route: "/",
+            assert: [{ type: "visible", selector: "main" }],
+            screenshot: true,
+          },
+        },
       ],
     });
 

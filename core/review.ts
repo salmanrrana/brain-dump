@@ -328,12 +328,133 @@ export function checkComplete(db: DbHandle, ticketId: string): ReviewCompletionS
 
 export interface GenerateDemoParams {
   ticketId: string;
-  steps: Array<{
-    order: number;
-    description: string;
-    expectedOutcome: string;
-    type: DemoStep["type"];
-  }>;
+  steps: DemoStep[];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getStepLabel(step: DemoStep, index: number): string {
+  return `Demo step at index ${index}${typeof step.order === "number" ? ` (order ${step.order})` : ""}`;
+}
+
+function validateStringRecord(value: unknown, path: string): void {
+  if (!isRecord(value)) {
+    throw new ValidationError(`${path} must be an object with string values.`);
+  }
+  for (const [key, entry] of Object.entries(value)) {
+    if (typeof entry !== "string") {
+      throw new ValidationError(`${path}.${key} must be a string.`);
+    }
+  }
+}
+
+function validateUiAutomation(step: DemoStep, index: number): void {
+  const label = getStepLabel(step, index);
+  const automation = step.automation;
+  if (!isRecord(automation) || automation.kind !== "ui") {
+    throw new ValidationError(`${label} automation must be a UI automation spec.`);
+  }
+  if (typeof automation.route !== "string" || automation.route.length === 0) {
+    throw new ValidationError(`${label} UI automation route is required.`);
+  }
+  if (automation.screenshot !== true) {
+    throw new ValidationError(`${label} UI automation screenshot must be true.`);
+  }
+  if (automation.actions !== undefined) {
+    if (!Array.isArray(automation.actions)) {
+      throw new ValidationError(`${label} UI automation actions must be an array.`);
+    }
+    for (const [actionIndex, action] of automation.actions.entries()) {
+      if (
+        !isRecord(action) ||
+        !["click", "fill", "press", "waitFor"].includes(String(action.act)) ||
+        (action.selector !== undefined && typeof action.selector !== "string") ||
+        (action.value !== undefined && typeof action.value !== "string")
+      ) {
+        throw new ValidationError(
+          `${label} UI automation action at index ${actionIndex} is invalid.`
+        );
+      }
+    }
+  }
+  if (!Array.isArray(automation.assert) || automation.assert.length === 0) {
+    throw new ValidationError(`${label} UI automation assert must contain at least one assertion.`);
+  }
+  for (const [assertIndex, assertion] of automation.assert.entries()) {
+    if (
+      !isRecord(assertion) ||
+      !["visible", "text", "url"].includes(String(assertion.type)) ||
+      (assertion.selector !== undefined && typeof assertion.selector !== "string") ||
+      (assertion.expected !== undefined && typeof assertion.expected !== "string")
+    ) {
+      throw new ValidationError(
+        `${label} UI automation assertion at index ${assertIndex} is invalid.`
+      );
+    }
+  }
+}
+
+function validateApiAutomation(step: DemoStep, index: number): void {
+  const label = getStepLabel(step, index);
+  const automation = step.automation;
+  if (!isRecord(automation) || automation.kind !== "api") {
+    throw new ValidationError(`${label} automation must be an API automation spec.`);
+  }
+  if (!isRecord(automation.request)) {
+    throw new ValidationError(`${label} API automation request is required.`);
+  }
+  if (
+    typeof automation.request.method !== "string" ||
+    automation.request.method.length === 0 ||
+    typeof automation.request.path !== "string" ||
+    automation.request.path.length === 0
+  ) {
+    throw new ValidationError(`${label} API automation request method and path are required.`);
+  }
+  if (automation.request.headers !== undefined) {
+    validateStringRecord(automation.request.headers, `${label} API automation request headers`);
+  }
+  if (!Array.isArray(automation.assert) || automation.assert.length === 0) {
+    throw new ValidationError(
+      `${label} API automation assert must contain at least one assertion.`
+    );
+  }
+  for (const [assertIndex, assertion] of automation.assert.entries()) {
+    if (
+      !isRecord(assertion) ||
+      !["status", "jsonPath", "bodyContains"].includes(String(assertion.type)) ||
+      !Object.hasOwn(assertion, "expected")
+    ) {
+      throw new ValidationError(
+        `${label} API automation assertion at index ${assertIndex} is invalid.`
+      );
+    }
+  }
+}
+
+function validateDemoStepAutomation(step: DemoStep, index: number): void {
+  const label = getStepLabel(step, index);
+  if (step.type === "manual") {
+    if (step.automation !== undefined) {
+      throw new ValidationError(`${label} is manual and must not include automation.`);
+    }
+    return;
+  }
+
+  if (step.automation === undefined) {
+    throw new ValidationError(`${label} with type ${step.type} requires automation.`);
+  }
+  if (step.automation.kind === "ui") {
+    validateUiAutomation(step, index);
+    return;
+  }
+  if (step.automation.kind === "api") {
+    validateApiAutomation(step, index);
+    return;
+  }
+  throw new ValidationError(`${label} automation kind must be "ui" or "api".`);
 }
 
 function validateDemoSteps(steps: GenerateDemoParams["steps"]): void {
@@ -352,6 +473,7 @@ function validateDemoSteps(steps: GenerateDemoParams["steps"]): void {
     ) {
       throw new ValidationError(`Demo step at index ${index} is invalid.`);
     }
+    validateDemoStepAutomation(step, index);
   }
 }
 

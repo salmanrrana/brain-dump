@@ -255,11 +255,53 @@ export interface ReviewCompletionStatus {
 
 export type DemoStepType = "manual" | "visual" | "automated";
 
+export type DemoStepAutomation = DemoStepUiAutomation | DemoStepApiAutomation;
+
+export type DemoStepAutomationValue =
+  | string
+  | number
+  | boolean
+  | Record<string, NonNullable<unknown>>
+  | Array<NonNullable<unknown>>;
+
+export interface DemoStepUiAutomation {
+  kind: "ui";
+  route: string;
+  actions?:
+    | Array<{
+        act: "click" | "fill" | "press" | "waitFor";
+        selector?: string | undefined;
+        value?: string | undefined;
+      }>
+    | undefined;
+  assert: Array<{
+    type: "visible" | "text" | "url";
+    selector?: string | undefined;
+    expected?: string | undefined;
+  }>;
+  screenshot: true;
+}
+
+export interface DemoStepApiAutomation {
+  kind: "api";
+  request: {
+    method: string;
+    path: string;
+    headers?: Record<string, string> | undefined;
+    body?: DemoStepAutomationValue | undefined;
+  };
+  assert: Array<{
+    type: "status" | "jsonPath" | "bodyContains";
+    expected: DemoStepAutomationValue;
+  }>;
+}
+
 export interface DemoStep {
   order: number;
   description: string;
   expectedOutcome: string;
   type: DemoStepType;
+  automation?: DemoStepAutomation | undefined;
   status?: "pending" | "passed" | "failed" | "skipped";
   notes?: string;
 }

@@ -23,7 +23,7 @@ import {
   getDemo,
 } from "../../core/review.ts";
 import type { MarkFixedStatus } from "../../core/review.ts";
-import type { FindingAgent, FindingSeverity, FindingStatus } from "../../core/types.ts";
+import type { DemoStep, FindingAgent, FindingSeverity, FindingStatus } from "../../core/types.ts";
 import { addComment, type CommentAuthor } from "../../core/comment.ts";
 import { detectAuthor } from "../lib/environment.js";
 import { execFileNoThrow, syncPrVerificationChecklist } from "../../core/index.ts";
@@ -50,6 +50,45 @@ const SEVERITIES = ["critical", "major", "minor", "suggestion"] as const;
 const FINDING_STATUSES = ["open", "fixed", "wont_fix", "duplicate"] as const;
 const MARK_FIXED_STATUSES = ["fixed", "wont_fix", "duplicate"] as const;
 const DEMO_STEP_TYPES = ["manual", "visual", "automated"] as const;
+
+const DEMO_STEP_AUTOMATION_SCHEMA = z.union([
+  z.object({
+    kind: z.literal("ui"),
+    route: z.string(),
+    actions: z
+      .array(
+        z.object({
+          act: z.enum(["click", "fill", "press", "waitFor"]),
+          selector: z.string().optional(),
+          value: z.string().optional(),
+        })
+      )
+      .optional(),
+    assert: z.array(
+      z.object({
+        type: z.enum(["visible", "text", "url"]),
+        selector: z.string().optional(),
+        expected: z.string().optional(),
+      })
+    ),
+    screenshot: z.literal(true),
+  }),
+  z.object({
+    kind: z.literal("api"),
+    request: z.object({
+      method: z.string(),
+      path: z.string(),
+      headers: z.record(z.string()).optional(),
+      body: z.unknown().optional(),
+    }),
+    assert: z.array(
+      z.object({
+        type: z.enum(["status", "jsonPath", "bodyContains"]),
+        expected: z.unknown(),
+      })
+    ),
+  }),
+]);
 
 type PrdSyncResult = ReturnType<typeof updatePrdForDbTicketIfPresent>;
 
@@ -81,7 +120,7 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
 ### mark-fixed - Mark finding as fixed, wont_fix, or duplicate
 ### get-findings - Get findings for a ticket (filterable by status, severity, agent)
 ### check-complete - Check if all critical/major findings resolved (returns canProceedToVerification)
-### generate-demo - Generate demo script for AI verification (moves ticket to ai_verification)
+### generate-demo - Generate demo script for AI verification (moves ticket to ai_verification). visual/automated steps require automation specs; manual steps must not include automation.
 ### get-demo - Get the demo script for a ticket
 
 No MCP action uploads evidence or marks verification passed. The verification runner owns evidence writes and ai_verification -> done.`,
@@ -106,10 +145,13 @@ No MCP action uploads evidence or marks verification passed. The verification ru
             description: z.string(),
             expectedOutcome: z.string(),
             type: z.enum(DEMO_STEP_TYPES),
+            automation: DEMO_STEP_AUTOMATION_SCHEMA.optional(),
           })
         )
         .optional()
-        .describe("Demo steps"),
+        .describe(
+          "Demo steps. Use automation for visual/automated steps when UI/API behavior can be verified."
+        ),
       demoScriptId: z.string().optional().describe("Demo script ID"),
       passed: z.boolean().optional().describe("Whether demo passed"),
       feedback: z.string().optional().describe("Reviewer feedback"),
@@ -138,14 +180,7 @@ No MCP action uploads evidence or marks verification passed. The verification ru
       fixStatus?: (typeof MARK_FIXED_STATUSES)[number] | undefined;
       fixDescription?: string | undefined;
       findingStatus?: (typeof FINDING_STATUSES)[number] | undefined;
-      steps?:
-        | Array<{
-            order: number;
-            description: string;
-            expectedOutcome: string;
-            type: (typeof DEMO_STEP_TYPES)[number];
-          }>
-        | undefined;
+      steps?: unknown[] | undefined;
       demoScriptId?: string | undefined;
       passed?: boolean | undefined;
       feedback?: string | undefined;
@@ -259,7 +294,7 @@ No MCP action uploads evidence or marks verification passed. The verification ru
 
           case "generate-demo": {
             const ticketId = requireParam(params.ticketId, "ticketId", "generate-demo");
-            const steps = requireParam(params.steps, "steps", "generate-demo");
+            const steps = requireParam(params.steps, "steps", "generate-demo") as DemoStep[];
 
             const demoParams = { ticketId, steps };
             validateGenerateDemo(db, demoParams);

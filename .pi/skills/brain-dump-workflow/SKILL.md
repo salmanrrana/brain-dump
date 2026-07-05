@@ -19,7 +19,7 @@ Status flow: `backlog -> ready -> in_progress -> ai_review -> ai_verification ->
 5. Commit with `feat(<ticket-id>): <description>`.
 6. Complete work only after the test_report exists: `brain-dump workflow complete-work --ticket <ticket-id> --summary "<summary>" --pretty`.
 7. Review: use `brain-dump review submit-finding`, `brain-dump review mark-fixed`, and `brain-dump review check-complete --ticket <ticket-id> --pretty`.
-8. Demo: `brain-dump review generate-demo --ticket <ticket-id> --steps-file <steps.json> --pretty`.
+8. Demo: `brain-dump review generate-demo --ticket <ticket-id> --steps-file <steps.json> --pretty`; include automation specs for visual/automated UI or API checks.
 9. Stop after demo handoff. Do not approve or move the ticket to done.
 
 ### Validation Gates

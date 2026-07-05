@@ -1,5 +1,6 @@
 import { sqliteTable, text, integer, real, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
+import type { DemoStep } from "../../core/types.ts";
 import type { TicketStatus } from "../../core/workflow-steps.ts";
 
 // Projects table
@@ -861,15 +862,7 @@ export const demoScripts = sqliteTable(
 export type DemoScript = typeof demoScripts.$inferSelect;
 export type NewDemoScript = typeof demoScripts.$inferInsert;
 
-// Demo step interface for JSON storage
-export interface DemoStep {
-  order: number; // Step order
-  description: string; // What to do
-  expectedOutcome: string; // What should happen
-  type: "manual" | "visual" | "automated"; // How to verify
-  status?: "pending" | "passed" | "failed" | "skipped"; // Current status during review
-  notes?: string; // Reviewer's notes
-}
+export type { DemoStep };
 
 // Learning interface for epic workflow
 export interface WorkflowLearning {

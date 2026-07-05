@@ -255,17 +255,10 @@ export interface DbReviewFinding {
   fixedAt?: string | null;
 }
 
-/** Demo script step for manual verification */
-export type DemoStepType = "manual" | "visual" | "automated";
-
-export interface DemoStep {
-  number: number;
-  title: string;
-  description: string;
-  type: DemoStepType;
-  expectedResult: string;
-  preconditions?: string[];
-}
+export type { DemoStep } from "../core/types.ts";
+export type { DemoStepAutomation } from "../core/types.ts";
+export type { DemoStepAutomationValue } from "../core/types.ts";
+export type { DemoStepType } from "../core/types.ts";
 
 /** Demo script generated for AI verification */
 export interface DbDemoScript {
