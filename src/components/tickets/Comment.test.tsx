@@ -89,6 +89,53 @@ describe("Comment", () => {
     expect(screen.getByText("Verification Report")).toBeInTheDocument();
   });
 
+  it("renders verification report verdict tables with evidence links", () => {
+    render(
+      <Comment
+        comment={{
+          id: "comment-verification-table",
+          ticketId: "ticket-1",
+          content:
+            "## Verification failed\n\n| Step | Status | Result | Evidence |\n| --- | --- | --- | --- |\n| 1 | failed | Banner missing | attachment-1, attachment-2 |",
+          author: "opencode ralph",
+          type: "verification_report",
+          createdAt: new Date().toISOString(),
+        }}
+      />
+    );
+
+    expect(screen.getByRole("table")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Step" })).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "failed" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "attachment-1" })).toHaveAttribute(
+      "href",
+      "#attachment-attachment-1"
+    );
+  });
+
+  it("renders only attachment-served markdown images", () => {
+    render(
+      <Comment
+        comment={{
+          id: "comment-verification-image",
+          ticketId: "ticket-1",
+          content:
+            "![local screenshot](data:image/png;base64,abc)\n![external screenshot](https://example.com/screen.png)",
+          author: "opencode ralph",
+          type: "verification_report",
+          createdAt: new Date().toISOString(),
+        }}
+      />
+    );
+
+    expect(screen.getByRole("img", { name: "local screenshot" })).toHaveAttribute(
+      "src",
+      "data:image/png;base64,abc"
+    );
+    expect(screen.queryByRole("img", { name: "external screenshot" })).not.toBeInTheDocument();
+    expect(screen.getByText("[image blocked: external screenshot]")).toBeInTheDocument();
+  });
+
   it("visually distinguishes change-request comments", () => {
     render(
       <Comment

@@ -635,7 +635,17 @@ function TicketDetailPage() {
           </DetailPageProse>
 
           {/* Verification handoff/evidence panel. */}
-          {showDemo && <DemoPanel ticketId={ticket.id} />}
+          {showDemo && (
+            <DemoPanel
+              ticketId={ticket.id}
+              ticketStatus={ticket.status}
+              isBlocked={ticket.isBlocked}
+              blockedReason={ticket.blockedReason}
+              pollingInterval={
+                ticket.status === "ai_verification" ? POLLING_INTERVALS.COMMENTS_ACTIVE : 0
+              }
+            />
+          )}
 
           {/* Activity Section - the activity log is primary reading, rendered
               on the page surface (not boxed in a clone card) so it reads as the

@@ -1,18 +1,43 @@
-import React from "react";
-import { CheckCircle2, Circle, Loader2, MinusCircle, PlayCircle, XCircle } from "lucide-react";
-import { useDemoScript } from "../../lib/hooks";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ChevronDown,
+  Circle,
+  FileJson,
+  ImageIcon,
+  Loader2,
+  MinusCircle,
+  PlayCircle,
+  ShieldAlert,
+  ShieldCheck,
+  X,
+  XCircle,
+} from "lucide-react";
+import {
+  useDemoScript,
+  useTicketAttachments,
+  useVerificationRuns,
+  type Attachment,
+  type VerificationRunSummary,
+  type VerificationStepVerdict,
+} from "../../lib/hooks";
 import type { DemoStep as DemoStepSchema } from "../../lib/schema";
 import type { DemoStepStatus } from "./DemoStep";
 
 export interface DemoPanelProps {
   ticketId: string;
+  ticketStatus?: string | undefined;
+  isBlocked?: boolean | null | undefined;
+  blockedReason?: string | null | undefined;
+  pollingInterval?: number | undefined;
   /** Kept for existing callers; verification runner completion replaces manual approval. */
   onComplete?: (passed: boolean) => void;
 }
 
 const READ_ONLY_STATUS_CONFIG: Record<
   DemoStepStatus,
-  { label: string; className: string; icon: React.ReactNode }
+  { label: string; className: string; icon: ReactNode }
 > = {
   pending: {
     label: "Pending",
@@ -36,8 +61,293 @@ const READ_ONLY_STATUS_CONFIG: Record<
   },
 };
 
-function ReadOnlyDemoStep({ step }: { step: DemoStepSchema }) {
-  const status = (step.status as DemoStepStatus) || "pending";
+const RUN_STATUS_CONFIG: Record<
+  VerificationRunSummary["status"],
+  { label: string; className: string; icon: ReactNode }
+> = {
+  passed: {
+    label: "Passed",
+    className: "bg-[var(--success-muted)] text-[var(--success)]",
+    icon: <CheckCircle2 size={14} />,
+  },
+  failed: {
+    label: "Failed",
+    className: "bg-[var(--accent-danger)]/10 text-[var(--accent-danger)]",
+    icon: <XCircle size={14} />,
+  },
+  uncertified: {
+    label: "Uncertified",
+    className: "bg-[var(--warning-muted)] text-[var(--warning)]",
+    icon: <ShieldAlert size={14} />,
+  },
+  infra_error: {
+    label: "Infra Error",
+    className: "bg-[var(--accent-danger)]/10 text-[var(--accent-danger)]",
+    icon: <AlertTriangle size={14} />,
+  },
+};
+
+const INTEGRITY_CONFIG: Record<
+  VerificationRunSummary["integrityStatus"],
+  { label: string; className: string; title: string; icon: ReactNode }
+> = {
+  valid: {
+    label: "Valid",
+    className: "bg-[var(--success-muted)] text-[var(--success)]",
+    title: "Manifest hash and immutable run metadata match the stored run.",
+    icon: <ShieldCheck size={14} />,
+  },
+  tampered: {
+    label: "Tampered",
+    className: "bg-[var(--accent-danger)]/10 text-[var(--accent-danger)]",
+    title: "Manifest contents no longer match the stored run metadata or hash.",
+    icon: <ShieldAlert size={14} />,
+  },
+  "uncertified-tripwire": {
+    label: "Uncertified Tripwire",
+    className: "bg-[var(--warning-muted)] text-[var(--warning)]",
+    title: "The runner refused certification because the diff touched verification code.",
+    icon: <ShieldAlert size={14} />,
+  },
+};
+
+function formatDuration(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  return `${(ms / 1000).toFixed(1)}s`;
+}
+
+function filenameFromPath(path: string): string {
+  return path.split(/[\\/]/).filter(Boolean).pop() ?? path;
+}
+
+function isLikelyImage(path: string): boolean {
+  return /\.(png|jpe?g|gif|webp|svg)$/i.test(path);
+}
+
+function buildAttachmentLookup(attachments: Attachment[]): Map<string, Attachment> {
+  return new Map(attachments.map((attachment) => [attachment.filename, attachment]));
+}
+
+function findAttachmentForEvidence(
+  attachmentLookup: Map<string, Attachment>,
+  evidencePath: string
+): Attachment | null {
+  return attachmentLookup.get(filenameFromPath(evidencePath)) ?? null;
+}
+
+function StatusPill({ config }: { config: { label: string; className: string; icon: ReactNode } }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${config.className}`}
+    >
+      {config.icon}
+      {config.label}
+    </span>
+  );
+}
+
+function IntegrityBadge({ run }: { run: VerificationRunSummary }) {
+  const config = INTEGRITY_CONFIG[run.integrityStatus];
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${config.className}`}
+      title={config.title}
+    >
+      {config.icon}
+      {config.label}
+    </span>
+  );
+}
+
+function Lightbox({ attachment, onClose }: { attachment: Attachment; onClose: () => void }) {
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    closeButtonRef.current?.focus();
+
+    function handleKeyDown(event: KeyboardEvent): void {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+
+      const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
+        'button, [href], [tabindex]:not([tabindex="-1"])'
+      );
+      if (!focusable || focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Evidence image: ${attachment.filename}`}
+        className="max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-xl border border-[var(--border-primary)] bg-[var(--bg-primary)] shadow-2xl"
+      >
+        <div className="flex items-center justify-between gap-3 border-b border-[var(--border-primary)] p-3">
+          <div className="min-w-0">
+            <h4 className="truncate text-sm font-semibold text-[var(--text-primary)]">
+              {attachment.filename}
+            </h4>
+            <p className="text-xs text-[var(--text-tertiary)]">Verification screenshot evidence</p>
+          </div>
+          <button
+            ref={closeButtonRef}
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-2 text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
+            aria-label="Close evidence image"
+          >
+            <X size={18} />
+          </button>
+        </div>
+        <div className="max-h-[calc(90vh-64px)] overflow-auto bg-[var(--bg-secondary)] p-4">
+          <img
+            src={attachment.url}
+            alt={`Verification evidence ${attachment.filename}`}
+            className="mx-auto h-auto max-w-full rounded-lg"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ApiEvidence({ verdict }: { verdict: VerificationStepVerdict }) {
+  if (!verdict.request && !verdict.response) return null;
+
+  return (
+    <details className="rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)] p-3">
+      <summary className="cursor-pointer text-sm font-medium text-[var(--text-primary)]">
+        API request and response
+      </summary>
+      <div className="mt-3 grid gap-3 text-xs text-[var(--text-secondary)]">
+        {verdict.request && (
+          <div>
+            <p className="mb-1 font-semibold text-[var(--text-primary)]">Request</p>
+            <div className="rounded-md bg-[var(--bg-tertiary)] p-2 font-mono">
+              <span className="font-semibold text-[var(--info)]">{verdict.request.method}</span>{" "}
+              {verdict.request.url}
+            </div>
+            {verdict.request.body !== undefined && (
+              <pre className="mt-2 max-h-48 overflow-auto rounded-md bg-[var(--bg-tertiary)] p-2 font-mono text-xs">
+                {JSON.stringify(verdict.request.body, null, 2)}
+              </pre>
+            )}
+          </div>
+        )}
+        {verdict.response && (
+          <div>
+            <p className="mb-1 font-semibold text-[var(--text-primary)]">Response</p>
+            <div className="mb-2 inline-flex rounded-full bg-[var(--bg-tertiary)] px-2 py-1 font-mono">
+              Status {verdict.response.status}
+            </div>
+            <pre className="max-h-48 overflow-auto rounded-md bg-[var(--bg-tertiary)] p-2 font-mono text-xs">
+              {verdict.response.body}
+            </pre>
+          </div>
+        )}
+      </div>
+    </details>
+  );
+}
+
+function EvidenceList({
+  verdict,
+  attachmentLookup,
+  onOpenImage,
+}: {
+  verdict: VerificationStepVerdict;
+  attachmentLookup: Map<string, Attachment>;
+  onOpenImage: (attachment: Attachment) => void;
+}) {
+  if (verdict.evidenceFiles.length === 0) return null;
+
+  return (
+    <div className="grid gap-2 sm:grid-cols-2">
+      {verdict.evidenceFiles.map((file) => {
+        const attachment = findAttachmentForEvidence(attachmentLookup, file.path);
+        const label = filenameFromPath(file.path);
+        const showImage = attachment?.isImage || isLikelyImage(file.path);
+
+        if (attachment && showImage) {
+          return (
+            <button
+              key={`${file.path}-${file.hash}`}
+              type="button"
+              onClick={() => onOpenImage(attachment)}
+              className="group overflow-hidden rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)] text-left transition-colors hover:border-[var(--accent-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
+              aria-label={`Open screenshot evidence ${label}`}
+            >
+              <img
+                src={attachment.url}
+                alt={`Screenshot evidence ${label}`}
+                loading="lazy"
+                className="aspect-video w-full bg-[var(--bg-tertiary)] object-cover"
+              />
+              <span className="flex items-center gap-2 p-2 text-xs text-[var(--text-secondary)]">
+                <ImageIcon size={14} aria-hidden="true" />
+                <span className="truncate">{label}</span>
+              </span>
+            </button>
+          );
+        }
+
+        return (
+          <a
+            key={`${file.path}-${file.hash}`}
+            href={attachment?.url ?? `#${label}`}
+            target={attachment ? "_blank" : undefined}
+            rel={attachment ? "noopener noreferrer" : undefined}
+            className="flex items-center gap-2 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)] p-2 text-xs text-[var(--text-secondary)] hover:border-[var(--accent-primary)] hover:text-[var(--text-primary)]"
+          >
+            <FileJson size={14} aria-hidden="true" />
+            <span className="min-w-0 flex-1 truncate">{label}</span>
+          </a>
+        );
+      })}
+    </div>
+  );
+}
+
+function ReadOnlyDemoStep({
+  step,
+  verdict,
+  attachmentLookup,
+  onOpenImage,
+}: {
+  step: DemoStepSchema;
+  verdict?: VerificationStepVerdict | undefined;
+  attachmentLookup: Map<string, Attachment>;
+  onOpenImage: (attachment: Attachment) => void;
+}) {
+  const status = (verdict?.status ?? step.status ?? "pending") as DemoStepStatus;
   const statusConfig = READ_ONLY_STATUS_CONFIG[status];
 
   return (
@@ -52,12 +362,7 @@ function ReadOnlyDemoStep({ step }: { step: DemoStepSchema }) {
           </div>
           <p className="text-sm text-[var(--text-secondary)]">{step.description}</p>
         </div>
-        <span
-          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${statusConfig.className}`}
-        >
-          {statusConfig.icon}
-          {statusConfig.label}
-        </span>
+        <StatusPill config={statusConfig} />
       </div>
 
       <div className="mt-4 space-y-3 border-t border-[var(--border-primary)] pt-4">
@@ -65,40 +370,114 @@ function ReadOnlyDemoStep({ step }: { step: DemoStepSchema }) {
           <p className="mb-1 text-sm font-medium text-[var(--text-primary)]">Expected Outcome:</p>
           <p className="text-sm text-[var(--text-secondary)]">{step.expectedOutcome}</p>
         </div>
-        {step.notes && (
+        {(verdict?.message || step.notes) && (
           <div>
             <p className="mb-1 text-sm font-medium text-[var(--text-primary)]">Runner Notes:</p>
-            <p className="text-sm text-[var(--text-secondary)]">{step.notes}</p>
+            <p className="text-sm text-[var(--text-secondary)]">{verdict?.message ?? step.notes}</p>
           </div>
+        )}
+        {verdict && (
+          <>
+            <EvidenceList
+              verdict={verdict}
+              attachmentLookup={attachmentLookup}
+              onOpenImage={onOpenImage}
+            />
+            <ApiEvidence verdict={verdict} />
+          </>
         )}
       </div>
     </div>
   );
 }
 
+function VerificationRunHistory({ runs }: { runs: VerificationRunSummary[] }) {
+  if (runs.length === 0) return null;
+
+  return (
+    <div className="rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-3">
+      <h4 className="mb-3 text-sm font-semibold text-[var(--text-primary)]">
+        Verification run history
+      </h4>
+      <div className="space-y-2">
+        {runs.map((run, index) => {
+          const statusConfig = RUN_STATUS_CONFIG[run.status];
+          return (
+            <details
+              key={run.id}
+              open={index === 0}
+              className="rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)] p-3"
+            >
+              <summary className="flex cursor-pointer list-none flex-wrap items-center gap-2 text-sm text-[var(--text-secondary)] [&::-webkit-details-marker]:hidden">
+                <ChevronDown size={14} aria-hidden="true" />
+                <span className="font-medium text-[var(--text-primary)]">Run {run.round}</span>
+                <StatusPill config={statusConfig} />
+                <IntegrityBadge run={run} />
+                {run.gitSha && <span className="font-mono text-xs">{run.gitSha.slice(0, 8)}</span>}
+              </summary>
+              <div className="mt-3 grid gap-1 border-t border-[var(--border-primary)] pt-3 text-xs text-[var(--text-tertiary)] sm:grid-cols-2">
+                <span>Started: {new Date(run.startedAt).toLocaleString()}</span>
+                <span>Duration: {formatDuration(run.durationMs)}</span>
+                <span>Finished: {new Date(run.finishedAt).toLocaleString()}</span>
+                <span>Evidence files: {run.manifest?.evidenceFiles.length ?? 0}</span>
+              </div>
+            </details>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /**
- * Read-only demo handoff panel.
+ * Read-only verification evidence panel.
  *
  * Manual approval/rejection was retired with the AI verification status. The
  * verification runner executes these steps, records evidence, and owns the
  * ai_verification -> done / in_progress transition.
  */
-export const DemoPanel: React.FC<DemoPanelProps> = ({ ticketId }) => {
-  const { demoScript, loading, error, refetch } = useDemoScript(ticketId);
+export function DemoPanel({
+  ticketId,
+  ticketStatus,
+  isBlocked = false,
+  blockedReason,
+  pollingInterval = 0,
+}: DemoPanelProps) {
+  const shouldPoll = ticketStatus === "ai_verification" && pollingInterval > 0;
+  const { demoScript, loading, error, refetch } = useDemoScript(ticketId, {
+    pollingInterval: shouldPoll ? pollingInterval : 0,
+  });
+  const {
+    verificationRuns,
+    loading: runsLoading,
+    error: runsError,
+  } = useVerificationRuns(ticketId, {
+    pollingInterval: shouldPoll ? pollingInterval : 0,
+  });
+  const { attachments } = useTicketAttachments(ticketId, { enabled: verificationRuns.length > 0 });
+  const [lightboxAttachment, setLightboxAttachment] = useState<Attachment | null>(null);
+
+  const attachmentLookup = useMemo(() => buildAttachmentLookup(attachments), [attachments]);
+  const latestRun = verificationRuns[0] ?? null;
+  const verdictsByOrder = useMemo(() => {
+    const entries =
+      latestRun?.manifest?.stepVerdicts.map((verdict) => [verdict.order, verdict] as const) ?? [];
+    return new Map(entries);
+  }, [latestRun]);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8 text-[var(--text-secondary)]">
-        <Loader2 className="animate-spin mr-2" size={20} />
-        <span>Loading demo script...</span>
+        <Loader2 className="mr-2 animate-spin" size={20} />
+        <span>Loading verification script...</span>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-[var(--accent-danger)]/10 border border-[var(--accent-danger)]/30 rounded-lg p-4 text-[var(--accent-danger)]">
-        <p>Failed to load demo script: {error}</p>
+      <div className="rounded-lg border border-[var(--accent-danger)]/30 bg-[var(--accent-danger)]/10 p-4 text-[var(--accent-danger)]">
+        <p>Failed to load verification script: {error}</p>
         <button
           onClick={() => void refetch()}
           className="mt-2 text-sm underline hover:no-underline"
@@ -111,28 +490,59 @@ export const DemoPanel: React.FC<DemoPanelProps> = ({ ticketId }) => {
 
   if (!demoScript) {
     return (
-      <div className="bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg p-6 text-center">
+      <div className="rounded-lg border border-[var(--border-primary)] bg-[var(--bg-tertiary)] p-6 text-center">
         <p className="text-[var(--text-secondary)]">
-          No demo script generated for this ticket yet.
+          No verification script generated for this ticket yet.
         </p>
-        <p className="text-sm text-[var(--text-tertiary)] mt-2">
-          A demo script will be available after the AI completes its review.
+        <p className="mt-2 text-sm text-[var(--text-tertiary)]">
+          A verification script will be available after the AI completes its review.
         </p>
       </div>
     );
   }
 
+  const heading = ticketStatus === "done" ? "Verification Evidence" : "AI Verification Handoff";
+  const subheading = latestRun
+    ? "Runner results, evidence, and integrity checks are recorded below."
+    : "These steps are waiting for the verification runner. Manual approval has been retired.";
+
   return (
-    <div className="space-y-4 bg-[var(--info-muted)] border border-[var(--info)]/30 rounded-lg p-6">
-      <div className="flex items-center gap-3 mb-4">
-        <PlayCircle className="text-[var(--info)]" size={24} />
+    <div className="space-y-4 rounded-lg border border-[var(--info)]/30 bg-[var(--info-muted)] p-6">
+      <div className="flex items-start gap-3">
+        <PlayCircle className="mt-0.5 text-[var(--info)]" size={24} aria-hidden="true" />
         <div>
-          <h3 className="font-semibold text-[var(--text-primary)]">AI Verification Handoff</h3>
-          <p className="text-sm text-[var(--text-secondary)]">
-            These steps are waiting for the verification runner. Manual approval has been retired.
-          </p>
+          <h3 className="font-semibold text-[var(--text-primary)]">{heading}</h3>
+          <p className="text-sm text-[var(--text-secondary)]">{subheading}</p>
         </div>
       </div>
+
+      {isBlocked && (
+        <div className="rounded-lg border border-[var(--accent-danger)]/40 bg-[var(--accent-danger)]/10 p-4 text-[var(--accent-danger)]">
+          <div className="mb-1 flex items-center gap-2 font-semibold">
+            <AlertTriangle size={16} aria-hidden="true" />
+            <span>Verification needs attention</span>
+          </div>
+          <p className="text-sm text-[var(--text-secondary)]">
+            {blockedReason ??
+              "The ticket is blocked in verification and requires manual investigation."}
+          </p>
+        </div>
+      )}
+
+      {runsError && (
+        <div className="rounded-lg border border-[var(--warning)]/30 bg-[var(--warning-muted)] p-3 text-sm text-[var(--warning)]">
+          Verification run history could not be loaded: {runsError}
+        </div>
+      )}
+
+      {runsLoading && (
+        <div className="flex items-center gap-2 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-3 text-sm text-[var(--text-secondary)]">
+          <Loader2 className="animate-spin" size={16} aria-hidden="true" />
+          Loading verification run history...
+        </div>
+      )}
+
+      <VerificationRunHistory runs={verificationRuns} />
 
       {demoScript.completedAt && (
         <div className="rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-3 text-sm text-[var(--text-secondary)]">
@@ -142,19 +552,29 @@ export const DemoPanel: React.FC<DemoPanelProps> = ({ ticketId }) => {
       )}
 
       {demoScript.feedback && (
-        <div className="bg-[var(--bg-secondary)] rounded-lg p-3">
-          <p className="text-sm font-medium text-[var(--text-primary)] mb-1">Feedback:</p>
+        <div className="rounded-lg bg-[var(--bg-secondary)] p-3">
+          <p className="mb-1 text-sm font-medium text-[var(--text-primary)]">Feedback:</p>
           <p className="text-sm text-[var(--text-secondary)]">{demoScript.feedback}</p>
         </div>
       )}
 
       <div className="space-y-3">
         {demoScript.steps.map((step) => (
-          <ReadOnlyDemoStep key={step.order} step={step} />
+          <ReadOnlyDemoStep
+            key={step.order}
+            step={step}
+            verdict={verdictsByOrder.get(step.order)}
+            attachmentLookup={attachmentLookup}
+            onOpenImage={setLightboxAttachment}
+          />
         ))}
       </div>
+
+      {lightboxAttachment && (
+        <Lightbox attachment={lightboxAttachment} onClose={() => setLightboxAttachment(null)} />
+      )}
     </div>
   );
-};
+}
 
 export default DemoPanel;

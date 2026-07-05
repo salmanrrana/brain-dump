@@ -1112,7 +1112,17 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
           {/* Verification handoff/evidence panel */}
           {(currentStatus === "ai_verification" || currentStatus === "done") && (
             <Suspense fallback={<SectionFallback />}>
-              <DemoPanel ticketId={ticket.id} />
+              <DemoPanel
+                ticketId={ticket.id}
+                ticketStatus={currentStatus}
+                isBlocked={ticket.isBlocked}
+                blockedReason={ticket.blockedReason}
+                pollingInterval={
+                  currentStatus === "ai_verification"
+                    ? POLLING_INTERVALS.COMMENTS_ACTIVE
+                    : POLLING_INTERVALS.DISABLED
+                }
+              />
             </Suspense>
           )}
 

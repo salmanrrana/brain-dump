@@ -57,6 +57,9 @@ export const queryKeys = {
   comments: (ticketId: string) => ["comments", ticketId] as const,
   paginatedComments: (ticketId: string) => ["comments", ticketId, "paginated"] as const,
 
+  // Attachments
+  attachments: (ticketId: string) => ["attachments", ticketId] as const,
+
   // Settings
   settings: ["settings"] as const,
   availableTerminals: ["available-terminals"] as const,
@@ -112,6 +115,9 @@ export const queryKeys = {
 
   // Demo Scripts
   demoScript: (ticketId: string) => ["demoScript", ticketId] as const,
+
+  // Verification Runs
+  verificationRuns: (ticketId: string) => ["verificationRuns", ticketId] as const,
 
   // Workflow State
   workflowState: (ticketId: string) => ["workflowState", ticketId] as const,

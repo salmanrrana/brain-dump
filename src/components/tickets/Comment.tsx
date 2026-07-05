@@ -54,6 +54,14 @@ function formatTimestamp(dateStr: string): string {
   return date.toLocaleDateString();
 }
 
+function isAllowedAttachmentImageUrl(url: string): boolean {
+  return (
+    url.startsWith("data:image/") ||
+    url.startsWith("/attachments/") ||
+    url.startsWith("/api/attachments/")
+  );
+}
+
 /**
  * Parse inline markdown formatting into React elements.
  * Safely handles bold, italic, inline code, and links without innerHTML.
@@ -65,7 +73,7 @@ function parseInlineMarkdown(text: string, keyPrefix: string): React.ReactNode[]
 
   // Combined regex for all inline patterns
   const inlinePattern =
-    /(\*\*(.+?)\*\*|__(.+?)__|`([^`]+)`|\[([^\]]+)\]\(([^)]+)\)|\*(.+?)\*|_([^_]+)_)/g;
+    /(!\[([^\]]*)\]\(([^)]+)\)|\*\*(.+?)\*\*|__(.+?)__|`([^`]+)`|\[([^\]]+)\]\(([^)]+)\)|\*(.+?)\*|_([^_]+)_)/g;
   let match;
 
   while ((match = inlinePattern.exec(text)) !== null) {
@@ -76,13 +84,36 @@ function parseInlineMarkdown(text: string, keyPrefix: string): React.ReactNode[]
 
     const fullMatch = match[0];
 
-    if (fullMatch.startsWith("**") || fullMatch.startsWith("__")) {
+    if (fullMatch.startsWith("![")) {
+      const altText = match[2] || "Verification evidence image";
+      const imageUrl = match[3] || "";
+      if (isAllowedAttachmentImageUrl(imageUrl)) {
+        elements.push(
+          <img
+            key={`${keyPrefix}-${key++}`}
+            src={imageUrl}
+            alt={altText}
+            loading="lazy"
+            style={{
+              display: "block",
+              maxWidth: "100%",
+              height: "auto",
+              borderRadius: "var(--radius-md)",
+              border: "1px solid var(--border-primary)",
+              marginTop: "var(--spacing-2)",
+            }}
+          />
+        );
+      } else {
+        elements.push(`[image blocked: ${altText}]`);
+      }
+    } else if (fullMatch.startsWith("**") || fullMatch.startsWith("__")) {
       // Bold
-      const content = match[2] || match[3];
+      const content = match[4] || match[5];
       elements.push(<strong key={`${keyPrefix}-${key++}`}>{content}</strong>);
     } else if (fullMatch.startsWith("`")) {
       // Inline code
-      const content = match[4];
+      const content = match[6];
       elements.push(
         <code
           key={`${keyPrefix}-${key++}`}
@@ -99,8 +130,8 @@ function parseInlineMarkdown(text: string, keyPrefix: string): React.ReactNode[]
       );
     } else if (fullMatch.startsWith("[")) {
       // Link
-      const linkText = match[5];
-      const linkUrl = match[6];
+      const linkText = match[7];
+      const linkUrl = match[8];
       elements.push(
         <a
           key={`${keyPrefix}-${key++}`}
@@ -114,7 +145,7 @@ function parseInlineMarkdown(text: string, keyPrefix: string): React.ReactNode[]
       );
     } else if (fullMatch.startsWith("*") || fullMatch.startsWith("_")) {
       // Italic
-      const content = match[7] || match[8];
+      const content = match[9] || match[10];
       elements.push(<em key={`${keyPrefix}-${key++}`}>{content}</em>);
     }
 
@@ -129,6 +160,103 @@ function parseInlineMarkdown(text: string, keyPrefix: string): React.ReactNode[]
   return elements.length > 0 ? elements : [text];
 }
 
+function isTableDivider(line: string): boolean {
+  return /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(line);
+}
+
+function splitTableRow(line: string): string[] {
+  return line
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim().replace(/\\\|/g, "|"));
+}
+
+function renderEvidenceCell(cell: string, keyPrefix: string): React.ReactNode {
+  if (cell === "-" || cell.length === 0) return cell;
+  const ids = cell
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
+  return ids.map((id, index) => (
+    <span key={`${keyPrefix}-${id}`}>
+      {index > 0 ? ", " : null}
+      <a
+        href={`#attachment-${id}`}
+        style={{ color: "var(--accent-primary)", textDecoration: "underline" }}
+      >
+        {id}
+      </a>
+    </span>
+  ));
+}
+
+function renderMarkdownTable(tableLines: string[], keyPrefix: string): React.ReactNode {
+  const headers = splitTableRow(tableLines[0] ?? "");
+  const rows = tableLines.slice(2).map(splitTableRow);
+  const evidenceColumn = headers.findIndex((header) => header.toLowerCase() === "evidence");
+
+  return (
+    <div key={keyPrefix} style={{ overflowX: "auto", margin: "var(--spacing-2) 0" }}>
+      <table
+        style={{
+          width: "100%",
+          borderCollapse: "collapse",
+          fontSize: "var(--font-size-xs)",
+        }}
+      >
+        <thead>
+          <tr>
+            {headers.map((header, index) => (
+              <th
+                key={`${keyPrefix}-header-${index}`}
+                scope="col"
+                style={{
+                  borderBottom: "1px solid var(--border-primary)",
+                  color: "var(--text-primary)",
+                  fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
+                  padding: "var(--spacing-2)",
+                  textAlign: "left",
+                }}
+              >
+                {header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, rowIndex) => (
+            <tr key={`${keyPrefix}-row-${rowIndex}`}>
+              {headers.map((_, cellIndex) => {
+                const cell = row[cellIndex] ?? "";
+                return (
+                  <td
+                    key={`${keyPrefix}-cell-${rowIndex}-${cellIndex}`}
+                    style={{
+                      borderBottom: "1px solid var(--border-primary)",
+                      color: "var(--text-secondary)",
+                      padding: "var(--spacing-2)",
+                      verticalAlign: "top",
+                    }}
+                  >
+                    {cellIndex === evidenceColumn
+                      ? renderEvidenceCell(cell, `${keyPrefix}-evidence-${rowIndex}`)
+                      : parseInlineMarkdown(
+                          cell,
+                          `${keyPrefix}-cell-inline-${rowIndex}-${cellIndex}`
+                        )}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 /**
  * Simple markdown-like rendering for comments.
  * Supports: bold, italic, inline code, code blocks, lists, links.
@@ -141,7 +269,9 @@ function renderMarkdown(content: string): React.ReactNode {
   let codeBlockLines: string[] = [];
   let codeBlockLanguage: string | undefined;
 
-  lines.forEach((line, lineIndex) => {
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+    const line = lines[lineIndex] ?? "";
+
     // Handle code block start/end
     if (line.startsWith("```")) {
       if (!inCodeBlock) {
@@ -163,12 +293,24 @@ function renderMarkdown(content: string): React.ReactNode {
         codeBlockLines = [];
         codeBlockLanguage = undefined;
       }
-      return;
+      continue;
     }
 
     if (inCodeBlock) {
       codeBlockLines.push(line);
-      return;
+      continue;
+    }
+
+    if (line.trim().startsWith("|") && isTableDivider(lines[lineIndex + 1] ?? "")) {
+      const tableLines = [line, lines[lineIndex + 1] ?? ""];
+      lineIndex += 2;
+      while (lineIndex < lines.length && (lines[lineIndex] ?? "").trim().startsWith("|")) {
+        tableLines.push(lines[lineIndex] ?? "");
+        lineIndex++;
+      }
+      lineIndex--;
+      elements.push(renderMarkdownTable(tableLines, `table-${lineIndex}`));
+      continue;
     }
 
     // List items: - item or * item
@@ -183,20 +325,20 @@ function renderMarkdown(content: string): React.ReactNode {
           <span>{parseInlineMarkdown(listContent, `inline-${lineIndex}`)}</span>
         </div>
       );
-      return;
+      continue;
     }
 
     // Empty line
     if (line.trim() === "") {
       elements.push(<div key={`line-${lineIndex}`} style={{ height: "var(--spacing-2)" }} />);
-      return;
+      continue;
     }
 
     // Regular line with inline formatting
     elements.push(
       <div key={`line-${lineIndex}`}>{parseInlineMarkdown(line, `inline-${lineIndex}`)}</div>
     );
-  });
+  }
 
   // Handle unclosed code block
   if (inCodeBlock && codeBlockLines.length > 0) {

@@ -163,9 +163,14 @@ export {
 // =============================================================================
 export {
   useDemoScript,
+  useTicketAttachments,
+  useVerificationRuns,
   useWorkflowState,
+  type Attachment,
   type DemoScript,
   type UseWorkflowStateResult,
+  type VerificationRunSummary,
+  type VerificationStepVerdict,
   type WorkflowDisplayState,
   type WorkflowDisplayResult,
   type DemoStep,

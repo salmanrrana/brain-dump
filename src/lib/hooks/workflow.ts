@@ -4,7 +4,13 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
+import { getAttachments, type Attachment } from "../../api/attachments";
 import { getDemoScript } from "../../api/demo";
+import {
+  getVerificationRuns,
+  type VerificationRunSummary,
+  type VerificationStepVerdict,
+} from "../../api/verification";
 import {
   getWorkflowDisplayState,
   type WorkflowDisplayState,
@@ -19,6 +25,7 @@ const logger = createBrowserLogger("hooks:workflow");
 
 // Re-export types for consumers
 export type { WorkflowDisplayState, WorkflowDisplayResult, DemoStep };
+export type { Attachment, VerificationRunSummary, VerificationStepVerdict };
 
 // =============================================================================
 // DEMO SCRIPT TYPES
@@ -73,6 +80,57 @@ export function useDemoScript(
 
   return {
     demoScript: query.data ?? null,
+    loading: query.isLoading,
+    error: query.error?.message ?? null,
+    refetch: query.refetch,
+  };
+}
+
+export function useTicketAttachments(
+  ticketId: string,
+  options: {
+    /** Whether to enable the query (default: true when ticketId is provided) */
+    enabled?: boolean;
+  } = {}
+) {
+  const { enabled = Boolean(ticketId) } = options;
+
+  const query = useQuery({
+    queryKey: queryKeys.attachments(ticketId),
+    queryFn: async () => getAttachments({ data: ticketId }),
+    enabled,
+    staleTime: 30 * 1000,
+  });
+
+  return {
+    attachments: query.data ?? [],
+    loading: query.isLoading,
+    error: query.error?.message ?? null,
+    refetch: query.refetch,
+  };
+}
+
+export function useVerificationRuns(
+  ticketId: string,
+  options: {
+    /** Whether to enable the query (default: true when ticketId is provided) */
+    enabled?: boolean;
+    /** Polling interval in ms for live verification status (default: 0 = disabled) */
+    pollingInterval?: number;
+  } = {}
+) {
+  const { enabled = Boolean(ticketId), pollingInterval = 0 } = options;
+
+  const query = useQuery({
+    queryKey: queryKeys.verificationRuns(ticketId),
+    queryFn: async () => getVerificationRuns({ data: { ticketId } }),
+    enabled,
+    refetchInterval: pollingInterval > 0 ? pollingInterval : false,
+    staleTime: pollingInterval > 0 ? pollingInterval : 30 * 1000,
+  });
+
+  return {
+    verificationRuns: (query.data ?? []) as VerificationRunSummary[],
     loading: query.isLoading,
     error: query.error?.message ?? null,
     refetch: query.refetch,
