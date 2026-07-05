@@ -57,9 +57,6 @@ const ATTACHMENT_TYPES = [
   "console-log",
   "reference",
   "asset",
-  "verification-screenshot",
-  "api-evidence",
-  "verification-manifest",
 ] as const;
 const ATTACHMENT_PRIORITIES = ["primary", "supplementary"] as const;
 

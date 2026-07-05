@@ -4,9 +4,10 @@ import { tmpdir } from "os";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type Database from "better-sqlite3";
 import { createTestDatabase } from "../db.ts";
-import { writeAttachmentFromFile } from "../attachments.ts";
+import { assertUserWritableAttachmentMetadata, writeAttachmentFromFile } from "../attachments.ts";
 import { normalizeAttachments } from "../attachment-types.ts";
 import { addVerificationReportComment, listComments } from "../comment.ts";
+import { updateAttachmentMetadata } from "../ticket.ts";
 
 let db: Database.Database;
 let tempDir: string;
@@ -89,6 +90,34 @@ describe("core attachment evidence writes", () => {
 
     expect(attachments[0]!.uploadedBy).toBe("codex ralph");
     expect(attachments[1]!.uploadedBy).toBe("ralph");
+  });
+
+  it("rejects runner-only evidence metadata from user-writable paths", () => {
+    expect(() => assertUserWritableAttachmentMetadata({ type: "verification-screenshot" })).toThrow(
+      /runner-only/
+    );
+    expect(() => assertUserWritableAttachmentMetadata({ uploadedBy: "claude ralph" })).toThrow(
+      /server-controlled/
+    );
+    expect(() => assertUserWritableAttachmentMetadata({ uploadedBy: "ralph:codex" })).toThrow(
+      /server-controlled/
+    );
+  });
+
+  it("rejects verification evidence types in attachment metadata updates", () => {
+    const sourceFile = join(tempDir, "notes.txt");
+    writeFileSync(sourceFile, "reference notes");
+    const attachment = writeAttachmentFromFile(db, {
+      ticketId: "ticket-1",
+      filePath: sourceFile,
+      metadata: { type: "reference" },
+    });
+
+    expect(() =>
+      updateAttachmentMetadata(db, "ticket-1", attachment.id, {
+        type: "api-evidence",
+      })
+    ).toThrow(/runner-only/);
   });
 });
 

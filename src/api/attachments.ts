@@ -12,7 +12,11 @@ import {
   MIME_TYPES,
   IMAGE_EXTENSIONS,
 } from "../lib/attachment-types";
-import { getAttachmentsDir, writeAttachmentFromBuffer } from "../../core/attachments.ts";
+import {
+  assertUserWritableAttachmentMetadata,
+  getAttachmentsDir,
+  writeAttachmentFromBuffer,
+} from "../../core/attachments.ts";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
@@ -185,6 +189,8 @@ export const uploadAttachment = createServerFn({ method: "POST" })
         throw new Error(`File size exceeds maximum allowed size of 10MB`);
       }
 
+      assertUserWritableAttachmentMetadata({ type, uploadedBy });
+
       const attachmentMetadata = writeAttachmentFromBuffer(sqlite, {
         ticketId,
         filename,
@@ -258,6 +264,8 @@ export const uploadPendingAttachment = createServerFn({ method: "POST" })
       if (buffer.length > MAX_FILE_SIZE) {
         throw new Error(`File size exceeds maximum allowed size of 10MB`);
       }
+
+      assertUserWritableAttachmentMetadata({ type, uploadedBy });
 
       const baseDir = getAttachmentsDir();
       const ticketDir = join(baseDir, ticketId);

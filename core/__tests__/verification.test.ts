@@ -5,7 +5,12 @@ import { tmpdir } from "os";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type Database from "better-sqlite3";
 import { createTestDatabase } from "../db.ts";
-import { listVerificationRuns, verifyTicket } from "../verification.ts";
+import {
+  listVerificationRuns,
+  verificationTestInternals,
+  verifyTicket,
+  type VerificationRun,
+} from "../verification.ts";
 import type { DemoStep } from "../types.ts";
 
 let db: Database.Database;
@@ -197,5 +202,54 @@ describe("verifyTicket", () => {
       .get() as { status: string; is_blocked: number };
     expect(ticket.status).toBe("ai_verification");
     expect(ticket.is_blocked).toBe(1);
+  });
+
+  it("refuses to report certified evidence when an expected evidence file is missing", () => {
+    const now = new Date().toISOString();
+    const missingPath = join(tempDir, "missing-api.json");
+    const run: VerificationRun = {
+      id: "run-missing-evidence",
+      ticketId: "ticket-1",
+      round: 1,
+      status: "passed",
+      certified: true,
+      gitSha: "abc123",
+      startedAt: now,
+      finishedAt: now,
+      manifest: {
+        runId: "run-missing-evidence",
+        ticketId: "ticket-1",
+        round: 1,
+        status: "passed",
+        certified: true,
+        gitSha: "abc123",
+        dirty: false,
+        port: 4242,
+        bootCommand: [],
+        bootLog: "",
+        startedAt: now,
+        finishedAt: now,
+        stepVerdicts: [
+          {
+            order: 1,
+            status: "passed",
+            message: "API assertions passed.",
+            durationMs: 12,
+            evidenceFiles: [{ path: missingPath, hash: "missing-hash" }],
+          },
+        ],
+        evidenceFiles: [{ path: missingPath, hash: "missing-hash" }],
+        manifestHash: "manifest-hash",
+      },
+    };
+
+    expect(() => verificationTestInternals.attachRunEvidenceAndReport(db, run, "claude")).toThrow(
+      /evidence file is missing/
+    );
+
+    const comments = db
+      .prepare("SELECT COUNT(*) as count FROM ticket_comments WHERE ticket_id = 'ticket-1'")
+      .get() as { count: number };
+    expect(comments.count).toBe(0);
   });
 });

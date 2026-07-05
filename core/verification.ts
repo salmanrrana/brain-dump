@@ -613,7 +613,11 @@ function attachRunEvidenceAndReport(
   const attachmentIdsByPath = new Map<string, string>();
 
   for (const evidence of evidenceFiles) {
-    if (!existsSync(evidence.path)) continue;
+    if (!existsSync(evidence.path)) {
+      throw new ValidationError(
+        `Verification evidence file is missing and cannot be reported: ${evidence.path}`
+      );
+    }
     const attachment = writeAttachmentFromFile(db, {
       ticketId: run.ticketId,
       filePath: evidence.path,
@@ -819,4 +823,5 @@ export const verificationTestInternals = {
   resolveJsonPath,
   summarizeStatus,
   hashEvidence,
+  attachRunEvidenceAndReport,
 };

@@ -19,6 +19,9 @@ import { autoTagFromMentions } from "./platform-mention-parser.ts";
 import { isActiveTicketStatus, TICKET_STATUSES } from "./workflow-steps.ts";
 import {
   normalizeAttachments,
+  isRunnerEvidenceAttachmentType,
+  isValidAttachmentPriority,
+  isValidAttachmentType,
   type AttachmentPriority,
   type AttachmentType,
   type TicketAttachment,
@@ -560,10 +563,29 @@ export function updateAttachmentMetadata(
   }
 
   const attachment = normalizedAttachments[attachmentIndex]!;
-  if (metadata.type !== undefined) attachment.type = metadata.type as AttachmentType;
+  if (metadata.type !== undefined) {
+    if (!isValidAttachmentType(metadata.type)) {
+      throw new ValidationError(`Invalid attachment type: ${metadata.type}`, {
+        type: metadata.type,
+      });
+    }
+    if (isRunnerEvidenceAttachmentType(metadata.type)) {
+      throw new ValidationError(
+        "Verification evidence attachment types are runner-only and cannot be assigned through ticket metadata updates.",
+        { type: metadata.type }
+      );
+    }
+    attachment.type = metadata.type as AttachmentType;
+  }
   if (metadata.description !== undefined) attachment.description = metadata.description;
-  if (metadata.priority !== undefined)
+  if (metadata.priority !== undefined) {
+    if (!isValidAttachmentPriority(metadata.priority)) {
+      throw new ValidationError(`Invalid attachment priority: ${metadata.priority}`, {
+        priority: metadata.priority,
+      });
+    }
     attachment.priority = metadata.priority as AttachmentPriority;
+  }
   if (metadata.linkedCriteria !== undefined) attachment.linkedCriteria = metadata.linkedCriteria;
 
   const now = new Date().toISOString();

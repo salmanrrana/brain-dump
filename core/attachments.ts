@@ -6,6 +6,7 @@ import { TicketNotFoundError, ValidationError } from "./errors.ts";
 import type { DbHandle } from "./types.ts";
 import {
   createProviderRalphUploader,
+  isRunnerEvidenceAttachmentType,
   normalizeAttachments,
   normalizeAttachmentUploader,
   serializeAttachments,
@@ -48,6 +49,25 @@ export function getAttachmentsDir(): string {
   const dir = join(getDataDir(), "attachments");
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true, mode: 0o700 });
   return dir;
+}
+
+export function assertUserWritableAttachmentMetadata(
+  metadata: Pick<AttachmentWriteMetadata, "type" | "uploadedBy"> | undefined
+): void {
+  if (!metadata) return;
+  if (isRunnerEvidenceAttachmentType(metadata.type)) {
+    throw new ValidationError(
+      "Verification evidence attachment types are runner-only and cannot be uploaded manually."
+    );
+  }
+  if (metadata.uploadedBy !== undefined) {
+    const uploader = normalizeAttachmentUploader(metadata.uploadedBy);
+    if (uploader !== "human") {
+      throw new ValidationError(
+        "Attachment uploader attribution is server-controlled for agent and verification uploads."
+      );
+    }
+  }
 }
 
 function getTicketAttachmentRow(db: DbHandle, ticketId: string): TicketAttachmentRow {

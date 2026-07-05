@@ -144,6 +144,21 @@ export const ATTACHMENT_TYPE_CONFIG: Record<AttachmentType, AttachmentTypeConfig
 
 export const ATTACHMENT_TYPES = Object.keys(ATTACHMENT_TYPE_CONFIG) as AttachmentType[];
 
+export const RUNNER_EVIDENCE_ATTACHMENT_TYPES = [
+  "verification-screenshot",
+  "api-evidence",
+  "verification-manifest",
+] as const satisfies readonly AttachmentType[];
+
+export function isRunnerEvidenceAttachmentType(
+  type: unknown
+): type is (typeof RUNNER_EVIDENCE_ATTACHMENT_TYPES)[number] {
+  return (
+    typeof type === "string" &&
+    (RUNNER_EVIDENCE_ATTACHMENT_TYPES as readonly string[]).includes(type)
+  );
+}
+
 export const FILE_TYPES: Record<string, FileTypeConfig> = {
   jpg: { mime: "image/jpeg", type: "image" },
   jpeg: { mime: "image/jpeg", type: "image" },
