@@ -47,6 +47,32 @@ function seedDemo(steps: DemoStep[]): void {
   ).run(JSON.stringify(steps), new Date().toISOString());
 }
 
+function seedPassedVerificationRun(ticketId: string, gitSha: string): void {
+  db.prepare(
+    `INSERT INTO verification_runs (
+      id,
+      ticket_id,
+      round,
+      status,
+      certified,
+      manifest,
+      git_sha,
+      started_at,
+      finished_at
+    ) VALUES (?, ?, 1, 'passed', 1, ?, ?, ?, ?)`
+  ).run(
+    `run-${ticketId}`,
+    ticketId,
+    JSON.stringify({
+      manifestHash: `manifest-${ticketId}`,
+      evidenceFiles: [{ path: join(tempDir, `${ticketId}.json`), hash: "hash" }],
+    }),
+    gitSha,
+    "2026-03-08T01:00:00.000Z",
+    "2026-03-08T01:01:00.000Z"
+  );
+}
+
 function apiStep(expectedStatus = 200): DemoStep {
   return {
     order: 1,
@@ -130,6 +156,62 @@ describe("verifyTicket", () => {
       .prepare("SELECT author, type FROM ticket_comments WHERE ticket_id = 'ticket-1'")
       .get() as { author: string; type: string };
     expect(comment).toEqual({ author: "unknown ralph", type: "verification_report" });
+  });
+
+  it("returns the epic auto-PR result after the final certified epic ticket completes", async () => {
+    seedDemo([apiStep()]);
+    const now = new Date().toISOString();
+    db.prepare("INSERT INTO epics (id, title, project_id, created_at) VALUES (?, ?, ?, ?)").run(
+      "epic-1",
+      "Verification Epic",
+      "project-1",
+      now
+    );
+    db.prepare("UPDATE tickets SET epic_id = ?, branch_name = ? WHERE id = 'ticket-1'").run(
+      "epic-1",
+      "feature/verification-epic"
+    );
+    db.prepare(
+      `INSERT INTO tickets (id, title, status, priority, position, project_id, epic_id, branch_name, created_at, updated_at)
+       VALUES (?, ?, 'done', 'high', 2, 'project-1', 'epic-1', ?, ?, ?)`
+    ).run("ticket-2", "Already verified", "feature/verification-epic", now, now);
+    seedPassedVerificationRun("ticket-2", "sha222");
+    const baseUrl = await startFixtureServer();
+    const calls: Array<[string, ...string[]]> = [];
+
+    const run = await verifyTicket(db, {
+      ticketId: "ticket-1",
+      baseUrl,
+      execFileNoThrow: async (command, args) => {
+        calls.push([command, ...args]);
+        if (command === "git" && args.join(" ") === "rev-parse HEAD") {
+          return { success: true, stdout: "sha111\n", stderr: "", exitCode: 0 };
+        }
+        if (command === "git" && args.join(" ") === "status --short") {
+          return { success: true, stdout: "", stderr: "", exitCode: 0 };
+        }
+        if (command === "gh" && args[0] === "pr" && args[1] === "list") {
+          return { success: true, stdout: "[]", stderr: "", exitCode: 0 };
+        }
+        if (command === "gh" && args[0] === "pr" && args[1] === "create") {
+          return {
+            success: true,
+            stdout: "https://github.com/org/repo/pull/91\n",
+            stderr: "",
+            exitCode: 0,
+          };
+        }
+        return { success: true, stdout: "", stderr: "", exitCode: 0 };
+      },
+    });
+
+    expect(run.status).toBe("passed");
+    expect(run.epicAutoPr?.branchResults[0]).toMatchObject({
+      success: true,
+      action: "created",
+      prNumber: 91,
+    });
+    expect(calls).toContainEqual(["git", "push", "-u", "origin", "feature/verification-epic"]);
   });
 
   function moveTicketBackToVerification(): void {

@@ -2,6 +2,7 @@ import { execFile } from "child_process";
 import { randomUUID } from "crypto";
 import { EpicNotFoundError, TicketNotFoundError } from "./errors.ts";
 import { addComment } from "./comment.ts";
+import { autoExtractLearnings, type AutoExtractLearningsResult } from "./learnings.ts";
 import type {
   DbHandle,
   DemoStep,
@@ -125,6 +126,14 @@ export interface HandleEpicCompletionAutoPrResult {
   branchResults: EpicAutoPrBranchResult[];
 }
 
+export interface HandleEpicCompletionLearningsResult {
+  epicId: string | null;
+  completed: boolean;
+  skipped: boolean;
+  message: string;
+  learnings?: AutoExtractLearningsResult;
+}
+
 export type SyncPrVerificationChecklistResult =
   | {
       success: true;
@@ -238,6 +247,45 @@ function getLatestVerificationSummary(db: DbHandle, ticketId: string): string {
 
   const status = run.certified === 1 ? `${run.status} certified` : run.status;
   return `${status}, git ${run.git_sha ?? "unknown"}, evidence files ${evidenceCount}`;
+}
+
+function validateLatestVerificationEvidence(
+  db: DbHandle,
+  tickets: EpicCompletionTicketRow[]
+): string | null {
+  for (const ticket of tickets) {
+    const run = db
+      .prepare(
+        `SELECT status, certified, manifest, git_sha, finished_at
+         FROM verification_runs
+         WHERE ticket_id = ?
+         ORDER BY round DESC
+         LIMIT 1`
+      )
+      .get(ticket.id) as LatestVerificationRunRow | undefined;
+
+    if (!run) return `${ticket.title} (${ticket.id}) has no verification run.`;
+    if (run.status !== "passed" || run.certified !== 1) {
+      return `${ticket.title} (${ticket.id}) does not have a certified passing verification run.`;
+    }
+    if (!run.git_sha) return `${ticket.title} (${ticket.id}) has no verification git SHA.`;
+
+    let manifest: { manifestHash?: unknown; evidenceFiles?: unknown };
+    try {
+      manifest = JSON.parse(run.manifest) as { manifestHash?: unknown; evidenceFiles?: unknown };
+    } catch {
+      return `${ticket.title} (${ticket.id}) has an unparseable verification manifest.`;
+    }
+
+    if (typeof manifest.manifestHash !== "string" || manifest.manifestHash.length === 0) {
+      return `${ticket.title} (${ticket.id}) has no sealed verification manifest hash.`;
+    }
+    if (!Array.isArray(manifest.evidenceFiles) || manifest.evidenceFiles.length === 0) {
+      return `${ticket.title} (${ticket.id}) has no verification evidence files.`;
+    }
+  }
+
+  return null;
 }
 
 function renderEpicCompletionPrBody(
@@ -380,6 +428,17 @@ async function shipEpicBranch(
     return fail(`Failed to parse existing epic PR lookup output: ${message}`);
   }
   if (existingPr?.number && existingPr.url) {
+    const pushResult = await params.execFileNoThrow(
+      "git",
+      ["push", "-u", "origin", params.branchName],
+      commandOptions
+    );
+    if (!pushResult.success) {
+      return fail(
+        commandFailureMessage("Failed to push the epic branch", pushResult, "git push failed")
+      );
+    }
+
     const editResult = await params.execFileNoThrow(
       "gh",
       ["pr", "edit", String(existingPr.number), "--body", body, "--base", params.prTargetBranch],
@@ -564,6 +623,31 @@ export async function handleEpicCompletionAutoPr(
     };
   }
 
+  const invalidEvidence = validateLatestVerificationEvidence(deps.db, tickets);
+  if (invalidEvidence) {
+    const message = `Epic completed but Brain Dump will not create or ready an epic PR until every ticket has certified passing verification evidence. ${invalidEvidence}`;
+    addEpicAutoPrComment(
+      deps.db,
+      getNewestTicketId(tickets),
+      `## Epic Auto-PR Needs Attention\n\n${message}`
+    );
+    return {
+      epicId,
+      completed: true,
+      skipped: false,
+      message,
+      branchResults: [
+        {
+          branchName: "verification-evidence",
+          ticketIds: tickets.map((epicTicket) => epicTicket.id),
+          success: false,
+          action: "failed",
+          message,
+        },
+      ],
+    };
+  }
+
   const settings = getSettingsRow(deps.db);
   if (settings.epic_auto_pr === 0) {
     return {
@@ -652,6 +736,60 @@ export async function handleEpicCompletionAutoPr(
         : `Epic completed, but ${failedCount} PR branch(es) need attention.`,
     branchResults,
   };
+}
+
+export function handleEpicCompletionLearnings(
+  input: HandleEpicCompletionAutoPrInput,
+  deps: { db: DbHandle }
+): HandleEpicCompletionLearningsResult {
+  const ticket = deps.db
+    .prepare("SELECT epic_id FROM tickets WHERE id = ?")
+    .get(input.completedTicketId) as { epic_id: string | null } | undefined;
+
+  if (!ticket?.epic_id) {
+    return {
+      epicId: null,
+      completed: false,
+      skipped: true,
+      message: "Completed ticket is not part of an epic; skipped epic learnings.",
+    };
+  }
+
+  const epicId = ticket.epic_id;
+  const statuses = deps.db
+    .prepare("SELECT status FROM tickets WHERE epic_id = ?")
+    .all(epicId) as Array<{ status: string }>;
+  if (statuses.length === 0 || statuses.some((row) => row.status !== "done")) {
+    return {
+      epicId,
+      completed: false,
+      skipped: true,
+      message: "Epic still has incomplete tickets; skipped epic learnings.",
+    };
+  }
+
+  try {
+    return {
+      epicId,
+      completed: true,
+      skipped: false,
+      message: "Epic completed; extracted learnings from done tickets.",
+      learnings: autoExtractLearnings(deps.db, epicId),
+    };
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    addEpicAutoPrComment(
+      deps.db,
+      input.completedTicketId,
+      `## Epic Learnings Need Attention\n\nEpic completion was detected, but Brain Dump could not auto-extract learnings: ${detail}`
+    );
+    return {
+      epicId,
+      completed: true,
+      skipped: false,
+      message: `Epic completed, but learnings extraction needs attention: ${detail}`,
+    };
+  }
 }
 
 function normalizeGitPath(rawPath: string): { path: string; originalPath?: string } {

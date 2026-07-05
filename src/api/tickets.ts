@@ -5,7 +5,7 @@ import { eq, and, sql, type SQL } from "drizzle-orm";
 import { tagFilterConditions } from "../lib/sql-helpers";
 import { randomUUID } from "crypto";
 import { ensureExists, safeJsonStringify } from "../lib/utils";
-import { autoExtractLearnings } from "../../core/index";
+import { handleEpicCompletionLearnings } from "../../core/index";
 import { isActiveTicketStatus } from "../../core/workflow-steps.ts";
 import { createLogger } from "../lib/logger";
 
@@ -257,7 +257,7 @@ export const updateTicketStatus = createServerFn({ method: "POST" })
 
         const allDone = epicTickets.every((t) => t.status === "done");
         if (allDone) {
-          autoExtractLearnings(sqlite, existing.epicId);
+          handleEpicCompletionLearnings({ completedTicketId: id }, { db: sqlite });
           log.info(`Auto-extracted learnings for completed epic ${existing.epicId}`);
         }
       } catch (err) {

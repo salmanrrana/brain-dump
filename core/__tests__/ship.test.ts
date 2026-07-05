@@ -32,7 +32,15 @@ function createExecResult(overrides: Partial<Awaited<ReturnType<typeof execFileN
   };
 }
 
-function seedVerificationRun(ticketId: string, overrides: { gitSha?: string } = {}): void {
+function seedVerificationRun(
+  ticketId: string,
+  overrides: {
+    status?: string;
+    certified?: number;
+    gitSha?: string | null;
+    manifest?: string;
+  } = {}
+): void {
   db.prepare(
     `INSERT INTO verification_runs (
       id,
@@ -44,12 +52,18 @@ function seedVerificationRun(ticketId: string, overrides: { gitSha?: string } = 
       git_sha,
       started_at,
       finished_at
-    ) VALUES (?, ?, 1, 'passed', 1, ?, ?, ?, ?)`
+    ) VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?)`
   ).run(
     `run-${ticketId}`,
     ticketId,
-    JSON.stringify({ evidenceFiles: [{ path: `/tmp/${ticketId}.json`, hash: "hash" }] }),
-    overrides.gitSha ?? "abc123",
+    overrides.status ?? "passed",
+    overrides.certified ?? 1,
+    overrides.manifest ??
+      JSON.stringify({
+        manifestHash: `manifest-${ticketId}`,
+        evidenceFiles: [{ path: `/tmp/${ticketId}.json`, hash: "hash" }],
+      }),
+    overrides.gitSha === undefined ? "abc123" : overrides.gitSha,
     "2026-03-08T01:00:00.000Z",
     "2026-03-08T01:01:00.000Z"
   );
@@ -405,6 +419,7 @@ describe("handleEpicCompletionAutoPr", () => {
         "--limit",
         "1",
       ],
+      ["git", "push", "-u", "origin", "feature/epic-ship"],
       ["gh", "pr", "edit", "77", "--body", expect.stringContaining("sha111"), "--base", "main"],
       ["gh", "pr", "ready", "77"],
     ]);
@@ -452,8 +467,60 @@ describe("handleEpicCompletionAutoPr", () => {
       action: "updated",
       prNumber: 66,
     });
-    expect(calls.some((call) => call.command === "git")).toBe(false);
+    expect(calls.map((call) => [call.command, ...call.args])).toContainEqual([
+      "git",
+      "push",
+      "-u",
+      "origin",
+      "feature/epic-ship",
+    ]);
     expect(calls.some((call) => call.args[0] === "pr" && call.args[1] === "create")).toBe(false);
+  });
+
+  it("does not create or ready an epic PR until every ticket has certified evidence", async () => {
+    seedCompletedEpic();
+    db.prepare("DELETE FROM verification_runs WHERE ticket_id = 'ticket-2'").run();
+    const calls: string[] = [];
+
+    const result = await handleEpicCompletionAutoPr(
+      { completedTicketId: "ticket-2" },
+      {
+        db,
+        execFileNoThrow: async (command, args) => {
+          calls.push([command, ...args].join(" "));
+          return createExecResult();
+        },
+      }
+    );
+
+    expect(result.branchResults[0]).toMatchObject({
+      success: false,
+      action: "failed",
+      branchName: "verification-evidence",
+    });
+    expect(result.message).toContain("certified passing verification evidence");
+    expect(calls).toEqual([]);
+    const comment = db.prepare("SELECT content FROM ticket_comments").get() as { content: string };
+    expect(comment.content).toContain("Epic Auto-PR Needs Attention");
+    expect(comment.content).toContain("ticket-2");
+  });
+
+  it("rejects malformed verification manifests before claiming sealed evidence", async () => {
+    seedCompletedEpic();
+    db.prepare(
+      "UPDATE verification_runs SET manifest = '{bad json' WHERE ticket_id = 'ticket-1'"
+    ).run();
+
+    const result = await handleEpicCompletionAutoPr(
+      { completedTicketId: "ticket-2" },
+      {
+        db,
+        execFileNoThrow: async () => createExecResult(),
+      }
+    );
+
+    expect(result.branchResults[0]).toMatchObject({ success: false, action: "failed" });
+    expect(result.message).toContain("unparseable verification manifest");
   });
 
   it("respects the epic auto-PR setting", async () => {

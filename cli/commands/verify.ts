@@ -36,7 +36,10 @@ export async function handle(action: string, args: string[]): Promise<void> {
       execFileNoThrow,
     });
     outputResult(result, pretty);
-    if (result.status !== "passed") {
+    if (
+      result.status !== "passed" ||
+      result.epicAutoPr?.branchResults.some((branch) => !branch.success)
+    ) {
       process.exitCode = 1;
     }
   } catch (error) {
