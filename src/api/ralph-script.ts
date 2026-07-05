@@ -1,11 +1,12 @@
 import { getRalphPrompt, type RalphPromptProfile } from "./ralph-prompts";
+import type { RalphAiBackend } from "../../core/providers.ts";
 import type { ConcreteLaunchModelSelection } from "../lib/launch-model-catalog";
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
-export type RalphAiBackend = "claude" | "opencode" | "codex" | "cursor-agent" | "pi";
+export type { RalphAiBackend } from "../../core/providers.ts";
 
 // Resource limit configuration for Docker sandbox
 export interface DockerResourceLimits {

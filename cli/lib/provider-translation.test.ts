@@ -2,9 +2,37 @@ import { describe, expect, it } from "vitest";
 import { ValidationError } from "../../core/index.ts";
 import {
   SUPPORTED_PROVIDERS,
+  parseModelFlag,
   parseProviderFlag,
   translateProvider,
 } from "./provider-translation.ts";
+
+const costModels = [
+  {
+    id: "anthropic-sonnet",
+    provider: "anthropic",
+    modelName: "claude-sonnet-4-6",
+    inputCostPerMtok: 3,
+    outputCostPerMtok: 15,
+    cacheReadCostPerMtok: null,
+    cacheCreateCostPerMtok: null,
+    isDefault: true,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  },
+  {
+    id: "openai-gpt",
+    provider: "openai",
+    modelName: "gpt-5.5",
+    inputCostPerMtok: 1,
+    outputCostPerMtok: 5,
+    cacheReadCostPerMtok: null,
+    cacheCreateCostPerMtok: null,
+    isDefault: true,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  },
+] as const;
 
 describe("translateProvider", () => {
   it("maps CLI-native providers to the matching aiBackend with no workingMethodOverride", () => {
@@ -56,5 +84,31 @@ describe("parseProviderFlag", () => {
       expect(String(error)).toContain("claude-code");
       expect(String(error)).toContain("opencode");
     }
+  });
+});
+
+describe("parseModelFlag", () => {
+  it("returns undefined when no model was passed", () => {
+    expect(parseModelFlag("claude-code", undefined, costModels)).toBeUndefined();
+  });
+
+  it("requires a provider before accepting a model", () => {
+    expect(() => parseModelFlag(undefined, "claude-sonnet-4-6", costModels)).toThrowError(
+      ValidationError
+    );
+  });
+
+  it("resolves a provider-valid model into a concrete launch selection", () => {
+    expect(parseModelFlag("claude-code", "claude-sonnet-4-6", costModels)).toEqual({
+      kind: "concrete",
+      provider: "anthropic",
+      modelName: "claude-sonnet-4-6",
+    });
+  });
+
+  it("rejects models outside the selected provider catalog", () => {
+    expect(() => parseModelFlag("claude-code", "gpt-5.5", costModels)).toThrowError(
+      /Invalid value for --model/
+    );
   });
 });

@@ -1,3 +1,13 @@
+import type {
+  InteractiveLaunchProviderId as CoreInteractiveLaunchProviderId,
+  ProviderId,
+  RalphAutonomousLaunchProviderId,
+} from "../../core/providers.ts";
+import {
+  INTERACTIVE_LAUNCH_PROVIDER_IDS,
+  PROJECT_WORKING_METHOD_PROVIDER_IDS,
+  RALPH_AUTONOMOUS_PROVIDER_IDS,
+} from "../../core/providers.ts";
 import type { RalphAiBackend } from "../api/ralph-script";
 import type { LaunchModelSelection } from "./launch-model-catalog";
 import type { RalphWorkingMethod } from "./ralph-launch/types";
@@ -19,25 +29,8 @@ export type LaunchProviderGroup =
   | "focused-review"
   | "project-environment";
 
-export type InteractiveLaunchProviderId =
-  | "claude"
-  | "codex"
-  | "codex-cli"
-  | "codex-app"
-  | "vscode"
-  | "cursor"
-  | "cursor-agent"
-  | "copilot"
-  | "opencode"
-  | "pi";
-
-export type RalphAutonomousProviderId =
-  | "ralph-native"
-  | "ralph-codex"
-  | "ralph-cursor-agent"
-  | "ralph-copilot"
-  | "ralph-opencode"
-  | "ralph-pi";
+export type InteractiveLaunchProviderId = CoreInteractiveLaunchProviderId;
+export type RalphAutonomousProviderId = RalphAutonomousLaunchProviderId;
 
 export type UiLaunchProviderId = InteractiveLaunchProviderId | RalphAutonomousProviderId;
 
@@ -146,52 +139,15 @@ export interface UiLaunchDispatchRequest<
   context: Context;
 }
 
-export type ProjectWorkingMethodProviderId =
-  | "auto"
-  | "claude-code"
-  | "vscode"
-  | "opencode"
-  | "cursor"
-  | "cursor-agent"
-  | "copilot-cli"
-  | "codex"
-  | "pi";
+export type ProjectWorkingMethodProviderId = "auto" | ProviderId;
 
 export interface ProjectWorkingMethodProvider {
   id: ProjectWorkingMethodProviderId;
   display: LaunchProviderDisplayMetadata;
 }
 
-export const INTERACTIVE_LAUNCH_PROVIDER_IDS: readonly InteractiveLaunchProviderId[] = [
-  "claude",
-  "codex",
-  "codex-cli",
-  "codex-app",
-  "vscode",
-  "cursor",
-  "cursor-agent",
-  "copilot",
-  "opencode",
-  "pi",
-] as const;
-
-export const RALPH_AUTONOMOUS_PROVIDER_IDS: readonly RalphAutonomousProviderId[] = [
-  "ralph-native",
-  "ralph-codex",
-  "ralph-cursor-agent",
-  "ralph-copilot",
-  "ralph-opencode",
-  "ralph-pi",
-] as const;
-
-export const PROJECT_WORKING_METHOD_PROVIDER_IDS: readonly ProjectWorkingMethodProviderId[] = [
-  "auto",
-  "claude-code",
-  "vscode",
-  "opencode",
-  "cursor",
-  "cursor-agent",
-  "copilot-cli",
-  "codex",
-  "pi",
-] as const;
+export {
+  INTERACTIVE_LAUNCH_PROVIDER_IDS,
+  PROJECT_WORKING_METHOD_PROVIDER_IDS,
+  RALPH_AUTONOMOUS_PROVIDER_IDS,
+};

@@ -32,6 +32,39 @@ vi.mock("../../src/lib/ralph-launch/launch-epic.ts", () => ({
 
 vi.mock("../lib/db.ts", () => {
   const db = new Database(":memory:");
+  db.exec(`
+    CREATE TABLE cost_models (
+      id TEXT PRIMARY KEY,
+      provider TEXT NOT NULL,
+      model_name TEXT NOT NULL,
+      input_cost_per_mtok REAL NOT NULL,
+      output_cost_per_mtok REAL NOT NULL,
+      cache_read_cost_per_mtok REAL,
+      cache_create_cost_per_mtok REAL,
+      is_default INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    INSERT INTO cost_models (
+      id,
+      provider,
+      model_name,
+      input_cost_per_mtok,
+      output_cost_per_mtok,
+      is_default,
+      created_at,
+      updated_at
+    ) VALUES (
+      'anthropic-sonnet',
+      'anthropic',
+      'claude-sonnet-4-6',
+      3,
+      15,
+      1,
+      '2026-01-01T00:00:00.000Z',
+      '2026-01-01T00:00:00.000Z'
+    );
+  `);
   return {
     getDb: () => ({ db, dbPath: ":memory:" }),
   };
@@ -122,6 +155,28 @@ describe("workflow launch-ticket CLI → launcher core wiring", () => {
       maxIterations: 7,
       preferredTerminal: "kitty",
       useSandbox: true,
+    });
+  });
+
+  it("validates and forwards --model as a concrete model selection", async () => {
+    const { handle } = await import("../commands/workflow.ts");
+    await handle("launch-ticket", [
+      "--ticket",
+      "ticket-model",
+      "--provider",
+      "claude-code",
+      "--model",
+      "claude-sonnet-4-6",
+    ]);
+
+    expect(inputOf(launchTicketSpy)).toMatchObject({
+      ticketId: "ticket-model",
+      aiBackend: "claude",
+      modelSelection: {
+        kind: "concrete",
+        provider: "anthropic",
+        modelName: "claude-sonnet-4-6",
+      },
     });
   });
 

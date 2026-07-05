@@ -126,6 +126,41 @@ export {
 
 export type { WorkflowTransitionAction, TicketStatusMetadata } from "./workflow-steps.ts";
 
+export {
+  PROVIDER_IDS,
+  PROVIDER_REGISTRY,
+  INTERACTIVE_PROVIDER_DEFINITIONS,
+  RALPH_AUTONOMOUS_PROVIDER_DEFINITIONS,
+  INTERACTIVE_LAUNCH_PROVIDER_IDS,
+  RALPH_AUTONOMOUS_PROVIDER_IDS,
+  PROJECT_WORKING_METHOD_PROVIDER_IDS,
+  getProviderDefinition,
+  translateProviderForRalph,
+  getProviderIdForUiLaunchProviderId,
+  getProviderModelCatalogDefinition,
+  getProviderModelChoices,
+  resolveProviderModelSelection,
+} from "./providers.ts";
+
+export type {
+  ProviderId,
+  ProviderClass,
+  ProviderLaunchMode,
+  ProviderHookSupport,
+  RalphAiBackend,
+  RalphWorkingMethod,
+  PricingProviderId,
+  ProviderCliModelFlag,
+  ProviderModelCatalogDefinition,
+  ProviderDefinition,
+  UiInteractiveProviderDefinition,
+  UiRalphProviderDefinition,
+  InteractiveLaunchProviderId,
+  RalphAutonomousLaunchProviderId,
+  UiLaunchProviderId,
+  ProviderModelChoice,
+} from "./providers.ts";
+
 // Database initialization
 export {
   initDatabase,

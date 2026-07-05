@@ -236,7 +236,7 @@ describe("shared UI launch dispatcher", () => {
     ["ralph-cursor-agent", "cursor-agent", undefined],
     ["ralph-copilot", "claude", "copilot-cli"],
     ["ralph-opencode", "opencode", undefined],
-    ["ralph-pi", "pi", undefined],
+    ["ralph-pi", "pi", "pi"],
   ] as const)(
     "maps %s to the shared Ralph ticket payload",
     async (providerId, aiBackend, workingMethodOverride) => {
@@ -449,6 +449,7 @@ describe("shared UI launch dispatcher", () => {
       preferredTerminal: null,
       useSandbox: false,
       aiBackend: "pi",
+      workingMethodOverride: "pi",
       launchProfile: {
         type: "review",
         selectedTicketIds: ["ticket-1", "ticket-2"],
@@ -495,6 +496,7 @@ describe("shared UI launch dispatcher", () => {
       preferredTerminal: "ghostty",
       useSandbox: true,
       aiBackend: "pi",
+      workingMethodOverride: "pi",
     });
     expect(result).toEqual({
       success: true,

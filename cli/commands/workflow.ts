@@ -9,6 +9,7 @@ import {
   startEpicWork,
   createRealGitOperations,
   InvalidActionError,
+  listCostModels,
 } from "../../core/index.ts";
 import * as schema from "../../src/lib/schema.ts";
 import { launchRalphForTicketCore } from "../../src/lib/ralph-launch/launch-ticket.ts";
@@ -27,6 +28,7 @@ import { getDb } from "../lib/db.ts";
 import {
   type LaunchProvider,
   parseProviderFlag,
+  parseModelFlag,
   translateProvider,
 } from "../lib/provider-translation.ts";
 
@@ -37,14 +39,20 @@ interface SharedLaunchFlags {
   preferredTerminal: string | undefined;
   maxIterations: number | undefined;
   useSandbox: boolean;
+  modelSelection: LaunchTicketInput["modelSelection"];
 }
 
-function parseSharedLaunchFlags(flags: ParsedFlags): SharedLaunchFlags {
+function parseSharedLaunchFlags(
+  flags: ParsedFlags,
+  costModels: ReturnType<typeof listCostModels>
+): SharedLaunchFlags {
+  const provider = parseProviderFlag(optionalFlag(flags, "provider"));
   return {
-    provider: parseProviderFlag(optionalFlag(flags, "provider")),
+    provider,
     preferredTerminal: optionalFlag(flags, "terminal"),
     maxIterations: numericFlag(flags, "max-iterations"),
     useSandbox: boolFlag(flags, "sandbox"),
+    modelSelection: parseModelFlag(provider, optionalFlag(flags, "model"), costModels),
   };
 }
 
@@ -56,6 +64,7 @@ function applySharedLaunchFlags<T extends LaunchTicketInput | LaunchEpicInput>(
   if (shared.preferredTerminal !== undefined) input.preferredTerminal = shared.preferredTerminal;
   if (shared.maxIterations !== undefined) input.maxIterations = shared.maxIterations;
   if (shared.useSandbox) input.useSandbox = true;
+  if (shared.modelSelection) input.modelSelection = shared.modelSelection;
   return input;
 }
 
@@ -95,7 +104,7 @@ export async function handle(action: string, args: string[]): Promise<void> {
 
       case "launch-ticket": {
         const ticketId = requireFlag(flags, "ticket");
-        const shared = parseSharedLaunchFlags(flags);
+        const shared = parseSharedLaunchFlags(flags, listCostModels(sqlite));
         const input = applySharedLaunchFlags<LaunchTicketInput>({ ticketId }, shared);
         const drizzleDb = drizzle(sqlite, { schema });
         const result = await launchRalphForTicketCore(drizzleDb, input, { sqlite });
@@ -106,7 +115,7 @@ export async function handle(action: string, args: string[]): Promise<void> {
 
       case "launch-epic": {
         const epicId = requireFlag(flags, "epic");
-        const shared = parseSharedLaunchFlags(flags);
+        const shared = parseSharedLaunchFlags(flags, listCostModels(sqlite));
         const input = applySharedLaunchFlags<LaunchEpicInput>({ epicId }, shared);
         const drizzleDb = drizzle(sqlite, { schema });
         const result = await launchRalphForEpicCore(drizzleDb, input, { sqlite });

@@ -437,6 +437,12 @@ export const COMMAND_REGISTRY: CommandDef[] = [
         description: "Preferred terminal emulator (e.g. ghostty, kitty, iterm2)",
       },
       {
+        name: "model",
+        type: "string",
+        required: false,
+        description: "Provider model id to pass to Ralph (requires --provider)",
+      },
+      {
         name: "max-iterations",
         type: "number",
         required: false,
@@ -483,6 +489,12 @@ export const COMMAND_REGISTRY: CommandDef[] = [
         type: "string",
         required: false,
         description: "Preferred terminal emulator (e.g. ghostty, kitty, iterm2)",
+      },
+      {
+        name: "model",
+        type: "string",
+        required: false,
+        description: "Provider model id to pass to Ralph (requires --provider)",
       },
       {
         name: "max-iterations",

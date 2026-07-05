@@ -7,21 +7,18 @@
  */
 
 import { ValidationError } from "../../core/index.ts";
-import type { RalphAiBackend } from "../../src/api/ralph-script.ts";
+import {
+  PROVIDER_IDS,
+  resolveProviderModelSelection,
+  translateProviderForRalph,
+} from "../../core/providers.ts";
+import type { CostModel, ProviderId, RalphAiBackend } from "../../core/index.ts";
+import type { ConcreteLaunchModelSelection } from "../../src/lib/launch-model-catalog.ts";
 import type { RalphWorkingMethod } from "../../src/lib/ralph-launch/types.ts";
 
-export const SUPPORTED_PROVIDERS = [
-  "claude-code",
-  "vscode",
-  "cursor",
-  "cursor-agent",
-  "copilot-cli",
-  "codex",
-  "pi",
-  "opencode",
-] as const;
+export const SUPPORTED_PROVIDERS = PROVIDER_IDS;
 
-export type LaunchProvider = (typeof SUPPORTED_PROVIDERS)[number];
+export type LaunchProvider = ProviderId;
 
 export interface TranslatedProvider {
   aiBackend: RalphAiBackend;
@@ -29,24 +26,7 @@ export interface TranslatedProvider {
 }
 
 export function translateProvider(provider: LaunchProvider): TranslatedProvider {
-  switch (provider) {
-    case "claude-code":
-      return { aiBackend: "claude" };
-    case "opencode":
-      return { aiBackend: "opencode" };
-    case "codex":
-      return { aiBackend: "codex" };
-    case "pi":
-      return { aiBackend: "pi", workingMethodOverride: "pi" };
-    case "cursor-agent":
-      return { aiBackend: "cursor-agent" };
-    case "vscode":
-      return { aiBackend: "claude", workingMethodOverride: "vscode" };
-    case "cursor":
-      return { aiBackend: "claude", workingMethodOverride: "cursor" };
-    case "copilot-cli":
-      return { aiBackend: "claude", workingMethodOverride: "copilot-cli" };
-  }
+  return translateProviderForRalph(provider);
 }
 
 export function parseProviderFlag(value: string | undefined): LaunchProvider | undefined {
@@ -57,4 +37,20 @@ export function parseProviderFlag(value: string | undefined): LaunchProvider | u
     );
   }
   return value as LaunchProvider;
+}
+
+export function parseModelFlag(
+  provider: LaunchProvider | undefined,
+  value: string | undefined,
+  costModels: readonly CostModel[]
+): ConcreteLaunchModelSelection | undefined {
+  if (value === undefined) return undefined;
+  if (provider === undefined) {
+    throw new ValidationError(
+      "--model requires --provider so Brain Dump can validate provider-specific model ids."
+    );
+  }
+
+  const selection = resolveProviderModelSelection(provider, value, costModels);
+  return { kind: "concrete", ...selection };
 }
