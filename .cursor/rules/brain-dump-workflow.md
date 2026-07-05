@@ -48,6 +48,7 @@ Status flow: `backlog -> ready -> in_progress -> ai_review -> ai_verification ->
 - Do not run verification yourself.
 - Do not move tickets to done yourself.
 - Do not continue to another ticket after demo handoff.
+
 <!-- END GENERATED: workflow-sequence -->
 
 Follow the patterns in CLAUDE.md for database queries, React components, and project conventions.

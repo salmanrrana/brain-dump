@@ -8,6 +8,7 @@ description: Use Brain Dump entirely through the brain-dump CLI. Start ticket wo
 Use the `brain-dump` CLI directly. Do not rely on MCP. Prefer CLI commands plus pi's built-in `bash`, `read`, `edit`, and `write` tools.
 
 <!-- BEGIN GENERATED: workflow-sequence -->
+
 ## Generated CLI Workflow
 
 Status flow: `backlog -> ready -> in_progress -> ai_review -> ai_verification -> done`
@@ -31,6 +32,7 @@ Status flow: `backlog -> ready -> in_progress -> ai_review -> ai_verification ->
 - Before complete-work, add a test_report comment with exact pass/fail/skipped command results and omit author so Brain Dump auto-detects the provider.
 - Before demo, all critical/major findings must be fixed and check-complete must allow verification handoff.
 - Before session completion, generate-demo must have been called and the ticket must be in ai_verification.
+
 <!-- END GENERATED: workflow-sequence -->
 
 ## Useful CLI shortcuts

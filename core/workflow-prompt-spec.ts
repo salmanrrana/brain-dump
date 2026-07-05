@@ -250,16 +250,29 @@ ${TICKET_STATUSES.map((status) => `    note right of ${status}: ${TICKET_STATUS_
 }
 
 export function renderDocsStatusFlow(): string {
+  const rows = TICKET_STATUSES.map((status) => {
+    const metadata = TICKET_STATUS_METADATA[status];
+    return [
+      `\`${status}\``,
+      metadata.label,
+      metadata.active ? "yes" : "no",
+      metadata.kanbanColumn ? "yes" : "no",
+    ] as const;
+  });
+  const headers = ["Status", "Label", "Active", "Kanban column"] as const;
+  const widths = headers.map((header, index) =>
+    Math.max(header.length, ...rows.map((row) => (row[index] ?? "").length))
+  );
+  const renderRow = (row: readonly string[]): string =>
+    `| ${row.map((cell, index) => cell.padEnd(widths[index]!)).join(" | ")} |`;
+
   return `The enforced ticket status specification lives in \`core/workflow-steps.ts\`. Run \`pnpm workflow:prompts\` after changing workflow statuses or transitions.
 
 Status flow: \`${getStatusFlowText()}\`
 
-| Status | Label | Active | Kanban column |
-| ------ | ----- | ------ | ------------- |
-${TICKET_STATUSES.map((status) => {
-  const metadata = TICKET_STATUS_METADATA[status];
-  return `| \`${status}\` | ${metadata.label} | ${metadata.active ? "yes" : "no"} | ${metadata.kanbanColumn ? "yes" : "no"} |`;
-}).join("\n")}`;
+${renderRow(headers)}
+${renderRow(widths.map((width) => "-".repeat(width)))}
+${rows.map(renderRow).join("\n")}`;
 }
 
 export function renderKanbanWorkflowStatusSection(): string {

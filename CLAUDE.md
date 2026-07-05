@@ -181,6 +181,7 @@ The workflow source of truth is executable data, not hand-written prompt text.
 2. Edit `core/workflow-prompt-spec.ts` for provider-facing workflow phases, gates, or stop conditions.
 3. Run `pnpm workflow:prompts` to regenerate provider skills/prompts and docs diagrams.
 4. Run `pnpm check`. The drift gate fails if generated sections were hand-edited or not regenerated.
+
 <!-- END GENERATED: workflow-sequence -->
 
 ### Skills (Workflow Shortcuts)

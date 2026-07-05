@@ -67,6 +67,7 @@ Complete the Ralph session and stop. Never run verification or move the ticket t
 - Do not run verification yourself.
 - Do not move tickets to done yourself.
 - Do not continue to another ticket after demo handoff.
+
 <!-- END GENERATED: workflow-sequence -->
 
 ## PRD File Format

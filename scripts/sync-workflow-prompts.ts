@@ -85,5 +85,5 @@ function replaceGeneratedSection(content: string, generated: string): string {
 
   const before = content.slice(0, beginIndex + BEGIN_MARKER.length);
   const after = content.slice(endIndex);
-  return `${before}\n${generated.trim()}\n${after}`;
+  return `${before}\n\n${generated.trim()}\n\n${after}`;
 }
