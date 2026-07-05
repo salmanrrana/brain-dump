@@ -15,6 +15,8 @@ export const TICKET_STATUSES = [
   "done",
 ] as const;
 
+export const DIRECT_STATUS_UPDATE_STATUSES = ["backlog", "ready", "in_progress"] as const;
+
 export const LEGACY_TICKET_STATUSES = ["human_review"] as const;
 
 export type ActiveTicketStatus = (typeof TICKET_STATUSES)[number];
@@ -152,6 +154,20 @@ export function isTicketStatus(value: string): value is TicketStatus {
 
 export function isActiveTicketStatus(value: string): value is ActiveTicketStatus {
   return (TICKET_STATUSES as readonly string[]).includes(value);
+}
+
+export function isDirectStatusUpdateStatus(
+  value: string
+): value is (typeof DIRECT_STATUS_UPDATE_STATUSES)[number] {
+  return (DIRECT_STATUS_UPDATE_STATUSES as readonly string[]).includes(value);
+}
+
+export function canDirectlyUpdateTicketStatus(from: string, to: string): boolean {
+  return isDirectStatusUpdateStatus(from) && isDirectStatusUpdateStatus(to);
+}
+
+export function getDirectStatusUpdateErrorMessage(from: string, to: string): string {
+  return `Cannot directly set ticket status from ${from} to ${to}. Use workflow/review/verification actions for ai_review, ai_verification, and done transitions. Direct status updates are limited to transitions between: ${DIRECT_STATUS_UPDATE_STATUSES.join(", ")}.`;
 }
 
 export function getTicketStatusLabel(status: TicketStatus): string {

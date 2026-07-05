@@ -72,7 +72,7 @@ describe("MCP Tool Preconditions", () => {
       const prohibitedOperations = {
         submit_review_finding: "Ticket must be in ai_review status",
         generate_demo_script: "Ticket must be in ai_review to generate demo",
-        verify_ticket: "Ticket must be in ai_verification and invoked by the runner",
+        verify_ticket: "Ticket must be in ai_verification; implementers stop at generate-demo",
       };
 
       Object.entries(prohibitedOperations).forEach(([, expectedError]) => {

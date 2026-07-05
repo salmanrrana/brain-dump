@@ -7,7 +7,7 @@
  * No decorators, no class hierarchy — just typed data.
  */
 
-import { TICKET_STATUSES } from "../../core/workflow-steps.ts";
+import { DIRECT_STATUS_UPDATE_STATUSES, TICKET_STATUSES } from "../../core/workflow-steps.ts";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -45,6 +45,7 @@ const projectFlag: FlagDef = {
 };
 
 const ticketStatusEnum = [...TICKET_STATUSES];
+const directStatusUpdateEnum = [...DIRECT_STATUS_UPDATE_STATUSES];
 
 const ticketFlag: FlagDef = {
   name: "ticket",
@@ -166,8 +167,8 @@ export const COMMAND_REGISTRY: CommandDef[] = [
         name: "status",
         type: "enum",
         required: false,
-        description: "Ticket status",
-        enum: ticketStatusEnum,
+        description: "Directly editable ticket status",
+        enum: directStatusUpdateEnum,
       },
       {
         name: "priority",
@@ -181,7 +182,7 @@ export const COMMAND_REGISTRY: CommandDef[] = [
       prettyFlag,
     ],
     examples: [
-      "brain-dump ticket update --ticket abc --status done",
+      "brain-dump ticket update --ticket abc --status in_progress",
       'brain-dump ticket update --ticket abc --title "New Title" --priority high',
     ],
   },
@@ -195,8 +196,8 @@ export const COMMAND_REGISTRY: CommandDef[] = [
         name: "status",
         type: "enum",
         required: true,
-        description: "Ticket status",
-        enum: ticketStatusEnum,
+        description: "Directly editable ticket status",
+        enum: directStatusUpdateEnum,
       },
       prettyFlag,
     ],

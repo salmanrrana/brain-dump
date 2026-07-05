@@ -73,8 +73,8 @@ Status flow: ${TICKET_STATUSES.join(" → ")}
 ### create - Create a new ticket (added to Backlog). Get projectId via project list/find-by-path first.
 ### list - List tickets with optional filters (newest first)
 ### get - Get a single ticket by ID with full details
-### update - Update ticket fields (only provided fields change)
-### update-status - Update ticket status (follows status flow above)
+### update - Update ticket fields (only provided fields change). Direct status edits are limited to backlog, ready, and in_progress.
+### update-status - Update ticket status for backlog/ready/in_progress only. Use workflow/review/verification actions for review, verification, and done transitions.
 ### delete - Delete ticket and comments. DRY RUN by default; set confirm=true to delete.
 ### update-criterion - Update acceptance criterion status
 ### update-attachment - Update attachment metadata only (type, description, priority, linkedCriteria). Evidence files and verification reports are runner-only core writes; no MCP action can upload or fabricate verification evidence.

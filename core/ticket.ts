@@ -16,7 +16,12 @@ import {
 import type { DbTicketRow, DbProjectRow, DbEpicRow, DbTicketSummaryRow } from "./db-rows.ts";
 import { safeJsonParse } from "./json.ts";
 import { autoTagFromMentions } from "./platform-mention-parser.ts";
-import { isActiveTicketStatus, TICKET_STATUSES } from "./workflow-steps.ts";
+import {
+  canDirectlyUpdateTicketStatus,
+  getDirectStatusUpdateErrorMessage,
+  isActiveTicketStatus,
+  TICKET_STATUSES,
+} from "./workflow-steps.ts";
 import {
   normalizeAttachments,
   isRunnerEvidenceAttachmentType,
@@ -285,15 +290,12 @@ export function updateTicketStatus(
   ticketId: string,
   status: TicketStatus
 ): TicketWithProject {
-  if (!isActiveTicketStatus(status)) {
-    throw new ValidationError(`Invalid status: ${status}. Valid: ${TICKET_STATUSES.join(", ")}`);
-  }
-
   // Verify ticket exists
-  getTicketRow(db, ticketId);
+  const existing = getTicketRow(db, ticketId);
+  assertDirectStatusUpdateAllowed(existing.status as TicketStatus, status);
 
   const now = new Date().toISOString();
-  const completedAt = status === "done" ? now : null;
+  const completedAt = null;
 
   db.prepare("UPDATE tickets SET status = ?, updated_at = ?, completed_at = ? WHERE id = ?").run(
     status,
@@ -328,7 +330,7 @@ export function updateTicket(
   params: UpdateTicketParams
 ): TicketWithProject {
   // Verify ticket exists
-  getTicketRow(db, ticketId);
+  const existing = getTicketRow(db, ticketId);
 
   const setClauses: string[] = [];
   const values: (string | number | null)[] = [];
@@ -344,18 +346,11 @@ export function updateTicket(
   }
 
   if (params.status !== undefined) {
-    if (!isActiveTicketStatus(params.status)) {
-      throw new ValidationError(
-        `Invalid status: ${params.status}. Valid: ${TICKET_STATUSES.join(", ")}`
-      );
-    }
+    assertDirectStatusUpdateAllowed(existing.status as TicketStatus, params.status);
     setClauses.push("status = ?");
     values.push(params.status);
-
-    if (params.status === "done") {
-      setClauses.push("completed_at = ?");
-      values.push(new Date().toISOString());
-    }
+    setClauses.push("completed_at = ?");
+    values.push(null);
   }
 
   if (params.priority !== undefined) {
@@ -397,6 +392,16 @@ export function updateTicket(
   db.prepare(`UPDATE tickets SET ${setClauses.join(", ")} WHERE id = ?`).run(...values);
 
   return getTicketWithProject(db, ticketId);
+}
+
+function assertDirectStatusUpdateAllowed(from: TicketStatus, to: TicketStatus): void {
+  if (!isActiveTicketStatus(to)) {
+    throw new ValidationError(`Invalid status: ${to}. Valid: ${TICKET_STATUSES.join(", ")}`);
+  }
+
+  if (canDirectlyUpdateTicketStatus(from, to)) return;
+
+  throw new ValidationError(getDirectStatusUpdateErrorMessage(from, to));
 }
 
 export type CriterionStatus = "pending" | "passed" | "failed" | "skipped";

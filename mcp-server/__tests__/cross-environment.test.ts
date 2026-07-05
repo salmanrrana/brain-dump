@@ -2,6 +2,10 @@ import { describe, it, expect, beforeAll, beforeEach, afterEach } from "vitest";
 import * as path from "path";
 import * as fs from "fs";
 import { detectEnvironment, detectAuthor, getEnvironmentInfo } from "../lib/environment.ts";
+import { DIRECT_STATUS_UPDATE_STATUSES } from "../../core/workflow-steps.ts";
+import { createTestDatabase } from "../../core/db.ts";
+import { updateTicketStatus } from "../../core/ticket.ts";
+import { ValidationError } from "../../core/errors.ts";
 
 /**
  * Cross-environment MCP compatibility tests
@@ -374,22 +378,32 @@ describe("MCP Protocol Compatibility", () => {
       });
     });
 
-    it("hook-less environments rely on MCP preconditions for verification handoff", () => {
+    it("hook-less environments cannot use direct status edits for verification handoff", () => {
       const hooklessEnvironments = ["vscode", "cursor", "opencode", "codex"];
-      const mcpPreconditions = [
-        "review submit-finding requires ai_review",
-        "review generate-demo requires ai_review and resolved critical/major findings",
-        "review submit-feedback is retired",
-        "verification runner alone performs ai_verification -> done",
-      ];
+      const { db } = createTestDatabase();
+      const now = new Date().toISOString();
+
+      db.prepare("INSERT INTO projects (id, name, path, created_at) VALUES (?, ?, ?, ?)").run(
+        "project-1",
+        "Project",
+        "/tmp/project",
+        now
+      );
+
+      db.prepare(
+        `INSERT INTO tickets (id, title, status, position, project_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
+      ).run("ticket-1", "Ticket", "ai_verification", 1, "project-1", now, now);
 
       hooklessEnvironments.forEach((environment) => {
         expect(environment.length).toBeGreaterThan(0);
-        expect(mcpPreconditions).toContain("review submit-feedback is retired");
-        expect(mcpPreconditions).toContain(
-          "verification runner alone performs ai_verification -> done"
-        );
+        expect(DIRECT_STATUS_UPDATE_STATUSES).not.toContain("ai_review");
+        expect(DIRECT_STATUS_UPDATE_STATUSES).not.toContain("ai_verification");
+        expect(DIRECT_STATUS_UPDATE_STATUSES).not.toContain("done");
       });
+
+      expect(() => updateTicketStatus(db, "ticket-1", "in_progress")).toThrow(ValidationError);
+      expect(() => updateTicketStatus(db, "ticket-1", "done")).toThrow(ValidationError);
     });
   });
 

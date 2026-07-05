@@ -6,7 +6,13 @@ import { tagFilterConditions } from "../lib/sql-helpers";
 import { randomUUID } from "crypto";
 import { ensureExists, safeJsonStringify } from "../lib/utils";
 import { handleEpicCompletionLearnings } from "../../core/index";
-import { isActiveTicketStatus } from "../../core/workflow-steps.ts";
+import {
+  canDirectlyUpdateTicketStatus,
+  DIRECT_STATUS_UPDATE_STATUSES,
+  getDirectStatusUpdateErrorMessage,
+  isActiveTicketStatus,
+  isDirectStatusUpdateStatus,
+} from "../../core/workflow-steps.ts";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("tickets-api");
@@ -181,14 +187,13 @@ export const updateTicket = createServerFn({ method: "POST" })
     if (updates.description !== undefined)
       updateData.description = updates.description?.trim() ?? null;
     if (updates.status !== undefined) {
-      updateData.status = updates.status;
-      // Set completedAt when moving to done
-      if (updates.status === "done") {
-        updateData.completedAt = new Date().toISOString();
-      } else if (existing.status === "done") {
-        // Clear completedAt when moving out of done
-        updateData.completedAt = null;
+      if (!isActiveTicketStatus(updates.status)) {
+        throw new Error(`Invalid status: ${updates.status}`);
       }
+      if (!canDirectlyUpdateTicketStatus(existing.status, updates.status)) {
+        throw new Error(getDirectStatusUpdateErrorMessage(existing.status, updates.status));
+      }
+      updateData.status = updates.status;
     }
     if (updates.priority !== undefined) updateData.priority = updates.priority;
     if (updates.epicId !== undefined) updateData.epicId = updates.epicId;
@@ -223,6 +228,11 @@ export const updateTicketStatus = createServerFn({ method: "POST" })
     if (!isActiveTicketStatus(input.status)) {
       throw new Error(`Invalid status: ${input.status}`);
     }
+    if (!isDirectStatusUpdateStatus(input.status)) {
+      throw new Error(
+        `Cannot directly set ticket status to ${input.status}. Use workflow/review/verification actions for ai_review, ai_verification, and done transitions. Direct status updates are limited to: ${DIRECT_STATUS_UPDATE_STATUSES.join(", ")}.`
+      );
+    }
     return input;
   })
   .handler(async ({ data: { id, status } }) => {
@@ -234,12 +244,8 @@ export const updateTicketStatus = createServerFn({ method: "POST" })
       updatedAt: new Date().toISOString(),
     };
 
-    // Set completedAt when moving to done
-    if (status === "done") {
-      updateData.completedAt = new Date().toISOString();
-    } else if (existing.status === "done") {
-      // Clear completedAt when moving out of done
-      updateData.completedAt = null;
+    if (!canDirectlyUpdateTicketStatus(existing.status, status)) {
+      throw new Error(getDirectStatusUpdateErrorMessage(existing.status, status));
     }
 
     db.update(tickets).set(updateData).where(eq(tickets.id, id)).run();
