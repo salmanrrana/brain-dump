@@ -476,7 +476,7 @@ describe("verification queue", () => {
   it("supports retry scheduling without making failed jobs immediately runnable", () => {
     seedDemo([apiStep()]);
     const job = enqueueVerificationJob(db, "ticket-1", { now: "2026-03-08T01:00:00.000Z" });
-    claimNextVerificationJob(db, {
+    const claimed = claimNextVerificationJob(db, {
       workerId: "worker-1",
       now: "2026-03-08T01:00:01.000Z",
       leaseMs: 60_000,
@@ -484,6 +484,8 @@ describe("verification queue", () => {
 
     settleVerificationJob(db, {
       jobId: job.id,
+      workerId: "worker-1",
+      attemptCount: claimed!.attemptCount,
       status: "failed",
       error: "boot failed",
       nextRunAt: "2026-03-08T01:05:00.000Z",
@@ -505,5 +507,63 @@ describe("verification queue", () => {
       })
     ).toMatchObject({ status: "running", leasedBy: "worker-2", attemptCount: 2 });
     expect(getVerificationJob(db, "ticket-1")?.lastError).toBe("boot failed");
+  });
+
+  it("rejects stale workers settling leases they no longer own", () => {
+    seedDemo([apiStep()]);
+    const job = enqueueVerificationJob(db, "ticket-1", { now: "2026-03-08T01:00:00.000Z" });
+    const firstClaim = claimNextVerificationJob(db, {
+      workerId: "worker-1",
+      now: "2026-03-08T01:00:01.000Z",
+      leaseMs: 1_000,
+    });
+    claimNextVerificationJob(db, {
+      workerId: "worker-2",
+      now: "2026-03-08T01:00:03.000Z",
+      leaseMs: 60_000,
+    });
+
+    expect(() =>
+      settleVerificationJob(db, {
+        jobId: job.id,
+        workerId: "worker-1",
+        attemptCount: firstClaim!.attemptCount,
+        status: "succeeded",
+        now: "2026-03-08T01:00:04.000Z",
+      })
+    ).toThrow(/not leased by worker-1/);
+    expect(getVerificationJob(db, "ticket-1")).toMatchObject({
+      status: "running",
+      leasedBy: "worker-2",
+      attemptCount: 2,
+    });
+  });
+
+  it("does not claim queued jobs after the ticket leaves ai_verification", () => {
+    seedDemo([apiStep()]);
+    enqueueVerificationJob(db, "ticket-1", { now: "2026-03-08T01:00:00.000Z" });
+    db.prepare("UPDATE tickets SET status = 'in_progress' WHERE id = 'ticket-1'").run();
+
+    expect(
+      claimNextVerificationJob(db, {
+        workerId: "worker-1",
+        now: "2026-03-08T01:00:01.000Z",
+        leaseMs: 60_000,
+      })
+    ).toBeNull();
+  });
+
+  it("does not refresh an unexpired running lease", () => {
+    seedDemo([apiStep()]);
+    enqueueVerificationJob(db, "ticket-1", { now: "2026-03-08T01:00:00.000Z" });
+    claimNextVerificationJob(db, {
+      workerId: "worker-1",
+      now: "2026-03-08T01:00:01.000Z",
+      leaseMs: 60_000,
+    });
+
+    expect(() =>
+      enqueueVerificationJob(db, "ticket-1", { now: "2026-03-08T01:00:02.000Z" })
+    ).toThrow(/active verification lease/);
   });
 });

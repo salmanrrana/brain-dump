@@ -677,72 +677,76 @@ export function generateDemo(db: DbHandle, params: GenerateDemoParams): DemoScri
   const demoId = existingDemo?.id ?? randomUUID();
   const linkedEpicReviewRunId = epicReviewRunId ?? existingDemo?.epic_review_run_id ?? null;
 
-  if (existingDemo) {
+  return db.transaction(() => {
+    if (existingDemo) {
+      db.prepare(
+        `UPDATE demo_scripts
+         SET steps = ?, epic_review_run_id = ?, generated_at = ?, completed_at = NULL, feedback = NULL, passed = NULL
+         WHERE ticket_id = ?`
+      ).run(JSON.stringify(steps), linkedEpicReviewRunId, now, ticketId);
+    } else {
+      db.prepare(
+        `INSERT INTO demo_scripts (id, ticket_id, steps, epic_review_run_id, generated_at)
+         VALUES (?, ?, ?, ?, ?)`
+      ).run(demoId, ticketId, JSON.stringify(steps), linkedEpicReviewRunId, now);
+    }
+
+    // Update workflow state (ensure it exists first)
+    getOrCreateWorkflowState(db, ticketId);
     db.prepare(
-      `UPDATE demo_scripts
-       SET steps = ?, epic_review_run_id = ?, generated_at = ?, completed_at = NULL, feedback = NULL, passed = NULL
-       WHERE ticket_id = ?`
-    ).run(JSON.stringify(steps), linkedEpicReviewRunId, now, ticketId);
-  } else {
-    db.prepare(
-      `INSERT INTO demo_scripts (id, ticket_id, steps, epic_review_run_id, generated_at)
-       VALUES (?, ?, ?, ?, ?)`
-    ).run(demoId, ticketId, JSON.stringify(steps), linkedEpicReviewRunId, now);
-  }
+      `UPDATE ticket_workflow_state SET demo_generated = 1, updated_at = ? WHERE ticket_id = ?`
+    ).run(now, ticketId);
 
-  // Update workflow state (ensure it exists first)
-  getOrCreateWorkflowState(db, ticketId);
-  db.prepare(
-    `UPDATE ticket_workflow_state SET demo_generated = 1, updated_at = ? WHERE ticket_id = ?`
-  ).run(now, ticketId);
-
-  // Transition ticket to AI verification.
-  db.prepare("UPDATE tickets SET status = 'ai_verification', updated_at = ? WHERE id = ?").run(
-    now,
-    ticketId
-  );
-  db.prepare(
-    "UPDATE ticket_workflow_state SET current_phase = 'ai_verification', updated_at = ? WHERE ticket_id = ?"
-  ).run(now, ticketId);
-  enqueueVerificationJob(db, ticketId, { now });
-
-  completeActiveSessionsForTicket(
-    db,
-    ticketId,
-    "success",
-    "Demo generated; ticket handed to AI verification."
-  );
-
-  if (linkedEpicReviewRunId) {
-    updateEpicReviewRunTicketLink(db, {
-      epicReviewRunId: linkedEpicReviewRunId,
-      ticketId,
-      status: "completed",
-      completedAt: now,
-      summary: "Review completed and demo generated.",
-    });
-
-    const ticketLinks = listEpicReviewRunTicketLinks(db, linkedEpicReviewRunId);
-    const artifactSummary = getEpicReviewRunArtifactSummary(db, linkedEpicReviewRunId);
-    const hasActiveTickets = ticketLinks.some(
-      (link) => link.status === "queued" || link.status === "running"
+    // Transition ticket to AI verification.
+    db.prepare("UPDATE tickets SET status = 'ai_verification', updated_at = ? WHERE id = ?").run(
+      now,
+      ticketId
     );
-    const failedTickets = ticketLinks.filter((link) => link.status === "failed").length;
-    const completedTickets = ticketLinks.filter((link) => link.status === "completed").length;
+    db.prepare(
+      "UPDATE ticket_workflow_state SET current_phase = 'ai_verification', updated_at = ? WHERE ticket_id = ?"
+    ).run(now, ticketId);
+    enqueueVerificationJob(db, ticketId, { now });
 
-    updateEpicReviewRun(db, {
-      epicReviewRunId: linkedEpicReviewRunId,
-      status: hasActiveTickets ? "running" : "completed",
-      summary: buildEpicReviewRunCompletionSummary(artifactSummary, {
-        completedTickets,
-        failedTickets,
-      }),
-      completedAt: hasActiveTickets ? null : now,
-    });
-  }
+    completeActiveSessionsForTicket(
+      db,
+      ticketId,
+      "success",
+      "Demo generated; ticket handed to AI verification."
+    );
 
-  const row = db.prepare("SELECT * FROM demo_scripts WHERE id = ?").get(demoId) as DbDemoScriptRow;
-  return toDemoScript(row);
+    if (linkedEpicReviewRunId) {
+      updateEpicReviewRunTicketLink(db, {
+        epicReviewRunId: linkedEpicReviewRunId,
+        ticketId,
+        status: "completed",
+        completedAt: now,
+        summary: "Review completed and demo generated.",
+      });
+
+      const ticketLinks = listEpicReviewRunTicketLinks(db, linkedEpicReviewRunId);
+      const artifactSummary = getEpicReviewRunArtifactSummary(db, linkedEpicReviewRunId);
+      const hasActiveTickets = ticketLinks.some(
+        (link) => link.status === "queued" || link.status === "running"
+      );
+      const failedTickets = ticketLinks.filter((link) => link.status === "failed").length;
+      const completedTickets = ticketLinks.filter((link) => link.status === "completed").length;
+
+      updateEpicReviewRun(db, {
+        epicReviewRunId: linkedEpicReviewRunId,
+        status: hasActiveTickets ? "running" : "completed",
+        summary: buildEpicReviewRunCompletionSummary(artifactSummary, {
+          completedTickets,
+          failedTickets,
+        }),
+        completedAt: hasActiveTickets ? null : now,
+      });
+    }
+
+    const row = db
+      .prepare("SELECT * FROM demo_scripts WHERE id = ?")
+      .get(demoId) as DbDemoScriptRow;
+    return toDemoScript(row);
+  })();
 }
 
 /**

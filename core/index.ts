@@ -328,6 +328,7 @@ export {
   listVerificationJobs,
   claimNextVerificationJob,
   settleVerificationJob,
+  settleVerificationJobForTicket,
 } from "./verification-queue.ts";
 
 export type {

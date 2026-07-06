@@ -21,6 +21,7 @@ import {
   type HandleEpicCompletionAutoPrResult,
 } from "./ship.ts";
 import type { AttachmentType } from "./attachment-types.ts";
+import { settleVerificationJobForTicket } from "./verification-queue.ts";
 
 export type VerificationRunStatus = "passed" | "failed" | "uncertified" | "infra_error";
 export type VerificationStepStatus = "passed" | "failed" | "skipped";
@@ -1079,22 +1080,28 @@ export async function verifyTicket(
 
     if (run.status === "passed" && run.certified) {
       completeTicketIfCertified(db, params.ticketId, now);
+      settleVerificationJobForTicket(db, params.ticketId, "succeeded", { now });
     } else if (run.status === "failed") {
       recordVerificationFindings(db, run, steps, now);
       updateDemoStepStatusesForRun(db, run, steps);
       const blockedStepOrder = latestThreeFailedRunsShareStep(db, params.ticketId);
       if (blockedStepOrder === null) {
         returnTicketToImplementationAfterVerificationFailure(db, run, now);
+        settleVerificationJobForTicket(db, params.ticketId, "failed", {
+          now,
+          error: "Verification assertions failed; ticket returned to implementation.",
+        });
       } else {
         blockTicketAfterRepeatedVerificationFailures(db, run, blockedStepOrder, now);
+        settleVerificationJobForTicket(db, params.ticketId, "blocked", {
+          now,
+          error: `Repeated verification failure on step ${blockedStepOrder}.`,
+        });
       }
     } else if (run.status === "uncertified" || run.status === "infra_error") {
-      blockTicket(
-        db,
-        params.ticketId,
-        `Verification ${run.status}: ${run.manifest.stepVerdicts[0]?.message ?? "see manifest"}`,
-        now
-      );
+      const blockedReason = `Verification ${run.status}: ${run.manifest.stepVerdicts[0]?.message ?? "see manifest"}`;
+      blockTicket(db, params.ticketId, blockedReason, now);
+      settleVerificationJobForTicket(db, params.ticketId, "blocked", { now, error: blockedReason });
     }
   })();
   if (shouldHandleEpicCompletion) {

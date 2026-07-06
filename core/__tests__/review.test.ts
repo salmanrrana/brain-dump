@@ -558,6 +558,45 @@ describe("generateDemo", () => {
     expect(refreshedJob).toMatchObject({ status: "queued", attemptCount: 0 });
   });
 
+  it("rolls back the ai_verification handoff when enqueue fails", () => {
+    seedProject();
+    seedAiReviewTicket();
+    const originalStep = automatedStep();
+    db.prepare(
+      "INSERT INTO demo_scripts (id, ticket_id, steps, generated_at) VALUES (?, ?, ?, ?)"
+    ).run("demo-1", "ticket-1", JSON.stringify([originalStep]), "2026-03-08T01:00:00.000Z");
+    db.prepare(
+      `INSERT INTO verification_jobs (
+        id, ticket_id, demo_script_id, status, attempt_count, next_run_at,
+        leased_by, lease_expires_at, created_at, updated_at
+      ) VALUES (?, ?, ?, 'running', 1, ?, ?, ?, ?, ?)`
+    ).run(
+      "job-1",
+      "ticket-1",
+      "demo-1",
+      "2026-03-08T01:00:00.000Z",
+      "worker-1",
+      "2999-01-01T00:00:00.000Z",
+      "2026-03-08T01:00:00.000Z",
+      "2026-03-08T01:00:00.000Z"
+    );
+
+    expect(() => generateDemo(db, { ticketId: "ticket-1", steps: [automatedStep(2)] })).toThrow(
+      /active verification lease/
+    );
+
+    expect(db.prepare("SELECT status FROM tickets WHERE id = ?").get("ticket-1")).toMatchObject({
+      status: "ai_review",
+    });
+    const demo = getDemo(db, "ticket-1");
+    expect(demo?.steps).toEqual([originalStep]);
+    expect(getVerificationJob(db, "ticket-1")).toMatchObject({
+      status: "running",
+      leasedBy: "worker-1",
+      attemptCount: 1,
+    });
+  });
+
   it("accepts and persists UI automation specs for visual steps", () => {
     seedProject();
     seedAiReviewTicket();
