@@ -25,6 +25,7 @@ import {
   repairLegacyHumanReviewHandoff,
 } from "../../core/review.ts";
 import { listVerificationRuns } from "../../core/verification.ts";
+import { getVerificationJob } from "../../core/verification-queue.ts";
 import type { MarkFixedStatus } from "../../core/review.ts";
 import type { DemoStep, FindingAgent, FindingSeverity, FindingStatus } from "../../core/types.ts";
 import { addComment, type CommentAuthor } from "../../core/comment.ts";
@@ -47,6 +48,7 @@ const ACTIONS = [
   "generate-demo",
   "get-demo",
   "get-verification-history",
+  "get-verification-job",
   "repair-legacy-handoff",
 ] as const;
 
@@ -135,6 +137,7 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
 ### generate-demo - Generate demo script for AI verification (moves ticket to ai_verification). Steps must be visual/automated with executable automation specs; manual steps are legacy read-only data and are rejected for new handoffs.
 ### get-demo - Get the demo script for a ticket
 ### get-verification-history - Read verification run history for a ticket
+### get-verification-job - Read queued/running verification job state for a ticket
 ### repair-legacy-handoff - Repair a legacy human_review ticket to ai_verification (with demo) or ai_review (without demo)
 
 No MCP action uploads evidence or marks verification passed. The verification runner owns evidence writes and ai_verification -> done.`,
@@ -373,6 +376,15 @@ No MCP action uploads evidence or marks verification passed. The verification ru
               return formatEmpty("verification runs for this ticket");
             }
             return formatResult(runs, `Found ${runs.length} verification run(s)`);
+          }
+
+          case "get-verification-job": {
+            const ticketId = requireParam(params.ticketId, "ticketId", "get-verification-job");
+            const job = getVerificationJob(db, ticketId);
+            if (!job) {
+              return formatEmpty("verification job for this ticket");
+            }
+            return formatResult(job);
           }
 
           case "repair-legacy-handoff": {

@@ -10,24 +10,24 @@ All commands output JSON by default. Add `--pretty` for human-readable output.
 
 ### Resources
 
-| Resource     | Description                                                                                                                                                                        |
-| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `project`    | List, find, create, delete projects — _list, find, create, delete_                                                                                                                 |
-| `ticket`     | Create, list, get, update, delete tickets — _create, list, get, update, update-status, update-criterion, update-attachment, list-by-epic, link-files, get-files, delete_           |
-| `epic`       | Create, list, update, delete epics — _create, list, update, delete, reconcile-learnings, get-learnings_                                                                            |
-| `workflow`   | Start work, complete work, start epic, launch Ralph — _start-work, complete-work, start-epic, launch-ticket, launch-epic_                                                          |
-| `comment`    | Add and list ticket comments — _add, list_                                                                                                                                         |
-| `review`     | Submit findings, generate demos, manage reviews — _submit-finding, mark-fixed, check-complete, generate-demo, get-demo, get-findings, get-verification-history_                    |
-| `verify`     | Run AI verification and inspect verification history — _run, history_                                                                                                              |
-| `session`    | Create, update, complete Ralph sessions — _create, update, complete, get, list, update-state, emit-event, get-events, clear-events_                                                |
-| `git`        | Link commits, PRs, sync ticket links — _link-commit, link-pr, sync_                                                                                                                |
-| `telemetry`  | Start, end, get, list telemetry sessions, record token usage — _start, end, get, list, log-tool, log-prompt, log-context, record-usage, recalculate-costs, deep-recalculate-costs_ |
-| `files`      | Link files to tickets, find tickets by file — _link, get-tickets_                                                                                                                  |
-| `tasks`      | Save, get, clear Claude task lists — _save, get, clear, snapshots_                                                                                                                 |
-| `compliance` | Conversation logging for compliance auditing — _start, log, end, list, export, archive_                                                                                            |
-| `settings`   | Get and update project settings — _get, update_                                                                                                                                    |
-| `transfer`   | Export and import .braindump archives — _export-epic, export-project, import, preview_                                                                                             |
-| `admin`      | Backup, restore, check, doctor, health — _backup, restore, check, doctor, health_                                                                                                  |
+| Resource     | Description                                                                                                                                                                            |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `project`    | List, find, create, delete projects — _list, find, create, delete_                                                                                                                     |
+| `ticket`     | Create, list, get, update, delete tickets — _create, list, get, update, update-status, update-criterion, update-attachment, list-by-epic, link-files, get-files, delete_               |
+| `epic`       | Create, list, update, delete epics — _create, list, update, delete, reconcile-learnings, get-learnings_                                                                                |
+| `workflow`   | Start work, complete work, start epic, launch Ralph — _start-work, complete-work, start-epic, launch-ticket, launch-epic_                                                              |
+| `comment`    | Add and list ticket comments — _add, list_                                                                                                                                             |
+| `review`     | Submit findings, generate demos, manage reviews — _submit-finding, mark-fixed, check-complete, generate-demo, get-demo, get-findings, get-verification-history, repair-legacy-handoff_ |
+| `verify`     | Run AI verification and inspect verification history — _run, history, status_                                                                                                          |
+| `session`    | Create, update, complete Ralph sessions — _create, update, complete, get, list, update-state, emit-event, get-events, clear-events_                                                    |
+| `git`        | Link commits, PRs, sync ticket links — _link-commit, link-pr, sync_                                                                                                                    |
+| `telemetry`  | Start, end, get, list telemetry sessions, record token usage — _start, end, get, list, log-tool, log-prompt, log-context, record-usage, recalculate-costs, deep-recalculate-costs_     |
+| `files`      | Link files to tickets, find tickets by file — _link, get-tickets_                                                                                                                      |
+| `tasks`      | Save, get, clear Claude task lists — _save, get, clear, snapshots_                                                                                                                     |
+| `compliance` | Conversation logging for compliance auditing — _start, log, end, list, export, archive_                                                                                                |
+| `settings`   | Get and update project settings — _get, update_                                                                                                                                        |
+| `transfer`   | Export and import .braindump archives — _export-epic, export-project, import, preview_                                                                                                 |
+| `admin`      | Backup, restore, check, doctor, health — _backup, restore, check, doctor, health_                                                                                                      |
 
 ### Top-Level Commands
 
@@ -911,6 +911,25 @@ brain-dump review get-verification-history --ticket <value> [--pretty]
 brain-dump review get-verification-history --ticket abc --pretty
 ```
 
+### brain-dump review repair-legacy-handoff
+
+Repair a legacy human_review ticket into the active AI verification flow
+
+```bash
+brain-dump review repair-legacy-handoff --ticket <value> [--pretty]
+```
+
+| Flag       | Type    | Required | Description                           |
+| ---------- | ------- | -------- | ------------------------------------- |
+| `--ticket` | string  | Yes      | Ticket ID                             |
+| `--pretty` | boolean | No       | Human-readable output (default: JSON) |
+
+**Examples:**
+
+```bash
+brain-dump review repair-legacy-handoff --ticket abc --pretty
+```
+
 ---
 
 ## verify
@@ -957,6 +976,25 @@ brain-dump verify history --ticket <value> [--history] [--pretty]
 
 ```bash
 brain-dump verify --ticket abc --history --pretty
+```
+
+### brain-dump verify status
+
+Show queued/running verification job state for a ticket
+
+```bash
+brain-dump verify status --ticket <value> [--pretty]
+```
+
+| Flag       | Type    | Required | Description                           |
+| ---------- | ------- | -------- | ------------------------------------- |
+| `--ticket` | string  | Yes      | Ticket ID                             |
+| `--pretty` | boolean | No       | Human-readable output (default: JSON) |
+
+**Examples:**
+
+```bash
+brain-dump verify status --ticket abc --pretty
 ```
 
 ---

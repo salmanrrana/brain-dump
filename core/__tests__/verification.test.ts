@@ -11,6 +11,13 @@ import {
   verifyTicket,
   type VerificationRun,
 } from "../verification.ts";
+import {
+  claimNextVerificationJob,
+  enqueueVerificationJob,
+  getVerificationJob,
+  listVerificationJobs,
+  settleVerificationJob,
+} from "../verification-queue.ts";
 import type { DemoStep } from "../types.ts";
 
 let db: Database.Database;
@@ -400,5 +407,103 @@ describe("verifyTicket", () => {
       .prepare("SELECT COUNT(*) as count FROM ticket_comments WHERE ticket_id = 'ticket-1'")
       .get() as { count: number };
     expect(comments.count).toBe(0);
+  });
+});
+
+describe("verification queue", () => {
+  it("enqueues one durable pending job per ticket and refreshes duplicates", () => {
+    seedDemo([apiStep()]);
+
+    const first = enqueueVerificationJob(db, "ticket-1", { now: "2026-03-08T01:00:00.000Z" });
+    const second = enqueueVerificationJob(db, "ticket-1", { now: "2026-03-08T01:01:00.000Z" });
+
+    expect(second.id).toBe(first.id);
+    expect(second).toMatchObject({
+      ticketId: "ticket-1",
+      demoScriptId: "demo-1",
+      status: "queued",
+      attemptCount: 0,
+      nextRunAt: "2026-03-08T01:01:00.000Z",
+    });
+    expect(listVerificationJobs(db)).toHaveLength(1);
+  });
+
+  it("leases one queued job to one worker", () => {
+    seedDemo([apiStep()]);
+    enqueueVerificationJob(db, "ticket-1", { now: "2026-03-08T01:00:00.000Z" });
+
+    const claimed = claimNextVerificationJob(db, {
+      workerId: "worker-1",
+      now: "2026-03-08T01:00:01.000Z",
+      leaseMs: 60_000,
+    });
+    const secondClaim = claimNextVerificationJob(db, {
+      workerId: "worker-2",
+      now: "2026-03-08T01:00:02.000Z",
+      leaseMs: 60_000,
+    });
+
+    expect(claimed).toMatchObject({
+      status: "running",
+      leasedBy: "worker-1",
+      attemptCount: 1,
+    });
+    expect(secondClaim).toBeNull();
+  });
+
+  it("recovers expired running leases after restart", () => {
+    seedDemo([apiStep()]);
+    enqueueVerificationJob(db, "ticket-1", { now: "2026-03-08T01:00:00.000Z" });
+    claimNextVerificationJob(db, {
+      workerId: "worker-1",
+      now: "2026-03-08T01:00:01.000Z",
+      leaseMs: 1_000,
+    });
+
+    const recovered = claimNextVerificationJob(db, {
+      workerId: "worker-2",
+      now: "2026-03-08T01:00:03.000Z",
+      leaseMs: 60_000,
+    });
+
+    expect(recovered).toMatchObject({
+      status: "running",
+      leasedBy: "worker-2",
+      attemptCount: 2,
+    });
+  });
+
+  it("supports retry scheduling without making failed jobs immediately runnable", () => {
+    seedDemo([apiStep()]);
+    const job = enqueueVerificationJob(db, "ticket-1", { now: "2026-03-08T01:00:00.000Z" });
+    claimNextVerificationJob(db, {
+      workerId: "worker-1",
+      now: "2026-03-08T01:00:01.000Z",
+      leaseMs: 60_000,
+    });
+
+    settleVerificationJob(db, {
+      jobId: job.id,
+      status: "failed",
+      error: "boot failed",
+      nextRunAt: "2026-03-08T01:05:00.000Z",
+      now: "2026-03-08T01:00:02.000Z",
+    });
+
+    expect(
+      claimNextVerificationJob(db, {
+        workerId: "worker-2",
+        now: "2026-03-08T01:04:59.000Z",
+        leaseMs: 60_000,
+      })
+    ).toBeNull();
+    expect(
+      claimNextVerificationJob(db, {
+        workerId: "worker-2",
+        now: "2026-03-08T01:05:00.000Z",
+        leaseMs: 60_000,
+      })
+    ).toMatchObject({ status: "running", leasedBy: "worker-2", attemptCount: 2 });
+    expect(getVerificationJob(db, "ticket-1")?.lastError).toBe("boot failed");
   });
 });

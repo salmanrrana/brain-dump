@@ -748,6 +748,13 @@ export const COMMAND_REGISTRY: CommandDef[] = [
     ],
     examples: ["brain-dump verify --ticket abc --history --pretty"],
   },
+  {
+    resource: "verify",
+    action: "status",
+    description: "Show queued/running verification job state for a ticket",
+    flags: [ticketFlag, prettyFlag],
+    examples: ["brain-dump verify status --ticket abc --pretty"],
+  },
 
   // ── session ────────────────────────────────────────────────
   {

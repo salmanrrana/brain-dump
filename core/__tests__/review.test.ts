@@ -13,6 +13,7 @@ import {
   submitFeedback,
 } from "../review.ts";
 import { createEpicReviewRun, getEpicReviewRun } from "../epic-review-run.ts";
+import { getVerificationJob } from "../verification-queue.ts";
 import {
   TicketNotFoundError,
   FindingNotFoundError,
@@ -532,6 +533,29 @@ describe("generateDemo", () => {
     };
     expect(ticket.status).toBe("ai_verification");
     expect(demo.steps[0]!.automation).toMatchObject({ kind: "api" });
+    expect(getVerificationJob(db, "ticket-1")).toMatchObject({
+      ticketId: "ticket-1",
+      demoScriptId: demo.id,
+      status: "queued",
+      attemptCount: 0,
+    });
+  });
+
+  it("refreshes one pending verification job on duplicate demo handoff", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    generateDemo(db, { ticketId: "ticket-1", steps: [automatedStep()] });
+    const firstJob = getVerificationJob(db, "ticket-1");
+    db.prepare("UPDATE tickets SET status = 'ai_review' WHERE id = ?").run("ticket-1");
+
+    generateDemo(db, { ticketId: "ticket-1", steps: [automatedStep(2)] });
+    const jobs = db.prepare("SELECT * FROM verification_jobs WHERE ticket_id = ?").all("ticket-1");
+    const refreshedJob = getVerificationJob(db, "ticket-1");
+
+    expect(jobs).toHaveLength(1);
+    expect(refreshedJob?.id).toBe(firstJob?.id);
+    expect(refreshedJob).toMatchObject({ status: "queued", attemptCount: 0 });
   });
 
   it("accepts and persists UI automation specs for visual steps", () => {
@@ -1032,6 +1056,10 @@ describe("repairLegacyHumanReviewHandoff", () => {
     const result = repairLegacyHumanReviewHandoff(db, "ticket-1");
 
     expect(result.newStatus).toBe("ai_verification");
+    expect(getVerificationJob(db, "ticket-1")).toMatchObject({
+      ticketId: "ticket-1",
+      status: "queued",
+    });
     const ticket = db.prepare("SELECT status FROM tickets WHERE id = ?").get("ticket-1") as {
       status: string;
     };

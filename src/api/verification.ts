@@ -7,7 +7,7 @@ import {
   type VerificationManifest,
   type VerificationRunStatus,
 } from "../../core/verification.ts";
-import { verificationRuns } from "../lib/schema";
+import { verificationJobs, verificationRuns } from "../lib/schema";
 
 export type {
   VerificationEvidenceFile,
@@ -17,6 +17,7 @@ export type {
   VerificationStepStatus,
   VerificationStepVerdict,
 } from "../../core/verification.ts";
+export type { VerificationJob, VerificationJobStatus } from "../../core/verification-queue.ts";
 
 export interface VerificationRunSummary {
   id: string;
@@ -77,4 +78,11 @@ export const getVerificationRuns = createServerFn({ method: "GET" })
         manifest,
       };
     });
+  });
+
+export const getVerificationJobStatus = createServerFn({ method: "GET" })
+  .inputValidator(z.object({ ticketId: z.string() }))
+  .handler(async ({ data: { ticketId } }: { data: { ticketId: string } }) => {
+    const { db } = await import("../lib/db");
+    return db.select().from(verificationJobs).where(eq(verificationJobs.ticketId, ticketId)).get();
   });

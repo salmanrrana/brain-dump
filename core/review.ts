@@ -40,6 +40,7 @@ import {
 } from "./epic-review-run.ts";
 import { completeActiveSessionsForTicket } from "./session.ts";
 import { addComment } from "./comment.ts";
+import { enqueueVerificationJob } from "./verification-queue.ts";
 import {
   assertTransition,
   isTicketStatus,
@@ -601,6 +602,9 @@ export function repairLegacyHumanReviewHandoff(
     db.prepare(
       "UPDATE ticket_workflow_state SET current_phase = ?, demo_generated = ?, updated_at = ? WHERE ticket_id = ?"
     ).run(newStatus, newStatus === "ai_verification" ? 1 : 0, now, ticketId);
+    if (newStatus === "ai_verification") {
+      enqueueVerificationJob(db, ticketId, { now });
+    }
     addComment(db, {
       ticketId,
       author: "brain-dump",
@@ -700,6 +704,7 @@ export function generateDemo(db: DbHandle, params: GenerateDemoParams): DemoScri
   db.prepare(
     "UPDATE ticket_workflow_state SET current_phase = 'ai_verification', updated_at = ? WHERE ticket_id = ?"
   ).run(now, ticketId);
+  enqueueVerificationJob(db, ticketId, { now });
 
   completeActiveSessionsForTicket(
     db,

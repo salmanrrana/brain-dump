@@ -901,6 +901,45 @@ export const verificationRuns = sqliteTable(
 export type VerificationRun = typeof verificationRuns.$inferSelect;
 export type NewVerificationRun = typeof verificationRuns.$inferInsert;
 
+export const verificationJobs = sqliteTable(
+  "verification_jobs",
+  {
+    id: text("id").primaryKey(),
+    ticketId: text("ticket_id")
+      .notNull()
+      .unique()
+      .references(() => tickets.id, { onDelete: "cascade" }),
+    demoScriptId: text("demo_script_id")
+      .notNull()
+      .references(() => demoScripts.id, { onDelete: "cascade" }),
+    status: text("status", {
+      enum: ["queued", "running", "succeeded", "failed", "blocked", "dead"],
+    })
+      .notNull()
+      .default("queued"),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    nextRunAt: text("next_run_at").notNull(),
+    lastError: text("last_error"),
+    leasedBy: text("leased_by"),
+    leaseExpiresAt: text("lease_expires_at"),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+    completedAt: text("completed_at"),
+  },
+  (table) => [
+    index("idx_verification_jobs_status_next").on(table.status, table.nextRunAt),
+    index("idx_verification_jobs_lease").on(table.status, table.leaseExpiresAt),
+    index("idx_verification_jobs_demo").on(table.demoScriptId),
+  ]
+);
+
+export type VerificationJob = typeof verificationJobs.$inferSelect;
+export type NewVerificationJob = typeof verificationJobs.$inferInsert;
+
 // Learning interface for epic workflow
 export interface WorkflowLearning {
   type: "pattern" | "anti-pattern" | "tool-usage" | "workflow"; // Type of learning

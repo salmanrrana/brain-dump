@@ -789,6 +789,37 @@ export function runMigrations(db: DbHandle, logger: Logger = silentLogger): void
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_verification_runs_round ON verification_runs(ticket_id, round)"
   ).run();
 
+  if (!tableExists(db, "verification_jobs")) {
+    db.prepare(
+      `
+      CREATE TABLE verification_jobs (
+        id TEXT PRIMARY KEY,
+        ticket_id TEXT NOT NULL UNIQUE REFERENCES tickets(id) ON DELETE CASCADE,
+        demo_script_id TEXT NOT NULL REFERENCES demo_scripts(id) ON DELETE CASCADE,
+        status TEXT NOT NULL DEFAULT 'queued',
+        attempt_count INTEGER NOT NULL DEFAULT 0,
+        next_run_at TEXT NOT NULL,
+        last_error TEXT,
+        leased_by TEXT,
+        lease_expires_at TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        completed_at TEXT
+      )
+    `
+    ).run();
+    logger.info("Created verification_jobs table");
+  }
+  db.prepare(
+    "CREATE INDEX IF NOT EXISTS idx_verification_jobs_status_next ON verification_jobs(status, next_run_at)"
+  ).run();
+  db.prepare(
+    "CREATE INDEX IF NOT EXISTS idx_verification_jobs_lease ON verification_jobs(status, lease_expires_at)"
+  ).run();
+  db.prepare(
+    "CREATE INDEX IF NOT EXISTS idx_verification_jobs_demo ON verification_jobs(demo_script_id)"
+  ).run();
+
   // Ralph events table
   if (!tableExists(db, "ralph_events")) {
     db.prepare(
