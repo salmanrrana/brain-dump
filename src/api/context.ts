@@ -252,7 +252,7 @@ export const getTicketContext = createServerFn({ method: "GET" })
       '5. Self-review → `review({ action: "submit-finding", ... })` for each issue → fix → `review({ action: "mark-fixed", ... })` → verify `review({ action: "check-complete", ticketId: "..." })`'
     );
     contextParts.push(
-      `6. \`review({ action: "generate-demo", ticketId: "${ticket.id}", steps: [...] })\` → then STOP for human approval`
+      `6. \`review({ action: "generate-demo", ticketId: "${ticket.id}", steps: [...] })\` → then STOP for AI verification runner certification`
     );
     contextParts.push("");
     contextParts.push(

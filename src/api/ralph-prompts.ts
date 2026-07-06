@@ -143,7 +143,7 @@ ${steeringSection}
 ## Review Gates
 - Fix all critical/major findings before demo generation.
 - \`review({ action: "check-complete", ticketId: "${profile.selectedTicket.id}" })\` must allow verification handoff before demo generation.
-- Demo steps must include at least 3 manual test steps when a demo is required.
+- Demo steps must include 3-7 verification steps with automation specs for visual/automated checks when a demo is required.
 
 ${renderSessionStateTracking(profile.selectedTicket.id)}
 
@@ -373,7 +373,7 @@ ${steeringSection}
 3. Fix critical/major findings for this ticket only.
 4. Mark fixes with \`review({ action: "mark-fixed", fixStatus: "fixed", ... })\`.
 5. Verify \`review({ action: "check-complete", ticketId: "${profile.selectedTicket.id}" })\` allows verification handoff.
-6. Generate a demo with at least 3 manual steps, then STOP.
+6. Generate 3-7 verification steps with automation specs for visual/automated checks, then STOP.
 
 ## Guardrails
 
