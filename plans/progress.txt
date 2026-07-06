@@ -1,6 +1,16 @@
 # Ralph Progress Log
 # Previous entries archived to: archives/progress-20260315-130551.txt
 
+### 2026-07-06 ~17:15 CDT - Manual repair session (Claude Code): environment + epic restructure
+- **Environment:** Rebuilt better-sqlite3 for Node 24 (CLI was hard-down with NODE_MODULE_VERSION 131/137 mismatch); committed the mcp-server esbuild playwright-externals fix (c8a890a); rebuilt mcp-server/dist; no stale MCP process remains.
+- **Unstranded:** f3ceb470 + 714bbbdd + 92b41d17 + 5ea2e1e6 all reached done through certified verification runs. 92b41d17 needed a real runner fix (56e0100: warm up UI routes after boot readiness - cold vite boots burned the 10s UI assertion timeout on first page load).
+- **Runner bug fixed (48f8387c partial, 2493af9):** verifier boot stop() only killed the pnpm wrapper, orphaning the vite dev server underneath; leaked servers kept an embedded verification worker alive that leased queued jobs with STALE code (observed executing rounds with pre-fix runner twice). Boots now run in their own process group and stop kills the group.
+- **Gate hazard documented:** every running Brain Dump dev server embeds a verification worker (src/lib/db.ts startup); long-running dev servers race the job queue with whatever code they booted with. Merged into a76bcc5d acceptance criteria and 7b615ca2 scope.
+- **Epic restructure (bc99b396):** 9f63c408 gate-walked to done (certified run proves ai_verification live + human_review rejected by schema). 08427442 merged into a76bcc5d (worker-driven E2E proof + restart/resume) and deleted. 7942ec06 + 6710d841 + 5e24ffb0 moved to new epic 8765533f "Provider & Model Launch Experience" (197e6d0f stays: its landed implementation is verification parity, epic-core). 1af0de42 + 7b615ca2 rescoped as retroactive audits of shipped behavior. 48f8387c promoted to ready/high.
+- **PRD:** regenerated from live epic state: 27 stories, 12 passing.
+
+---
+
 ### 2026-07-06 - Ralph Session: Ticket fd379617 verification handoff repair
 - **Ticket:** fd379617-5789-4165-855e-313958822e94 — Repair legacy handoffs and regenerate executable demos for the AI Verification Gate epic
 - **Verification failure triage:** Run `739fed15-efa4-49fc-b84d-6c30cce70c86` failed only on step 4 because the API check fetched `/ticket/fd379617-5789-4165-855e-313958822e94` and expected client-rendered ticket text in the initial HTML shell.
@@ -18,6 +28,160 @@
 
 ---
 
+### 2026-07-06 - Ralph Session: Ticket 269a9ce8 stale MCP schema confirmed by OpenCode gpt-5.5
+- **Ticket:** 269a9ce8-7122-4fcb-95b5-b56e6bdfcd69 — Make verifier app boot isolated and reliable beside an existing Brain Dump dev server
+- **Status:** Blocked at demo handoff by stale MCP workflow schema; live ticket restored to `ai_review` and PRD restored to `passes:false`.
+- **What happened:** Resumed the scoped PRD ticket from `ai_review`, confirmed all three findings were fixed, and `review.check-complete` passed. `review.generate-demo` moved the ticket to legacy `human_review`, marked the PRD entry passing, and auto-completed the active Ralph session as success.
+- **Schema drift confirmation:** MCP `ticket.update-status` rejected `ai_verification` as an invalid enum value, proving the running MCP server/tool schema still only knows `backlog|ready|in_progress|ai_review|human_review|done`.
+- **Repair performed:** Used MCP `ticket.update-status` to move the live ticket back to `ai_review`, restored `plans/prd.json` to `passes:false`, and did not run verification or move the ticket to done.
+- **Next:** Rebuild/restart the active MCP server so `review.generate-demo` exposes automation specs and moves tickets to `ai_verification`; then rerun the demo handoff for this ticket.
+
+---
+
+### 2026-07-06 - Ralph Session: Ticket 269a9ce8 stale MCP handoff reproduced by OpenCode gpt-5.5
+- **Ticket:** 269a9ce8-7122-4fcb-95b5-b56e6bdfcd69 — Make verifier app boot isolated and reliable beside an existing Brain Dump dev server
+- **Status:** Blocked at demo handoff by stale MCP workflow schema; live ticket restored to `ai_review` and PRD restored to `passes:false`.
+- **What happened:** Resumed the scoped PRD ticket from `ai_review`, confirmed all three review findings were fixed, and `review.check-complete` passed. `review.generate-demo` accepted legacy text-only automated steps, moved the ticket to `human_review`, marked the PRD entry passing, and auto-completed the active Ralph session as success instead of moving the ticket to `ai_verification`.
+- **Repair performed:** Created a repair session, used MCP `ticket.update-status` to move the live ticket back to `ai_review`, restored `plans/prd.json` to `passes:false`, and did not run verification or move the ticket to done.
+- **Next:** Rebuild/restart the active MCP server so `review.generate-demo` exposes real automation specs and moves tickets to `ai_verification`; then rerun the demo handoff for this ticket.
+
+---
+
+### 2026-07-06 - Ralph Session: Ticket 269a9ce8 stale MCP handoff reproduced in OpenCode gpt-5.5
+- **Ticket:** 269a9ce8-7122-4fcb-95b5-b56e6bdfcd69 — Make verifier app boot isolated and reliable beside an existing Brain Dump dev server
+- **Status:** Blocked at demo handoff by stale MCP workflow schema; live ticket restored to `ai_review` and PRD restored to `passes:false`.
+- **What happened:** Resumed the scoped PRD ticket from `ai_review`, reused review state showing all three findings fixed, and `review.check-complete` passed. `review.generate-demo` accepted automated steps only as legacy text fields, moved the ticket to `human_review`, marked the PRD entry passing, and auto-completed the active Ralph session as success instead of moving the ticket to `ai_verification`.
+- **Repair performed:** Created a repair session, used MCP `ticket.update-status` to move the live ticket back to `ai_review`, restored `plans/prd.json` to `passes:false`, and did not run verification or move the ticket to done.
+- **Next:** Rebuild/restart the active MCP server so `review.generate-demo` accepts real automation specs and moves tickets to `ai_verification`; then rerun the demo handoff for this ticket.
+
+---
+
+### 2026-07-06 - Ralph Session: Ticket 269a9ce8 stale MCP handoff persists
+- **Ticket:** 269a9ce8-7122-4fcb-95b5-b56e6bdfcd69 — Make verifier app boot isolated and reliable beside an existing Brain Dump dev server
+- **Status:** Blocked at demo handoff by stale MCP workflow schema; live ticket restored to `ai_review` and PRD restored to `passes:false`.
+- **What happened:** Resumed the scoped PRD ticket from `ai_review`, confirmed all three review findings are fixed, and `review.check-complete` passed. `review.generate-demo` still moved the ticket to legacy `human_review`, marked the PRD entry passing, and auto-completed the Ralph session as success instead of handing off to `ai_verification`.
+- **Repair performed:** Used MCP `ticket.update-status` to move the live ticket back to `ai_review`, restored `plans/prd.json` to `passes:false`, and opened this repair session to record the blocker. Did not run verification or move the ticket to done.
+- **Next:** Rebuild/restart the active MCP server so `review.generate-demo` exposes automation specs and moves tickets to `ai_verification`; then rerun the demo handoff for this ticket.
+
+---
+
+### 2026-07-06 - Ralph Session: Ticket 269a9ce8 stale MCP handoff reproduced once more
+- **Ticket:** 269a9ce8-7122-4fcb-95b5-b56e6bdfcd69 — Make verifier app boot isolated and reliable beside an existing Brain Dump dev server
+- **Status:** Blocked at demo handoff by stale MCP workflow schema; live ticket restored to `ai_review` and PRD restored to `passes:false`.
+- **What happened:** Resumed the scoped PRD ticket from `ai_review`, confirmed all three review findings are fixed, and `review.check-complete` passed. `review.generate-demo` moved the ticket to legacy `human_review`, marked the PRD entry passing, stripped executable automation into text-only legacy step fields, and auto-completed the Ralph session as success instead of handing off to `ai_verification`.
+- **Repair performed:** Used MCP `ticket.update-status` to move the live ticket back to `ai_review`, restored `plans/prd.json` to `passes:false`, and added a progress comment on the ticket. Did not run verification or move the ticket to done.
+- **Next:** Rebuild/restart the active MCP server so `review.generate-demo` exposes automation specs and moves tickets to `ai_verification`; then rerun the demo handoff for this ticket.
+
+---
+
+### 2026-07-06 - Ralph Session: Ticket 269a9ce8 stale MCP handoff reproduced in OpenCode
+- **Ticket:** 269a9ce8-7122-4fcb-95b5-b56e6bdfcd69 — Make verifier app boot isolated and reliable beside an existing Brain Dump dev server
+- **Status:** Blocked at demo handoff by stale MCP workflow schema; live ticket restored to `ai_review` and PRD restored to `passes:false`.
+- **What happened:** Resumed the scoped PRD ticket from `ai_review`, confirmed all review findings are fixed, and `review.check-complete` passed. `review.generate-demo` accepted steps containing explicit automation specs but stripped the `automation` fields, moved the ticket to legacy `human_review`, marked the PRD entry passing, and auto-completed the Ralph session as success instead of handing off to `ai_verification`.
+- **Repair performed:** Used MCP `ticket.update-status` to move the live ticket back to `ai_review`, restored `plans/prd.json` to `passes:false`, and opened this repair session to record the blocker. Did not run verification or move the ticket to done.
+- **Next:** Rebuild/restart the active MCP server so `review.generate-demo` exposes automation specs and moves tickets to `ai_verification`; then rerun the demo handoff for this ticket.
+
+---
+
+### 2026-07-06 - Ralph Session: Ticket 269a9ce8 stale MCP handoff still blocks ai_verification
+- **Ticket:** 269a9ce8-7122-4fcb-95b5-b56e6bdfcd69 — Make verifier app boot isolated and reliable beside an existing Brain Dump dev server
+- **Status:** Blocked at demo handoff by stale MCP workflow schema; live ticket restored to `ai_review` and PRD restored to `passes:false`.
+- **What happened:** Resumed the scoped PRD ticket from `ai_review`, confirmed all review findings are fixed, and `review.check-complete` passed. `review.generate-demo` accepted steps containing automation specs but stripped the `automation` fields, moved the ticket to legacy `human_review`, marked the PRD entry passing, and auto-completed the Ralph session as success instead of handing off to `ai_verification`.
+- **Repair performed:** Used MCP `ticket.update-status` to move the live ticket back to `ai_review`, restored `plans/prd.json` to `passes:false`, and opened this repair session to record the blocker. Did not run verification or move the ticket to done.
+- **Next:** Rebuild/restart the active MCP server so `review.generate-demo` exposes automation specs and moves tickets to `ai_verification`; then rerun the demo handoff for this ticket.
+
+---
+
+### 2026-07-06 - Ralph Session: Ticket 269a9ce8 stale MCP handoff reproduced again
+- **Ticket:** 269a9ce8-7122-4fcb-95b5-b56e6bdfcd69 — Make verifier app boot isolated and reliable beside an existing Brain Dump dev server
+- **Status:** Still blocked at demo handoff by stale MCP workflow schema; restored to `ai_review`.
+- **What happened:** Resumed from `ai_review`, confirmed all review findings are fixed, and `review.check-complete` passed. `review.generate-demo` again moved the ticket to legacy `human_review`, marked the PRD entry passing, and auto-completed the Ralph session as success instead of handing off to `ai_verification`.
+- **Repair performed:** Used MCP `ticket.update-status` to move the live ticket back to `ai_review`, restored `plans/prd.json` to `passes:false` for this ticket, and added a progress comment on the ticket. Did not run verification or move the ticket to done.
+- **Next:** Rebuild/restart the MCP server so `review.generate-demo` preserves automation specs and moves tickets to `ai_verification`; then rerun the demo handoff for this ticket.
+
+---
+
+### 2026-07-06 - Ralph Session: Ticket 269a9ce8 stale MCP handoff still blocked
+- **Ticket:** 269a9ce8-7122-4fcb-95b5-b56e6bdfcd69 — Make verifier app boot isolated and reliable beside an existing Brain Dump dev server
+- **Status:** Still blocked at demo handoff by stale MCP workflow schema; restored to `ai_review`.
+- **What happened:** Resumed from `ai_review`, confirmed all review findings are fixed, and `review.check-complete` returned complete. `review.generate-demo` again moved the ticket to legacy `human_review`, marked the PRD entry passing, and auto-completed the Ralph session as success instead of handing off to `ai_verification`.
+- **Remediation attempted:** Ran `pnpm build:mcp`; it failed because esbuild could not resolve Playwright `chromium-bidi` internals: `chromium-bidi/lib/cjs/bidiMapper/BidiMapper` and `chromium-bidi/lib/cjs/cdp/CdpConnection`.
+- **Repair performed:** Used MCP `ticket.update-status` to move the live ticket back to `ai_review`, restored `plans/prd.json` to `passes:false` for this ticket, and added a progress comment on the ticket. Did not run verification or move the ticket to done.
+- **Next:** Fix/rebuild/restart the MCP server so `review.generate-demo` preserves automation specs and moves tickets to `ai_verification`; then rerun the demo handoff for this ticket.
+
+---
+
+### 2026-07-06 10:44 CDT - Epic human_review reset to ready
+- **Epic:** bc99b396-465b-4b36-8443-223a854f6de4 - AI Verification Gate (Evidence-Based Review)
+- **Status repair:** Moved every live epic ticket still in legacy `human_review` back to `ready` so Ralph can pick them up without waiting for a retired human gate.
+- **Tickets moved to `ready`:**
+  1. 9f63c408-6c90-4a2d-bb36-247e0ca16d38 - Add ai_verification status and retire human_review from the active flow
+  2. 0117ddbd-967a-4945-a7ff-734e2025cf0d - Verification failure loop-back into the Ralph iteration
+  3. c1619c4b-df30-40c8-b08a-82237e560d8b - Evidence viewer UI: verification panel, run history, image rendering
+  4. a76bcc5d-2478-4fab-b415-81d7c17865ff - End-to-end verification loop proof + docs across providers
+  5. 7942ec06-1f10-4caa-8819-4e371af0d99b - Fresh eyes: selectable AI provider + model for the review phase
+  6. 6710d841-c80e-4eda-93e5-2b1e20b7d8a0 - Ralph launch UX overhaul: provider + model picker done right
+  7. 8ec01ace-ac06-4742-88c3-2f96043c25fc - Verification queue: idempotent enqueue and durable worker state
+  8. dca5c6f8-6efe-4542-bbb0-6ca83f9a4c74 - Automatic verification worker drains ai_verification without human commands
+- **Workflow-state repair:** Reset those tickets' display phase to `started`, cleared generated-demo completion flags, cleared blocked flags, and left them as active PRD work.
+- **PRD sync:** Regenerated `plans/prd.json` from the live epic state. The scoped PRD has 29 active stories, all `passes: false`.
+- **Next:** Ralph should treat these tickets as ready work, not as waiting for human review.
+
+---
+
+
+### 2026-07-06 - Ralph Session: Ticket 269a9ce8 stale MCP handoff reproduced
+- **Ticket:** 269a9ce8-7122-4fcb-95b5-b56e6bdfcd69 — Make verifier app boot isolated and reliable beside an existing Brain Dump dev server
+- **Status:** STILL BLOCKED at demo handoff by stale MCP workflow schema
+- **What happened:** Resumed the ticket from `ai_review`, confirmed all 3 review findings were fixed, and `review.check-complete` returned complete with 0 open critical/major findings.
+- **Blocker:** `review.generate-demo` again accepted a payload containing automation specs but stripped the `automation` fields, moved the ticket to legacy `human_review`, marked the PRD entry passing, and auto-completed the Ralph session as success. MCP `ticket.update-status` still rejects `ai_verification` because the exposed enum is stale.
+- **Repair performed:** Used MCP `ticket.update-status` to move the ticket back to `ai_review` and restored this PRD entry to `passes: false`. Did not run verification or move the ticket to done.
+- **Next:** Restart/update the MCP server so `review.generate-demo` preserves automation specs and moves tickets to `ai_verification`; then rerun `review.generate-demo` for this ticket.
+
+---
+
+### 2026-07-06 - Ralph Session: Ticket 269a9ce8 stale MCP demo handoff blocker
+- **Ticket:** 269a9ce8-7122-4fcb-95b5-b56e6bdfcd69 — Make verifier app boot isolated and reliable beside an existing Brain Dump dev server
+- **Status:** IMPLEMENTATION + REVIEW FIXES COMPLETE; BLOCKED at demo handoff by stale MCP workflow schema
+- **Implementation:** Commits `9b1b4b2` and `70186b6` isolate verifier Vite/TanStack boots onto the runner-selected `127.0.0.1` port, disable fixed-port devtools/event-bus behavior for verification boots, enforce Vite `--strictPort`, race readiness against child spawn/exit failures, and preserve boot command/port/log metadata for boot and post-readiness infra errors.
+- **Validation:** `pnpm test -- core/__tests__/verification.test.ts` PASS; `pnpm check` PASS; `pnpm build` PASS; commit hooks `pnpm type-check` and `pnpm test` PASS.
+- **Review:** AI review found 1 critical and 2 major issues; all were fixed and marked fixed. `review.check-complete` returned complete with 0 open critical/major findings.
+- **Blocker:** `review.generate-demo` accepted steps containing automation specs, but the active MCP response stripped the `automation` fields, moved the ticket to legacy `human_review`, and marked the PRD entry as passing. This is not a valid `ai_verification` handoff.
+- **Repair performed:** Used MCP `ticket.update-status` to move the live ticket back from `human_review` to `ai_review` and restored this PRD entry to `passes: false` so future scoped Ralph runs resume correctly. Did not run verification or move the ticket to done.
+- **Next:** Restart/update the MCP server so `review.generate-demo` preserves automation specs and moves tickets to `ai_verification`; then rerun `review.generate-demo` for this ticket.
+
+---
+
+
+### 2026-07-06 - Ralph Session: Ticket 9f63c408 stale MCP handoff blocker
+- **Ticket:** 9f63c408-6c90-4a2d-bb36-247e0ca16d38 — Add ai_verification status and retire human_review from the active flow
+- **Status:** BLOCKED by stale MCP review/generate-demo implementation
+- **What happened:** Completed implementation requeue cleanup and AI review fixes. Validation passed: `pnpm test -- src/api/ralph-review-mode.test.ts`, `pnpm check`, `pnpm build`, plus commit hook `pnpm type-check` and `pnpm test`.
+- **Blocker:** MCP `review.generate-demo` accepted a payload containing automation specs but stripped the `automation` fields, moved the ticket to legacy `human_review`, marked `plans/prd.json` passing, and auto-completed the Ralph session as success. Live ticket status is `human_review`, not required `ai_verification`.
+- **Repair performed:** Restored this PRD entry to `passes: false` so future scoped Ralph runs do not falsely skip the ticket. Did not use the CLI/local repair path because the active instructions require literal MCP tools and forbid local substitutes.
+- **Next:** Restart/update the MCP server so `review.generate-demo` exposes automation specs and moves tickets to `ai_verification`, or expose the current `repair-legacy-handoff` MCP action; then rerun demo handoff for this ticket.
+
+---
+
+
+### 2026-07-06 - Ralph Session: Ticket a76bcc5d legacy MCP handoff blocker
+- **Ticket:** a76bcc5d-2478-4fab-b415-81d7c17865ff — End-to-end verification loop proof + docs across providers
+- **Status:** BLOCKED by stale MCP workflow schema
+- **What happened:** Resumed the scoped PRD ticket from `ai_review`, found 4 review findings with no open critical/major issues, and `review.check-complete` returned complete with 0 open critical/major/minor/suggestion findings.
+- **Blocker:** MCP `review.generate-demo` generated a demo script but moved the ticket to legacy `human_review` instead of required `ai_verification`. MCP `ticket.update-status` rejects `ai_verification` because its status enum still only exposes `backlog|ready|in_progress|ai_review|human_review|done`.
+- **Next:** Restart/update the MCP server to the current workflow schema or repair `review.generate-demo` so it moves tickets to `ai_verification`; then rerun the handoff for this ticket. This run did not use the CLI workaround because the active Ralph instructions required literal MCP workflow tools.
+
+---
+
+
+### 2026-07-06 - Ralph Session: Ticket c1619c4b legacy handoff blocker
+- **Ticket:** c1619c4b-df30-40c8-b08a-82237e560d8b — Evidence viewer UI: verification panel, run history, image rendering
+- **Status:** BLOCKED by MCP workflow drift
+- **What happened:** Resumed the ticket from `ai_review`, confirmed all 7 review findings were fixed, and `review.check-complete` returned complete with 0 open critical/major/minor/suggestion findings.
+- **Blocker:** `review.generate-demo` generated the demo script but moved the ticket to legacy `human_review` and marked the PRD entry passing. The required new workflow expects `ai_verification`, and the exposed ticket status MCP enum does not currently allow setting `ai_verification` as a repair action.
+- **Next:** Repair the MCP/review handoff so generate-demo moves tickets to `ai_verification`, then re-run the handoff for this ticket or migrate this legacy `human_review` ticket deterministically.
+
+---
 
 ### 2026-02-13 17:57:37 - Session Timeout
 - **Reason:** Timeout reached (1h limit)
@@ -245,3 +409,64 @@
 [2026-06-06T16:11:20-05:00] ITERATION TIMEOUT: Claude hung for >1800s on iteration 3 (killed, exit code: 124)
 [2026-06-06T16:13:06-05:00] STALLED: No progress for 3 iterations. 2/5 incomplete.
 [2026-06-06T16:48:05-05:00] STALLED: No progress for 3 iterations. 1/1 incomplete.
+[2026-07-04T23:23:42-05:00] ITERATION TIMEOUT: OpenCode hung for >1800s on iteration 2 (killed, exit code: 124)
+[2026-07-05T00:13:40-05:00] ITERATION TIMEOUT: OpenCode hung for >1800s on iteration 4 (killed, exit code: 124)
+[2026-07-05T00:43:42-05:00] ITERATION TIMEOUT: OpenCode hung for >1800s on iteration 5 (killed, exit code: 124)
+[2026-07-05T01:43:26-05:00] ITERATION TIMEOUT: OpenCode hung for >1800s on iteration 7 (killed, exit code: 124)
+[2026-07-05T02:22:24-05:00] ITERATION TIMEOUT: OpenCode hung for >1800s on iteration 9 (killed, exit code: 124)
+
+---
+
+### 2026-07-05 02:28:53 - Session Timeout
+- **Reason:** Timeout reached (4h limit)
+- **Status:** Session terminated, work may be incomplete
+- **Action:** Review progress and restart if needed
+[2026-07-05T10:56:10-05:00] ITERATION TIMEOUT: OpenCode hung for >1800s on iteration 1 (killed, exit code: 124)
+[2026-07-05T11:42:29-05:00] ITERATION TIMEOUT: OpenCode hung for >1800s on iteration 3 (killed, exit code: 124)
+[2026-07-05T12:23:02-05:00] ITERATION TIMEOUT: OpenCode hung for >1800s on iteration 5 (killed, exit code: 124)
+[2026-07-05T13:04:34-05:00] ITERATION TIMEOUT: OpenCode hung for >1800s on iteration 7 (killed, exit code: 124)
+[2026-07-05T13:51:08-05:00] ITERATION TIMEOUT: OpenCode hung for >1800s on iteration 9 (killed, exit code: 124)
+
+---
+
+### 2026-07-05 14:32:11 - Session Timeout
+- **Reason:** Timeout reached (4h limit)
+- **Status:** Session terminated, work may be incomplete
+- **Action:** Review progress and restart if needed
+
+### 2026-07-05 ~18:33 - Ralph: Ticket c1619c4b (Evidence viewer UI) → ai_verification (AI Review resumed + completed)
+- **Resumed** the in-flight ai_review ticket (impl commit e4573d7 from prior iteration; session c7bb4c0e was parked at "reviewing" with no findings filed).
+- **Self-review:** 7 findings filed (3 major / 3 minor / 1 suggestion), ALL fixed in commit 8566eea:
+  1. major/architecture: manifest integrity re-check duplicated core sealing logic → moved to core/verification.ts computeManifestIntegrity (shares manifestHashFor with sealing); src/api/verification.ts now a thin adapter.
+  2. major/a11y: Lightbox Esc also closed parent TicketModal (both doc-level keydown) → capture-phase listener + stopPropagation; focus restored to trigger on close.
+  3. major/correctness: verification-report evidence anchors (#attachment-{id}) were dead → AttachmentsSection rows now carry id="attachment-{id}".
+  4-7. minor: hide <!-- verification-run --> markers in markdown; non-attachment evidence renders as label not dead link; Runner Notes ||-fallback; request bodies typed DemoStepAutomationValue (fixes server-fn serializability type error).
+- **Gates:** pnpm check PASS (92 files/1278 tests); pnpm test:ui DemoPanel+Comment PASS (12); pnpm perf:check PASS (main 788.23kB/870 ceiling, initial 1002.72kB/1075 ceiling, unchanged).
+- **ENVIRONMENT GOTCHA:** the running brain-dump MCP server is a STALE build (pre-ai_verification flow): its generate-demo moved the ticket to retired human_review and its schemas lack automation specs. Recovered via: MCP update-status human_review→ai_review (old rules allow), then HEAD CLI `brain-dump review generate-demo --steps-file` (validates automation, sets ai_verification). Future iterations: prefer the CLI for generate-demo until the MCP server is restarted, and re-check ticket status after MCP workflow actions.
+- check-complete: 7/7 fixed, canProceed=true. Demo: 5 steps (1 automated API, 1 visual UI w/ screenshot, 3 manual audit). Ticket in ai_verification awaiting runner. Session c7bb4c0e completed success. STOP.
+
+### 2026-07-05 ~18:56 - Ralph: Ticket a76bcc5d (E2E verification loop proof + docs) → ai_verification
+- **Picked** the in_progress-orphaned epic completion gate ticket (c1619c4b + 0117ddbd both in ai_verification awaiting runner; 7942ec06/6710d841 backlog).
+- **Delivered (commits e581063 + f6a6707):**
+  1. integration-tests/verification-loop.test.ts — full lifecycle with REAL core fns + real migrated schema: start-work → complete-work → finding filed/fixed → generate-demo w/ API automation → verify FAIL (forced 201-vs-200) → loop-back (verification finding open/major, status in_progress, getVerificationFailuresByTicketId returns the exact "Fix This First" context text, evidence on disk w/ sha256) → repair (generate-demo provably BLOCKED while verification finding open) → re-verify re-runs FULL suite → done + sealed manifest (computeManifestIntegrity=valid) → epic completion → gh pr create → PR #91 linked. Asserts uploader "claude ralph", exactly 1 verification_report/run, stale context cleared after pass, zero change_request comments. Plus tripwire test: dirty core/verification.ts → uncertified, blocked, stays ai_verification, audits "uncertified-tripwire".
+  2. pnpm check now runs new test:verification-loop script (legacy hand-rolled-schema integration-tests stay nightly).
+  3. doctor: new "Verification Runner & Epic Auto-PR" section (Playwright resolve, attachments write-probe, gh auth status) w/ actionable fixes. Smoke-tested: all ✓, exit 0.
+  4. Replaced deprecated canProceedToHumanReview → canProceedToVerification in hand-maintained .claude/.opencode skill/command refs; docs/uqw-multi-environment.md updated. Sweep: zero stale human_review workflow refs anywhere; env docs codex/cursor/pi don't enumerate statuses (nothing stale).
+  5. Hooks: verified aligned, NO changes needed — all gates marker-based/flow-agnostic; runner + epic auto-PR use Node execFile directly (never intercepted by PreToolUse Bash hooks) — proven in the integration test.
+- **Gates:** pnpm check FULL PASS (drift gate, type-check, lint 0 errors, 1278 unit tests, 2 loop tests). Review: 4 findings (2 minor fixed, 1 suggestion fixed, 1 minor wont_fix w/ rationale: doctor hard-fail is intentional since verification is now the only path to done). check-complete canProceed=true.
+- **STALE MCP GOTCHA still active:** used HEAD CLI `pnpm brain-dump review generate-demo --steps-file` (4 steps: 1 automated API + 3 manual audits) → ai_verification. MCP check-complete response lacks canProceedToVerification field (stale build confirmation).
+- Session c8946029 completed success. Ticket awaits runner certification. STOP.
+[2026-07-05T19:11:16-05:00] FAILURE: Iteration 3 failed after 3 retries (exit code: 1)
+[2026-07-05T19:11:39-05:00] FAILURE: Iteration 4 failed after 3 retries (exit code: 1)
+[2026-07-05T19:12:02-05:00] FAILURE: Iteration 5 failed after 3 retries (exit code: 1)
+[2026-07-05T19:12:23-05:00] FAILURE: Iteration 6 failed after 3 retries (exit code: 1)
+[2026-07-05T19:12:50-05:00] FAILURE: Iteration 7 failed after 3 retries (exit code: 1)
+[2026-07-05T19:12:50-05:00] ABORTED: 5 consecutive failures
+[2026-07-05T21:53:19-05:00] ITERATION TIMEOUT: OpenCode hung for >1800s on iteration 1 (killed, exit code: 124)
+[2026-07-05T23:00:12-05:00] ITERATION TIMEOUT: OpenCode hung for >1800s on iteration 6 (killed, exit code: 124)
+[2026-07-05T23:30:14-05:00] ITERATION TIMEOUT: OpenCode hung for >1800s on iteration 7 (killed, exit code: 124)
+[2026-07-06T00:26:30-05:00] ITERATION TIMEOUT: OpenCode hung for >1800s on iteration 10 (killed, exit code: 124)
+[2026-07-06T01:06:00-05:00] STALLED: No progress for 3 iterations. 9/13 incomplete.
+[2026-07-06T11:20:08-05:00] STALLED: No progress for 3 iterations. 28/29 incomplete.
+[2026-07-06T11:49:41-05:00] STALLED: No progress for 3 iterations. 29/29 incomplete.
+[2026-07-06T13:08:18-05:00] STALLED: No progress for 3 iterations. 29/29 incomplete.
