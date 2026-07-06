@@ -113,12 +113,18 @@ export type {
 export {
   WORKFLOW_SCHEMA_VERSION,
   WORKFLOW_SCHEMA_CAPABILITIES,
+  WORKFLOW_SCHEMA_BUILD_MARKER,
   getWorkflowSchemaInfo,
   assertWorkflowSchemaSupportsCurrentFlow,
   getMcpServerWorkflowSchemaDriftReport,
+  getMcpRuntimeWorkflowSchemaDriftReport,
 } from "./workflow-schema.ts";
 
-export type { WorkflowSchemaInfo, WorkflowSchemaDriftReport } from "./workflow-schema.ts";
+export type {
+  WorkflowSchemaInfo,
+  WorkflowSchemaDriftReport,
+  WorkflowSchemaRuntimeReport,
+} from "./workflow-schema.ts";
 
 export {
   TICKET_STATUSES,

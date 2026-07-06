@@ -13,6 +13,7 @@ interface LockInfo {
   pid: number;
   startedAt: string;
   type: ProcessType;
+  workflowSchemaVersion?: string;
 }
 
 interface LockCheck {
@@ -108,7 +109,10 @@ export function isLocked(): boolean {
 /**
  * Acquire the lock file for this process.
  */
-export function acquireLock(type: ProcessType): LockResult {
+export function acquireLock(
+  type: ProcessType,
+  metadata: { workflowSchemaVersion?: string } = {}
+): LockResult {
   const lockPath = getLockFilePath();
   const check = checkLock();
 
@@ -135,6 +139,9 @@ export function acquireLock(type: ProcessType): LockResult {
     pid: process.pid,
     startedAt: new Date().toISOString(),
     type,
+    ...(metadata.workflowSchemaVersion
+      ? { workflowSchemaVersion: metadata.workflowSchemaVersion }
+      : {}),
   };
 
   try {

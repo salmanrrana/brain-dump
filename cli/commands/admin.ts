@@ -30,8 +30,10 @@ import { getDb } from "../lib/db.ts";
 import {
   InvalidActionError,
   WORKFLOW_SCHEMA_VERSION,
+  getMcpRuntimeWorkflowSchemaDriftReport,
   getMcpServerWorkflowSchemaDriftReport,
 } from "../../core/index.ts";
+import { isProcessRunning, readLockFile } from "../../src/lib/lockfile";
 
 const logger = createCliLogger();
 ensureDirectoriesSync();
@@ -697,6 +699,24 @@ function handleDoctorAction(): void {
       component: "Workflow Schema",
       message: schemaReport.message,
       fix: schemaReport.remediation,
+    });
+  }
+
+  const runtimeReport = getMcpRuntimeWorkflowSchemaDriftReport(readLockFile(), isProcessRunning);
+  if (runtimeReport.status === "current") {
+    console.log(
+      `  ✓ Active MCP server schema current (PID ${runtimeReport.pid}, ${runtimeReport.runningVersion})`
+    );
+  } else if (runtimeReport.status === "not-running") {
+    console.log("  o No active MCP server process found; restart MCP clients after rebuilding.");
+  } else {
+    console.log(`  ✗ ${runtimeReport.message}`);
+    console.log(`    ${runtimeReport.remediation}`);
+    issues.push({
+      environment: "MCP Server",
+      component: "Active Workflow Schema",
+      message: runtimeReport.message,
+      fix: runtimeReport.remediation,
     });
   }
 

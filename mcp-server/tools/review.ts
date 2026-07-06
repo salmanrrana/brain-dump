@@ -33,11 +33,7 @@ import { addComment, type CommentAuthor } from "../../core/comment.ts";
 import { detectAuthor } from "../lib/environment.js";
 import { execFileNoThrow, syncPrVerificationChecklist } from "../../core/index.ts";
 import { updatePrdForDbTicketIfPresent } from "../../core/prd-sync.ts";
-import {
-  assertWorkflowSchemaSupportsCurrentFlow,
-  getWorkflowSchemaInfo,
-  WORKFLOW_SCHEMA_VERSION,
-} from "../../core/workflow-schema.ts";
+import { WORKFLOW_SCHEMA_VERSION } from "../../core/workflow-schema.ts";
 
 const SEVERITY_ICONS: Record<string, string> = {
   critical: "🔴",
@@ -355,7 +351,6 @@ No MCP action uploads evidence or marks verification passed. The verification ru
           }
 
           case "generate-demo": {
-            assertWorkflowSchemaSupportsCurrentFlow(getWorkflowSchemaInfo());
             const ticketId = requireParam(params.ticketId, "ticketId", "generate-demo");
             const steps = requireParam(params.steps, "steps", "generate-demo") as DemoStep[];
 
@@ -432,7 +427,6 @@ No MCP action uploads evidence or marks verification passed. The verification ru
           }
 
           case "repair-legacy-handoff": {
-            assertWorkflowSchemaSupportsCurrentFlow(getWorkflowSchemaInfo());
             const ticketId = requireParam(params.ticketId, "ticketId", "repair-legacy-handoff");
             validateRepairLegacyHumanReviewHandoff(db, ticketId);
             const prdSync = syncPrdPassMarker(db, ticketId, false);

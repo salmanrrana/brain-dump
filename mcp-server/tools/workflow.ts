@@ -44,11 +44,7 @@ import { fetchTicketComments, buildCommentsSection } from "../lib/comment-utils.
 import { updatePrdForTicket } from "../lib/prd-utils.js";
 import { createConversationSession, endConversationSessions } from "../lib/conversation-session.js";
 import { detectAuthor } from "../lib/environment.js";
-import {
-  assertWorkflowSchemaSupportsCurrentFlow,
-  getWorkflowSchemaInfo,
-  WORKFLOW_SCHEMA_VERSION,
-} from "../../core/workflow-schema.ts";
+import { WORKFLOW_SCHEMA_VERSION } from "../../core/workflow-schema.ts";
 import {
   buildTicketContextContent,
   buildWarningsSection,
@@ -197,7 +193,6 @@ Workflow schema: ${WORKFLOW_SCHEMA_VERSION}`,
       useSandbox?: boolean | undefined;
     }) => {
       try {
-        assertWorkflowSchemaSupportsCurrentFlow(getWorkflowSchemaInfo());
         switch (params.action) {
           case "start-work": {
             return handleStartWork(db, git, detectEnvironment, params);
