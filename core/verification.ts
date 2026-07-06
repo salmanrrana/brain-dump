@@ -153,6 +153,7 @@ const FILE_SNIPPET_LIMIT = 16_384;
 const FILE_READ_LIMIT = 1_048_576;
 const DEFAULT_TIMEOUT_MS = 30_000;
 const UI_ASSERTION_TIMEOUT_MS = 10_000;
+const WARM_UP_NAV_TIMEOUT_MS = 30_000;
 // Mirrors src/routes/__root.tsx so verifier-controlled Brain Dump boots skip the cold splash.
 const SPLASH_SHOWN_KEY = "bd:splash-shown";
 const SPLASH_SKIP_RESULT_KEY = "__brainDumpVerificationSplashSkip";
@@ -783,6 +784,10 @@ async function runExecutableSteps(params: {
         fetchImpl: params.fetchImpl,
         timeoutMs: params.timeoutMs,
       });
+      // Only self-booted apps are cold; an external baseUrl is already warm.
+      if (params.baseUrl === undefined) {
+        await warmUpUiRoutes(params.steps, boot.baseUrl);
+      }
       const verdicts: VerificationStepVerdict[] = [];
       for (const step of params.steps) {
         verdicts.push(
@@ -885,6 +890,45 @@ async function runApiStep(
     request: { method: request.method, url, headers, body: request.body },
     response: { status: response.status, headers: responseHeaders, body },
   };
+}
+
+// A cold `vite dev` boot compiles SSR routes and optimizes browser deps on the
+// first real page load, so the first UI step can exhaust its assertion timeout
+// before any app content renders. Visit each unique UI route once with a real
+// browser before the assertion clock starts. Best-effort by design: a route
+// that is genuinely broken still fails visibly in its own step afterwards.
+async function warmUpUiRoutes(steps: DemoStep[], baseUrl: string): Promise<void> {
+  const routes: string[] = [];
+  for (const step of steps) {
+    if (step.automation?.kind !== "ui") continue;
+    const route = step.automation.route;
+    if (typeof route === "string" && !routes.includes(route)) routes.push(route);
+  }
+  if (routes.length === 0) return;
+
+  let playwright: typeof import("@playwright/test");
+  try {
+    playwright = await import("@playwright/test");
+  } catch {
+    // runUiStep reports the uncertified skip with the real import error.
+    return;
+  }
+  const browser = await playwright.chromium.launch();
+  try {
+    const page = await browser.newPage();
+    for (const route of routes) {
+      try {
+        await page.goto(resolveAppUrl(route, baseUrl, "Warm-up route"), {
+          waitUntil: "networkidle",
+          timeout: WARM_UP_NAV_TIMEOUT_MS,
+        });
+      } catch {
+        // Slow or broken routes are still asserted (and fail visibly) in their step.
+      }
+    }
+  } finally {
+    await browser.close();
+  }
 }
 
 async function runUiStep(
