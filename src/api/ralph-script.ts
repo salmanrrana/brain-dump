@@ -745,12 +745,8 @@ SESSION_ID="$(date +%s)-$$"
 MAX_RETRIES=3
 CONSECUTIVE_FAILURES=0
 MAX_CONSECUTIVE_FAILURES=5
-# Best-ever (lowest) incomplete count this run. Comparing only against the
-# previous iteration misses oscillation: an iteration that marks a story
-# passing and a follow-up repair that flips it back reset the plain
-# last-value comparison forever (observed 2026-07-06: ~25 iterations burned
-# on one ticket re-hitting the same handoff blocker). Progress now means
-# "fewer incomplete stories than ever before in this run".
+# Best-ever (lowest) incomplete count this run; see the circuit breaker in
+# the loop body for why this is a floor rather than a last-value comparison.
 BEST_INCOMPLETE_COUNT=999999
 NO_PROGRESS_COUNT=0
 MAX_NO_PROGRESS=3
@@ -975,7 +971,12 @@ ${reviewerBlock}
     # best-ever incomplete count. A ticket flipping passing -> repaired back to
     # not-passing (same blocker re-hit every iteration) no longer resets the
     # counter, so the loop stops instead of burning iterations for hours.
-    if [ "$INCOMPLETE" -lt "$BEST_INCOMPLETE_COUNT" ]; then
+    # TOTAL=0 means the PRD was unreadable or empty this iteration (a masked
+    # grep failure also reads as 0/0): skip tracking entirely so a bad read
+    # can't latch BEST_INCOMPLETE_COUNT=0 and poison progress detection.
+    if [ "$TOTAL" = "0" ]; then
+      echo -e "\\033[0;33m⚠️  PRD unreadable or empty this iteration; progress tracking skipped.\\033[0m"
+    elif [ "$INCOMPLETE" -lt "$BEST_INCOMPLETE_COUNT" ]; then
       BEST_INCOMPLETE_COUNT="$INCOMPLETE"
       NO_PROGRESS_COUNT=0
     elif [ $AI_EXIT_CODE -eq 0 ]; then

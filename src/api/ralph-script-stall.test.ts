@@ -27,6 +27,10 @@ describe("generateRalphScript no-progress circuit breaker", () => {
     expect(script).not.toContain("LAST_INCOMPLETE_COUNT");
     // The stall log line still carries the STALLED: marker operators grep for.
     expect(script).toContain("STALLED: No new ticket completed");
+    // An unreadable/empty PRD (reads as 0/0) must skip tracking entirely,
+    // never latch the floor at 0 and poison every later iteration.
+    expect(script).toContain('if [ "$TOTAL" = "0" ]; then');
+    expect(script).toContain("progress tracking skipped");
   });
 
   it("generates a script that passes a bash syntax check", () => {

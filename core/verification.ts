@@ -154,6 +154,7 @@ const FILE_READ_LIMIT = 1_048_576;
 const DEFAULT_TIMEOUT_MS = 30_000;
 const UI_ASSERTION_TIMEOUT_MS = 10_000;
 const WARM_UP_NAV_TIMEOUT_MS = 30_000;
+const WARM_UP_TOTAL_BUDGET_MS = 60_000;
 // Mirrors src/routes/__root.tsx so verifier-controlled Brain Dump boots skip the cold splash.
 const SPLASH_SHOWN_KEY = "bd:splash-shown";
 const SPLASH_SKIP_RESULT_KEY = "__brainDumpVerificationSplashSkip";
@@ -654,6 +655,7 @@ async function bootApp(params: {
   // whole tree: killing only the spawned wrapper (e.g. `pnpm exec vite dev`)
   // orphans the underlying dev server, which keeps serving AND keeps running
   // an embedded verification worker that leases queued jobs with stale code.
+  const supportsProcessGroups = process.platform !== "win32";
   const child = spawn(command[0]!, command.slice(1), {
     cwd: params.projectPath,
     env: {
@@ -664,15 +666,24 @@ async function bootApp(params: {
       BRAIN_DUMP_VERIFY_BOOT: "1",
     },
     stdio: ["ignore", "pipe", "pipe"],
-    detached: process.platform !== "win32",
+    detached: supportsProcessGroups,
   });
   const killBootTree = (signal: NodeJS.Signals) => {
-    if (child.pid !== undefined && process.platform !== "win32") {
+    if (child.pid !== undefined && supportsProcessGroups) {
       try {
         process.kill(-child.pid, signal);
         return;
-      } catch {
-        // Group already gone or unsupported; fall through to the direct kill.
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        // ESRCH: the group is already gone, so is the child.
+        if (code === "ESRCH") return;
+        // Anything else (e.g. EPERM in restrictive sandboxes) means the direct
+        // kill below may orphan grandchildren; record it in the boot log so the
+        // sealed manifest explains why a port stayed busy.
+        output = truncate(
+          `${output}\n[verification] Process-group kill (${signal}) failed with ${code ?? String(error)}; falling back to killing only the boot wrapper.`,
+          BOOT_LOG_LIMIT
+        );
       }
     }
     child.kill(signal);
@@ -923,27 +934,39 @@ async function warmUpUiRoutes(steps: DemoStep[], baseUrl: string): Promise<void>
   if (routes.length === 0) return;
 
   let playwright: typeof import("@playwright/test");
+  let browser: Awaited<ReturnType<typeof import("@playwright/test").chromium.launch>>;
   try {
     playwright = await import("@playwright/test");
+    browser = await playwright.chromium.launch();
   } catch {
-    // runUiStep reports the uncertified skip with the real import error.
+    // runUiStep imports and launches its own browser, so it surfaces the real
+    // failure as its own skipped/failed verdict; an exception escaping here
+    // would instead be mislabeled as a boot failure and burn a boot retry.
     return;
   }
-  const browser = await playwright.chromium.launch();
   try {
     const page = await browser.newPage();
+    // Shared budget: an unresponsive page must not burn the full nav timeout
+    // once per route and invisibly delay the real assertions.
+    const deadline = Date.now() + WARM_UP_TOTAL_BUDGET_MS;
     for (const route of routes) {
+      const remainingMs = deadline - Date.now();
+      if (remainingMs <= 0) break;
       try {
         await page.goto(resolveAppUrl(route, baseUrl, "Warm-up route"), {
           waitUntil: "networkidle",
-          timeout: WARM_UP_NAV_TIMEOUT_MS,
+          timeout: Math.min(WARM_UP_NAV_TIMEOUT_MS, remainingMs),
         });
       } catch {
         // Slow or broken routes are still asserted (and fail visibly) in their step.
       }
     }
   } finally {
-    await browser.close();
+    try {
+      await browser.close();
+    } catch {
+      // Best-effort teardown; a crashed browser has nothing left to close.
+    }
   }
 }
 
