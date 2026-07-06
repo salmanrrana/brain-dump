@@ -18,6 +18,10 @@ import {
   listVerificationJobs,
   settleVerificationJob,
 } from "../verification-queue.ts";
+import {
+  getVerificationWorkerQueueStatus,
+  runNextVerificationJob,
+} from "../verification-worker.ts";
 import type { DemoStep } from "../types.ts";
 
 let db: Database.Database;
@@ -565,5 +569,128 @@ describe("verification queue", () => {
     expect(() =>
       enqueueVerificationJob(db, "ticket-1", { now: "2026-03-08T01:00:02.000Z" })
     ).toThrow(/active verification lease/);
+  });
+});
+
+describe("verification worker", () => {
+  it("claims a queued job and verifies it without a per-ticket command", async () => {
+    seedDemo([apiStep()]);
+    enqueueVerificationJob(db, "ticket-1", { now: "2026-03-08T01:00:00.000Z" });
+    const baseUrl = await startFixtureServer();
+
+    const result = await runNextVerificationJob(db, {
+      workerId: "worker-1",
+      baseUrl,
+      now: () => new Date("2026-03-08T01:00:01.000Z"),
+    });
+
+    expect(result).toMatchObject({
+      claimed: true,
+      ticketId: "ticket-1",
+      runStatus: "passed",
+      jobStatus: "succeeded",
+    });
+    expect(getVerificationJob(db, "ticket-1")).toMatchObject({
+      status: "succeeded",
+      leasedBy: null,
+    });
+    expect(db.prepare("SELECT status FROM tickets WHERE id = 'ticket-1'").get()).toMatchObject({
+      status: "done",
+    });
+  });
+
+  it("does not claim a second job while the first lease is active", async () => {
+    seedDemo([apiStep()]);
+    enqueueVerificationJob(db, "ticket-1", { now: "2026-03-08T01:00:00.000Z" });
+
+    const first = claimNextVerificationJob(db, {
+      workerId: "worker-1",
+      now: "2026-03-08T01:00:01.000Z",
+      leaseMs: 60_000,
+    });
+    const result = await runNextVerificationJob(db, {
+      workerId: "worker-2",
+      now: () => new Date("2026-03-08T01:00:02.000Z"),
+    });
+
+    expect(first).toMatchObject({ leasedBy: "worker-1" });
+    expect(result).toEqual({ claimed: false, workerId: "worker-2" });
+  });
+
+  it("retries worker infrastructure errors before blocking loudly", async () => {
+    seedDemo([apiStep()]);
+    enqueueVerificationJob(db, "ticket-1", { now: "2026-03-08T01:00:00.000Z" });
+
+    const result = await runNextVerificationJob(db, {
+      workerId: "worker-1",
+      maxInfraAttempts: 2,
+      retryDelayMs: 60_000,
+      now: () => new Date("2026-03-08T01:00:01.000Z"),
+      verifyTicketFn: async () => {
+        throw new Error("boot crashed");
+      },
+    });
+
+    expect(result).toMatchObject({
+      claimed: true,
+      jobStatus: "failed",
+      retryAt: "2026-03-08T01:01:01.000Z",
+      error: "boot crashed",
+    });
+    expect(getVerificationJob(db, "ticket-1")).toMatchObject({
+      status: "failed",
+      lastError: "boot crashed",
+      completedAt: null,
+    });
+    expect(db.prepare("SELECT is_blocked FROM tickets WHERE id = 'ticket-1'").get()).toMatchObject({
+      is_blocked: 0,
+    });
+  });
+
+  it("blocks loudly after worker infrastructure retries are exhausted", async () => {
+    seedDemo([apiStep()]);
+    enqueueVerificationJob(db, "ticket-1", { now: "2026-03-08T01:00:00.000Z" });
+    claimNextVerificationJob(db, {
+      workerId: "worker-1",
+      now: "2026-03-08T01:00:01.000Z",
+      leaseMs: 1_000,
+    });
+
+    const result = await runNextVerificationJob(db, {
+      workerId: "worker-2",
+      maxInfraAttempts: 2,
+      now: () => new Date("2026-03-08T01:00:03.000Z"),
+      verifyTicketFn: async () => {
+        throw new Error("boot crashed again");
+      },
+    });
+
+    expect(result).toMatchObject({
+      claimed: true,
+      attemptCount: 2,
+      jobStatus: "blocked",
+      error: "boot crashed again",
+    });
+    expect(getVerificationJob(db, "ticket-1")).toMatchObject({
+      status: "blocked",
+      lastError: "Automatic verification worker failed: boot crashed again",
+    });
+    expect(
+      db.prepare("SELECT is_blocked, blocked_reason FROM tickets WHERE id = 'ticket-1'").get()
+    ).toMatchObject({
+      is_blocked: 1,
+      blocked_reason: "Automatic verification worker failed: boot crashed again",
+    });
+  });
+
+  it("reports queue health for operator diagnostics", () => {
+    seedDemo([apiStep()]);
+    enqueueVerificationJob(db, "ticket-1", { now: "2026-03-08T01:00:00.000Z" });
+
+    expect(getVerificationWorkerQueueStatus(db)).toMatchObject({
+      queueDepth: 1,
+      byStatus: { queued: 1 },
+      oldestQueuedAt: "2026-03-08T01:00:00.000Z",
+    });
   });
 });

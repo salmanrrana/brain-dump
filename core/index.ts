@@ -323,6 +323,12 @@ export type {
 // Verification runner business logic
 export { verifyTicket, listVerificationRuns } from "./verification.ts";
 export {
+  getVerificationWorkerQueueStatus,
+  runNextVerificationJob,
+  shouldStartVerificationWorkerFromEnv,
+  startVerificationWorker,
+} from "./verification-worker.ts";
+export {
   enqueueVerificationJob,
   getVerificationJob,
   listVerificationJobs,
@@ -340,6 +346,13 @@ export type {
   VerificationRun,
   VerifyTicketParams,
 } from "./verification.ts";
+
+export type {
+  VerificationWorkerHandle,
+  VerificationWorkerOptions,
+  VerificationWorkerQueueStatus,
+  VerificationWorkerRunResult,
+} from "./verification-worker.ts";
 
 export type { VerificationJob, VerificationJobStatus } from "./verification-queue.ts";
 

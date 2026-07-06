@@ -8,6 +8,11 @@ import { initializeLockSync } from "./lockfile";
 import { initializeWatcher, stopWatching } from "./db-watcher";
 import { startupIntegrityCheck } from "./integrity";
 import { ensureTelemetryTables, ensureTicketWorkflowColumns } from "./db-bootstrap";
+import {
+  shouldStartVerificationWorkerFromEnv,
+  startVerificationWorker,
+} from "../../core/verification-worker.ts";
+import { execFileNoThrow } from "../utils/execFileNoThrow";
 
 const disableStartupTasks = process.env.BRAIN_DUMP_DISABLE_DB_STARTUP_TASKS === "1";
 
@@ -920,6 +925,20 @@ async function cleanupLaunchScripts() {
   }
 }
 cleanupLaunchScripts();
+
+function scheduleVerificationWorker(): void {
+  if (!shouldStartVerificationWorkerFromEnv()) return;
+
+  setTimeout(() => {
+    try {
+      startVerificationWorker(sqlite, { execFileNoThrow });
+      console.log("[VerificationWorker] Started automatic verification worker");
+    } catch (error) {
+      console.error("[VerificationWorker] Failed to start:", error);
+    }
+  }, 0).unref?.();
+}
+scheduleVerificationWorker();
 
 export const db = drizzle(sqlite, { schema });
 

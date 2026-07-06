@@ -755,6 +755,28 @@ export const COMMAND_REGISTRY: CommandDef[] = [
     flags: [ticketFlag, prettyFlag],
     examples: ["brain-dump verify status --ticket abc --pretty"],
   },
+  {
+    resource: "verify",
+    action: "worker-status",
+    description: "Show automatic verification worker queue health",
+    flags: [prettyFlag],
+    examples: ["brain-dump verify worker-status --pretty"],
+  },
+  {
+    resource: "verify",
+    action: "worker",
+    description: "Run one automatic verification worker iteration for debugging",
+    flags: [
+      {
+        name: "provider",
+        type: "string",
+        required: false,
+        description: "Provider attribution for runner evidence, stored as '<provider> ralph'",
+      },
+      prettyFlag,
+    ],
+    examples: ["brain-dump verify worker --pretty"],
+  },
 
   // ── session ────────────────────────────────────────────────
   {
