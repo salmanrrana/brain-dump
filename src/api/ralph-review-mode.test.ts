@@ -313,7 +313,7 @@ describe("review-mode prompt builders", () => {
 
     expect(context).toContain('review({ action: "check-complete", ticketId: "ticket-review" })');
     expect(context).toContain(
-      "Generate 3-7 verification steps with automation specs for visual/automated checks, then STOP."
+      "Generate 3-7 verification steps with automation specs for visual/automated UI, API, command, or file checks, then STOP."
     );
     expect(context).toContain("- Review mode is separate from implementation launch mode");
     expect(context).toContain("- Steering text is preserved verbatim");

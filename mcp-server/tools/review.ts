@@ -97,6 +97,41 @@ const DEMO_STEP_AUTOMATION_SCHEMA = z.union([
       })
     ),
   }),
+  z.object({
+    kind: z.literal("command"),
+    command: z.object({
+      argv: z.array(z.string()),
+      cwd: z.string().optional(),
+      timeoutMs: z.number(),
+      expectedExitCode: z.number(),
+    }),
+    assert: z.array(
+      z.object({
+        type: z.enum([
+          "stdoutContains",
+          "stdoutNotContains",
+          "stderrContains",
+          "stderrNotContains",
+        ]),
+        expected: z.string(),
+      })
+    ),
+  }),
+  z.object({
+    kind: z.literal("file"),
+    path: z.string(),
+    assert: z.array(
+      z.union([
+        z.object({ type: z.enum(["exists", "notExists"]) }),
+        z.object({ type: z.enum(["contains", "notContains"]), expected: z.string() }),
+        z.object({
+          type: z.literal("jsonPath"),
+          path: z.string(),
+          expected: DEFINED_UNKNOWN_SCHEMA,
+        }),
+      ])
+    ),
+  }),
 ]);
 
 type PrdSyncResult = ReturnType<typeof updatePrdForDbTicketIfPresent>;
@@ -134,7 +169,7 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
 ### mark-fixed - Mark finding as fixed, wont_fix, or duplicate
 ### get-findings - Get findings for a ticket (filterable by status, severity, agent)
 ### check-complete - Check if all critical/major findings resolved (returns canProceedToVerification)
-### generate-demo - Generate demo script for AI verification (moves ticket to ai_verification). Steps must be visual/automated with executable automation specs; manual steps are legacy read-only data and are rejected for new handoffs.
+### generate-demo - Generate demo script for AI verification (moves ticket to ai_verification). Steps must be visual/automated with executable UI, API, command, or file automation specs; manual steps are legacy read-only data and are rejected for new handoffs.
 ### get-demo - Get the demo script for a ticket
 ### get-verification-history - Read verification run history for a ticket
 ### get-verification-job - Read queued/running verification job state for a ticket
@@ -167,7 +202,7 @@ No MCP action uploads evidence or marks verification passed. The verification ru
         )
         .optional()
         .describe(
-          "Demo steps. Use automation for visual/automated steps when UI/API behavior can be verified."
+          "Demo steps. Use automation for visual/automated steps when UI, API, command, or file behavior can be verified."
         ),
       demoScriptId: z.string().optional().describe("Demo script ID"),
       passed: z.boolean().optional().describe("Whether demo passed"),

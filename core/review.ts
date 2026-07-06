@@ -348,6 +348,51 @@ function validateAppRelativePath(value: string, path: string): void {
   }
 }
 
+function validateProjectRelativePath(value: string, path: string): void {
+  if (value.length === 0) {
+    throw new ValidationError(`${path} is required.`);
+  }
+  if (
+    value.startsWith("/") ||
+    value.startsWith("~") ||
+    value.includes("\\") ||
+    /^[a-zA-Z]:/.test(value) ||
+    /^[a-zA-Z][a-zA-Z\d+.-]*:/.test(value)
+  ) {
+    throw new ValidationError(`${path} must be a project-relative path.`);
+  }
+  if (value.split("/").some((segment) => segment === "..")) {
+    throw new ValidationError(`${path} must not escape the project directory.`);
+  }
+}
+
+function validateNonShellArgv(argv: unknown, path: string): string[] {
+  if (!Array.isArray(argv) || argv.length === 0) {
+    throw new ValidationError(`${path} must be a non-empty argv array.`);
+  }
+
+  const shellMetacharacters = /[;&|<>`$]/;
+  for (const [argIndex, arg] of argv.entries()) {
+    if (typeof arg !== "string" || arg.length === 0) {
+      throw new ValidationError(`${path}[${argIndex}] must be a non-empty string.`);
+    }
+    if (argIndex === 0 && /\s/.test(arg)) {
+      throw new ValidationError(`${path} must be argv array data, not a shell command string.`);
+    }
+    if (shellMetacharacters.test(arg)) {
+      throw new ValidationError(`${path}[${argIndex}] must not contain shell metacharacters.`);
+    }
+    if (arg.startsWith("/") || /^[a-zA-Z]:/.test(arg)) {
+      throw new ValidationError(`${path}[${argIndex}] must not be an absolute path.`);
+    }
+    if (arg.split("/").some((segment) => segment === "..")) {
+      throw new ValidationError(`${path}[${argIndex}] must not escape the project directory.`);
+    }
+  }
+
+  return argv;
+}
+
 function validateStringRecord(value: unknown, path: string): void {
   if (!isRecord(value)) {
     throw new ValidationError(`${path} must be an object with string values.`);
@@ -498,6 +543,108 @@ function validateApiAutomation(step: DemoStep, index: number): void {
   }
 }
 
+function validateCommandAutomation(step: DemoStep, index: number): void {
+  const label = getStepLabel(step, index);
+  const automation = step.automation;
+  if (!isRecord(automation) || automation.kind !== "command") {
+    throw new ValidationError(`${label} automation must be a command automation spec.`);
+  }
+  if (!isRecord(automation.command)) {
+    throw new ValidationError(`${label} command automation command is required.`);
+  }
+
+  validateNonShellArgv(automation.command.argv, `${label} command automation argv`);
+  if (automation.command.cwd !== undefined) {
+    if (typeof automation.command.cwd !== "string") {
+      throw new ValidationError(`${label} command automation cwd must be a string.`);
+    }
+    validateProjectRelativePath(automation.command.cwd, `${label} command automation cwd`);
+  }
+  if (!Number.isSafeInteger(automation.command.timeoutMs) || automation.command.timeoutMs <= 0) {
+    throw new ValidationError(`${label} command automation timeoutMs must be a positive integer.`);
+  }
+  if (
+    !Number.isSafeInteger(automation.command.expectedExitCode) ||
+    automation.command.expectedExitCode < 0
+  ) {
+    throw new ValidationError(
+      `${label} command automation expectedExitCode must be a non-negative integer.`
+    );
+  }
+  if (!Array.isArray(automation.assert) || automation.assert.length === 0) {
+    throw new ValidationError(
+      `${label} command automation assert must contain at least one stdout/stderr assertion.`
+    );
+  }
+  for (const [assertIndex, assertion] of automation.assert.entries()) {
+    if (
+      !isRecord(assertion) ||
+      !["stdoutContains", "stdoutNotContains", "stderrContains", "stderrNotContains"].includes(
+        String(assertion.type)
+      ) ||
+      typeof assertion.expected !== "string" ||
+      assertion.expected.length === 0
+    ) {
+      throw new ValidationError(
+        `${label} command automation assertion at index ${assertIndex} is invalid.`
+      );
+    }
+  }
+}
+
+function validateFileAutomation(step: DemoStep, index: number): void {
+  const label = getStepLabel(step, index);
+  const automation = step.automation;
+  if (!isRecord(automation) || automation.kind !== "file") {
+    throw new ValidationError(`${label} automation must be a file automation spec.`);
+  }
+  if (typeof automation.path !== "string") {
+    throw new ValidationError(`${label} file automation path is required.`);
+  }
+  validateProjectRelativePath(automation.path, `${label} file automation path`);
+  if (!Array.isArray(automation.assert) || automation.assert.length === 0) {
+    throw new ValidationError(
+      `${label} file automation assert must contain at least one assertion.`
+    );
+  }
+  for (const [assertIndex, assertion] of automation.assert.entries()) {
+    if (!isRecord(assertion)) {
+      throw new ValidationError(
+        `${label} file automation assertion at index ${assertIndex} is invalid.`
+      );
+    }
+    const assertionType = assertion.type;
+    if (assertionType === "exists" || assertionType === "notExists") continue;
+    if (
+      (assertionType === "contains" || assertionType === "notContains") &&
+      typeof assertion.expected === "string" &&
+      assertion.expected.length > 0
+    ) {
+      continue;
+    }
+    if (assertionType === "jsonPath") {
+      if (typeof assertion.path !== "string" || assertion.path.length === 0) {
+        throw new ValidationError(
+          `${label} file automation jsonPath assertion at index ${assertIndex} requires a path.`
+        );
+      }
+      if (!Object.hasOwn(assertion, "expected") || assertion.expected === undefined) {
+        throw new ValidationError(
+          `${label} file automation jsonPath assertion at index ${assertIndex} requires expected data.`
+        );
+      }
+      validateAutomationValue(
+        assertion.expected,
+        `${label} file automation assertion at index ${assertIndex} expected`
+      );
+      continue;
+    }
+    throw new ValidationError(
+      `${label} file automation assertion at index ${assertIndex} is invalid.`
+    );
+  }
+}
+
 function validateDemoStepAutomation(step: DemoStep, index: number): void {
   const label = getStepLabel(step, index);
   if (step.type === "manual") {
@@ -517,7 +664,15 @@ function validateDemoStepAutomation(step: DemoStep, index: number): void {
     validateApiAutomation(step, index);
     return;
   }
-  throw new ValidationError(`${label} automation kind must be "ui" or "api".`);
+  if (step.automation.kind === "command") {
+    validateCommandAutomation(step, index);
+    return;
+  }
+  if (step.automation.kind === "file") {
+    validateFileAutomation(step, index);
+    return;
+  }
+  throw new ValidationError(`${label} automation kind must be "ui", "api", "command", or "file".`);
 }
 
 function validateDemoSteps(steps: GenerateDemoParams["steps"]): void {

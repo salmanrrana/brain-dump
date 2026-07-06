@@ -262,7 +262,11 @@ export interface ReviewCompletionStatus {
 
 export type DemoStepType = "manual" | "visual" | "automated";
 
-export type DemoStepAutomation = DemoStepUiAutomation | DemoStepApiAutomation;
+export type DemoStepAutomation =
+  | DemoStepUiAutomation
+  | DemoStepApiAutomation
+  | DemoStepCommandAutomation
+  | DemoStepFileAutomation;
 
 export type DemoStepAutomationValue =
   | string
@@ -302,6 +306,39 @@ export interface DemoStepApiAutomation {
     type: "status" | "jsonPath" | "bodyContains";
     expected: DemoStepAutomationValue;
   }>;
+}
+
+export interface DemoStepCommandAutomation {
+  kind: "command";
+  command: {
+    argv: string[];
+    cwd?: string | undefined;
+    timeoutMs: number;
+    expectedExitCode: number;
+  };
+  assert: Array<{
+    type: "stdoutContains" | "stdoutNotContains" | "stderrContains" | "stderrNotContains";
+    expected: string;
+  }>;
+}
+
+export interface DemoStepFileAutomation {
+  kind: "file";
+  path: string;
+  assert: Array<
+    | {
+        type: "exists" | "notExists";
+      }
+    | {
+        type: "contains" | "notContains";
+        expected: string;
+      }
+    | {
+        type: "jsonPath";
+        path: string;
+        expected: DemoStepAutomationValue;
+      }
+  >;
 }
 
 export interface DemoStep {

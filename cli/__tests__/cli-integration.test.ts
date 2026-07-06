@@ -633,7 +633,12 @@ describe("review", () => {
           order: 1,
           description: "Review the CLI demo",
           expectedOutcome: "The verification runner can execute the demo.",
-          type: "manual",
+          type: "automated",
+          automation: {
+            kind: "file",
+            path: "plans/prd.json",
+            assert: [{ type: "exists" }],
+          },
         },
       ])
     );
@@ -663,7 +668,12 @@ describe("review", () => {
           order: 1,
           description: "Review the CLI demo",
           expectedOutcome: "The reviewer can request changes.",
-          type: "manual",
+          type: "automated",
+          automation: {
+            kind: "file",
+            path: "plans/prd.json",
+            assert: [{ type: "exists" }],
+          },
         },
       ])
     );

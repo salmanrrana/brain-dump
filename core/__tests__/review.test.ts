@@ -629,6 +629,229 @@ describe("generateDemo", () => {
     expect(JSON.parse(row.steps)[0].automation.kind).toBe("ui");
   });
 
+  it("accepts and persists command automation specs", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    const demo = generateDemo(db, {
+      ticketId: "ticket-1",
+      steps: [
+        {
+          order: 1,
+          description: "Run focused validation",
+          expectedOutcome: "The focused test command passes",
+          type: "automated",
+          automation: {
+            kind: "command",
+            command: {
+              argv: ["pnpm", "test", "--", "core/__tests__/review.test.ts"],
+              cwd: ".",
+              timeoutMs: 120000,
+              expectedExitCode: 0,
+            },
+            assert: [{ type: "stdoutContains", expected: "review" }],
+          },
+        },
+      ],
+    });
+
+    expect(demo.steps[0]!.automation).toMatchObject({ kind: "command" });
+    const row = db
+      .prepare("SELECT steps FROM demo_scripts WHERE ticket_id = ?")
+      .get("ticket-1") as {
+      steps: string;
+    };
+    expect(JSON.parse(row.steps)[0].automation.command.argv).toEqual([
+      "pnpm",
+      "test",
+      "--",
+      "core/__tests__/review.test.ts",
+    ]);
+  });
+
+  it("accepts and persists file automation specs", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    const demo = generateDemo(db, {
+      ticketId: "ticket-1",
+      steps: [
+        {
+          order: 1,
+          description: "Inspect workflow docs",
+          expectedOutcome: "The docs mention AI verification",
+          type: "automated",
+          automation: {
+            kind: "file",
+            path: "docs/universal-workflow.md",
+            assert: [{ type: "exists" }, { type: "contains", expected: "ai_verification" }],
+          },
+        },
+      ],
+    });
+
+    expect(demo.steps[0]!.automation).toMatchObject({ kind: "file" });
+    const row = db
+      .prepare("SELECT steps FROM demo_scripts WHERE ticket_id = ?")
+      .get("ticket-1") as {
+      steps: string;
+    };
+    expect(JSON.parse(row.steps)[0].automation.path).toBe("docs/universal-workflow.md");
+  });
+
+  it("rejects command automation shell strings", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    expect(() =>
+      generateDemo(db, {
+        ticketId: "ticket-1",
+        steps: [
+          {
+            order: 1,
+            description: "Run a shell command",
+            expectedOutcome: "The command passes",
+            type: "automated",
+            automation: {
+              kind: "command",
+              command: {
+                argv: ["pnpm test -- core/__tests__/review.test.ts"],
+                expectedExitCode: 0,
+              },
+              assert: [{ type: "stdoutContains", expected: "review" }],
+            },
+          },
+        ],
+      } as never)
+    ).toThrow(/argv must be argv array data, not a shell command string/);
+  });
+
+  it("rejects command automation without a timeout", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    expect(() =>
+      generateDemo(db, {
+        ticketId: "ticket-1",
+        steps: [
+          {
+            order: 1,
+            description: "Run focused validation",
+            expectedOutcome: "The command passes",
+            type: "automated",
+            automation: {
+              kind: "command",
+              command: {
+                argv: ["pnpm", "test"],
+                expectedExitCode: 0,
+              },
+              assert: [{ type: "stdoutContains", expected: "PASS" }],
+            },
+          },
+        ],
+      } as never)
+    ).toThrow(/command automation timeoutMs must be a positive integer/);
+  });
+
+  it("rejects command automation path escapes", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    expect(() =>
+      generateDemo(db, {
+        ticketId: "ticket-1",
+        steps: [
+          {
+            order: 1,
+            description: "Read outside the project",
+            expectedOutcome: "The command is rejected",
+            type: "automated",
+            automation: {
+              kind: "command",
+              command: {
+                argv: ["node", "../outside.js"],
+                timeoutMs: 1000,
+                expectedExitCode: 0,
+              },
+              assert: [],
+            },
+          },
+        ],
+      } as never)
+    ).toThrow(/must not escape the project directory/);
+  });
+
+  it("rejects command automation without stdout or stderr assertions", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    expect(() =>
+      generateDemo(db, {
+        ticketId: "ticket-1",
+        steps: [
+          {
+            order: 1,
+            description: "Run focused validation",
+            expectedOutcome: "The command passes",
+            type: "automated",
+            automation: {
+              kind: "command",
+              command: {
+                argv: ["pnpm", "test"],
+                timeoutMs: 1000,
+                expectedExitCode: 0,
+              },
+              assert: [],
+            },
+          },
+        ],
+      })
+    ).toThrow(/command automation assert must contain at least one stdout\/stderr assertion/);
+  });
+
+  it("rejects file automation absolute paths and parent-directory escapes", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    expect(() =>
+      generateDemo(db, {
+        ticketId: "ticket-1",
+        steps: [
+          {
+            order: 1,
+            description: "Read an absolute path",
+            expectedOutcome: "The file check is rejected",
+            type: "automated",
+            automation: {
+              kind: "file",
+              path: "/etc/passwd",
+              assert: [{ type: "contains", expected: "root" }],
+            },
+          },
+        ],
+      })
+    ).toThrow(/file automation path must be a project-relative path/);
+
+    expect(() =>
+      generateDemo(db, {
+        ticketId: "ticket-1",
+        steps: [
+          {
+            order: 1,
+            description: "Read outside the project",
+            expectedOutcome: "The file check is rejected",
+            type: "automated",
+            automation: {
+              kind: "file",
+              path: "../secrets.txt",
+              assert: [{ type: "contains", expected: "token" }],
+            },
+          },
+        ],
+      })
+    ).toThrow(/file automation path must not escape the project directory/);
+  });
+
   it("rejects automated steps without automation", () => {
     seedProject();
     seedAiReviewTicket();

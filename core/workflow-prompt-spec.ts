@@ -38,7 +38,7 @@ export const WORKFLOW_PHASES: readonly WorkflowPhaseSpec[] = [
   {
     title: "Demo",
     summary:
-      "Generate 3-7 test steps after review completion, including automation specs for visual/automated UI or API checks. This moves the ticket to ai_verification for runner certification.",
+      "Generate 3-7 test steps after review completion, including automation specs for visual/automated UI, API, command, or file checks. This moves the ticket to ai_verification for runner certification.",
     toolCalls: [
       'review({ action: "generate-demo", ticketId, steps }) with automation specs on visual/automated steps',
     ],
@@ -217,7 +217,7 @@ Status flow: \`${getStatusFlowText()}\`
 5. Commit with \`feat(<ticket-id>): <description>\`.
 6. Complete work only after the test_report exists: \`brain-dump workflow complete-work --ticket <ticket-id> --summary "<summary>" --pretty\`.
 7. Review: use \`brain-dump review submit-finding\`, \`brain-dump review mark-fixed\`, and \`brain-dump review check-complete --ticket <ticket-id> --pretty\`.
-8. Demo: \`brain-dump review generate-demo --ticket <ticket-id> --steps-file <steps.json> --pretty\`; include automation specs for visual/automated UI or API checks.
+8. Demo: \`brain-dump review generate-demo --ticket <ticket-id> --steps-file <steps.json> --pretty\`; include automation specs for visual/automated UI, API, command, or file checks.
 9. Stop after demo handoff. Do not approve or move the ticket to done.
 
 ### Validation Gates

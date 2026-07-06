@@ -143,7 +143,7 @@ ${steeringSection}
 ## Review Gates
 - Fix all critical/major findings before demo generation.
 - \`review({ action: "check-complete", ticketId: "${profile.selectedTicket.id}" })\` must allow verification handoff before demo generation.
-- Demo steps must include 3-7 verification steps with automation specs for visual/automated checks when a demo is required.
+- Demo steps must include 3-7 verification steps with automation specs for visual/automated UI, API, command, or file checks when a demo is required.
 
 ${renderSessionStateTracking(profile.selectedTicket.id)}
 
@@ -190,7 +190,7 @@ You are the independent review agent (${freshEyes.reviewerLabel}) in a Brain Dum
 4. Submit every NEW issue with \`review({ action: "submit-finding", ticketId, agent, severity, category, description, ... })\`. Severity guide: critical = broken functionality/crash, major = incorrect behavior or error-handling gap, minor = code quality, suggestion = nice-to-have.
 5. Do NOT edit implementation files. Do NOT mark findings fixed — the implementer fixes and marks them on the next iteration.
 6. If any critical/major findings remain open after your review, STOP here. The implementer will fix them and you will re-review.
-7. If no open critical/major findings remain: call \`review({ action: "check-complete", ticketId })\`; when it allows verification handoff, call \`review({ action: "generate-demo", ticketId, steps: [...] })\` with 3-7 steps (include automation specs for UI/API checks). This hands the ticket to the verification runner.
+7. If no open critical/major findings remain: call \`review({ action: "check-complete", ticketId })\`; when it allows verification handoff, call \`review({ action: "generate-demo", ticketId, steps: [...] })\` with 3-7 steps (include automation specs for UI, API, command, or file checks). This hands the ticket to the verification runner.
 8. \`session({ action: "complete", sessionId, outcome: "success" })\`, then STOP.
 
 ## Hard Guards
@@ -373,7 +373,7 @@ ${steeringSection}
 3. Fix critical/major findings for this ticket only.
 4. Mark fixes with \`review({ action: "mark-fixed", fixStatus: "fixed", ... })\`.
 5. Verify \`review({ action: "check-complete", ticketId: "${profile.selectedTicket.id}" })\` allows verification handoff.
-6. Generate 3-7 verification steps with automation specs for visual/automated checks, then STOP.
+6. Generate 3-7 verification steps with automation specs for visual/automated UI, API, command, or file checks, then STOP.
 
 ## Guardrails
 

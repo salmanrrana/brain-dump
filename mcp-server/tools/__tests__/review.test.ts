@@ -142,6 +142,42 @@ function automatedStep(order = 1) {
   };
 }
 
+function commandStep(order = 1) {
+  return {
+    order,
+    description: "Run focused validation",
+    expectedOutcome: "The focused test command passes.",
+    type: "automated" as const,
+    automation: {
+      kind: "command" as const,
+      command: {
+        argv: ["pnpm", "test", "--", "core/__tests__/review.test.ts"],
+        cwd: ".",
+        timeoutMs: 120000,
+        expectedExitCode: 0,
+      },
+      assert: [{ type: "stdoutContains" as const, expected: "review" }],
+    },
+  };
+}
+
+function fileStep(order = 1) {
+  return {
+    order,
+    description: "Inspect workflow docs",
+    expectedOutcome: "The workflow docs mention AI verification.",
+    type: "automated" as const,
+    automation: {
+      kind: "file" as const,
+      path: "docs/universal-workflow.md",
+      assert: [
+        { type: "exists" as const },
+        { type: "contains" as const, expected: "ai_verification" },
+      ],
+    },
+  };
+}
+
 function seedAiReviewTicketWithPr(ticketId: string): void {
   seedProject(db, { id: "proj-1", path: tempDir });
   seedTicket(db, {
@@ -301,6 +337,71 @@ describe("review tool generate-demo PR sync", () => {
 
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain("API automation assertion at index 0 is invalid");
+  });
+
+  it("accepts command and file automation specs", async () => {
+    seedProject(db, { id: "proj-1", path: tempDir });
+    seedTicket(db, { id: "ticket-1", projectId: "proj-1", status: "ai_review" });
+
+    const server = new McpServer({ name: "test", version: "1.0.0" });
+    registerReviewTool(server, db);
+
+    const handler = getToolHandler(server, "review");
+    const result = (await handler(
+      {
+        action: "generate-demo",
+        ticketId: "ticket-1",
+        steps: [commandStep(1), fileStep(2)],
+      },
+      {}
+    )) as { content: Array<{ text: string }>; isError?: boolean };
+
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0]?.text).toContain(
+      "Demo script generated! Ticket moved to ai_verification."
+    );
+    const row = db
+      .prepare("SELECT steps FROM demo_scripts WHERE ticket_id = ?")
+      .get("ticket-1") as {
+      steps: string;
+    };
+    const steps = JSON.parse(row.steps) as Array<{ automation: { kind: string } }>;
+    expect(steps.map((step) => step.automation.kind)).toEqual(["command", "file"]);
+  });
+
+  it("rejects unsafe command automation through the MCP schema and core validation", async () => {
+    seedProject(db, { id: "proj-1", path: tempDir });
+    seedTicket(db, { id: "ticket-1", projectId: "proj-1", status: "ai_review" });
+
+    const server = new McpServer({ name: "test", version: "1.0.0" });
+    registerReviewTool(server, db);
+
+    const handler = getToolHandler(server, "review");
+    const result = (await handler(
+      {
+        action: "generate-demo",
+        ticketId: "ticket-1",
+        steps: [
+          {
+            ...commandStep(),
+            automation: {
+              ...commandStep().automation,
+              command: {
+                argv: ["pnpm test -- core/__tests__/review.test.ts"],
+                timeoutMs: 120000,
+                expectedExitCode: 0,
+              },
+            },
+          },
+        ],
+      },
+      {}
+    )) as { content: Array<{ text: string }>; isError?: boolean };
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "must be argv array data, not a shell command string"
+    );
   });
 
   it("blocks legacy handoff repair before mutation when the scoped PRD is malformed", async () => {

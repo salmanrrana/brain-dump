@@ -650,14 +650,15 @@ export const COMMAND_REGISTRY: CommandDef[] = [
   {
     resource: "review",
     action: "generate-demo",
-    description: "Generate a demo script for AI verification",
+    description: "Generate a demo script for AI verification with executable step specs",
     flags: [
       ticketFlag,
       {
         name: "steps-file",
         type: "string",
         required: true,
-        description: "JSON file with demo steps",
+        description:
+          "JSON file with visual/automated demo steps and UI, API, command, or file automation specs",
       },
       prettyFlag,
     ],

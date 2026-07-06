@@ -626,8 +626,10 @@ describe("renderDemoStepsMarkdown", () => {
       [
         "1. Open the Ship Changes modal",
         "   Expected: Preflight data loads immediately.",
+        "   Automation: legacy/manual",
         "2. Verify the PR link appears",
         "   Expected: The linked PR URL is visible.",
+        "   Automation: legacy/manual",
       ].join("\n")
     );
   });

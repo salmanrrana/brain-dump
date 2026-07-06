@@ -56,6 +56,8 @@ export type {
   DemoStepAutomationValue,
   DemoStepUiAutomation,
   DemoStepApiAutomation,
+  DemoStepCommandAutomation,
+  DemoStepFileAutomation,
   DemoStep,
   DemoScript,
   FeedbackResult,

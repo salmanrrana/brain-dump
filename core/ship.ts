@@ -1017,7 +1017,11 @@ export function renderDemoStepsMarkdown(steps: DemoStep[]): string {
     .slice()
     .sort((left, right) => left.order - right.order)
     .map((step) =>
-      [`${step.order}. ${step.description}`, `   Expected: ${step.expectedOutcome}`].join("\n")
+      [
+        `${step.order}. ${step.description}`,
+        `   Expected: ${step.expectedOutcome}`,
+        `   Automation: ${step.automation?.kind ?? "legacy/manual"}`,
+      ].join("\n")
     )
     .join("\n");
 }

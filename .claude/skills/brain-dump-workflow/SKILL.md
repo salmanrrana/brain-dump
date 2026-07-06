@@ -39,7 +39,7 @@ Self-review the diff, submit every finding through Brain Dump, fix critical/majo
 
 ### Step 3: Demo
 
-Generate 3-7 test steps after review completion, including automation specs for visual/automated UI or API checks. This moves the ticket to ai_verification for runner certification.
+Generate 3-7 test steps after review completion, including automation specs for visual/automated UI, API, command, or file checks. This moves the ticket to ai_verification for runner certification.
 
 - `review({ action: "generate-demo", ticketId, steps }) with automation specs on visual/automated steps`
 
