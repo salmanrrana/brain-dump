@@ -33,6 +33,7 @@ import {
   useAutoClearState,
   useActiveRalphSessions,
   useCostModels,
+  useLaunchProviderAvailability,
 } from "../lib/hooks";
 import { RalphStatusBadge } from "./RalphStatusBadge";
 import { useToast } from "./Toast";
@@ -213,6 +214,11 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
     isLoading: modelCatalogLoading,
     error: modelCatalogError,
   } = useCostModels();
+  const {
+    availabilityByProviderId,
+    loading: availabilityLoading,
+    error: availabilityError,
+  } = useLaunchProviderAvailability({ enabled: showStartWorkMenu });
 
   // Delete mutation hook
   const deleteTicketMutation = useDeleteTicket();
@@ -1246,6 +1252,9 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                   costModels={costModels ?? []}
                   modelCatalogLoading={modelCatalogLoading}
                   modelCatalogError={modelCatalogError}
+                  availabilityByProviderId={availabilityByProviderId}
+                  availabilityLoading={availabilityLoading}
+                  availabilityError={availabilityError}
                 />
               </div>
             )}

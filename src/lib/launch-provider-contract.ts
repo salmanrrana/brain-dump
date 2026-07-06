@@ -34,6 +34,14 @@ export type RalphAutonomousProviderId = RalphAutonomousLaunchProviderId;
 
 export type UiLaunchProviderId = InteractiveLaunchProviderId | RalphAutonomousProviderId;
 
+export interface LaunchProviderRuntimeAvailability {
+  providerId: UiLaunchProviderId;
+  installed: boolean;
+  mode?: "cli" | "app";
+  detail?: string;
+  error?: string;
+}
+
 export type UiLaunchContextKind =
   | "ticket"
   | "epic-next-ticket"

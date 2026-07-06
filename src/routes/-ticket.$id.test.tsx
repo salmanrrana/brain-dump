@@ -96,6 +96,12 @@ vi.mock("../lib/hooks", () => ({
   useLaunchRalphForTicket: () => ({
     mutateAsync: vi.fn(),
   }),
+  useCostModels: () => ({ data: [], isLoading: false, error: null }),
+  useLaunchProviderAvailability: () => ({
+    availabilityByProviderId: {},
+    loading: false,
+    error: null,
+  }),
   useWorkflowState: () => ({
     workflowState: null,
     loading: false,

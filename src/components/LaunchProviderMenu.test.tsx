@@ -69,6 +69,52 @@ describe("LaunchProviderMenu", () => {
     expect(screen.queryByRole("button", { name: "Export Epic" })).not.toBeInTheDocument();
   });
 
+  it("keeps unavailable providers visible with an actionable hint", async () => {
+    const user = userEvent.setup();
+    const onInteractiveLaunch = vi.fn();
+
+    render(
+      <LaunchProviderMenu
+        interactiveContext="ticket"
+        ralphContext="ticket"
+        onInteractiveLaunch={onInteractiveLaunch}
+        onRalphLaunch={vi.fn()}
+        showRalph={false}
+        availabilityByProviderId={{
+          "codex-cli": {
+            providerId: "codex-cli",
+            installed: false,
+            error: "Codex CLI is not installed in PATH. Install Codex CLI and try again.",
+          },
+        }}
+      />
+    );
+
+    const codexButton = screen.getByRole("button", { name: "Codex CLI" });
+    expect(codexButton).toBeDisabled();
+    expect(screen.getByText(/codex cli is not installed in path/i)).toBeInTheDocument();
+    expect(screen.getByText("Not installed")).toBeInTheDocument();
+
+    await user.click(codexButton);
+    expect(onInteractiveLaunch).not.toHaveBeenCalled();
+  });
+
+  it("shows a non-blocking checking state while provider availability loads", () => {
+    render(
+      <LaunchProviderMenu
+        interactiveContext="ticket"
+        ralphContext="ticket"
+        onInteractiveLaunch={vi.fn()}
+        onRalphLaunch={vi.fn()}
+        showRalph={false}
+        availabilityLoading
+      />
+    );
+
+    expect(screen.getAllByText("Checking").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Claude Code" })).toBeEnabled();
+  });
+
   it("can render focused review Ralph providers without an empty interactive section", () => {
     render(
       <LaunchProviderMenu

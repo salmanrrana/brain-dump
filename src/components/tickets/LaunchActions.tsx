@@ -5,7 +5,7 @@ import type {
   UiLaunchProviderId,
 } from "../../lib/launch-provider-contract";
 import type { LaunchModelSelection } from "../../lib/launch-model-catalog";
-import { useCostModels } from "../../lib/hooks";
+import { useCostModels, useLaunchProviderAvailability } from "../../lib/hooks";
 import { LaunchProviderMenu } from "../LaunchProviderMenu";
 import { TICKET_STATUS_METADATA } from "../../../core/workflow-steps.ts";
 
@@ -37,12 +37,18 @@ export const LaunchActions: FC<LaunchActionsProps> = ({
   disabled = false,
 }) => {
   const [clickedType, setClickedType] = useState<LaunchType | null>(null);
+  const [availabilityEnabled, setAvailabilityEnabled] = useState(false);
+  const isWorkable = TICKET_STATUS_METADATA[ticketStatus].workable;
   const {
     data: costModels,
     isLoading: modelCatalogLoading,
     error: modelCatalogError,
   } = useCostModels();
-  const isWorkable = TICKET_STATUS_METADATA[ticketStatus].workable;
+  const {
+    availabilityByProviderId,
+    loading: availabilityLoading,
+    error: availabilityError,
+  } = useLaunchProviderAvailability({ enabled: availabilityEnabled && isWorkable });
 
   const handleOptionClick = useCallback(
     (
@@ -66,7 +72,11 @@ export const LaunchActions: FC<LaunchActionsProps> = ({
     <div style={containerStyles}>
       <h3 style={headerStyles}>Start Work With</h3>
 
-      <div className="overflow-hidden rounded-lg border border-[var(--border-primary)] bg-[var(--bg-tertiary)]">
+      <div
+        className="overflow-hidden rounded-lg border border-[var(--border-primary)] bg-[var(--bg-tertiary)]"
+        onFocusCapture={() => setAvailabilityEnabled(true)}
+        onPointerEnter={() => setAvailabilityEnabled(true)}
+      >
         <LaunchProviderMenu
           interactiveContext="ticket"
           ralphContext="ticket"
@@ -81,6 +91,9 @@ export const LaunchActions: FC<LaunchActionsProps> = ({
           costModels={costModels ?? []}
           modelCatalogLoading={modelCatalogLoading}
           modelCatalogError={modelCatalogError}
+          availabilityByProviderId={availabilityByProviderId}
+          availabilityLoading={availabilityLoading}
+          availabilityError={availabilityError}
         />
       </div>
     </div>

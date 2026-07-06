@@ -28,7 +28,12 @@ import {
 } from "../../lib/ui-launch-dispatcher";
 import type { INTERACTIVE_UI_LAUNCH_PROVIDERS } from "../../lib/ui-launch-registry";
 import { queryKeys } from "../../lib/query-keys";
-import { useCostModels, useLaunchRalphForEpic, useSettings } from "../../lib/hooks";
+import {
+  useCostModels,
+  useLaunchProviderAvailability,
+  useLaunchRalphForEpic,
+  useSettings,
+} from "../../lib/hooks";
 
 export interface EpicDetailHeaderProps {
   epic: EpicDetailResult["epic"];
@@ -76,6 +81,11 @@ export function EpicDetailHeader({
     isLoading: modelCatalogLoading,
     error: modelCatalogError,
   } = useCostModels();
+  const {
+    availabilityByProviderId,
+    loading: availabilityLoading,
+    error: availabilityError,
+  } = useLaunchProviderAvailability({ enabled: showLaunchMenu || showReviewModal });
   const queryClient = useQueryClient();
   const launchRalphMutation = useLaunchRalphForEpic();
 
@@ -498,6 +508,9 @@ export function EpicDetailHeader({
                     costModels={costModels ?? []}
                     modelCatalogLoading={modelCatalogLoading}
                     modelCatalogError={modelCatalogError}
+                    availabilityByProviderId={availabilityByProviderId}
+                    availabilityLoading={availabilityLoading}
+                    availabilityError={availabilityError}
                   />
                 </div>
               )}
@@ -739,6 +752,9 @@ export function EpicDetailHeader({
                     costModels={costModels ?? []}
                     modelCatalogLoading={modelCatalogLoading}
                     modelCatalogError={modelCatalogError}
+                    availabilityByProviderId={availabilityByProviderId}
+                    availabilityLoading={availabilityLoading}
+                    availabilityError={availabilityError}
                   />
                 </div>
               </div>

@@ -2,6 +2,10 @@ import { createServerFn } from "@tanstack/react-start";
 import { detectTerminal, isTerminalAvailable, buildTerminalCommand } from "./terminal-utils";
 import { buildCodexAppLaunchPlan } from "./codex-launch";
 import { sqlite } from "../lib/db";
+import type {
+  LaunchProviderRuntimeAvailability,
+  UiLaunchProviderId,
+} from "../lib/launch-provider-contract";
 import type { ConcreteLaunchModelSelection } from "../lib/launch-model-catalog";
 
 interface InteractiveTerminalLaunchInput {
@@ -40,6 +44,34 @@ interface InstallCheck {
   mode?: "cli" | "app";
   binaryPath?: string;
   error?: string;
+}
+
+async function isClaudeInstalled(): Promise<InstallCheck> {
+  const { exec } = await import("child_process");
+  const { promisify } = await import("util");
+  const execAsync = promisify(exec);
+
+  try {
+    await execAsync("claude --version");
+    return { installed: true, mode: "cli" };
+  } catch (error) {
+    const err = error as Error & { code?: string };
+    if (
+      err.code === "ENOENT" ||
+      err.message?.includes("not found") ||
+      err.message?.includes("command not found")
+    ) {
+      return {
+        installed: false,
+        error: "Claude Code CLI is not installed. Install Claude Code and try again.",
+      };
+    }
+
+    return {
+      installed: false,
+      error: `Claude Code check failed: ${err.message}`,
+    };
+  }
 }
 
 // Check if OpenCode CLI is installed
@@ -377,6 +409,49 @@ interface LaunchResult {
   terminalUsed?: string;
   warnings?: string[];
 }
+
+const LAUNCH_PROVIDER_INSTALL_CHECKS: Record<UiLaunchProviderId, () => Promise<InstallCheck>> = {
+  claude: isClaudeInstalled,
+  codex: isCodexInstalled,
+  "codex-cli": isCodexCliInstalled,
+  "codex-app": isCodexAppInstalled,
+  vscode: isVSCodeInstalled,
+  cursor: isCursorInstalled,
+  "cursor-agent": isCursorAgentInstalled,
+  copilot: isCopilotInstalled,
+  opencode: isOpenCodeInstalled,
+  pi: isPiInstalled,
+  "ralph-native": isClaudeInstalled,
+  "ralph-codex": isCodexCliInstalled,
+  "ralph-cursor-agent": isCursorAgentInstalled,
+  "ralph-copilot": isCopilotInstalled,
+  "ralph-opencode": isOpenCodeInstalled,
+  "ralph-pi": isPiInstalled,
+};
+
+async function getProviderAvailability(
+  providerId: UiLaunchProviderId
+): Promise<LaunchProviderRuntimeAvailability> {
+  const check = LAUNCH_PROVIDER_INSTALL_CHECKS[providerId];
+  const result = await check();
+
+  return {
+    providerId,
+    installed: result.installed,
+    ...(result.mode ? { mode: result.mode } : {}),
+    ...(result.binaryPath ? { detail: result.binaryPath } : {}),
+    ...(result.error ? { error: result.error } : {}),
+  };
+}
+
+export const getLaunchProviderAvailability = createServerFn({ method: "GET" }).handler(
+  async (): Promise<LaunchProviderRuntimeAvailability[]> =>
+    Promise.all(
+      (Object.keys(LAUNCH_PROVIDER_INSTALL_CHECKS) as UiLaunchProviderId[]).map((providerId) =>
+        getProviderAvailability(providerId)
+      )
+    )
+);
 
 // Legacy alias for backwards compatibility
 type LaunchClaudeResult = LaunchResult;

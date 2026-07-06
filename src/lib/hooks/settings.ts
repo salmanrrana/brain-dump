@@ -14,8 +14,13 @@ import {
   getActiveDockerRuntime,
   type UpdateSettingsInput,
 } from "../../api/settings";
+import { getLaunchProviderAvailability } from "../../api/terminal";
 import { getDockerUnavailableMessage } from "../docker-messages";
 import type { DockerRuntimeInfo } from "../docker-runtime";
+import type {
+  LaunchProviderRuntimeAvailability,
+  UiLaunchProviderId,
+} from "../launch-provider-contract";
 import { createBrowserLogger } from "../browser-logger";
 import { queryKeys } from "../query-keys";
 import type { Settings } from "../schema";
@@ -121,6 +126,32 @@ export function useAvailableTerminals() {
     availableTerminals: query.data ?? [],
     loading: query.isLoading,
     error: query.error?.message ?? null,
+  };
+}
+
+export function useLaunchProviderAvailability({ enabled = true }: { enabled?: boolean } = {}) {
+  const query = useQuery({
+    queryKey: queryKeys.launchProviderAvailability,
+    queryFn: async () => {
+      const availability = await getLaunchProviderAvailability();
+      return availability as LaunchProviderRuntimeAvailability[];
+    },
+    enabled,
+    staleTime: 60_000,
+  });
+
+  const availabilityByProviderId = (query.data ?? []).reduce<
+    Partial<Record<UiLaunchProviderId, LaunchProviderRuntimeAvailability>>
+  >((current, availability) => {
+    current[availability.providerId] = availability;
+    return current;
+  }, {});
+
+  return {
+    availabilityByProviderId,
+    loading: query.isLoading,
+    error: query.error?.message ?? null,
+    refetch: query.refetch,
   };
 }
 

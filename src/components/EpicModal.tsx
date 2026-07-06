@@ -12,6 +12,7 @@ import {
   useClickOutside,
   useAutoClearState,
   useCostModels,
+  useLaunchProviderAvailability,
 } from "../lib/hooks";
 import { useToast } from "./Toast";
 import ErrorAlert from "./ErrorAlert";
@@ -79,6 +80,11 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
     isLoading: modelCatalogLoading,
     error: modelCatalogError,
   } = useCostModels();
+  const {
+    availabilityByProviderId,
+    loading: availabilityLoading,
+    error: availabilityError,
+  } = useLaunchProviderAvailability({ enabled: showActionMenu });
   const { tickets } = useTicketSummaries(epic ? { projectId, epicId: epic.id } : {}, {
     enabled: Boolean(epic?.id),
   });
@@ -617,6 +623,9 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
                   costModels={costModels ?? []}
                   modelCatalogLoading={modelCatalogLoading}
                   modelCatalogError={modelCatalogError}
+                  availabilityByProviderId={availabilityByProviderId}
+                  availabilityLoading={availabilityLoading}
+                  availabilityError={availabilityError}
                   exportAction={
                     <button
                       onClick={() => {

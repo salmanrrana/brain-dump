@@ -51,6 +51,11 @@ vi.mock("../lib/hooks", () => ({
   useCreateComment: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
   useTags: vi.fn(() => ({ tags: [], loading: false, error: null })),
   useCostModels: vi.fn(() => ({ data: [], isLoading: false, error: null })),
+  useLaunchProviderAvailability: vi.fn(() => ({
+    availabilityByProviderId: {},
+    loading: false,
+    error: null,
+  })),
   useAutoClearState: vi.fn(() => [null, vi.fn()]),
   useProjectServices: vi.fn(() => ({ runningServices: [], error: null })),
   useProjects: vi.fn(() => ({

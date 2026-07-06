@@ -85,6 +85,11 @@ vi.mock("../lib/hooks", () => ({
     isLoading: false,
     error: null,
   }),
+  useLaunchProviderAvailability: () => ({
+    availabilityByProviderId: {},
+    loading: false,
+    error: null,
+  }),
   useClickOutside: vi.fn(),
 }));
 
@@ -409,6 +414,7 @@ describe("EpicDetailPage ship entry points", () => {
         preferredTerminal: null,
         useSandbox: false,
         aiBackend: "claude",
+        workingMethodOverride: "claude-code",
         launchProfile: {
           type: "review",
           selectedTicketIds: ["ticket-1"],
@@ -474,6 +480,7 @@ describe("EpicDetailPage ship entry points", () => {
         preferredTerminal: null,
         useSandbox: false,
         aiBackend: "claude",
+        workingMethodOverride: "claude-code",
         launchProfile: {
           type: "review",
           selectedTicketIds: ["ticket-1", "ticket-2"],
@@ -543,6 +550,7 @@ describe("EpicDetailPage ship entry points", () => {
         preferredTerminal: null,
         useSandbox: false,
         aiBackend: "pi",
+        workingMethodOverride: "pi",
       });
     });
   });
@@ -563,6 +571,7 @@ describe("EpicDetailPage ship entry points", () => {
         preferredTerminal: null,
         useSandbox: false,
         aiBackend: "pi",
+        workingMethodOverride: "pi",
         launchProfile: {
           type: "review",
           selectedTicketIds: ["ticket-1"],

@@ -63,6 +63,7 @@ export const queryKeys = {
   // Settings
   settings: ["settings"] as const,
   availableTerminals: ["available-terminals"] as const,
+  launchProviderAvailability: ["launch-provider-availability"] as const,
   dockerStatus: ["docker-status"] as const,
 
   // Docker runtime detection

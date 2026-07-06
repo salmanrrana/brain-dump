@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import type { CostModel } from "../../core/types";
 import type {
   InteractiveUiLaunchProvider,
+  LaunchProviderRuntimeAvailability,
   LaunchProviderIconKey,
   RalphAutonomousUiLaunchProvider,
   UiLaunchContextKind,
@@ -50,6 +51,9 @@ interface LaunchProviderMenuProps {
   costModels?: readonly CostModel[];
   modelCatalogLoading?: boolean;
   modelCatalogError?: unknown;
+  availabilityByProviderId?: Partial<Record<UiLaunchProviderId, LaunchProviderRuntimeAvailability>>;
+  availabilityLoading?: boolean;
+  availabilityError?: string | null;
 }
 
 function getRalphDisplayLabel(label: string): string {
@@ -72,6 +76,60 @@ function getDefaultOnlyMessage(reason: string | undefined, providerLabel: string
   return `Only Default is available for ${providerLabel} because Brain Dump does not have pricing-backed model choices for this provider yet.`;
 }
 
+function getAvailabilityLabel(
+  availability: LaunchProviderRuntimeAvailability | undefined,
+  loading: boolean
+): string {
+  if (loading && !availability) {
+    return "Checking";
+  }
+
+  if (!availability) {
+    return "Ready";
+  }
+
+  if (!availability.installed) {
+    return "Not installed";
+  }
+
+  if (availability.mode === "app") {
+    return "App detected";
+  }
+
+  return "CLI detected";
+}
+
+function getAvailabilityDescription(
+  availability: LaunchProviderRuntimeAvailability | undefined,
+  providerLabel: string,
+  loading: boolean
+): string {
+  if (loading && !availability) {
+    return `Checking ${providerLabel} availability. The menu remains usable while this runs.`;
+  }
+
+  if (!availability) {
+    return `${providerLabel} availability has not been checked yet.`;
+  }
+
+  if (availability.installed) {
+    return `${providerLabel} is available${availability.detail ? ` at ${availability.detail}` : ""}.`;
+  }
+
+  return availability.error ?? `${providerLabel} is not installed.`;
+}
+
+function getProviderButtonClass(isUnavailable: boolean): string {
+  const baseClass =
+    "group flex min-h-[4.5rem] items-start gap-2 rounded-xl border px-2.5 py-2 text-left transition-all focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)] focus:ring-offset-2 focus:ring-offset-[var(--bg-tertiary)]";
+
+  if (isUnavailable) {
+    return `${baseClass} border-[var(--border-primary)] bg-[var(--bg-primary)] opacity-60 disabled:cursor-not-allowed`;
+  }
+
+  return `${baseClass} border-[var(--border-primary)] hover:border-[var(--border-secondary)] hover:bg-[var(--bg-hover)] disabled:cursor-not-allowed disabled:opacity-50`;
+}
+
 export function LaunchProviderMenu({
   interactiveContext,
   ralphContext,
@@ -85,6 +143,9 @@ export function LaunchProviderMenu({
   costModels = [],
   modelCatalogLoading = false,
   modelCatalogError = null,
+  availabilityByProviderId = {},
+  availabilityLoading = false,
+  availabilityError = null,
 }: LaunchProviderMenuProps) {
   const [modelPickerEnabled, setModelPickerEnabled] = useState(false);
   const [reviewerPickerEnabled, setReviewerPickerEnabled] = useState(false);
@@ -188,6 +249,10 @@ export function LaunchProviderMenu({
             <div className="grid grid-cols-2 gap-2 p-3">
               {interactiveProviders.map((provider) => {
                 const Icon = ICONS_BY_KEY[provider.display.iconKey];
+                const availability = availabilityByProviderId[provider.id];
+                const providerLabel = provider.display.label;
+                const isUnavailable = availability?.installed === false;
+                const descriptionId = `launch-provider-${provider.id}-availability`;
 
                 return (
                   <button
@@ -197,25 +262,44 @@ export function LaunchProviderMenu({
                     onClick={() =>
                       onInteractiveLaunch(provider, getSelectedModelSelection(provider.id))
                     }
-                    disabled={disabled}
+                    disabled={disabled || isUnavailable}
                     title={provider.display.description}
-                    className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all disabled:cursor-not-allowed disabled:opacity-50"
+                    aria-label={providerLabel}
+                    aria-describedby={descriptionId}
+                    className={getProviderButtonClass(isUnavailable)}
                   >
-                    {loadingProviderId === provider.id ? (
-                      <Loader2
-                        size={14}
-                        color={provider.display.iconColor}
-                        className="flex-shrink-0 animate-spin"
-                      />
-                    ) : (
-                      <Icon
-                        size={14}
-                        color={provider.display.iconColor}
-                        className="flex-shrink-0"
-                      />
-                    )}
-                    <span className="text-sm text-[var(--text-primary)]">
-                      {provider.display.label}
+                    <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center">
+                      {loadingProviderId === provider.id ? (
+                        <Loader2
+                          size={14}
+                          color={provider.display.iconColor}
+                          className="animate-spin"
+                        />
+                      ) : (
+                        <Icon size={14} color={provider.display.iconColor} />
+                      )}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-[var(--text-primary)]">
+                        {providerLabel}
+                      </span>
+                      <span
+                        id={descriptionId}
+                        className={
+                          isUnavailable
+                            ? "mt-1 block text-xs leading-snug text-[var(--warning)]"
+                            : "mt-1 block text-xs leading-snug text-[var(--text-tertiary)]"
+                        }
+                      >
+                        {getAvailabilityDescription(
+                          availability,
+                          providerLabel,
+                          availabilityLoading
+                        )}
+                      </span>
+                      <span className="mt-1 inline-flex rounded-full bg-[var(--bg-active)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)]">
+                        {getAvailabilityLabel(availability, availabilityLoading)}
+                      </span>
                     </span>
                   </button>
                 );
@@ -235,6 +319,10 @@ export function LaunchProviderMenu({
             <div className="grid grid-cols-2 gap-2 p-3">
               {ralphProviders.map((provider) => {
                 const Icon = ICONS_BY_KEY[provider.display.iconKey];
+                const providerLabel = getRalphDisplayLabel(provider.display.label);
+                const availability = availabilityByProviderId[provider.id];
+                const isUnavailable = availability?.installed === false;
+                const descriptionId = `launch-provider-${provider.id}-availability`;
 
                 return (
                   <button
@@ -251,25 +339,44 @@ export function LaunchProviderMenu({
                           : undefined
                       )
                     }
-                    disabled={disabled}
+                    disabled={disabled || isUnavailable}
                     title={provider.display.description}
-                    className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all disabled:cursor-not-allowed disabled:opacity-50"
+                    aria-label={providerLabel}
+                    aria-describedby={descriptionId}
+                    className={getProviderButtonClass(isUnavailable)}
                   >
-                    {loadingProviderId === provider.id ? (
-                      <Loader2
-                        size={14}
-                        color={provider.display.iconColor}
-                        className="flex-shrink-0 animate-spin"
-                      />
-                    ) : (
-                      <Icon
-                        size={14}
-                        color={provider.display.iconColor}
-                        className="flex-shrink-0"
-                      />
-                    )}
-                    <span className="text-sm text-[var(--text-primary)]">
-                      {getRalphDisplayLabel(provider.display.label)}
+                    <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center">
+                      {loadingProviderId === provider.id ? (
+                        <Loader2
+                          size={14}
+                          color={provider.display.iconColor}
+                          className="animate-spin"
+                        />
+                      ) : (
+                        <Icon size={14} color={provider.display.iconColor} />
+                      )}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-[var(--text-primary)]">
+                        {providerLabel}
+                      </span>
+                      <span
+                        id={descriptionId}
+                        className={
+                          isUnavailable
+                            ? "mt-1 block text-xs leading-snug text-[var(--warning)]"
+                            : "mt-1 block text-xs leading-snug text-[var(--text-tertiary)]"
+                        }
+                      >
+                        {getAvailabilityDescription(
+                          availability,
+                          providerLabel,
+                          availabilityLoading
+                        )}
+                      </span>
+                      <span className="mt-1 inline-flex rounded-full bg-[var(--bg-active)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)]">
+                        {getAvailabilityLabel(availability, availabilityLoading)}
+                      </span>
                     </span>
                   </button>
                 );
@@ -393,6 +500,12 @@ export function LaunchProviderMenu({
               )}
             </p>
           ) : null}
+        </div>
+      )}
+
+      {availabilityError && (
+        <div className="border-t border-[var(--border-primary)] px-3 py-2 text-xs text-[var(--warning)]">
+          Provider availability could not be checked: {availabilityError}
         </div>
       )}
 

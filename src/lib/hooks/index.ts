@@ -98,6 +98,7 @@ export {
   useSettings,
   useUpdateSettings,
   useAvailableTerminals,
+  useLaunchProviderAvailability,
   useDockerStatus,
   useBuildSandboxImage,
   useDockerAvailability,
