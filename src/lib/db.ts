@@ -648,6 +648,40 @@ function initReviewWorkflowTables() {
     console.log("verification_runs table created successfully");
   }
 
+  const verificationJobsExists = sqlite
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='verification_jobs'")
+    .get();
+
+  if (!verificationJobsExists) {
+    console.log("Creating verification_jobs table...");
+    sqlite.exec(`
+      CREATE TABLE verification_jobs (
+        id TEXT PRIMARY KEY NOT NULL,
+        ticket_id TEXT NOT NULL UNIQUE REFERENCES tickets(id) ON DELETE CASCADE,
+        demo_script_id TEXT NOT NULL REFERENCES demo_scripts(id) ON DELETE CASCADE,
+        status TEXT NOT NULL DEFAULT 'queued',
+        attempt_count INTEGER NOT NULL DEFAULT 0,
+        next_run_at TEXT NOT NULL,
+        last_error TEXT,
+        leased_by TEXT,
+        lease_expires_at TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        completed_at TEXT
+      )
+    `);
+    console.log("verification_jobs table created successfully");
+  }
+  sqlite.exec(
+    `CREATE INDEX IF NOT EXISTS idx_verification_jobs_status_next ON verification_jobs (status, next_run_at)`
+  );
+  sqlite.exec(
+    `CREATE INDEX IF NOT EXISTS idx_verification_jobs_lease ON verification_jobs (status, lease_expires_at)`
+  );
+  sqlite.exec(
+    `CREATE INDEX IF NOT EXISTS idx_verification_jobs_demo ON verification_jobs (demo_script_id)`
+  );
+
   const epicReviewRunsExists = sqlite
     .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='epic_review_runs'")
     .get();
@@ -877,7 +911,7 @@ function runSchemaMigrations(): void {
  * Bump this whenever a new table/column migration is added to
  * `runSchemaMigrations()` so existing DBs re-run the checks once and re-stamp.
  */
-const CURRENT_SCHEMA_VERSION = 4;
+const CURRENT_SCHEMA_VERSION = 5;
 
 // Gate the migration checks behind PRAGMA user_version (standard SQLite
 // pattern). When the DB is already at the current version we skip all ~25

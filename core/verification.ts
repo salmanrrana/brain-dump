@@ -21,7 +21,7 @@ import {
   type HandleEpicCompletionAutoPrResult,
 } from "./ship.ts";
 import type { AttachmentType } from "./attachment-types.ts";
-import { settleVerificationJobForTicket } from "./verification-queue.ts";
+import { settleVerificationJob, settleVerificationJobForTicket } from "./verification-queue.ts";
 
 export type VerificationRunStatus = "passed" | "failed" | "uncertified" | "infra_error";
 export type VerificationStepStatus = "passed" | "failed" | "skipped";
@@ -97,6 +97,11 @@ export interface VerifyTicketParams {
     options?: { cwd?: string; timeoutMs?: number; maxBuffer?: number }
   ) => Promise<ExecFileNoThrowResult>;
   fetchImpl?: typeof fetch;
+  verificationJobLease?: {
+    jobId: string;
+    workerId: string;
+    attemptCount: number;
+  };
 }
 
 interface BootedApp {
@@ -1074,26 +1079,43 @@ export async function verifyTicket(
   const now = run.finishedAt;
   const shouldHandleEpicCompletion = run.status === "passed" && run.certified;
 
+  const settleJob = (
+    status: "succeeded" | "failed" | "blocked",
+    options: { error?: string; now?: string } = {}
+  ): void => {
+    if (params.verificationJobLease) {
+      settleVerificationJob(db, {
+        jobId: params.verificationJobLease.jobId,
+        workerId: params.verificationJobLease.workerId,
+        attemptCount: params.verificationJobLease.attemptCount,
+        status,
+        ...options,
+      });
+      return;
+    }
+    settleVerificationJobForTicket(db, params.ticketId, status, options);
+  };
+
   db.transaction(() => {
     persistRun(db, run);
     attachRunEvidenceAndReport(db, run, params.provider);
 
     if (run.status === "passed" && run.certified) {
       completeTicketIfCertified(db, params.ticketId, now);
-      settleVerificationJobForTicket(db, params.ticketId, "succeeded", { now });
+      settleJob("succeeded", { now });
     } else if (run.status === "failed") {
       recordVerificationFindings(db, run, steps, now);
       updateDemoStepStatusesForRun(db, run, steps);
       const blockedStepOrder = latestThreeFailedRunsShareStep(db, params.ticketId);
       if (blockedStepOrder === null) {
         returnTicketToImplementationAfterVerificationFailure(db, run, now);
-        settleVerificationJobForTicket(db, params.ticketId, "failed", {
+        settleJob("failed", {
           now,
           error: "Verification assertions failed; ticket returned to implementation.",
         });
       } else {
         blockTicketAfterRepeatedVerificationFailures(db, run, blockedStepOrder, now);
-        settleVerificationJobForTicket(db, params.ticketId, "blocked", {
+        settleJob("blocked", {
           now,
           error: `Repeated verification failure on step ${blockedStepOrder}.`,
         });
@@ -1101,7 +1123,7 @@ export async function verifyTicket(
     } else if (run.status === "uncertified" || run.status === "infra_error") {
       const blockedReason = `Verification ${run.status}: ${run.manifest.stepVerdicts[0]?.message ?? "see manifest"}`;
       blockTicket(db, params.ticketId, blockedReason, now);
-      settleVerificationJobForTicket(db, params.ticketId, "blocked", { now, error: blockedReason });
+      settleJob("blocked", { now, error: blockedReason });
     }
   })();
   if (shouldHandleEpicCompletion) {

@@ -5,6 +5,13 @@ import { ValidationError } from "./errors.ts";
 import { getVerificationJob, claimNextVerificationJob } from "./verification-queue.ts";
 import { verifyTicket, type VerificationRun, type VerifyTicketParams } from "./verification.ts";
 
+interface ClaimedJobLease {
+  jobId: string;
+  ticketId: string;
+  workerId: string;
+  attemptCount: number;
+}
+
 export interface VerificationWorkerOptions {
   workerId?: string;
   provider?: string;
@@ -74,54 +81,107 @@ function errorMessage(error: unknown): string {
 
 function requeueInfraError(
   db: DbHandle,
-  params: {
-    jobId: string;
-    ticketId: string;
+  params: ClaimedJobLease & {
     error: string;
     retryAt: string;
     now: string;
+    requireActiveLease: boolean;
   }
-): void {
+): boolean {
+  const whereClause = params.requireActiveLease
+    ? "id = ? AND leased_by = ? AND attempt_count = ?"
+    : "id = ?";
+  const args = params.requireActiveLease
+    ? [params.retryAt, params.error, params.now, params.jobId, params.workerId, params.attemptCount]
+    : [params.retryAt, params.error, params.now, params.jobId];
+  db.prepare(
+    `UPDATE verification_jobs
+     SET status = 'failed', next_run_at = ?, last_error = ?, leased_by = NULL,
+         lease_expires_at = NULL, completed_at = NULL, updated_at = ?
+     WHERE ${whereClause}`
+  ).run(...args);
+  const result = db.prepare("SELECT changes() as changes").get() as { changes: number };
+  if (result.changes !== 1) return false;
+
   db.prepare(
     `UPDATE tickets
      SET is_blocked = 0, blocked_reason = NULL, updated_at = ?
      WHERE id = ? AND status = 'ai_verification'`
   ).run(params.now, params.ticketId);
-  db.prepare(
-    `UPDATE verification_jobs
-     SET status = 'failed', next_run_at = ?, last_error = ?, leased_by = NULL,
-         lease_expires_at = NULL, completed_at = NULL, updated_at = ?
-     WHERE id = ?`
-  ).run(params.retryAt, params.error, params.now, params.jobId);
+  return result.changes === 1;
 }
 
 function markWorkerExceptionBlocked(
   db: DbHandle,
-  params: {
-    jobId: string;
-    ticketId: string;
+  params: ClaimedJobLease & {
     error: string;
     now: string;
   }
-): void {
+): boolean {
   const reason = `Automatic verification worker failed: ${params.error}`;
+  db.prepare(
+    `UPDATE verification_jobs
+     SET status = 'blocked', last_error = ?, leased_by = NULL, lease_expires_at = NULL,
+         completed_at = ?, updated_at = ?
+     WHERE id = ? AND leased_by = ? AND attempt_count = ?`
+  ).run(reason, params.now, params.now, params.jobId, params.workerId, params.attemptCount);
+  const result = db.prepare("SELECT changes() as changes").get() as { changes: number };
+  if (result.changes !== 1) return false;
+
   db.prepare(
     `UPDATE tickets
      SET is_blocked = 1, blocked_reason = ?, updated_at = ?
      WHERE id = ? AND status = 'ai_verification'`
   ).run(reason, params.now, params.ticketId);
-  db.prepare(
-    `UPDATE verification_jobs
-     SET status = 'blocked', last_error = ?, leased_by = NULL, lease_expires_at = NULL,
-         completed_at = ?, updated_at = ?
-     WHERE id = ?`
-  ).run(reason, params.now, params.now, params.jobId);
   addComment(db, {
     ticketId: params.ticketId,
     author: "brain-dump",
     type: "comment",
     content: `## Verification Worker Blocked\n\n${reason}`,
   });
+  return true;
+}
+
+function buildLostLeaseResult(
+  workerId: string,
+  lease: ClaimedJobLease,
+  error: string
+): VerificationWorkerRunResult {
+  return {
+    claimed: true,
+    workerId,
+    ticketId: lease.ticketId,
+    jobId: lease.jobId,
+    attemptCount: lease.attemptCount,
+    jobStatus: "stale",
+    error: `Verification worker lost its job lease before settling: ${error}`,
+  };
+}
+
+function requeueInfraErrorResult(
+  db: DbHandle,
+  params: ClaimedJobLease & {
+    error: string;
+    now: string;
+    retryAt: string;
+    runStatus?: VerificationRun["status"];
+    requireActiveLease: boolean;
+  }
+): VerificationWorkerRunResult {
+  const requeued = requeueInfraError(db, params);
+  if (!requeued) return buildLostLeaseResult(params.workerId, params, params.error);
+  const result: VerificationWorkerRunResult = {
+    claimed: true,
+    workerId: params.workerId,
+    ticketId: params.ticketId,
+    jobId: params.jobId,
+    attemptCount: params.attemptCount,
+    jobStatus: "failed",
+    retryAt: params.retryAt,
+    error: params.error,
+  };
+  if (params.runStatus) result.runStatus = params.runStatus;
+  return result;
 }
 
 export async function runNextVerificationJob(
@@ -136,6 +196,12 @@ export async function runNextVerificationJob(
     leaseMs: options.leaseMs ?? DEFAULT_LEASE_MS,
   });
   if (!job) return { claimed: false, workerId };
+  const lease: ClaimedJobLease = {
+    jobId: job.id,
+    ticketId: job.ticketId,
+    workerId,
+    attemptCount: job.attemptCount,
+  };
 
   const verify = options.verifyTicketFn ?? verifyTicket;
   try {
@@ -147,6 +213,7 @@ export async function runNextVerificationJob(
       ...(options.execFileNoThrow !== undefined
         ? { execFileNoThrow: options.execFileNoThrow }
         : {}),
+      verificationJobLease: lease,
     });
 
     if (
@@ -158,24 +225,14 @@ export async function runNextVerificationJob(
         options.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS
       );
       const message = run.manifest.stepVerdicts[0]?.message ?? "Verification infrastructure error";
-      requeueInfraError(db, {
-        jobId: job.id,
-        ticketId: job.ticketId,
+      return requeueInfraErrorResult(db, {
+        ...lease,
         error: message,
         retryAt,
         now: run.finishedAt,
-      });
-      return {
-        claimed: true,
-        workerId,
-        ticketId: job.ticketId,
-        jobId: job.id,
-        attemptCount: job.attemptCount,
         runStatus: run.status,
-        jobStatus: "failed",
-        retryAt,
-        error: message,
-      };
+        requireActiveLease: false,
+      });
     }
 
     const updatedJob = getVerificationJob(db, job.ticketId);
@@ -196,31 +253,21 @@ export async function runNextVerificationJob(
         options.now ?? (() => new Date()),
         options.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS
       );
-      requeueInfraError(db, {
-        jobId: job.id,
-        ticketId: job.ticketId,
+      return requeueInfraErrorResult(db, {
+        ...lease,
         error: message,
         retryAt,
         now: nowIso(options.now),
+        requireActiveLease: true,
       });
-      return {
-        claimed: true,
-        workerId,
-        ticketId: job.ticketId,
-        jobId: job.id,
-        attemptCount: job.attemptCount,
-        jobStatus: "failed",
-        retryAt,
-        error: message,
-      };
     }
 
-    markWorkerExceptionBlocked(db, {
-      jobId: job.id,
-      ticketId: job.ticketId,
+    const blocked = markWorkerExceptionBlocked(db, {
+      ...lease,
       error: message,
       now: nowIso(options.now),
     });
+    if (!blocked) return buildLostLeaseResult(workerId, lease, message);
     return {
       claimed: true,
       workerId,
@@ -298,6 +345,7 @@ export function startVerificationWorker(
   let processedCount = 0;
   let lastStartedAt: string | null = null;
   let lastFinishedAt: string | null = null;
+  let lastWorkerError: string | null = null;
   let timer: NodeJS.Timeout | null = null;
 
   const schedule = (delayMs: number): void => {
@@ -312,13 +360,19 @@ export function startVerificationWorker(
     if (stopped || running) return;
     running = true;
     lastStartedAt = nowIso(options.now);
+    let nextDelayMs = intervalMs;
     try {
       const result = await runNextVerificationJob(db, { ...options, workerId });
       if (result.claimed) processedCount += 1;
-      schedule(result.claimed ? 0 : intervalMs);
+      if (result.error) lastWorkerError = result.error;
+      nextDelayMs = result.claimed ? 0 : intervalMs;
+    } catch (error) {
+      lastWorkerError = errorMessage(error);
+      console.error("[VerificationWorker] Poll failed:", error);
     } finally {
       running = false;
       lastFinishedAt = nowIso(options.now);
+      schedule(nextDelayMs);
     }
   };
 
@@ -330,12 +384,16 @@ export function startVerificationWorker(
       stopped = true;
       if (timer) clearTimeout(timer);
     },
-    status: () => ({
-      ...getVerificationWorkerQueueStatus(db),
-      running,
-      processedCount,
-      lastStartedAt,
-      lastFinishedAt,
-    }),
+    status: () => {
+      const queueStatus = getVerificationWorkerQueueStatus(db);
+      return {
+        ...queueStatus,
+        lastError: lastWorkerError ?? queueStatus.lastError,
+        running,
+        processedCount,
+        lastStartedAt,
+        lastFinishedAt,
+      };
+    },
   };
 }

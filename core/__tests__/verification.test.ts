@@ -617,6 +617,42 @@ describe("verification worker", () => {
     expect(result).toEqual({ claimed: false, workerId: "worker-2" });
   });
 
+  it("rejects verification settlement from a worker that lost its lease", async () => {
+    seedDemo([apiStep()]);
+    const job = enqueueVerificationJob(db, "ticket-1", { now: "2026-03-08T01:00:00.000Z" });
+    const staleClaim = claimNextVerificationJob(db, {
+      workerId: "worker-1",
+      now: "2026-03-08T01:00:01.000Z",
+      leaseMs: 1_000,
+    });
+    claimNextVerificationJob(db, {
+      workerId: "worker-2",
+      now: "2026-03-08T01:00:03.000Z",
+      leaseMs: 60_000,
+    });
+    const baseUrl = await startFixtureServer();
+
+    await expect(
+      verifyTicket(db, {
+        ticketId: "ticket-1",
+        baseUrl,
+        verificationJobLease: {
+          jobId: job.id,
+          workerId: "worker-1",
+          attemptCount: staleClaim!.attemptCount,
+        },
+      })
+    ).rejects.toThrow(/not leased by worker-1/);
+    expect(getVerificationJob(db, "ticket-1")).toMatchObject({
+      status: "running",
+      leasedBy: "worker-2",
+      attemptCount: 2,
+    });
+    expect(db.prepare("SELECT status FROM tickets WHERE id = 'ticket-1'").get()).toMatchObject({
+      status: "ai_verification",
+    });
+  });
+
   it("retries worker infrastructure errors before blocking loudly", async () => {
     seedDemo([apiStep()]);
     enqueueVerificationJob(db, "ticket-1", { now: "2026-03-08T01:00:00.000Z" });
