@@ -137,6 +137,7 @@ interface GitInfo {
 const BODY_LIMIT = 16_384;
 const BOOT_LOG_LIMIT = 8_192;
 const DEFAULT_TIMEOUT_MS = 30_000;
+const UI_ASSERTION_TIMEOUT_MS = 10_000;
 
 function truncate(value: string, limit = BODY_LIMIT): string {
   if (value.length <= limit) return value;
@@ -844,15 +845,9 @@ async function runUiStep(
           if (!visible) failures.push(`expected ${assertion.selector ?? "body"} to be visible`);
         }
         if (assertion.type === "text") {
-          const text = await page
-            .locator(assertion.selector ?? "body")
-            .first()
-            .textContent();
-          if (!text?.includes(assertion.expected ?? "")) {
-            failures.push(
-              `expected ${assertion.selector ?? "body"} to contain ${assertion.expected}`
-            );
-          }
+          await playwright
+            .expect(page.locator(assertion.selector ?? "body").first())
+            .toContainText(assertion.expected ?? "", { timeout: UI_ASSERTION_TIMEOUT_MS });
         }
         if (assertion.type === "url" && !page.url().includes(assertion.expected ?? "")) {
           failures.push(`expected URL to contain ${assertion.expected}`);

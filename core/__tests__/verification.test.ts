@@ -2,7 +2,7 @@ import { createServer, type Server } from "http";
 import { mkdtempSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type Database from "better-sqlite3";
 import { createTestDatabase } from "../db.ts";
 import {
@@ -101,6 +101,25 @@ function apiStep(expectedStatus = 200): DemoStep {
   };
 }
 
+function uiTextStep(): DemoStep {
+  return {
+    order: 1,
+    description: "Open delayed page",
+    expectedOutcome: "Delayed content appears",
+    type: "visual",
+    automation: {
+      kind: "ui",
+      route: "/",
+      actions: [{ act: "waitFor", selector: "body" }],
+      assert: [
+        { type: "visible", selector: "body" },
+        { type: "text", selector: "body", expected: "Projects" },
+      ],
+      screenshot: true,
+    },
+  };
+}
+
 async function startFixtureServer(status = 200): Promise<string> {
   server = createServer((request, response) => {
     if (request.url === "/health") {
@@ -127,6 +146,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+  vi.doUnmock("@playwright/test");
   await new Promise<void>((resolve, reject) => {
     if (!server) {
       resolve();
@@ -244,6 +264,45 @@ describe("verifyTicket", () => {
     expect(run.manifest.port).toBeGreaterThanOrEqual(42_400);
     expect(run.manifest.bootCommand).toEqual([process.execPath, "-e", script]);
     expect(run.manifest.bootLog).toContain("ready before step failure");
+  });
+
+  it("waits for UI text assertions instead of reading text content immediately", async () => {
+    seedDemo([uiTextStep()]);
+    const waitFor = vi.fn(async () => {});
+    const isVisible = vi.fn(async () => true);
+    const textContent = vi.fn(async () => "Loading Brain Dump");
+    const toContainText = vi.fn(async () => {});
+    const screenshot = vi.fn(async ({ path }: { path: string }) =>
+      writeFileSync(path, "fake image")
+    );
+    const locator = vi.fn(() => ({
+      first: () => ({ isVisible, textContent }),
+      waitFor,
+    }));
+    const close = vi.fn(async () => {});
+    vi.doMock("@playwright/test", () => ({
+      chromium: {
+        launch: vi.fn(async () => ({
+          newPage: vi.fn(async () => ({
+            goto: vi.fn(async () => {}),
+            keyboard: { press: vi.fn(async () => {}) },
+            locator,
+            screenshot,
+            url: () => "http://127.0.0.1:4242/",
+          })),
+          close,
+        })),
+      },
+      expect: () => ({ toContainText }),
+    }));
+    const baseUrl = await startFixtureServer();
+
+    const run = await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+
+    expect(run.status).toBe("passed");
+    expect(toContainText).toHaveBeenCalledWith("Projects", { timeout: 10_000 });
+    expect(textContent).not.toHaveBeenCalled();
+    expect(close).toHaveBeenCalled();
   });
 
   it("records a certified run and completes the ticket when all automation passes", async () => {
