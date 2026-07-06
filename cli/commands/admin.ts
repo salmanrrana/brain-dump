@@ -27,7 +27,11 @@ import type { HealthDependencies } from "../../core/index.ts";
 import { parseFlags, boolFlag } from "../lib/args.ts";
 import { outputResult, outputError, showResourceHelp } from "../lib/output.ts";
 import { getDb } from "../lib/db.ts";
-import { InvalidActionError } from "../../core/index.ts";
+import {
+  InvalidActionError,
+  WORKFLOW_SCHEMA_VERSION,
+  getMcpServerWorkflowSchemaDriftReport,
+} from "../../core/index.ts";
 
 const logger = createCliLogger();
 ensureDirectoriesSync();
@@ -672,6 +676,28 @@ function handleDoctorAction(): void {
         fix: "gh auth login",
       });
     }
+  }
+
+  console.log();
+
+  // MCP workflow schema drift. This catches stale installed MCP bundles before they
+  // move tickets through retired workflow states or drop automation fields.
+  console.log("Workflow Schema");
+  console.log("-".repeat(50));
+  const projectRoot = join(import.meta.dirname, "..", "..");
+  const schemaReport = getMcpServerWorkflowSchemaDriftReport(projectRoot);
+  console.log(`  Source schema: ${WORKFLOW_SCHEMA_VERSION}`);
+  if (schemaReport.status === "current") {
+    console.log(`  ✓ MCP server build schema current (${schemaReport.distPath})`);
+  } else {
+    console.log(`  ✗ ${schemaReport.message}`);
+    console.log(`    ${schemaReport.remediation}`);
+    issues.push({
+      environment: "MCP Server",
+      component: "Workflow Schema",
+      message: schemaReport.message,
+      fix: schemaReport.remediation,
+    });
   }
 
   console.log();

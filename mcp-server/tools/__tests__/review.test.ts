@@ -7,6 +7,7 @@ import type Database from "better-sqlite3";
 import { createTestDatabase } from "../../../core/db.ts";
 import { seedProject, seedTicket } from "../../../core/__tests__/test-helpers.ts";
 import { registerReviewTool } from "../review.ts";
+import { WORKFLOW_SCHEMA_VERSION } from "../../../core/workflow-schema.ts";
 
 function getToolHandler(
   server: McpServer,
@@ -195,6 +196,16 @@ function seedAiReviewTicketWithPr(ticketId: string): void {
 }
 
 describe("review tool generate-demo PR sync", () => {
+  it("advertises the workflow schema version to MCP clients", () => {
+    const server = new McpServer({ name: "test", version: "1.0.0" });
+    registerReviewTool(server, db);
+    const tools = (
+      server as unknown as { _registeredTools: Record<string, { description: string }> }
+    )._registeredTools;
+
+    expect(tools.review?.description).toContain(`Workflow schema: ${WORKFLOW_SCHEMA_VERSION}`);
+  });
+
   it("syncs demo steps into the linked PR body and reports the update", async () => {
     const { editedBodyPath } = installFakeGh(
       ["# Demo PR", "", "<!-- brain-dump:demo-steps -->", "_Placeholder_", "", "## Notes"].join(

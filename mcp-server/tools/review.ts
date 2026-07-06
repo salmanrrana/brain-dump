@@ -33,6 +33,11 @@ import { addComment, type CommentAuthor } from "../../core/comment.ts";
 import { detectAuthor } from "../lib/environment.js";
 import { execFileNoThrow, syncPrVerificationChecklist } from "../../core/index.ts";
 import { updatePrdForDbTicketIfPresent } from "../../core/prd-sync.ts";
+import {
+  assertWorkflowSchemaSupportsCurrentFlow,
+  getWorkflowSchemaInfo,
+  WORKFLOW_SCHEMA_VERSION,
+} from "../../core/workflow-schema.ts";
 
 const SEVERITY_ICONS: Record<string, string> = {
   critical: "🔴",
@@ -175,6 +180,8 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
 ### get-verification-history - Read verification run history for a ticket
 ### get-verification-job - Read queued/running verification job state for a ticket
 ### repair-legacy-handoff - Repair a legacy human_review ticket to ai_verification (with demo) or ai_review (without demo)
+
+Workflow schema: ${WORKFLOW_SCHEMA_VERSION}
 
 No MCP action uploads evidence or marks verification passed. The verification runner owns evidence writes and ai_verification -> done.`,
     {
@@ -348,6 +355,7 @@ No MCP action uploads evidence or marks verification passed. The verification ru
           }
 
           case "generate-demo": {
+            assertWorkflowSchemaSupportsCurrentFlow(getWorkflowSchemaInfo());
             const ticketId = requireParam(params.ticketId, "ticketId", "generate-demo");
             const steps = requireParam(params.steps, "steps", "generate-demo") as DemoStep[];
 
@@ -424,6 +432,7 @@ No MCP action uploads evidence or marks verification passed. The verification ru
           }
 
           case "repair-legacy-handoff": {
+            assertWorkflowSchemaSupportsCurrentFlow(getWorkflowSchemaInfo());
             const ticketId = requireParam(params.ticketId, "ticketId", "repair-legacy-handoff");
             validateRepairLegacyHumanReviewHandoff(db, ticketId);
             const prdSync = syncPrdPassMarker(db, ticketId, false);

@@ -10,6 +10,7 @@ import type { DbHandle } from "./types.ts";
 import { ProjectNotFoundError } from "./errors.ts";
 import { getDbPath, getBackupsDir } from "./db.ts";
 import type { DbProjectRow } from "./db-rows.ts";
+import { getWorkflowSchemaInfo, type WorkflowSchemaInfo } from "./workflow-schema.ts";
 
 // ============================================
 // External Dependencies (injected by callers)
@@ -89,6 +90,7 @@ export interface EnvironmentResult {
   workspacePath: string | null;
   detectedProject: DbProjectRow | null;
   envVarsDetected: string[];
+  workflowSchema: WorkflowSchemaInfo;
 }
 
 export interface ProjectSettingsResult {
@@ -276,6 +278,7 @@ export function getEnvironment(db: DbHandle, detector: EnvironmentDetector): Env
     workspacePath: envInfo.workspacePath,
     detectedProject,
     envVarsDetected: envInfo.envVarsDetected,
+    workflowSchema: getWorkflowSchemaInfo(),
   };
 }
 

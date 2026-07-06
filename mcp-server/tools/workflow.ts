@@ -45,6 +45,11 @@ import { updatePrdForTicket } from "../lib/prd-utils.js";
 import { createConversationSession, endConversationSessions } from "../lib/conversation-session.js";
 import { detectAuthor } from "../lib/environment.js";
 import {
+  assertWorkflowSchemaSupportsCurrentFlow,
+  getWorkflowSchemaInfo,
+  WORKFLOW_SCHEMA_VERSION,
+} from "../../core/workflow-schema.ts";
+import {
   buildTicketContextContent,
   buildWarningsSection,
   buildAttachmentsSection,
@@ -131,7 +136,9 @@ Optional params: projectPath
 - prStatus: PR status (draft, open, merged, closed). Optional for: link-pr
 - projectPath: Project path for auto-detection. Optional for: sync-links
 - provider/model: Implementer provider and model override. Optional for: launch-ticket, launch-epic
-- reviewProvider/reviewModel: Fresh-eyes reviewer provider and model override. Optional for: launch-ticket, launch-epic`,
+- reviewProvider/reviewModel: Fresh-eyes reviewer provider and model override. Optional for: launch-ticket, launch-epic
+
+Workflow schema: ${WORKFLOW_SCHEMA_VERSION}`,
     {
       action: z.enum(ACTIONS).describe("The operation to perform"),
       ticketId: z.string().optional().describe("Ticket ID"),
@@ -190,6 +197,7 @@ Optional params: projectPath
       useSandbox?: boolean | undefined;
     }) => {
       try {
+        assertWorkflowSchemaSupportsCurrentFlow(getWorkflowSchemaInfo());
         switch (params.action) {
           case "start-work": {
             return handleStartWork(db, git, detectEnvironment, params);

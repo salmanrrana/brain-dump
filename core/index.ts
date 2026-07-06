@@ -111,6 +111,16 @@ export type {
 } from "./types.ts";
 
 export {
+  WORKFLOW_SCHEMA_VERSION,
+  WORKFLOW_SCHEMA_CAPABILITIES,
+  getWorkflowSchemaInfo,
+  assertWorkflowSchemaSupportsCurrentFlow,
+  getMcpServerWorkflowSchemaDriftReport,
+} from "./workflow-schema.ts";
+
+export type { WorkflowSchemaInfo, WorkflowSchemaDriftReport } from "./workflow-schema.ts";
+
+export {
   TICKET_STATUSES,
   TICKET_STATUS_METADATA,
   KANBAN_STATUSES,
