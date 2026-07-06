@@ -1,6 +1,6 @@
 import { randomUUID, createHmac } from "crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
-import { join } from "path";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "fs";
+import { isAbsolute, join, relative, resolve } from "path";
 import { spawn } from "child_process";
 import { createServer } from "net";
 import type {
@@ -17,6 +17,7 @@ import { updatePrdForDbTicketIfPresent } from "./prd-sync.ts";
 import { addComment, addVerificationReportComment } from "./comment.ts";
 import { writeAttachmentFromFile } from "./attachments.ts";
 import {
+  execFileNoThrow as defaultExecFileNoThrow,
   handleEpicCompletionAutoPr,
   handleEpicCompletionLearnings,
   type HandleEpicCompletionAutoPrResult,
@@ -142,6 +143,9 @@ interface BrowserSplashSkipResult {
 
 const BODY_LIMIT = 16_384;
 const BOOT_LOG_LIMIT = 8_192;
+const COMMAND_OUTPUT_LIMIT = 16_384;
+const FILE_SNIPPET_LIMIT = 16_384;
+const FILE_READ_LIMIT = 1_048_576;
 const DEFAULT_TIMEOUT_MS = 30_000;
 const UI_ASSERTION_TIMEOUT_MS = 10_000;
 // Mirrors src/routes/__root.tsx so verifier-controlled Brain Dump boots skip the cold splash.
@@ -479,6 +483,27 @@ function resolveAppUrl(target: string, baseUrl: string, label: string): string {
   return url.toString();
 }
 
+function resolveProjectPath(projectPath: string, target: string, label: string): string {
+  if (isAbsolute(target)) {
+    throw new ValidationError(`${label} must be a project-relative path.`);
+  }
+  const root = resolve(projectPath);
+  const resolved = resolve(root, target || ".");
+  const relativePath = relative(root, resolved);
+  if (relativePath === "" || (!relativePath.startsWith("..") && !isAbsolute(relativePath))) {
+    return resolved;
+  }
+  throw new ValidationError(`${label} must not escape the project directory.`);
+}
+
+function stepNeedsApp(step: DemoStep): boolean {
+  return step.automation?.kind === "api" || step.automation?.kind === "ui";
+}
+
+function stableJson(value: unknown): string {
+  return JSON.stringify(value, null, 2);
+}
+
 function evidenceDir(runId: string): string {
   const dir = join(getStateDir(), "verification", runId);
   mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -705,11 +730,30 @@ async function runExecutableSteps(params: {
   projectPath: string;
   baseUrl?: string;
   bootCommand?: string[];
+  execFileNoThrow: NonNullable<VerifyTicketParams["execFileNoThrow"]>;
   fetchImpl: typeof fetch;
   timeoutMs: number;
   steps: DemoStep[];
   runId: string;
 }): Promise<{ boot: BootedApp | null; verdicts: VerificationStepVerdict[] }> {
+  const needsApp = params.steps.some(stepNeedsApp);
+  if (!needsApp) {
+    const verdicts: VerificationStepVerdict[] = [];
+    for (const step of params.steps) {
+      verdicts.push(
+        await runStep(
+          step,
+          params.runId,
+          null,
+          params.fetchImpl,
+          params.projectPath,
+          params.execFileNoThrow
+        )
+      );
+    }
+    return { boot: null, verdicts };
+  }
+
   let lastError: unknown;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     let boot: BootedApp | null = null;
@@ -723,7 +767,16 @@ async function runExecutableSteps(params: {
       });
       const verdicts: VerificationStepVerdict[] = [];
       for (const step of params.steps) {
-        verdicts.push(await runStep(step, params.runId, boot.baseUrl, params.fetchImpl));
+        verdicts.push(
+          await runStep(
+            step,
+            params.runId,
+            boot.baseUrl,
+            params.fetchImpl,
+            params.projectPath,
+            params.execFileNoThrow
+          )
+        );
       }
       return { boot, verdicts };
     } catch (error) {
@@ -924,11 +977,188 @@ async function runUiStep(
   }
 }
 
+async function runCommandStep(
+  step: DemoStep,
+  runId: string,
+  projectPath: string,
+  execFileNoThrow: NonNullable<VerifyTicketParams["execFileNoThrow"]>
+): Promise<VerificationStepVerdict> {
+  if (!step.automation || step.automation.kind !== "command") {
+    throw new ValidationError(`Step ${step.order} is missing command automation.`);
+  }
+  const start = Date.now();
+  const automation = step.automation;
+  const [command, ...args] = automation.command.argv;
+  if (!command) {
+    throw new ValidationError(`Step ${step.order} command automation argv must not be empty.`);
+  }
+
+  const cwd = resolveProjectPath(
+    projectPath,
+    automation.command.cwd ?? ".",
+    `Step ${step.order} command automation cwd`
+  );
+  const result = await execFileNoThrow(command, args, {
+    cwd,
+    timeoutMs: automation.command.timeoutMs,
+    maxBuffer: COMMAND_OUTPUT_LIMIT,
+  });
+  const stdout = truncate(result.stdout, COMMAND_OUTPUT_LIMIT);
+  const stderr = truncate(result.stderr, COMMAND_OUTPUT_LIMIT);
+  const failures: string[] = [];
+
+  if (result.exitCode !== automation.command.expectedExitCode) {
+    failures.push(
+      `expected exit code ${automation.command.expectedExitCode}, got ${result.exitCode ?? "null"}`
+    );
+  }
+  for (const assertion of automation.assert) {
+    if (assertion.type === "stdoutContains" && !stdout.includes(assertion.expected)) {
+      failures.push(`expected stdout to contain ${JSON.stringify(assertion.expected)}`);
+    } else if (assertion.type === "stdoutNotContains" && stdout.includes(assertion.expected)) {
+      failures.push(`expected stdout not to contain ${JSON.stringify(assertion.expected)}`);
+    } else if (assertion.type === "stderrContains" && !stderr.includes(assertion.expected)) {
+      failures.push(`expected stderr to contain ${JSON.stringify(assertion.expected)}`);
+    } else if (assertion.type === "stderrNotContains" && stderr.includes(assertion.expected)) {
+      failures.push(`expected stderr not to contain ${JSON.stringify(assertion.expected)}`);
+    }
+  }
+
+  const evidencePayload: Record<string, unknown> = {
+    command: {
+      argv: automation.command.argv,
+      cwd: relative(resolve(projectPath), cwd) || ".",
+      timeoutMs: automation.command.timeoutMs,
+      expectedExitCode: automation.command.expectedExitCode,
+    },
+    result: {
+      exitCode: result.exitCode,
+      stdout,
+      stderr,
+      ...(result.error ? { error: result.error } : {}),
+    },
+    assertions: automation.assert,
+    failures,
+  };
+  const evidence = writeEvidence(
+    runId,
+    `step-${step.order}-command.json`,
+    stableJson(evidencePayload)
+  );
+
+  return {
+    order: step.order,
+    status: failures.length === 0 ? "passed" : "failed",
+    message: failures.length === 0 ? "Command assertions passed." : failures.join("; "),
+    durationMs: Date.now() - start,
+    evidenceFiles: [evidence],
+  };
+}
+
+async function runFileStep(
+  step: DemoStep,
+  runId: string,
+  projectPath: string
+): Promise<VerificationStepVerdict> {
+  if (!step.automation || step.automation.kind !== "file") {
+    throw new ValidationError(`Step ${step.order} is missing file automation.`);
+  }
+  const start = Date.now();
+  const automation = step.automation;
+  const filePath = resolveProjectPath(
+    projectPath,
+    automation.path,
+    `Step ${step.order} file automation path`
+  );
+  const exists = existsSync(filePath);
+  const failures: string[] = [];
+  let content: string | null = null;
+  let size: number | null = null;
+  let targetFileHash: string | null = null;
+
+  if (exists) {
+    size = statSync(filePath).size;
+    if (size <= FILE_READ_LIMIT) {
+      content = readFileSync(filePath, "utf-8");
+      targetFileHash = hmac(content, `brain-dump:file:${runId}`);
+    }
+  }
+
+  for (const assertion of automation.assert) {
+    if (assertion.type === "exists") {
+      if (!exists) failures.push(`expected file ${automation.path} to exist`);
+      continue;
+    }
+    if (assertion.type === "notExists") {
+      if (exists) failures.push(`expected file ${automation.path} not to exist`);
+      continue;
+    }
+    if (!exists) {
+      failures.push(`expected file ${automation.path} to exist for ${assertion.type} assertion`);
+      continue;
+    }
+    if (size !== null && size > FILE_READ_LIMIT) {
+      failures.push(`file ${automation.path} is too large to inspect (${size} bytes)`);
+      continue;
+    }
+    if (content === null) {
+      failures.push(`file ${automation.path} could not be read`);
+      continue;
+    }
+    if (assertion.type === "contains" && !content.includes(assertion.expected)) {
+      failures.push(`expected file to contain ${JSON.stringify(assertion.expected)}`);
+    } else if (assertion.type === "notContains" && content.includes(assertion.expected)) {
+      failures.push(`expected file not to contain ${JSON.stringify(assertion.expected)}`);
+    } else if (assertion.type === "jsonPath") {
+      let json: unknown;
+      try {
+        json = JSON.parse(content);
+      } catch {
+        failures.push("expected JSON file for jsonPath assertion");
+        continue;
+      }
+      const actual = resolveJsonPath(json, assertion.path);
+      if (!valuesEqual(actual, assertion.expected)) {
+        failures.push(
+          `expected jsonPath ${assertion.path} to equal ${JSON.stringify(assertion.expected)}, got ${JSON.stringify(actual)}`
+        );
+      }
+    }
+  }
+
+  const evidencePayload: Record<string, unknown> = {
+    file: {
+      path: automation.path,
+      exists,
+      size,
+      hash: targetFileHash,
+      snippet: content === null ? null : truncate(content, FILE_SNIPPET_LIMIT),
+    },
+    assertions: automation.assert,
+    failures,
+  };
+  const evidence = writeEvidence(
+    runId,
+    `step-${step.order}-file.json`,
+    stableJson(evidencePayload)
+  );
+
+  return {
+    order: step.order,
+    status: failures.length === 0 ? "passed" : "failed",
+    message: failures.length === 0 ? "File assertions passed." : failures.join("; "),
+    durationMs: Date.now() - start,
+    evidenceFiles: [evidence],
+  };
+}
+
 async function runStep(
   step: DemoStep,
   runId: string,
-  baseUrl: string,
-  fetchImpl: typeof fetch
+  baseUrl: string | null,
+  fetchImpl: typeof fetch,
+  projectPath: string,
+  execFileNoThrow: NonNullable<VerifyTicketParams["execFileNoThrow"]>
 ): Promise<VerificationStepVerdict> {
   if (step.type === "manual") {
     return {
@@ -939,8 +1169,20 @@ async function runStep(
       evidenceFiles: [],
     };
   }
-  if (step.automation?.kind === "api") return await runApiStep(step, runId, baseUrl, fetchImpl);
-  if (step.automation?.kind === "ui") return await runUiStep(step, runId, baseUrl);
+  if (step.automation?.kind === "api") {
+    if (baseUrl === null)
+      throw new ValidationError(`Step ${step.order} API automation needs app boot.`);
+    return await runApiStep(step, runId, baseUrl, fetchImpl);
+  }
+  if (step.automation?.kind === "ui") {
+    if (baseUrl === null)
+      throw new ValidationError(`Step ${step.order} UI automation needs app boot.`);
+    return await runUiStep(step, runId, baseUrl);
+  }
+  if (step.automation?.kind === "command") {
+    return await runCommandStep(step, runId, projectPath, execFileNoThrow);
+  }
+  if (step.automation?.kind === "file") return await runFileStep(step, runId, projectPath);
   throw new ValidationError(`Step ${step.order} has no executable automation spec.`);
 }
 
@@ -1127,6 +1369,7 @@ async function buildRun(
   const startedAt = new Date().toISOString();
   const fetchImpl = params.fetchImpl ?? fetch;
   const timeoutMs = params.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const execFileNoThrow = params.execFileNoThrow ?? defaultExecFileNoThrow;
   const gitInfo = await getGitInfo(actualProjectPath, params.execFileNoThrow);
   let boot: BootedApp | null = null;
   let failedBootInfo: FailedBootInfo | null = null;
@@ -1149,6 +1392,7 @@ async function buildRun(
         projectPath: actualProjectPath,
         ...(params.baseUrl !== undefined ? { baseUrl: params.baseUrl } : {}),
         ...(params.bootCommand !== undefined ? { bootCommand: params.bootCommand } : {}),
+        execFileNoThrow,
         fetchImpl,
         timeoutMs,
         steps,

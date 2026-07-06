@@ -120,6 +120,53 @@ function uiTextStep(): DemoStep {
   };
 }
 
+function commandStep(stdout = "command ok"): DemoStep {
+  return {
+    order: 1,
+    description: "Run a command check",
+    expectedOutcome: "Command output is captured",
+    type: "automated",
+    automation: {
+      kind: "command",
+      command: {
+        argv: [process.execPath, "-e", `console.log(${JSON.stringify(stdout)})`],
+        timeoutMs: 1_000,
+        expectedExitCode: 0,
+      },
+      assert: [{ type: "stdoutContains", expected: stdout }],
+    },
+  };
+}
+
+function fileStep(expected = "file ok"): DemoStep {
+  return {
+    order: 2,
+    description: "Read a fixture file",
+    expectedOutcome: "File content is captured",
+    type: "automated",
+    automation: {
+      kind: "file",
+      path: "fixture.txt",
+      assert: [{ type: "contains", expected }],
+    },
+  };
+}
+
+function createCleanExecFileNoThrow(
+  onCommand?: (command: string, args: string[], options?: { cwd?: string }) => void
+) {
+  return async (command: string, args: string[], options?: { cwd?: string }) => {
+    if (command === "git" && args.join(" ") === "rev-parse HEAD") {
+      return { success: true, stdout: "abc123\n", stderr: "", exitCode: 0 };
+    }
+    if (command === "git" && args.join(" ") === "status --short") {
+      return { success: true, stdout: "", stderr: "", exitCode: 0 };
+    }
+    onCommand?.(command, args, options);
+    return { success: true, stdout: "command ok\n", stderr: "", exitCode: 0 };
+  };
+}
+
 async function startFixtureServer(status = 200): Promise<string> {
   server = createServer((request, response) => {
     if (request.url === "/health") {
@@ -381,6 +428,89 @@ describe("verifyTicket", () => {
       .prepare("SELECT author, type FROM ticket_comments WHERE ticket_id = 'ticket-1'")
       .get() as { author: string; type: string };
     expect(comment).toEqual({ author: "unknown ralph", type: "verification_report" });
+  });
+
+  it("certifies command and file steps with sealed evidence without booting an app", async () => {
+    db.prepare("UPDATE projects SET path = ? WHERE id = 'project-1'").run(tempDir);
+    writeFileSync(join(tempDir, "fixture.txt"), "file ok\n");
+    seedDemo([commandStep(), fileStep()]);
+    const commandCalls: Array<{ command: string; args: string[]; cwd?: string }> = [];
+
+    const run = await verifyTicket(db, {
+      ticketId: "ticket-1",
+      projectPath: tempDir,
+      execFileNoThrow: createCleanExecFileNoThrow((command, args, options) => {
+        commandCalls.push({
+          command,
+          args,
+          ...(options?.cwd ? { cwd: options.cwd } : {}),
+        });
+      }),
+    });
+
+    expect(run.status).toBe("passed");
+    expect(run.certified).toBe(true);
+    expect(run.manifest.port).toBe(0);
+    expect(run.manifest.bootCommand).toEqual([]);
+    expect(commandCalls).toEqual([
+      { command: process.execPath, args: ["-e", 'console.log("command ok")'], cwd: tempDir },
+    ]);
+    expect(run.manifest.evidenceFiles.map((file) => file.path)).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("step-1-command.json"),
+        expect.stringContaining("step-2-file.json"),
+      ])
+    );
+  });
+
+  it("files actionable findings when command assertions fail", async () => {
+    seedDemo([commandStep("missing text")]);
+
+    const run = await verifyTicket(db, {
+      ticketId: "ticket-1",
+      projectPath: tempDir,
+      execFileNoThrow: createCleanExecFileNoThrow(),
+    });
+
+    expect(run.status).toBe("failed");
+    expect(run.manifest.stepVerdicts[0]?.message).toContain("expected stdout to contain");
+    const finding = db
+      .prepare(
+        "SELECT category, description FROM review_findings WHERE ticket_id = 'ticket-1' LIMIT 1"
+      )
+      .get() as { category: string; description: string };
+    expect(finding.category).toBe("verification");
+    expect(finding.description).toContain("expected stdout to contain");
+    expect(finding.description).toContain("Evidence:");
+  });
+
+  it("reruns the full command and file step suite after a verification failure", async () => {
+    db.prepare("UPDATE projects SET path = ? WHERE id = 'project-1'").run(tempDir);
+    writeFileSync(join(tempDir, "fixture.txt"), "wrong content\n");
+    seedDemo([commandStep(), fileStep()]);
+    let commandRunCount = 0;
+
+    const firstRun = await verifyTicket(db, {
+      ticketId: "ticket-1",
+      projectPath: tempDir,
+      execFileNoThrow: createCleanExecFileNoThrow((command) => {
+        if (command === process.execPath) commandRunCount += 1;
+      }),
+    });
+    moveTicketBackToVerification();
+    writeFileSync(join(tempDir, "fixture.txt"), "file ok\n");
+    const secondRun = await verifyTicket(db, {
+      ticketId: "ticket-1",
+      projectPath: tempDir,
+      execFileNoThrow: createCleanExecFileNoThrow((command) => {
+        if (command === process.execPath) commandRunCount += 1;
+      }),
+    });
+
+    expect(firstRun.status).toBe("failed");
+    expect(secondRun.status).toBe("passed");
+    expect(secondRun.manifest.stepVerdicts.map((step) => step.order)).toEqual([1, 2]);
+    expect(commandRunCount).toBe(2);
   });
 
   it("returns the epic auto-PR result after the final certified epic ticket completes", async () => {
