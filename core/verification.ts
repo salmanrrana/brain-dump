@@ -1,6 +1,6 @@
 import { randomUUID, createHmac } from "crypto";
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "fs";
-import { isAbsolute, join, relative, resolve } from "path";
+import { existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "fs";
+import { dirname, isAbsolute, join, relative, resolve } from "path";
 import { spawn } from "child_process";
 import { createServer } from "net";
 import type {
@@ -24,6 +24,11 @@ import {
 } from "./ship.ts";
 import type { AttachmentType } from "./attachment-types.ts";
 import { settleVerificationJob, settleVerificationJobForTicket } from "./verification-queue.ts";
+import {
+  DEMO_COMMAND_MAX_TIMEOUT_MS,
+  validateNonShellArgv,
+  validateProjectRelativePath,
+} from "./review.ts";
 
 export type VerificationRunStatus = "passed" | "failed" | "uncertified" | "infra_error";
 export type VerificationStepStatus = "passed" | "failed" | "skipped";
@@ -484,16 +489,29 @@ function resolveAppUrl(target: string, baseUrl: string, label: string): string {
 }
 
 function resolveProjectPath(projectPath: string, target: string, label: string): string {
-  if (isAbsolute(target)) {
-    throw new ValidationError(`${label} must be a project-relative path.`);
-  }
+  validateProjectRelativePath(target, label);
   const root = resolve(projectPath);
   const resolved = resolve(root, target || ".");
   const relativePath = relative(root, resolved);
-  if (relativePath === "" || (!relativePath.startsWith("..") && !isAbsolute(relativePath))) {
-    return resolved;
+  if (relativePath !== "" && (relativePath.startsWith("..") || isAbsolute(relativePath))) {
+    throw new ValidationError(`${label} must not escape the project directory.`);
   }
-  throw new ValidationError(`${label} must not escape the project directory.`);
+  return resolved;
+}
+
+function assertRealPathInsideProject(projectPath: string, targetPath: string, label: string): void {
+  const root = realpathSync(projectPath);
+  let existingPath = targetPath;
+  while (!existsSync(existingPath)) {
+    const parent = dirname(existingPath);
+    if (parent === existingPath) break;
+    existingPath = parent;
+  }
+  const realTarget = realpathSync(existingPath);
+  const relativePath = relative(root, realTarget);
+  if (relativePath !== "" && (relativePath.startsWith("..") || isAbsolute(relativePath))) {
+    throw new ValidationError(`${label} must not resolve outside the project directory.`);
+  }
 }
 
 function stepNeedsApp(step: DemoStep): boolean {
@@ -988,9 +1006,26 @@ async function runCommandStep(
   }
   const start = Date.now();
   const automation = step.automation;
+  validateNonShellArgv(automation.command.argv, `Step ${step.order} command automation argv`);
   const [command, ...args] = automation.command.argv;
   if (!command) {
     throw new ValidationError(`Step ${step.order} command automation argv must not be empty.`);
+  }
+  if (!Number.isSafeInteger(automation.command.timeoutMs) || automation.command.timeoutMs <= 0) {
+    throw new ValidationError(`Step ${step.order} command automation timeoutMs must be positive.`);
+  }
+  if (automation.command.timeoutMs > DEMO_COMMAND_MAX_TIMEOUT_MS) {
+    throw new ValidationError(
+      `Step ${step.order} command automation timeoutMs must be at most ${DEMO_COMMAND_MAX_TIMEOUT_MS}ms.`
+    );
+  }
+  if (
+    !Number.isSafeInteger(automation.command.expectedExitCode) ||
+    automation.command.expectedExitCode < 0
+  ) {
+    throw new ValidationError(
+      `Step ${step.order} command automation expectedExitCode must be a non-negative integer.`
+    );
   }
 
   const cwd = resolveProjectPath(
@@ -998,6 +1033,7 @@ async function runCommandStep(
     automation.command.cwd ?? ".",
     `Step ${step.order} command automation cwd`
   );
+  assertRealPathInsideProject(projectPath, cwd, `Step ${step.order} command automation cwd`);
   const result = await execFileNoThrow(command, args, {
     cwd,
     timeoutMs: automation.command.timeoutMs,
@@ -1070,23 +1106,35 @@ async function runFileStep(
     automation.path,
     `Step ${step.order} file automation path`
   );
+  assertRealPathInsideProject(projectPath, filePath, `Step ${step.order} file automation path`);
   const exists = existsSync(filePath);
   const failures: string[] = [];
   let content: string | null = null;
   let size: number | null = null;
   let targetFileHash: string | null = null;
+  let readError: string | null = null;
 
   if (exists) {
-    size = statSync(filePath).size;
-    if (size <= FILE_READ_LIMIT) {
-      content = readFileSync(filePath, "utf-8");
-      targetFileHash = hmac(content, `brain-dump:file:${runId}`);
+    try {
+      const stat = statSync(filePath);
+      size = stat.size;
+      if (!stat.isFile()) {
+        readError = `path ${automation.path} is not a regular file`;
+      } else if (size <= FILE_READ_LIMIT) {
+        content = readFileSync(filePath, "utf-8");
+        targetFileHash = hmac(content, `brain-dump:file:${runId}`);
+      }
+    } catch (error) {
+      readError = error instanceof Error ? error.message : String(error);
     }
   }
 
   for (const assertion of automation.assert) {
     if (assertion.type === "exists") {
       if (!exists) failures.push(`expected file ${automation.path} to exist`);
+      if (exists && readError !== null) {
+        failures.push(`could not inspect file ${automation.path}: ${readError}`);
+      }
       continue;
     }
     if (assertion.type === "notExists") {
@@ -1095,6 +1143,10 @@ async function runFileStep(
     }
     if (!exists) {
       failures.push(`expected file ${automation.path} to exist for ${assertion.type} assertion`);
+      continue;
+    }
+    if (readError !== null) {
+      failures.push(`could not inspect file ${automation.path}: ${readError}`);
       continue;
     }
     if (size !== null && size > FILE_READ_LIMIT) {
@@ -1132,6 +1184,7 @@ async function runFileStep(
       exists,
       size,
       hash: targetFileHash,
+      readError,
       snippet: content === null ? null : truncate(content, FILE_SNIPPET_LIMIT),
     },
     assertions: automation.assert,
@@ -1370,7 +1423,13 @@ async function buildRun(
   const fetchImpl = params.fetchImpl ?? fetch;
   const timeoutMs = params.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const execFileNoThrow = params.execFileNoThrow ?? defaultExecFileNoThrow;
-  const gitInfo = await getGitInfo(actualProjectPath, params.execFileNoThrow);
+  const commandOrFileStepsNeedGit = steps.some(
+    (step) => step.automation?.kind === "command" || step.automation?.kind === "file"
+  );
+  const gitInfo = await getGitInfo(
+    actualProjectPath,
+    params.execFileNoThrow ?? (commandOrFileStepsNeedGit ? execFileNoThrow : undefined)
+  );
   let boot: BootedApp | null = null;
   let failedBootInfo: FailedBootInfo | null = null;
   let verdicts: VerificationStepVerdict[] = [];

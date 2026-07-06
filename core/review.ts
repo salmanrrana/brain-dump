@@ -369,7 +369,7 @@ function validateAppRelativePath(value: string, path: string): void {
   }
 }
 
-function validateProjectRelativePath(value: string, path: string): void {
+export function validateProjectRelativePath(value: string, path: string): void {
   if (value.length === 0) {
     throw new ValidationError(`${path} is required.`);
   }
@@ -387,7 +387,7 @@ function validateProjectRelativePath(value: string, path: string): void {
   }
 }
 
-function validateNonShellArgv(argv: unknown, path: string): string[] {
+export function validateNonShellArgv(argv: unknown, path: string): string[] {
   if (!Array.isArray(argv) || argv.length === 0) {
     throw new ValidationError(`${path} must be a non-empty argv array.`);
   }

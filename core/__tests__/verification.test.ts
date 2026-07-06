@@ -1,5 +1,5 @@
 import { createServer, type Server } from "http";
-import { mkdtempSync, rmSync, writeFileSync } from "fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -129,7 +129,7 @@ function commandStep(stdout = "command ok"): DemoStep {
     automation: {
       kind: "command",
       command: {
-        argv: [process.execPath, "-e", `console.log(${JSON.stringify(stdout)})`],
+        argv: ["node", "--version"],
         timeoutMs: 1_000,
         expectedExitCode: 0,
       },
@@ -452,9 +452,7 @@ describe("verifyTicket", () => {
     expect(run.certified).toBe(true);
     expect(run.manifest.port).toBe(0);
     expect(run.manifest.bootCommand).toEqual([]);
-    expect(commandCalls).toEqual([
-      { command: process.execPath, args: ["-e", 'console.log("command ok")'], cwd: tempDir },
-    ]);
+    expect(commandCalls).toEqual([{ command: "node", args: ["--version"], cwd: tempDir }]);
     expect(run.manifest.evidenceFiles.map((file) => file.path)).toEqual(
       expect.arrayContaining([
         expect.stringContaining("step-1-command.json"),
@@ -484,6 +482,68 @@ describe("verifyTicket", () => {
     expect(finding.description).toContain("Evidence:");
   });
 
+  it("rejects unsafe persisted command specs before execution", async () => {
+    const unsafeStep = commandStep();
+    if (unsafeStep.automation?.kind !== "command") throw new Error("Expected command step");
+    unsafeStep.automation.command.argv = ["sh", "-c", "echo unsafe"];
+    seedDemo([unsafeStep]);
+    let commandExecuted = false;
+
+    const run = await verifyTicket(db, {
+      ticketId: "ticket-1",
+      projectPath: tempDir,
+      execFileNoThrow: createCleanExecFileNoThrow((command) => {
+        if (command !== "git") commandExecuted = true;
+      }),
+    });
+
+    expect(run.status).toBe("infra_error");
+    expect(run.manifest.stepVerdicts[0]?.message).toContain("must not invoke a shell interpreter");
+    expect(commandExecuted).toBe(false);
+  });
+
+  it("records file read problems as failed step evidence", async () => {
+    db.prepare("UPDATE projects SET path = ? WHERE id = 'project-1'").run(tempDir);
+    mkdirSync(join(tempDir, "fixture.txt"));
+    seedDemo([fileStep()]);
+
+    const run = await verifyTicket(db, {
+      ticketId: "ticket-1",
+      projectPath: tempDir,
+      execFileNoThrow: createCleanExecFileNoThrow(),
+    });
+
+    expect(run.status).toBe("failed");
+    expect(run.manifest.stepVerdicts[0]).toMatchObject({
+      order: 2,
+      status: "failed",
+    });
+    expect(run.manifest.stepVerdicts[0]?.message).toContain("not a regular file");
+    expect(run.manifest.stepVerdicts[0]?.evidenceFiles[0]?.path).toContain("step-2-file.json");
+  });
+
+  it("rejects symlink escapes before reading file evidence", async () => {
+    const projectPath = join(tempDir, "project");
+    const outsidePath = join(tempDir, "outside");
+    mkdirSync(projectPath);
+    mkdirSync(outsidePath);
+    writeFileSync(join(outsidePath, "secret.txt"), "file ok\n");
+    symlinkSync(join(outsidePath, "secret.txt"), join(projectPath, "fixture.txt"));
+    db.prepare("UPDATE projects SET path = ? WHERE id = 'project-1'").run(projectPath);
+    seedDemo([fileStep()]);
+
+    const run = await verifyTicket(db, {
+      ticketId: "ticket-1",
+      projectPath,
+      execFileNoThrow: createCleanExecFileNoThrow(),
+    });
+
+    expect(run.status).toBe("infra_error");
+    expect(run.manifest.stepVerdicts[0]?.message).toContain(
+      "must not resolve outside the project directory"
+    );
+  });
+
   it("reruns the full command and file step suite after a verification failure", async () => {
     db.prepare("UPDATE projects SET path = ? WHERE id = 'project-1'").run(tempDir);
     writeFileSync(join(tempDir, "fixture.txt"), "wrong content\n");
@@ -494,7 +554,7 @@ describe("verifyTicket", () => {
       ticketId: "ticket-1",
       projectPath: tempDir,
       execFileNoThrow: createCleanExecFileNoThrow((command) => {
-        if (command === process.execPath) commandRunCount += 1;
+        if (command === "node") commandRunCount += 1;
       }),
     });
     moveTicketBackToVerification();
@@ -503,7 +563,7 @@ describe("verifyTicket", () => {
       ticketId: "ticket-1",
       projectPath: tempDir,
       execFileNoThrow: createCleanExecFileNoThrow((command) => {
-        if (command === process.execPath) commandRunCount += 1;
+        if (command === "node") commandRunCount += 1;
       }),
     });
 
