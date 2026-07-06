@@ -745,7 +745,13 @@ SESSION_ID="$(date +%s)-$$"
 MAX_RETRIES=3
 CONSECUTIVE_FAILURES=0
 MAX_CONSECUTIVE_FAILURES=5
-LAST_INCOMPLETE_COUNT=-1
+# Best-ever (lowest) incomplete count this run. Comparing only against the
+# previous iteration misses oscillation: an iteration that marks a story
+# passing and a follow-up repair that flips it back reset the plain
+# last-value comparison forever (observed 2026-07-06: ~25 iterations burned
+# on one ticket re-hitting the same handoff blocker). Progress now means
+# "fewer incomplete stories than ever before in this run".
+BEST_INCOMPLETE_COUNT=999999
 NO_PROGRESS_COUNT=0
 MAX_NO_PROGRESS=3
 PER_ITERATION_TIMEOUT=${perIterationTimeoutValue}
@@ -946,8 +952,12 @@ ${reviewerBlock}
 
   # Check if all tasks in PRD are complete (all have passes:true)
   if [ -f "$PRD_FILE" ]; then
-    INCOMPLETE=$(grep -c '"passes": false' "$PRD_FILE" 2>/dev/null || echo "0")
-    TOTAL=$(grep -c '"passes":' "$PRD_FILE" 2>/dev/null || echo "0")
+    # grep -c prints the count even when it exits 1 (zero matches), so an
+    # "|| echo 0" fallback would yield "0\\n0" and break comparisons below.
+    INCOMPLETE=$(grep -c '"passes": false' "$PRD_FILE" 2>/dev/null) || true
+    INCOMPLETE=\${INCOMPLETE:-0}
+    TOTAL=$(grep -c '"passes":' "$PRD_FILE" 2>/dev/null) || true
+    TOTAL=\${TOTAL:-0}
     COMPLETE=$((TOTAL - INCOMPLETE))
 
     echo ""
@@ -961,24 +971,27 @@ ${reviewerBlock}
       exit 0
     fi
 
-    # Detect stuck state: if incomplete count hasn't changed for MAX_NO_PROGRESS iterations,
-    # tickets may be blocked in ai_verification or by repeated AI failures. Stop looping.
-    if [ "$INCOMPLETE" = "$LAST_INCOMPLETE_COUNT" ] && [ $AI_EXIT_CODE -eq 0 ]; then
+    # Circuit breaker: an iteration only counts as progress when it lowers the
+    # best-ever incomplete count. A ticket flipping passing -> repaired back to
+    # not-passing (same blocker re-hit every iteration) no longer resets the
+    # counter, so the loop stops instead of burning iterations for hours.
+    if [ "$INCOMPLETE" -lt "$BEST_INCOMPLETE_COUNT" ]; then
+      BEST_INCOMPLETE_COUNT="$INCOMPLETE"
+      NO_PROGRESS_COUNT=0
+    elif [ $AI_EXIT_CODE -eq 0 ]; then
       NO_PROGRESS_COUNT=$((NO_PROGRESS_COUNT + 1))
       if [ $NO_PROGRESS_COUNT -ge $MAX_NO_PROGRESS ]; then
         echo ""
         echo -e "\\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
-        echo -e "\\033[0;33m⏸️  No progress for $MAX_NO_PROGRESS iterations ($INCOMPLETE tickets still incomplete).\\033[0m"
-        echo -e "\\033[0;33m   Tickets are likely blocked in ai_verification or by repeated failures.\\033[0m"
-        echo -e "\\033[0;33m   Ralph is stopping to avoid wasting iterations.\\033[0m"
+        echo -e "\\033[0;33m⏸️  No new ticket completed for $MAX_NO_PROGRESS iterations ($INCOMPLETE tickets still incomplete).\\033[0m"
+        echo -e "\\033[0;33m   Ralph is likely re-hitting the same blocker every iteration\\033[0m"
+        echo -e "\\033[0;33m   (stuck verification, repeated handoff repair, or a stale tool/schema).\\033[0m"
+        echo -e "\\033[0;33m   Stopping so a human can look at the last progress-log entries.\\033[0m"
         echo -e "\\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
-        echo "[$(date -Iseconds)] STALLED: No progress for $MAX_NO_PROGRESS iterations. $INCOMPLETE/$TOTAL incomplete." >> "$PROGRESS_FILE"
+        echo "[$(date -Iseconds)] STALLED: No new ticket completed for $MAX_NO_PROGRESS iterations. $INCOMPLETE/$TOTAL incomplete. Likely a repeating blocker; needs human attention." >> "$PROGRESS_FILE"
         exit 0
       fi
-    else
-      NO_PROGRESS_COUNT=0
     fi
-    LAST_INCOMPLETE_COUNT="$INCOMPLETE"
   fi
 
   echo ""
