@@ -112,6 +112,22 @@ interface BootedApp {
   stop: () => Promise<void>;
 }
 
+interface FailedBootInfo {
+  port: number;
+  command: string[];
+  bootLog: string;
+}
+
+class VerificationBootError extends ValidationError {
+  readonly bootInfo: FailedBootInfo;
+
+  constructor(message: string, bootInfo: FailedBootInfo) {
+    super(message);
+    this.name = "VerificationBootError";
+    this.bootInfo = bootInfo;
+  }
+}
+
 interface GitInfo {
   sha: string | null;
   dirty: boolean;
@@ -441,6 +457,18 @@ function normalizePath(path: string): string {
   return path.startsWith("/") ? path : `/${path}`;
 }
 
+function resolveAppUrl(target: string, baseUrl: string, label: string): string {
+  if (/^[a-zA-Z][a-zA-Z\d+.-]*:/.test(target) || target.startsWith("//")) {
+    throw new ValidationError(`${label} must be an app-relative path.`);
+  }
+  const base = new URL(baseUrl);
+  const url = new URL(normalizePath(target), base);
+  if (url.origin !== base.origin) {
+    throw new ValidationError(`${label} must resolve within the app origin.`);
+  }
+  return url.toString();
+}
+
 function evidenceDir(runId: string): string {
   const dir = join(getStateDir(), "verification", runId);
   mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -453,23 +481,46 @@ function writeEvidence(runId: string, name: string, content: string): Verificati
   return { path, hash: hashEvidence(content, runId) };
 }
 
+function packageManagerCommand(projectPath: string, packageManagerArgs: string[]): string[] {
+  if (existsSync(join(projectPath, "pnpm-lock.yaml"))) return ["pnpm", ...packageManagerArgs];
+  if (existsSync(join(projectPath, "yarn.lock"))) return ["yarn", ...packageManagerArgs];
+  if (existsSync(join(projectPath, "bun.lockb")) || existsSync(join(projectPath, "bun.lock"))) {
+    return ["bun", "run", ...packageManagerArgs];
+  }
+  return ["npm", "run", ...packageManagerArgs];
+}
+
+function directViteCommand(projectPath: string, port: number): string[] {
+  const args = ["vite", "dev", "--host", "127.0.0.1", "--port", String(port)];
+  if (existsSync(join(projectPath, "pnpm-lock.yaml"))) return ["pnpm", "exec", ...args];
+  if (existsSync(join(projectPath, "yarn.lock"))) return ["yarn", ...args];
+  if (existsSync(join(projectPath, "bun.lockb")) || existsSync(join(projectPath, "bun.lock"))) {
+    return ["bunx", ...args];
+  }
+  return ["npx", ...args];
+}
+
 function discoverBootCommand(projectPath: string, port: number): string[] {
   const packagePath = join(projectPath, "package.json");
   try {
     const pkg = JSON.parse(readFileSync(packagePath, "utf-8")) as {
       scripts?: Record<string, string>;
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
     };
+    if (
+      pkg.dependencies?.vite ||
+      pkg.devDependencies?.vite ||
+      pkg.dependencies?.["@tanstack/react-start"]
+    ) {
+      return directViteCommand(projectPath, port);
+    }
     const script = pkg.scripts?.dev ? "dev" : pkg.scripts?.start ? "start" : null;
     if (!script) {
       throw new ValidationError(`No dev/start script found in ${packagePath}.`);
     }
     const args = ["--host", "127.0.0.1", "--port", String(port)];
-    if (existsSync(join(projectPath, "pnpm-lock.yaml"))) return ["pnpm", script, "--", ...args];
-    if (existsSync(join(projectPath, "yarn.lock"))) return ["yarn", script, ...args];
-    if (existsSync(join(projectPath, "bun.lockb")) || existsSync(join(projectPath, "bun.lock"))) {
-      return ["bun", "run", script, ...args];
-    }
-    return ["npm", "run", script, "--", ...args];
+    return packageManagerCommand(projectPath, [script, "--", ...args]);
   } catch (error) {
     if (error instanceof ValidationError) throw error;
     const message = error instanceof Error ? error.message : String(error);
@@ -529,7 +580,13 @@ async function bootApp(params: {
   const command = params.bootCommand ?? discoverBootCommand(params.projectPath, port);
   const child = spawn(command[0]!, command.slice(1), {
     cwd: params.projectPath,
-    env: { ...process.env, PORT: String(port), HOST: "127.0.0.1" },
+    env: {
+      ...process.env,
+      PORT: String(port),
+      HOST: "127.0.0.1",
+      PLAYWRIGHT_E2E: "1",
+      BRAIN_DUMP_VERIFY_BOOT: "1",
+    },
     stdio: ["ignore", "pipe", "pipe"],
   });
   let output = "";
@@ -544,7 +601,8 @@ async function bootApp(params: {
     await waitForReady(baseUrl, params.fetchImpl, params.timeoutMs);
   } catch (error) {
     child.kill("SIGTERM");
-    throw error;
+    const message = error instanceof Error ? error.message : String(error);
+    throw new VerificationBootError(message, { port, command, bootLog: output });
   }
 
   return {
@@ -635,7 +693,7 @@ async function runApiStep(
   }
   const start = Date.now();
   const request = step.automation.request;
-  const url = new URL(normalizePath(request.path), baseUrl).toString();
+  const url = resolveAppUrl(request.path, baseUrl, `Step ${step.order} API automation path`);
   const headers = request.headers ?? {};
   const requestInit: RequestInit = {
     method: request.method,
@@ -705,6 +763,11 @@ async function runUiStep(
   if (!step.automation || step.automation.kind !== "ui") {
     throw new ValidationError(`Step ${step.order} is missing UI automation.`);
   }
+  const url = resolveAppUrl(
+    step.automation.route,
+    baseUrl,
+    `Step ${step.order} UI automation route`
+  );
   let playwright: typeof import("@playwright/test");
   try {
     playwright = await import("@playwright/test");
@@ -721,7 +784,6 @@ async function runUiStep(
 
   const browser = await playwright.chromium.launch();
   const page = await browser.newPage();
-  const url = new URL(step.automation.route, baseUrl).toString();
   const failures: string[] = [];
   try {
     try {
@@ -987,6 +1049,7 @@ async function buildRun(
   const timeoutMs = params.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const gitInfo = await getGitInfo(actualProjectPath, params.execFileNoThrow);
   let boot: BootedApp | null = null;
+  let failedBootInfo: FailedBootInfo | null = null;
   let verdicts: VerificationStepVerdict[] = [];
   let status = statusOverride ?? "infra_error";
 
@@ -1026,6 +1089,9 @@ async function buildRun(
       status = summarizeStatus(verdicts);
     }
   } catch (error) {
+    if (error instanceof VerificationBootError) {
+      failedBootInfo = error.bootInfo;
+    }
     const message = error instanceof Error ? error.message : String(error);
     status = "infra_error";
     verdicts = [{ order: 0, status: "failed", message, durationMs: 0, evidenceFiles: [] }];
@@ -1044,9 +1110,12 @@ async function buildRun(
     certified,
     gitSha: gitInfo.sha,
     dirty: gitInfo.dirty,
-    port: boot?.port ?? (params.baseUrl ? Number(new URL(params.baseUrl).port || 80) : 0),
-    bootCommand: boot?.command ?? params.bootCommand ?? [],
-    bootLog: boot?.log() ?? "",
+    port:
+      boot?.port ??
+      failedBootInfo?.port ??
+      (params.baseUrl ? Number(new URL(params.baseUrl).port || 80) : 0),
+    bootCommand: boot?.command ?? failedBootInfo?.command ?? params.bootCommand ?? [],
+    bootLog: boot?.log() ?? failedBootInfo?.bootLog ?? "",
     startedAt,
     finishedAt,
     stepVerdicts: verdicts,
@@ -1163,4 +1232,5 @@ export const verificationTestInternals = {
   summarizeStatus,
   hashEvidence,
   attachRunEvidenceAndReport,
+  discoverBootCommand,
 };

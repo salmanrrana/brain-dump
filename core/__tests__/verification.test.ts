@@ -1,5 +1,5 @@
 import { createServer, type Server } from "http";
-import { mkdtempSync, rmSync } from "fs";
+import { mkdtempSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -144,6 +144,79 @@ afterEach(async () => {
 });
 
 describe("verifyTicket", () => {
+  it("discovers direct Vite boot commands that honor the runner-selected port", () => {
+    writeFileSync(
+      join(tempDir, "package.json"),
+      JSON.stringify({
+        scripts: { dev: "vite dev --port 4242" },
+        devDependencies: { vite: "7.1.7" },
+      })
+    );
+    writeFileSync(join(tempDir, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n");
+
+    expect(verificationTestInternals.discoverBootCommand(tempDir, 43123)).toEqual([
+      "pnpm",
+      "exec",
+      "vite",
+      "dev",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "43123",
+    ]);
+  });
+
+  it("boots an isolated verification app with the selected port and devtools env disabled", async () => {
+    seedDemo([apiStep()]);
+    const script = `
+      const http = require("http");
+      if (process.env.PLAYWRIGHT_E2E !== "1" || process.env.BRAIN_DUMP_VERIFY_BOOT !== "1") {
+        console.error("missing verification boot env");
+        process.exit(42);
+      }
+      const port = Number(process.env.PORT);
+      http.createServer((request, response) => {
+        if (request.url === "/health") {
+          response.writeHead(200, { "content-type": "application/json" });
+          response.end(JSON.stringify({ ok: true }));
+          return;
+        }
+        response.writeHead(200);
+        response.end("ready");
+      }).listen(port, "127.0.0.1", () => console.log("listening " + port));
+    `;
+
+    const run = await verifyTicket(db, {
+      ticketId: "ticket-1",
+      bootCommand: [process.execPath, "-e", script],
+      timeoutMs: 5_000,
+    });
+
+    expect(run.status).toBe("passed");
+    expect(run.manifest.port).toBeGreaterThanOrEqual(42_400);
+    expect(run.manifest.bootCommand).toEqual([process.execPath, "-e", script]);
+  });
+
+  it("records boot command, port, and stderr in infra-error manifests", async () => {
+    seedDemo([apiStep()]);
+    const script = `
+      console.error("devtools EADDRINUSE fixed event bus port");
+      setTimeout(() => process.exit(1), 50);
+    `;
+
+    const run = await verifyTicket(db, {
+      ticketId: "ticket-1",
+      bootCommand: [process.execPath, "-e", script],
+      timeoutMs: 250,
+    });
+
+    expect(run.status).toBe("infra_error");
+    expect(run.manifest.port).toBeGreaterThanOrEqual(42_400);
+    expect(run.manifest.bootCommand).toEqual([process.execPath, "-e", script]);
+    expect(run.manifest.bootLog).toContain("devtools EADDRINUSE fixed event bus port");
+    expect(run.manifest.stepVerdicts[0]?.message).toContain("Timed out waiting for app readiness");
+  });
+
   it("records a certified run and completes the ticket when all automation passes", async () => {
     seedDemo([apiStep()]);
     const baseUrl = await startFixtureServer();

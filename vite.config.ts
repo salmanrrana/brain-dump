@@ -438,10 +438,11 @@ const config = defineConfig({
     serverOnlyImplementationModules(),
     serverOnlyNativeModules(),
     devtools(
-      process.env.PLAYWRIGHT_E2E === "1"
+      process.env.PLAYWRIGHT_E2E === "1" || process.env.BRAIN_DUMP_VERIFY_BOOT === "1"
         ? {
             // Playwright starts its own Vite dev server; the devtools event bus
-            // binds a fixed port that conflicts with another local `vite dev`.
+            // binds a fixed port that conflicts with another local `vite dev`
+            // or an isolated verification boot.
             eventBusConfig: { enabled: false },
           }
         : {}
