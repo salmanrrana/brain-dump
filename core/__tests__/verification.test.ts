@@ -163,6 +163,7 @@ describe("verifyTicket", () => {
       "127.0.0.1",
       "--port",
       "43123",
+      "--strictPort",
     ]);
   });
 
@@ -214,7 +215,35 @@ describe("verifyTicket", () => {
     expect(run.manifest.port).toBeGreaterThanOrEqual(42_400);
     expect(run.manifest.bootCommand).toEqual([process.execPath, "-e", script]);
     expect(run.manifest.bootLog).toContain("devtools EADDRINUSE fixed event bus port");
-    expect(run.manifest.stepVerdicts[0]?.message).toContain("Timed out waiting for app readiness");
+    expect(run.manifest.bootLog).toContain("Boot command exited before readiness");
+    expect(run.manifest.stepVerdicts[0]?.message).toContain("Boot command exited before readiness");
+  });
+
+  it("preserves boot metadata when a step fails after readiness", async () => {
+    seedDemo([apiStep()]);
+    const script = `
+      const http = require("http");
+      const port = Number(process.env.PORT);
+      http.createServer((request, response) => {
+        if (request.url === "/health") {
+          request.socket.destroy();
+          return;
+        }
+        response.writeHead(200);
+        response.end("ready");
+      }).listen(port, "127.0.0.1", () => console.log("ready before step failure " + port));
+    `;
+
+    const run = await verifyTicket(db, {
+      ticketId: "ticket-1",
+      bootCommand: [process.execPath, "-e", script],
+      timeoutMs: 5_000,
+    });
+
+    expect(run.status).toBe("infra_error");
+    expect(run.manifest.port).toBeGreaterThanOrEqual(42_400);
+    expect(run.manifest.bootCommand).toEqual([process.execPath, "-e", script]);
+    expect(run.manifest.bootLog).toContain("ready before step failure");
   });
 
   it("records a certified run and completes the ticket when all automation passes", async () => {

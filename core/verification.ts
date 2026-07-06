@@ -491,7 +491,7 @@ function packageManagerCommand(projectPath: string, packageManagerArgs: string[]
 }
 
 function directViteCommand(projectPath: string, port: number): string[] {
-  const args = ["vite", "dev", "--host", "127.0.0.1", "--port", String(port)];
+  const args = ["vite", "dev", "--host", "127.0.0.1", "--port", String(port), "--strictPort"];
   if (existsSync(join(projectPath, "pnpm-lock.yaml"))) return ["pnpm", "exec", ...args];
   if (existsSync(join(projectPath, "yarn.lock"))) return ["yarn", ...args];
   if (existsSync(join(projectPath, "bun.lockb")) || existsSync(join(projectPath, "bun.lock"))) {
@@ -597,12 +597,37 @@ async function bootApp(params: {
     output = truncate(output + chunk.toString(), BOOT_LOG_LIMIT);
   });
 
+  const failedBootInfo = (details = ""): FailedBootInfo => ({
+    port,
+    command,
+    bootLog: truncate([output, details].filter(Boolean).join("\n"), BOOT_LOG_LIMIT),
+  });
+  let ready = false;
+  const childFailure = new Promise<never>((_, reject) => {
+    child.once("error", (error) => {
+      if (ready) return;
+      reject(
+        new VerificationBootError(
+          `Boot command failed to start: ${error.message}`,
+          failedBootInfo()
+        )
+      );
+    });
+    child.once("exit", (code, signal) => {
+      if (ready) return;
+      const detail = `Boot command exited before readiness with code ${code ?? "null"} and signal ${signal ?? "none"}.`;
+      reject(new VerificationBootError(detail, failedBootInfo(detail)));
+    });
+  });
+
   try {
-    await waitForReady(baseUrl, params.fetchImpl, params.timeoutMs);
+    await Promise.race([waitForReady(baseUrl, params.fetchImpl, params.timeoutMs), childFailure]);
+    ready = true;
   } catch (error) {
     child.kill("SIGTERM");
+    if (error instanceof VerificationBootError) throw error;
     const message = error instanceof Error ? error.message : String(error);
-    throw new VerificationBootError(message, { port, command, bootLog: output });
+    throw new VerificationBootError(message, failedBootInfo());
   }
 
   return {
@@ -674,7 +699,16 @@ async function runExecutableSteps(params: {
       }
       return { boot, verdicts };
     } catch (error) {
-      lastError = error;
+      if (boot && !(error instanceof VerificationBootError)) {
+        const message = error instanceof Error ? error.message : String(error);
+        lastError = new VerificationBootError(message, {
+          port: boot.port,
+          command: boot.command,
+          bootLog: boot.log(),
+        });
+      } else {
+        lastError = error;
+      }
       await boot?.stop();
       if (attempt === 0) continue;
     }
