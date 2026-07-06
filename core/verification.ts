@@ -650,6 +650,10 @@ async function bootApp(params: {
   }
 
   const command = params.bootCommand ?? discoverBootCommand(params.projectPath, port);
+  // detached puts the boot in its own process group so stop() can kill the
+  // whole tree: killing only the spawned wrapper (e.g. `pnpm exec vite dev`)
+  // orphans the underlying dev server, which keeps serving AND keeps running
+  // an embedded verification worker that leases queued jobs with stale code.
   const child = spawn(command[0]!, command.slice(1), {
     cwd: params.projectPath,
     env: {
@@ -660,7 +664,19 @@ async function bootApp(params: {
       BRAIN_DUMP_VERIFY_BOOT: "1",
     },
     stdio: ["ignore", "pipe", "pipe"],
+    detached: process.platform !== "win32",
   });
+  const killBootTree = (signal: NodeJS.Signals) => {
+    if (child.pid !== undefined && process.platform !== "win32") {
+      try {
+        process.kill(-child.pid, signal);
+        return;
+      } catch {
+        // Group already gone or unsupported; fall through to the direct kill.
+      }
+    }
+    child.kill(signal);
+  };
   let output = "";
   child.stdout.on("data", (chunk: Buffer) => {
     output = truncate(output + chunk.toString(), BOOT_LOG_LIMIT);
@@ -696,7 +712,7 @@ async function bootApp(params: {
     await Promise.race([waitForReady(baseUrl, params.fetchImpl, params.timeoutMs), childFailure]);
     ready = true;
   } catch (error) {
-    child.kill("SIGTERM");
+    killBootTree("SIGTERM");
     if (error instanceof VerificationBootError) throw error;
     const message = error instanceof Error ? error.message : String(error);
     throw new VerificationBootError(message, failedBootInfo());
@@ -709,9 +725,9 @@ async function bootApp(params: {
     log: () => output,
     stop: async () => {
       if (child.exitCode !== null || child.killed) return;
-      child.kill("SIGTERM");
+      killBootTree("SIGTERM");
       await sleep(100);
-      if (child.exitCode === null && !child.killed) child.kill("SIGKILL");
+      if (child.exitCode === null && !child.killed) killBootTree("SIGKILL");
     },
   };
 }
