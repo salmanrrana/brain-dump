@@ -185,7 +185,9 @@ export function EpicDetailHeader({
   const handleLaunchRalph = useCallback(
     async (
       provider: RalphAutonomousUiLaunchProvider,
-      modelSelection: LaunchModelSelection
+      modelSelection: LaunchModelSelection,
+      reviewerProvider?: RalphAutonomousUiLaunchProvider,
+      reviewerModelSelection?: LaunchModelSelection
     ): Promise<void> => {
       setShowLaunchMenu(false);
 
@@ -202,6 +204,8 @@ export function EpicDetailHeader({
             epicId: epic.id,
             preferredTerminal: settings?.settings?.terminalEmulator ?? null,
             modelSelection,
+            ...(reviewerProvider ? { reviewerProvider } : {}),
+            ...(reviewerModelSelection ? { reviewerModelSelection } : {}),
           },
           {
             ...defaultRalphLaunchDependencies,
@@ -238,7 +242,9 @@ export function EpicDetailHeader({
   const handleLaunchFocusedReview = useCallback(
     async (
       provider: RalphAutonomousUiLaunchProvider,
-      modelSelection: LaunchModelSelection
+      modelSelection: LaunchModelSelection,
+      reviewerProvider?: RalphAutonomousUiLaunchProvider,
+      reviewerModelSelection?: LaunchModelSelection
     ): Promise<void> => {
       if (selectedReviewTicketIds.length === 0) {
         setReviewLaunchError("Select at least one ticket to review.");
@@ -258,6 +264,8 @@ export function EpicDetailHeader({
             selectedTicketIds: selectedReviewTicketIds,
             steeringPrompt: reviewSteeringPrompt,
             modelSelection,
+            ...(reviewerProvider ? { reviewerProvider } : {}),
+            ...(reviewerModelSelection ? { reviewerModelSelection } : {}),
           },
           {
             ...defaultRalphLaunchDependencies,
@@ -474,8 +482,18 @@ export function EpicDetailHeader({
                     onInteractiveLaunch={(provider, modelSelection) =>
                       void handleLaunchInteractive(provider, modelSelection)
                     }
-                    onRalphLaunch={(provider, modelSelection) =>
-                      void handleLaunchRalph(provider, modelSelection)
+                    onRalphLaunch={(
+                      provider,
+                      modelSelection,
+                      reviewerProvider,
+                      reviewerModelSelection
+                    ) =>
+                      void handleLaunchRalph(
+                        provider,
+                        modelSelection,
+                        reviewerProvider,
+                        reviewerModelSelection
+                      )
                     }
                     costModels={costModels ?? []}
                     modelCatalogLoading={modelCatalogLoading}
@@ -702,8 +720,18 @@ export function EpicDetailHeader({
                     interactiveContext="focused-review"
                     ralphContext="focused-review"
                     onInteractiveLaunch={() => undefined}
-                    onRalphLaunch={(provider, modelSelection) =>
-                      void handleLaunchFocusedReview(provider, modelSelection)
+                    onRalphLaunch={(
+                      provider,
+                      modelSelection,
+                      reviewerProvider,
+                      reviewerModelSelection
+                    ) =>
+                      void handleLaunchFocusedReview(
+                        provider,
+                        modelSelection,
+                        reviewerProvider,
+                        reviewerModelSelection
+                      )
                     }
                     disabled={launchRalphMutation.isPending || selectedReviewTicketIds.length === 0}
                     loadingProviderId={pendingReviewProvider}

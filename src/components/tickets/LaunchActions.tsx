@@ -1,6 +1,9 @@
 import { type FC, useCallback, useState } from "react";
 import type { TicketStatus } from "../../api/tickets";
-import type { UiLaunchProviderId } from "../../lib/launch-provider-contract";
+import type {
+  RalphAutonomousUiLaunchProvider,
+  UiLaunchProviderId,
+} from "../../lib/launch-provider-contract";
 import type { LaunchModelSelection } from "../../lib/launch-model-catalog";
 import { useCostModels } from "../../lib/hooks";
 import { LaunchProviderMenu } from "../LaunchProviderMenu";
@@ -12,7 +15,12 @@ export interface LaunchActionsProps {
   /** Current ticket status - used to determine if launch actions should be shown */
   ticketStatus: TicketStatus;
   /** Handler called when a launch option is selected */
-  onLaunch: (type: LaunchType, modelSelection: LaunchModelSelection) => void | Promise<void>;
+  onLaunch: (
+    type: LaunchType,
+    modelSelection: LaunchModelSelection,
+    reviewerProvider?: RalphAutonomousUiLaunchProvider,
+    reviewerModelSelection?: LaunchModelSelection
+  ) => void | Promise<void>;
   /** Whether a launch is currently in progress */
   isLaunching?: boolean;
   /** Which launch type is currently in progress (for loading indicator) */
@@ -37,10 +45,15 @@ export const LaunchActions: FC<LaunchActionsProps> = ({
   const isWorkable = TICKET_STATUS_METADATA[ticketStatus].workable;
 
   const handleOptionClick = useCallback(
-    (type: LaunchType, modelSelection: LaunchModelSelection) => {
+    (
+      type: LaunchType,
+      modelSelection: LaunchModelSelection,
+      reviewerProvider?: RalphAutonomousUiLaunchProvider,
+      reviewerModelSelection?: LaunchModelSelection
+    ) => {
       if (disabled || isLaunching) return;
       setClickedType(type);
-      void onLaunch(type, modelSelection);
+      void onLaunch(type, modelSelection, reviewerProvider, reviewerModelSelection);
     },
     [disabled, isLaunching, onLaunch]
   );
@@ -60,8 +73,8 @@ export const LaunchActions: FC<LaunchActionsProps> = ({
           onInteractiveLaunch={(provider, modelSelection) =>
             handleOptionClick(provider.id, modelSelection)
           }
-          onRalphLaunch={(provider, modelSelection) =>
-            handleOptionClick(provider.id, modelSelection)
+          onRalphLaunch={(provider, modelSelection, reviewerProvider, reviewerModelSelection) =>
+            handleOptionClick(provider.id, modelSelection, reviewerProvider, reviewerModelSelection)
           }
           disabled={disabled || isLaunching}
           loadingProviderId={isLaunching ? (launchingType ?? clickedType) : null}

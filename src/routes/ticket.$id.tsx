@@ -43,6 +43,7 @@ import {
   DetailPageProse,
 } from "../components/layout/DetailPageLayout";
 import { type LaunchType } from "../components/tickets/LaunchActions";
+import type { RalphAutonomousUiLaunchProvider } from "../lib/launch-provider-contract";
 import type { LaunchModelSelection } from "../lib/launch-model-catalog";
 import { POLLING_INTERVALS } from "../lib/constants";
 import { queryKeys } from "../lib/query-keys";
@@ -446,7 +447,12 @@ function TicketDetailPage() {
 
   // Handle launch action through the shared ticket launch dispatcher.
   const handleLaunch = useCallback(
-    async (type: LaunchType, modelSelection: LaunchModelSelection) => {
+    async (
+      type: LaunchType,
+      modelSelection: LaunchModelSelection,
+      reviewerProvider?: RalphAutonomousUiLaunchProvider,
+      reviewerModelSelection?: LaunchModelSelection
+    ) => {
       if (!ticket) return;
 
       setIsLaunching(true);
@@ -485,6 +491,8 @@ function TicketDetailPage() {
               ticketId: ticket.id,
               preferredTerminal: settings?.terminalEmulator ?? null,
               modelSelection,
+              ...(reviewerProvider ? { reviewerProvider } : {}),
+              ...(reviewerModelSelection ? { reviewerModelSelection } : {}),
             },
             {
               ...defaultRalphLaunchDependencies,

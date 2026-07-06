@@ -38,7 +38,9 @@ interface LaunchProviderMenuProps {
   ) => void;
   onRalphLaunch: (
     provider: RalphAutonomousUiLaunchProvider,
-    modelSelection: LaunchModelSelection
+    modelSelection: LaunchModelSelection,
+    reviewerProvider?: RalphAutonomousUiLaunchProvider,
+    reviewerModelSelection?: LaunchModelSelection
   ) => void;
   exportAction?: ReactNode;
   disabled?: boolean;
@@ -85,12 +87,21 @@ export function LaunchProviderMenu({
   modelCatalogError = null,
 }: LaunchProviderMenuProps) {
   const [modelPickerEnabled, setModelPickerEnabled] = useState(false);
+  const [reviewerPickerEnabled, setReviewerPickerEnabled] = useState(false);
   const [activeProviderId, setActiveProviderId] = useState<UiLaunchProviderId | null>(null);
+  const [activeReviewerProviderId, setActiveReviewerProviderId] =
+    useState<UiLaunchProviderId | null>(null);
   const [selectedChoiceIds, setSelectedChoiceIds] = useState<
+    Partial<Record<UiLaunchProviderId, string>>
+  >({});
+  const [selectedReviewerChoiceIds, setSelectedReviewerChoiceIds] = useState<
     Partial<Record<UiLaunchProviderId, string>>
   >({});
   const interactiveProviders = getInteractiveUiLaunchProvidersForContext(interactiveContext);
   const ralphProviders = getRalphAutonomousUiLaunchProvidersForContext(ralphContext);
+  const reviewerProviders = ralphProviders.filter(
+    (provider) => provider.workingMethodOverride !== "copilot-cli"
+  );
   const visibleSectionCount = [showInteractive, showRalph].filter(Boolean).length;
   const visibleProviders = [
     ...(showInteractive ? interactiveProviders : []),
@@ -104,6 +115,15 @@ export function LaunchProviderMenu({
   const selectedChoiceId = activeProvider
     ? (selectedChoiceIds[activeProvider.id] ?? "default")
     : "default";
+  const activeReviewerProvider =
+    reviewerProviders.find((provider) => provider.id === activeReviewerProviderId) ??
+    reviewerProviders[0];
+  const activeReviewerCatalog = activeReviewerProvider
+    ? getLaunchModelCatalog(activeReviewerProvider.id, costModels)
+    : undefined;
+  const selectedReviewerChoiceId = activeReviewerProvider
+    ? (selectedReviewerChoiceIds[activeReviewerProvider.id] ?? "default")
+    : "default";
 
   function getSelectedModelSelection(providerId: UiLaunchProviderId): LaunchModelSelection {
     if (!modelPickerEnabled) {
@@ -112,6 +132,19 @@ export function LaunchProviderMenu({
 
     const catalog = getLaunchModelCatalog(providerId, costModels);
     const selectedId = selectedChoiceIds[providerId] ?? "default";
+    return (
+      catalog.choices.find((choice) => choice.id === selectedId)?.selection ??
+      DEFAULT_LAUNCH_MODEL_SELECTION
+    );
+  }
+
+  function getSelectedReviewerModelSelection(providerId: UiLaunchProviderId): LaunchModelSelection {
+    if (!modelPickerEnabled) {
+      return DEFAULT_LAUNCH_MODEL_SELECTION;
+    }
+
+    const catalog = getLaunchModelCatalog(providerId, costModels);
+    const selectedId = selectedReviewerChoiceIds[providerId] ?? "default";
     return (
       catalog.choices.find((choice) => choice.id === selectedId)?.selection ??
       DEFAULT_LAUNCH_MODEL_SELECTION
@@ -208,7 +241,16 @@ export function LaunchProviderMenu({
                     key={provider.id}
                     onFocus={() => setActiveProvider(provider.id)}
                     onMouseEnter={() => setActiveProvider(provider.id)}
-                    onClick={() => onRalphLaunch(provider, getSelectedModelSelection(provider.id))}
+                    onClick={() =>
+                      onRalphLaunch(
+                        provider,
+                        getSelectedModelSelection(provider.id),
+                        reviewerPickerEnabled ? activeReviewerProvider : undefined,
+                        reviewerPickerEnabled && activeReviewerProvider
+                          ? getSelectedReviewerModelSelection(activeReviewerProvider.id)
+                          : undefined
+                      )
+                    }
                     disabled={disabled}
                     title={provider.display.description}
                     className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all disabled:cursor-not-allowed disabled:opacity-50"
@@ -236,6 +278,78 @@ export function LaunchProviderMenu({
           </div>
         )}
       </div>
+
+      {showRalph && reviewerProviders.length > 0 && (
+        <div className="border-t border-[var(--border-primary)] px-3 py-2">
+          <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
+            <input
+              type="checkbox"
+              checked={reviewerPickerEnabled}
+              disabled={disabled}
+              onChange={(event) => setReviewerPickerEnabled(event.target.checked)}
+              className="h-4 w-4 accent-[var(--accent-ai)]"
+            />
+            <span>Review with a different AI</span>
+          </label>
+        </div>
+      )}
+
+      {reviewerPickerEnabled && activeReviewerProvider && (
+        <div className="border-t border-[var(--border-primary)] p-3 space-y-3">
+          <label
+            htmlFor="fresh-eyes-reviewer-provider"
+            className="block text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]"
+          >
+            Reviewer provider
+          </label>
+          <select
+            id="fresh-eyes-reviewer-provider"
+            value={activeReviewerProvider.id}
+            disabled={disabled}
+            onChange={(event) =>
+              setActiveReviewerProviderId(event.target.value as UiLaunchProviderId)
+            }
+            className="w-full rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-60"
+            aria-label="Fresh-eyes reviewer provider"
+          >
+            {reviewerProviders.map((provider) => (
+              <option key={provider.id} value={provider.id}>
+                {getRalphDisplayLabel(provider.display.label)}
+              </option>
+            ))}
+          </select>
+
+          {modelPickerEnabled && activeReviewerCatalog && (
+            <div>
+              <label
+                htmlFor={`fresh-eyes-reviewer-model-${activeReviewerProvider.id}`}
+                className="mb-1 block text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]"
+              >
+                Reviewer model
+              </label>
+              <select
+                id={`fresh-eyes-reviewer-model-${activeReviewerProvider.id}`}
+                value={selectedReviewerChoiceId}
+                disabled={disabled || modelCatalogLoading}
+                onChange={(event) =>
+                  setSelectedReviewerChoiceIds((current) => ({
+                    ...current,
+                    [activeReviewerProvider.id]: event.target.value,
+                  }))
+                }
+                className="w-full rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-60"
+                aria-label={`Reviewer model for ${getRalphDisplayLabel(activeReviewerProvider.display.label)}`}
+              >
+                {activeReviewerCatalog.choices.map((choice) => (
+                  <option key={choice.id} value={choice.id}>
+                    {choice.detail ? `${choice.label} (${choice.detail})` : choice.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+      )}
 
       {modelPickerEnabled && activeProvider && activeCatalog && (
         <div className="border-t border-[var(--border-primary)] p-3">

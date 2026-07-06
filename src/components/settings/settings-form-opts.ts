@@ -33,6 +33,8 @@ const defaultSettings: SettingsFormData = {
   terminalEmulator: "",
   defaultProjectsDirectory: "",
   defaultWorkingMethod: "auto",
+  defaultReviewerProvider: "",
+  defaultReviewerModel: "",
   ralphSandbox: false,
   ralphTimeout: 3600,
   ralphMaxIterations: 20,

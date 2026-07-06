@@ -38,12 +38,14 @@ import {
   getVerificationFailuresByTicketId,
 } from "./change-request-context";
 import { ensureRalphArtifactsIgnored } from "./gitignore";
+import { resolveLaunchReviewer, validateReviewerLaunchSupport } from "./reviewer";
 import type {
   EpicLaunchPreparation,
   LaunchEpicInput,
   RalphEpicLaunchProfile,
   RalphLaunchDb,
   RalphLaunchDependencies,
+  RalphWorkingMethod,
   TicketRecord,
 } from "./types";
 
@@ -241,14 +243,6 @@ export async function launchRalphForEpicCore(
     reviewerAiBackend,
     reviewerModelSelection,
   } = input;
-  const reviewer =
-    reviewerAiBackend || reviewerModelSelection
-      ? {
-          aiBackend: reviewerAiBackend ?? aiBackend,
-          ...(reviewerModelSelection ? { modelSelection: reviewerModelSelection } : {}),
-        }
-      : undefined;
-
   const appSettings = db.select().from(settings).where(eq(settings.id, "default")).get();
   const timeoutSeconds = appSettings?.ralphTimeout ?? DEFAULT_TIMEOUT_SECONDS;
   const effectiveMaxIterations = maxIterations ?? appSettings?.ralphMaxIterations ?? 10;
@@ -265,6 +259,30 @@ export async function launchRalphForEpicCore(
 
   if (!existsSync(project.path)) {
     return { success: false, message: `Project directory not found: ${project.path}` };
+  }
+
+  const workingMethod = (workingMethodOverride ||
+    project.workingMethod ||
+    "auto") as RalphWorkingMethod;
+  const reviewerResult = resolveLaunchReviewer({
+    aiBackend,
+    reviewerAiBackend,
+    reviewerModelSelection,
+    projectDefaults: { provider: project.reviewerProvider, model: project.reviewerModel },
+    settingsDefaults: {
+      provider: appSettings?.defaultReviewerProvider,
+      model: appSettings?.defaultReviewerModel,
+    },
+    sqlite,
+  });
+  if (!reviewerResult.success) {
+    return reviewerResult;
+  }
+  const reviewer = reviewerResult.reviewer;
+
+  const reviewerSupport = validateReviewerLaunchSupport(reviewer, workingMethod, "Epic launch");
+  if (!reviewerSupport.success) {
+    return reviewerSupport;
   }
 
   let sshWarnings: string[] | undefined;
@@ -344,7 +362,6 @@ export async function launchRalphForEpicCore(
   const { promptProfile, prdTickets, startsImplementationWorkflow, reviewLaunches } =
     launchPreparation.preparation;
   const launchedTicketCount = prdTickets.length;
-  const workingMethod = workingMethodOverride || project.workingMethod || "auto";
 
   if (reviewLaunches.length > 0 && epicReviewRunId) {
     const runStartedAt = new Date().toISOString();

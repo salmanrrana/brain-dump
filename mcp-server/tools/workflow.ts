@@ -9,19 +9,34 @@
  * @module tools/workflow
  */
 import { execFileSync } from "child_process";
+import { drizzle } from "drizzle-orm/better-sqlite3";
 import { z } from "zod";
 import { log } from "../lib/logging.js";
 import { mcpError } from "../lib/mcp-response.ts";
 import { requireParam, formatResult } from "../lib/mcp-format.ts";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type Database from "better-sqlite3";
-import { CoreError } from "../../core/errors.ts";
+import { CoreError, ValidationError } from "../../core/errors.ts";
 import { startWork, completeWork, startEpicWork } from "../../core/workflow.ts";
 import { linkCommit, linkPr, syncTicketLinks, checkUnlinkedItems } from "../../core/git.ts";
 import type { PrStatus } from "../../core/types.ts";
 import type { CommentAuthor } from "../../core/comment.ts";
 import { createRealGitOperations, shortId } from "../../core/git-utils.ts";
 import type { StartWorkResult, StartEpicWorkResult } from "../../core/types.ts";
+import {
+  PROVIDER_IDS,
+  REVIEWER_CAPABLE_PROVIDER_IDS,
+  resolveProviderModelSelection,
+  resolveReviewerSelection,
+  translateProviderForRalph,
+  type ProviderId,
+  type ReviewerCapableProviderId,
+} from "../../core/providers.ts";
+import { listCostModels } from "../../core/cost.ts";
+import * as schema from "../../src/lib/schema.ts";
+import { launchRalphForTicketCore } from "../../src/lib/ralph-launch/launch-ticket.ts";
+import { launchRalphForEpicCore } from "../../src/lib/ralph-launch/launch-epic.ts";
+import type { LaunchEpicInput, LaunchTicketInput } from "../../src/lib/ralph-launch/types.ts";
 
 // MCP-layer presentation imports
 import { loadTicketAttachments, buildAttachmentContextSection } from "../lib/attachment-loader.js";
@@ -39,6 +54,8 @@ const ACTIONS = [
   "start-work",
   "complete-work",
   "start-epic",
+  "launch-ticket",
+  "launch-epic",
   "link-commit",
   "link-pr",
   "sync-links",
@@ -76,6 +93,16 @@ Start working on an epic. Creates shared git branch for all tickets in the epic.
 Required params: epicId
 Optional params: createPr
 
+### launch-ticket
+Launch Ralph for a ticket through the shared launcher core.
+Required params: ticketId
+Optional params: provider, model, reviewProvider, reviewModel, preferredTerminal, maxIterations, useSandbox
+
+### launch-epic
+Launch Ralph for an epic through the shared launcher core.
+Required params: epicId
+Optional params: provider, model, reviewProvider, reviewModel, preferredTerminal, maxIterations, useSandbox
+
 ### link-commit
 Link a git commit to a ticket. Tracks which commits belong to which ticket.
 Required params: ticketId, commitHash
@@ -102,7 +129,9 @@ Optional params: projectPath
 - prNumber: GitHub PR number. Required for: link-pr
 - prUrl: Full PR URL. Optional for: link-pr
 - prStatus: PR status (draft, open, merged, closed). Optional for: link-pr
-- projectPath: Project path for auto-detection. Optional for: sync-links`,
+- projectPath: Project path for auto-detection. Optional for: sync-links
+- provider/model: Implementer provider and model override. Optional for: launch-ticket, launch-epic
+- reviewProvider/reviewModel: Fresh-eyes reviewer provider and model override. Optional for: launch-ticket, launch-epic`,
     {
       action: z.enum(ACTIONS).describe("The operation to perform"),
       ticketId: z.string().optional().describe("Ticket ID"),
@@ -116,6 +145,28 @@ Optional params: projectPath
       prUrl: z.string().optional().describe("Full PR URL"),
       prStatus: z.enum(PR_STATUSES).optional().describe("PR status"),
       projectPath: z.string().optional().describe("Project path for auto-detection"),
+      provider: z
+        .enum(PROVIDER_IDS)
+        .optional()
+        .describe("AI provider for launch-ticket/launch-epic"),
+      model: z
+        .string()
+        .optional()
+        .describe("Provider-specific model id for launch-ticket/launch-epic"),
+      reviewProvider: z
+        .enum(REVIEWER_CAPABLE_PROVIDER_IDS)
+        .optional()
+        .describe("Fresh-eyes reviewer provider for launch-ticket/launch-epic"),
+      reviewModel: z
+        .string()
+        .optional()
+        .describe("Provider-specific reviewer model id for launch-ticket/launch-epic"),
+      preferredTerminal: z
+        .string()
+        .optional()
+        .describe("Preferred terminal emulator for launch actions"),
+      maxIterations: z.number().optional().describe("Maximum Ralph iterations for launch actions"),
+      useSandbox: z.boolean().optional().describe("Use Docker sandbox for launch actions"),
     },
     async (params: {
       action: (typeof ACTIONS)[number];
@@ -130,6 +181,13 @@ Optional params: projectPath
       prUrl?: string | undefined;
       prStatus?: (typeof PR_STATUSES)[number] | undefined;
       projectPath?: string | undefined;
+      provider?: ProviderId | undefined;
+      model?: string | undefined;
+      reviewProvider?: ReviewerCapableProviderId | undefined;
+      reviewModel?: string | undefined;
+      preferredTerminal?: string | undefined;
+      maxIterations?: number | undefined;
+      useSandbox?: boolean | undefined;
     }) => {
       try {
         switch (params.action) {
@@ -143,6 +201,14 @@ Optional params: projectPath
 
           case "start-epic": {
             return handleStartEpic(db, git, params);
+          }
+
+          case "launch-ticket": {
+            return handleLaunchTicket(db, params);
+          }
+
+          case "launch-epic": {
+            return handleLaunchEpic(db, params);
           }
 
           case "link-commit": {
@@ -602,6 +668,97 @@ Use \`workflow({ action: "start-work", ticketId: "..." })\` to begin work on any
       },
     ],
   };
+}
+
+type WorkflowLaunchParams = {
+  provider?: ProviderId | undefined;
+  model?: string | undefined;
+  reviewProvider?: ReviewerCapableProviderId | undefined;
+  reviewModel?: string | undefined;
+  preferredTerminal?: string | undefined;
+  maxIterations?: number | undefined;
+  useSandbox?: boolean | undefined;
+};
+
+function applyMcpLaunchParams<T extends LaunchTicketInput | LaunchEpicInput>(
+  input: T,
+  db: Database.Database,
+  params: WorkflowLaunchParams
+): T {
+  const costModels = listCostModels(db);
+
+  if (params.model !== undefined && params.provider === undefined) {
+    throw new ValidationError(
+      "model requires provider so Brain Dump can validate provider-specific model ids."
+    );
+  }
+  if (params.reviewModel !== undefined && params.reviewProvider === undefined) {
+    throw new ValidationError(
+      "reviewModel requires reviewProvider so Brain Dump can validate reviewer-specific model ids."
+    );
+  }
+
+  if (params.provider) {
+    Object.assign(input, translateProviderForRalph(params.provider));
+    if (params.model) {
+      input.modelSelection = {
+        kind: "concrete",
+        ...resolveProviderModelSelection(params.provider, params.model, costModels),
+      };
+    }
+  }
+
+  if (params.reviewProvider) {
+    const reviewer = resolveReviewerSelection(
+      params.reviewProvider,
+      params.reviewModel,
+      costModels
+    );
+    input.reviewerAiBackend = reviewer.aiBackend;
+    if (reviewer.modelSelection) {
+      input.reviewerModelSelection = { kind: "concrete", ...reviewer.modelSelection };
+    }
+  }
+
+  if (params.preferredTerminal !== undefined) input.preferredTerminal = params.preferredTerminal;
+  if (params.maxIterations !== undefined) input.maxIterations = params.maxIterations;
+  if (params.useSandbox !== undefined) input.useSandbox = params.useSandbox;
+
+  return input;
+}
+
+async function handleLaunchTicket(
+  db: Database.Database,
+  params: WorkflowLaunchParams & { ticketId?: string | undefined }
+) {
+  const ticketId = requireParam(params.ticketId, "ticketId", "launch-ticket");
+  const input = applyMcpLaunchParams<LaunchTicketInput>({ ticketId }, db, params);
+  const drizzleDb = drizzle(db, { schema });
+  const result = await launchRalphForTicketCore(drizzleDb, input, { sqlite: db });
+
+  if (!result.success) {
+    return mcpError(new ValidationError(result.message));
+  }
+
+  log.info(`Launched Ralph for ticket ${ticketId} via MCP workflow launch-ticket`);
+  return formatResult(result, result.message);
+}
+
+async function handleLaunchEpic(
+  db: Database.Database,
+  params: WorkflowLaunchParams & { epicId?: string | undefined }
+) {
+  const epicId = requireParam(params.epicId, "epicId", "launch-epic");
+  const input = applyMcpLaunchParams<LaunchEpicInput>({ epicId }, db, params);
+  const drizzleDb = drizzle(db, { schema });
+  const result = await launchRalphForEpicCore(drizzleDb, input, { sqlite: db });
+
+  if (!result.success) {
+    return mcpError(new ValidationError(result.message));
+  }
+
+  log.info(`Launched Ralph for epic ${epicId} via MCP workflow launch-epic`);
+  return formatResult(result, result.message);
 }
 
 // ============================================

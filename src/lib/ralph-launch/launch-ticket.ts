@@ -22,12 +22,18 @@ import {
   validateDockerSetup,
 } from "../../api/ralph-launchers";
 import { projects, settings, tickets } from "../schema";
-import type { LaunchTicketInput, RalphLaunchDb, RalphLaunchDependencies } from "./types";
+import type {
+  LaunchTicketInput,
+  RalphLaunchDb,
+  RalphLaunchDependencies,
+  RalphWorkingMethod,
+} from "./types";
 import {
   getHumanRequestedChangesByTicketId,
   getVerificationFailuresByTicketId,
 } from "./change-request-context";
 import { ensureRalphArtifactsIgnored } from "./gitignore";
+import { resolveLaunchReviewer, validateReviewerLaunchSupport } from "./reviewer";
 
 const coreGit = createRealGitOperations();
 
@@ -68,14 +74,6 @@ export async function launchRalphForTicketCore(
     reviewerAiBackend,
     reviewerModelSelection,
   } = input;
-  const reviewer =
-    reviewerAiBackend || reviewerModelSelection
-      ? {
-          aiBackend: reviewerAiBackend ?? aiBackend,
-          ...(reviewerModelSelection ? { modelSelection: reviewerModelSelection } : {}),
-        }
-      : undefined;
-
   const appSettings = db.select().from(settings).where(eq(settings.id, "default")).get();
   const timeoutSeconds = appSettings?.ralphTimeout ?? DEFAULT_TIMEOUT_SECONDS;
   const effectiveMaxIterations = maxIterations ?? appSettings?.ralphMaxIterations ?? 10;
@@ -92,6 +90,30 @@ export async function launchRalphForTicketCore(
 
   if (!existsSync(project.path)) {
     return { success: false, message: `Project directory not found: ${project.path}` };
+  }
+
+  const workingMethod = (workingMethodOverride ||
+    project.workingMethod ||
+    "auto") as RalphWorkingMethod;
+  const reviewerResult = resolveLaunchReviewer({
+    aiBackend,
+    reviewerAiBackend,
+    reviewerModelSelection,
+    projectDefaults: { provider: project.reviewerProvider, model: project.reviewerModel },
+    settingsDefaults: {
+      provider: appSettings?.defaultReviewerProvider,
+      model: appSettings?.defaultReviewerModel,
+    },
+    sqlite,
+  });
+  if (!reviewerResult.success) {
+    return reviewerResult;
+  }
+  const reviewer = reviewerResult.reviewer;
+
+  const reviewerSupport = validateReviewerLaunchSupport(reviewer, workingMethod, "Ticket launch");
+  if (!reviewerSupport.success) {
+    return reviewerSupport;
   }
 
   let sshWarnings: string[] | undefined;
@@ -188,7 +210,6 @@ export async function launchRalphForTicketCore(
     }
   }
 
-  const workingMethod = workingMethodOverride || project.workingMethod || "auto";
   console.log(
     `[brain-dump] Ralph ticket launch: workingMethod="${workingMethod}" for project "${project.name}", timeout=${timeoutSeconds}s`
   );

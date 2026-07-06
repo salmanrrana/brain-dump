@@ -68,6 +68,9 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
       defaultProjectsDirectory: settings?.defaultProjectsDirectory ?? "",
       defaultWorkingMethod:
         (settings?.defaultWorkingMethod as SettingsFormData["defaultWorkingMethod"]) ?? "auto",
+      defaultReviewerProvider:
+        (settings?.defaultReviewerProvider as SettingsFormData["defaultReviewerProvider"]) ?? "",
+      defaultReviewerModel: settings?.defaultReviewerModel ?? "",
       ralphSandbox: settings?.ralphSandbox ?? false,
       ralphTimeout: settings?.ralphTimeout ?? 3600,
       ralphMaxIterations: settings?.ralphMaxIterations ?? 20,
@@ -92,6 +95,9 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
         defaultProjectsDirectory: settings.defaultProjectsDirectory ?? "",
         defaultWorkingMethod:
           (settings.defaultWorkingMethod as SettingsFormData["defaultWorkingMethod"]) ?? "auto",
+        defaultReviewerProvider:
+          (settings.defaultReviewerProvider as SettingsFormData["defaultReviewerProvider"]) ?? "",
+        defaultReviewerModel: settings.defaultReviewerModel ?? "",
         ralphSandbox: settings.ralphSandbox ?? false,
         ralphTimeout: settings.ralphTimeout ?? 3600,
         ralphMaxIterations: settings.ralphMaxIterations ?? 20,
@@ -174,6 +180,8 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
         prTargetBranch: values.prTargetBranch || "dev",
         defaultProjectsDirectory: values.defaultProjectsDirectory || null,
         defaultWorkingMethod: values.defaultWorkingMethod,
+        defaultReviewerProvider: values.defaultReviewerProvider || null,
+        defaultReviewerModel: values.defaultReviewerModel || null,
         conversationLoggingEnabled: values.conversationLoggingEnabled,
         conversationRetentionDays: values.conversationRetentionDays,
         dockerRuntime: values.dockerRuntime === "auto" ? null : values.dockerRuntime,

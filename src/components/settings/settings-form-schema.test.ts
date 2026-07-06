@@ -7,6 +7,8 @@ const validSettings = {
   terminalEmulator: "",
   defaultProjectsDirectory: "",
   defaultWorkingMethod: "pi",
+  defaultReviewerProvider: "",
+  defaultReviewerModel: "",
   ralphSandbox: false,
   ralphTimeout: 3600,
   ralphMaxIterations: 20,

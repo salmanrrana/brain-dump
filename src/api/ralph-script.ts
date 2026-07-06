@@ -1,3 +1,4 @@
+import { execFileSync } from "child_process";
 import {
   getFreshEyesReviewerPrompt,
   getRalphPrompt,
@@ -236,15 +237,48 @@ fi
   },
 };
 
+function stripAnsi(value: string): string {
+  const escapeChar = String.fromCharCode(27);
+  return value.replace(new RegExp(`${escapeChar}\\[[0-9;]*m`, "g"), "");
+}
+
+export function getFreshEyesReviewerAuthor(aiBackend: RalphAiBackend): `${string} ralph` {
+  return `${aiBackend} ralph`;
+}
+
+export function preflightNativeAiBackend(
+  aiBackend: RalphAiBackend
+): { success: true } | { success: false; message: string } {
+  const config = AI_BACKEND_CONFIGS[aiBackend];
+  try {
+    execFileSync("bash", ["-lc", config.preflightCheck], {
+      encoding: "utf8",
+      stdio: "pipe",
+      timeout: 10_000,
+    });
+    return { success: true };
+  } catch (error) {
+    const output =
+      error && typeof error === "object" && "stdout" in error
+        ? `${String(error.stdout ?? "")}${String("stderr" in error ? error.stderr : "")}`
+        : "";
+    const details = stripAnsi(output).trim();
+    return {
+      success: false,
+      message: details || `${config.displayName} CLI preflight failed.`,
+    };
+  }
+}
+
 // Default timeout for Ralph session (1 hour in seconds)
 export const DEFAULT_TIMEOUT_SECONDS = 3600;
 
-// Default per-iteration AI timeout (30 minutes in seconds). Wraps the single
+// Default per-iteration AI timeout (1 hour in seconds). Wraps the single
 // AI invocation inside the wrapper loop so an iteration whose AI process never
 // exits (hangs on the invocation line) is killed and surfaced, instead of
 // silently stalling the loop until the session-level timeout fires. Clamped to
 // never exceed the session timeout.
-export const DEFAULT_PER_ITERATION_TIMEOUT_SECONDS = 1800;
+export const DEFAULT_PER_ITERATION_TIMEOUT_SECONDS = 3600;
 
 function buildLaunchModelEnvAssignments(
   modelSelection: ConcreteLaunchModelSelection | undefined
@@ -583,11 +617,17 @@ RALPH_REVIEW_PROMPT_EOF
         echo ""
         IMPLEMENTER_PROMPT_FILE="$PROMPT_FILE"
         PROMPT_FILE="$REVIEW_PROMPT_FILE"
+        export BRAIN_DUMP_REVIEWER_AUTHOR="${getFreshEyesReviewerAuthor(reviewer.aiBackend)}"
+        export BRAIN_DUMP_REVIEWER_MODEL_PROVIDER="${reviewer.modelSelection ? escapeForBashDoubleQuote(reviewer.modelSelection.provider) : ""}"
+        export BRAIN_DUMP_REVIEWER_MODEL="${reviewer.modelSelection ? escapeForBashDoubleQuote(reviewer.modelSelection.modelName) : ""}"
         ${reviewerModelEnvAssignments}
         set +e
 ${reviewerAiInvocation}
         REVIEW_EXIT_CODE=$?
         set -e
+        unset BRAIN_DUMP_REVIEWER_AUTHOR
+        unset BRAIN_DUMP_REVIEWER_MODEL_PROVIDER
+        unset BRAIN_DUMP_REVIEWER_MODEL
         PROMPT_FILE="$IMPLEMENTER_PROMPT_FILE"
         ${implementerModelEnvAssignments}
         if [ $REVIEW_EXIT_CODE -ne 0 ]; then

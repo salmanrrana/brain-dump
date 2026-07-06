@@ -252,6 +252,17 @@ export async function dispatchRalphAutonomousUiLaunch(
   dependencies: RalphLaunchDependencies
 ): Promise<UiLaunchResult> {
   const modelSelectionResolution = resolveConcreteModelSelection(provider, context.modelSelection);
+  const reviewerModelSelectionResolution: ModelSelectionResolution = context.reviewerProvider
+    ? resolveConcreteModelSelection(context.reviewerProvider, context.reviewerModelSelection)
+    : { warnings: [] };
+  const reviewerPayload = context.reviewerProvider
+    ? {
+        reviewerAiBackend: context.reviewerProvider.aiBackend,
+        ...(reviewerModelSelectionResolution.modelSelection
+          ? { reviewerModelSelection: reviewerModelSelectionResolution.modelSelection }
+          : {}),
+      }
+    : {};
 
   if (context.kind === "ticket") {
     await dependencies.startTicketWorkflow({
@@ -267,12 +278,16 @@ export async function dispatchRalphAutonomousUiLaunch(
       ...(modelSelectionResolution.modelSelection
         ? { modelSelection: modelSelectionResolution.modelSelection }
         : {}),
+      ...reviewerPayload,
       ...(provider.workingMethodOverride
         ? { workingMethodOverride: provider.workingMethodOverride }
         : {}),
     });
 
-    return withAdditionalWarnings(launchResult, modelSelectionResolution.warnings);
+    return withAdditionalWarnings(launchResult, [
+      ...modelSelectionResolution.warnings,
+      ...reviewerModelSelectionResolution.warnings,
+    ]);
   }
 
   const workflowResult =
@@ -308,6 +323,7 @@ export async function dispatchRalphAutonomousUiLaunch(
     ...(modelSelectionResolution.modelSelection
       ? { modelSelection: modelSelectionResolution.modelSelection }
       : {}),
+    ...reviewerPayload,
     ...(provider.workingMethodOverride
       ? { workingMethodOverride: provider.workingMethodOverride }
       : {}),
@@ -318,6 +334,7 @@ export async function dispatchRalphAutonomousUiLaunch(
     ...launchResult,
     warnings: [
       ...modelSelectionResolution.warnings,
+      ...reviewerModelSelectionResolution.warnings,
       ...workflowWarnings,
       ...(launchResult.warnings ?? []),
     ],

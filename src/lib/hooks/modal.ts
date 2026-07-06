@@ -24,6 +24,8 @@ export type ModalState =
         color: string | null;
         position: number;
         workingMethod: string | null;
+        reviewerProvider: string | null;
+        reviewerModel: string | null;
       } | null;
     }
   | {
@@ -52,6 +54,8 @@ export interface UseModalReturn {
     color: string | null;
     position: number;
     workingMethod: string | null;
+    reviewerProvider: string | null;
+    reviewerModel: string | null;
   }) => void;
   openEpic: (
     projectId: string,
@@ -94,6 +98,8 @@ export function useModal(): UseModalReturn {
       color: string | null;
       position: number;
       workingMethod: string | null;
+      reviewerProvider: string | null;
+      reviewerModel: string | null;
     }) => {
       setModal({ type: "project", project: project ?? null });
     },

@@ -228,7 +228,7 @@ export interface EpicReviewRunTicket {
 
 export type FindingSeverity = "critical" | "major" | "minor" | "suggestion";
 export type FindingStatus = "open" | "fixed" | "wont_fix" | "duplicate";
-export type FindingAgent = "code-reviewer" | "silent-failure-hunter" | "code-simplifier";
+export type FindingAgent = string;
 
 export interface ReviewFinding {
   id: string;

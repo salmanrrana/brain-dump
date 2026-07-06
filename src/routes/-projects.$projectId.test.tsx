@@ -78,6 +78,8 @@ function createProject(epics: Epic[]): ProjectWithEpics {
     path: "/tmp/brain-dump",
     color: "#8b5cf6",
     workingMethod: "auto",
+    reviewerProvider: null,
+    reviewerModel: null,
     position: 1,
     createdAt: "2026-01-01T00:00:00.000Z",
     epics,

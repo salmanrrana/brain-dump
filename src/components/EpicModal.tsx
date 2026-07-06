@@ -198,7 +198,12 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
   // useSandbox param allows explicit choice at launch time, overriding settings default
   // aiBackend param allows choosing between supported Ralph CLI providers.
   const handleStartRalph = useCallback(
-    async (provider: RalphAutonomousUiLaunchProvider, modelSelection: LaunchModelSelection) => {
+    async (
+      provider: RalphAutonomousUiLaunchProvider,
+      modelSelection: LaunchModelSelection,
+      reviewerProvider?: RalphAutonomousUiLaunchProvider,
+      reviewerModelSelection?: LaunchModelSelection
+    ) => {
       if (!epic) return;
 
       setIsStartingRalph(true);
@@ -213,6 +218,8 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
             epicId: epic.id,
             preferredTerminal: settings?.terminalEmulator ?? null,
             modelSelection,
+            ...(reviewerProvider ? { reviewerProvider } : {}),
+            ...(reviewerModelSelection ? { reviewerModelSelection } : {}),
           },
           {
             ...defaultRalphLaunchDependencies,
@@ -594,8 +601,18 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
                   onInteractiveLaunch={(provider, modelSelection) =>
                     void handleStartInteractive(provider, modelSelection)
                   }
-                  onRalphLaunch={(provider, modelSelection) =>
-                    void handleStartRalph(provider, modelSelection)
+                  onRalphLaunch={(
+                    provider,
+                    modelSelection,
+                    reviewerProvider,
+                    reviewerModelSelection
+                  ) =>
+                    void handleStartRalph(
+                      provider,
+                      modelSelection,
+                      reviewerProvider,
+                      reviewerModelSelection
+                    )
                   }
                   costModels={costModels ?? []}
                   modelCatalogLoading={modelCatalogLoading}

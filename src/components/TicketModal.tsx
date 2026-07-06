@@ -45,7 +45,10 @@ import {
   getPrStatusIconColor,
   getPrStatusBadgeStyle,
 } from "../lib/constants";
-import type { UiLaunchProviderId } from "../lib/launch-provider-contract";
+import type {
+  RalphAutonomousUiLaunchProvider,
+  UiLaunchProviderId,
+} from "../lib/launch-provider-contract";
 import type { LaunchModelSelection } from "../lib/launch-model-catalog";
 import {
   dispatchInteractiveUiLaunch,
@@ -294,7 +297,12 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
   useClickOutside(tagDropdownRef, closeTagDropdown, isTagDropdownOpen, tagInputRef);
 
   const handleTicketLaunch = useCallback(
-    async (providerId: UiLaunchProviderId, modelSelection?: LaunchModelSelection) => {
+    async (
+      providerId: UiLaunchProviderId,
+      modelSelection?: LaunchModelSelection,
+      reviewerProvider?: RalphAutonomousUiLaunchProvider,
+      reviewerModelSelection?: LaunchModelSelection
+    ) => {
       setIsStartingWork(true);
       setStartWorkNotification(null);
       setShowStartWorkMenu(false);
@@ -337,6 +345,8 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
               ticketId: ticket.id,
               preferredTerminal: settings?.terminalEmulator ?? null,
               ...(modelSelection ? { modelSelection } : {}),
+              ...(reviewerProvider ? { reviewerProvider } : {}),
+              ...(reviewerModelSelection ? { reviewerModelSelection } : {}),
             },
             {
               ...defaultRalphLaunchDependencies,
@@ -1219,8 +1229,18 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                   onInteractiveLaunch={(provider, modelSelection) =>
                     void handleTicketLaunch(provider.id, modelSelection)
                   }
-                  onRalphLaunch={(provider, modelSelection) =>
-                    void handleTicketLaunch(provider.id, modelSelection)
+                  onRalphLaunch={(
+                    provider,
+                    modelSelection,
+                    reviewerProvider,
+                    reviewerModelSelection
+                  ) =>
+                    void handleTicketLaunch(
+                      provider.id,
+                      modelSelection,
+                      reviewerProvider,
+                      reviewerModelSelection
+                    )
                   }
                   disabled={isStartingWork}
                   costModels={costModels ?? []}

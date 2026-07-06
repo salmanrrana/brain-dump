@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { db } from "../lib/db";
 import { settings } from "../lib/schema";
 import { eq } from "drizzle-orm";
+import { isReviewerCapableProvider, type ReviewerCapableProviderId } from "../../core/providers.ts";
 
 // Valid Docker runtime types for settings
 export const DOCKER_RUNTIME_TYPES = [
@@ -34,6 +35,8 @@ export interface UpdateSettingsInput {
     | "copilot-cli"
     | "codex"
     | "pi";
+  defaultReviewerProvider?: ReviewerCapableProviderId | "" | null;
+  defaultReviewerModel?: string | null;
   // Docker runtime settings
   dockerRuntime?: DockerRuntimeSetting | null; // null = auto-detect
   dockerSocketPath?: string | null; // Custom socket path override
@@ -103,6 +106,22 @@ export const updateSettings = createServerFn({ method: "POST" })
         throw new Error(`Invalid working method: ${input.defaultWorkingMethod}`);
       }
     }
+    if (
+      input.defaultReviewerProvider !== undefined &&
+      input.defaultReviewerProvider !== null &&
+      input.defaultReviewerProvider !== "" &&
+      !isReviewerCapableProvider(input.defaultReviewerProvider)
+    ) {
+      throw new Error(`Invalid reviewer provider: ${input.defaultReviewerProvider}`);
+    }
+    if (
+      input.defaultReviewerModel !== undefined &&
+      input.defaultReviewerModel !== null &&
+      input.defaultReviewerModel.trim() !== "" &&
+      !input.defaultReviewerProvider
+    ) {
+      throw new Error("Default reviewer model requires a default reviewer provider.");
+    }
     // Validate Docker runtime if provided
     if (
       input.dockerRuntime !== undefined &&
@@ -150,6 +169,15 @@ export const updateSettings = createServerFn({ method: "POST" })
     }
     if (updates.defaultWorkingMethod !== undefined) {
       updateData.defaultWorkingMethod = updates.defaultWorkingMethod;
+    }
+    if (updates.defaultReviewerProvider !== undefined) {
+      updateData.defaultReviewerProvider = updates.defaultReviewerProvider || null;
+      if (!updates.defaultReviewerProvider) {
+        updateData.defaultReviewerModel = null;
+      }
+    }
+    if (updates.defaultReviewerModel !== undefined) {
+      updateData.defaultReviewerModel = updates.defaultReviewerModel?.trim() || null;
     }
     // Docker runtime settings
     if (updates.dockerRuntime !== undefined) {

@@ -93,6 +93,8 @@ export interface BaseUiLaunchDispatchContext {
   preferredTerminal?: string | null;
   useSandbox?: boolean;
   modelSelection?: LaunchModelSelection;
+  reviewerProvider?: RalphAutonomousUiLaunchProvider;
+  reviewerModelSelection?: LaunchModelSelection;
 }
 
 export interface TicketUiLaunchDispatchContext extends BaseUiLaunchDispatchContext {

@@ -77,6 +77,8 @@ function createProject(overrides: Partial<ProjectWithAIActivity>): ProjectWithAI
     color: overrides.color ?? "#8b5cf6",
     position: overrides.position ?? 1,
     workingMethod: overrides.workingMethod ?? "auto",
+    reviewerProvider: overrides.reviewerProvider ?? null,
+    reviewerModel: overrides.reviewerModel ?? null,
     createdAt: overrides.createdAt ?? "2026-01-01T00:00:00Z",
     epics: overrides.epics ?? [],
     hasActiveAI: overrides.hasActiveAI ?? false,

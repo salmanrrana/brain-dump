@@ -12,6 +12,8 @@ export const projects = sqliteTable(
     path: text("path").notNull().unique(),
     color: text("color"),
     workingMethod: text("working_method").default("auto"), // 'auto' | 'claude-code' | 'vscode' | 'opencode' | 'cursor' | 'cursor-agent' | 'copilot-cli' | 'codex' | 'pi'
+    reviewerProvider: text("reviewer_provider"), // null = inherit global; reviewer-capable provider id
+    reviewerModel: text("reviewer_model"), // optional provider-specific reviewer model id
     position: real("position").notNull().default(0),
     createdAt: text("created_at")
       .notNull()
@@ -154,6 +156,8 @@ export const settings = sqliteTable("settings", {
   prTargetBranch: text("pr_target_branch").default("dev"), // Target branch for PRs
   defaultProjectsDirectory: text("default_projects_directory"), // Where to create new projects
   defaultWorkingMethod: text("default_working_method").default("auto"), // Default environment for new projects: 'auto' | 'claude-code' | 'vscode' | 'opencode' | 'cursor' | 'cursor-agent' | 'copilot-cli' | 'codex' | 'pi'
+  defaultReviewerProvider: text("default_reviewer_provider"), // null = same as implementer; reviewer-capable provider id
+  defaultReviewerModel: text("default_reviewer_model"), // optional provider-specific reviewer model id
   // Docker runtime settings
   dockerRuntime: text("docker_runtime"), // 'auto' | 'lima' | 'colima' | 'rancher' | 'docker-desktop' | 'podman' - null = auto-detect
   dockerSocketPath: text("docker_socket_path"), // Custom socket path override (null = use detected path)

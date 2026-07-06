@@ -47,7 +47,6 @@ const ACTIONS = [
   "get-verification-history",
 ] as const;
 
-const AGENTS = ["code-reviewer", "silent-failure-hunter", "code-simplifier"] as const;
 const SEVERITIES = ["critical", "major", "minor", "suggestion"] as const;
 const FINDING_STATUSES = ["open", "fixed", "wont_fix", "duplicate"] as const;
 const MARK_FIXED_STATUSES = ["fixed", "wont_fix", "duplicate"] as const;
@@ -97,6 +96,11 @@ const DEMO_STEP_AUTOMATION_SCHEMA = z.union([
 
 type PrdSyncResult = ReturnType<typeof updatePrdForDbTicketIfPresent>;
 
+function getReviewerAuthorOverride(): CommentAuthor | undefined {
+  const author = process.env.BRAIN_DUMP_REVIEWER_AUTHOR?.trim();
+  return author ? (author as CommentAuthor) : undefined;
+}
+
 function syncPrdPassMarker(
   db: Database.Database,
   ticketId: string,
@@ -133,7 +137,7 @@ No MCP action uploads evidence or marks verification passed. The verification ru
     {
       action: z.enum(ACTIONS).describe("The operation to perform"),
       ticketId: z.string().optional().describe("Ticket ID"),
-      agent: z.enum(AGENTS).optional().describe("Review agent"),
+      agent: z.string().optional().describe("Review agent"),
       severity: z.enum(SEVERITIES).optional().describe("Finding severity"),
       category: z.string().optional().describe("Finding category"),
       description: z.string().optional().describe("Finding description"),
@@ -175,7 +179,7 @@ No MCP action uploads evidence or marks verification passed. The verification ru
     async (params: {
       action: (typeof ACTIONS)[number];
       ticketId?: string | undefined;
-      agent?: (typeof AGENTS)[number] | undefined;
+      agent?: string | undefined;
       severity?: (typeof SEVERITIES)[number] | undefined;
       category?: string | undefined;
       description?: string | undefined;
@@ -202,10 +206,12 @@ No MCP action uploads evidence or marks verification passed. The verification ru
             const severity = requireParam(params.severity, "severity", "submit-finding");
             const category = requireParam(params.category, "category", "submit-finding");
             const description = requireParam(params.description, "description", "submit-finding");
+            const reviewerAuthor = getReviewerAuthorOverride();
+            const findingAgent = (reviewerAuthor ?? agent) as FindingAgent;
 
             const finding = submitFinding(db, {
               ticketId,
-              agent: agent as FindingAgent,
+              agent: findingAgent,
               severity: severity as FindingSeverity,
               category,
               description,
@@ -230,11 +236,11 @@ No MCP action uploads evidence or marks verification passed. The verification ru
             addComment(db, {
               ticketId,
               content: commentContent,
-              author: detectAuthor() as CommentAuthor,
+              author: reviewerAuthor ?? (detectAuthor() as CommentAuthor),
               type: "progress",
             });
 
-            log.info(`Submitted ${severity} finding for ticket ${ticketId} by ${agent}`);
+            log.info(`Submitted ${severity} finding for ticket ${ticketId} by ${findingAgent}`);
             return formatResult(finding, `Finding submitted (${severity})`);
           }
 
@@ -261,7 +267,7 @@ No MCP action uploads evidence or marks verification passed. The verification ru
             addComment(db, {
               ticketId: finding.ticketId,
               content: fixComment,
-              author: detectAuthor() as CommentAuthor,
+              author: getReviewerAuthorOverride() ?? (detectAuthor() as CommentAuthor),
               type: "progress",
             });
 
@@ -335,7 +341,7 @@ No MCP action uploads evidence or marks verification passed. The verification ru
             addComment(db, {
               ticketId,
               content: `Demo script generated with ${steps.length} steps. Ticket is now ready for AI verification.${demo.epicReviewRunId ? `\n\nEpic review run: ${demo.epicReviewRunId}` : ""}`,
-              author: detectAuthor() as CommentAuthor,
+              author: getReviewerAuthorOverride() ?? (detectAuthor() as CommentAuthor),
               type: "progress",
             });
 

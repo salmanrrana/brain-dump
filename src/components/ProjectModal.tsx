@@ -28,6 +28,7 @@ import { useToast } from "./Toast";
 import ErrorAlert from "./ErrorAlert";
 import { COLOR_OPTIONS } from "../lib/constants";
 import type { ConflictResolution, ManifestPreview } from "../../core/index.ts";
+import { PROVIDER_REGISTRY, REVIEWER_CAPABLE_PROVIDER_IDS } from "../../core/providers.ts";
 import {
   WorkingMethodSelect,
   WORKING_METHOD_OPTIONS,
@@ -61,6 +62,8 @@ export default function ProjectModal({ project, onClose, onSave }: ProjectModalP
   const [workingMethod, setWorkingMethod] = useState<ProjectWorkingMethod>(
     isProjectWorkingMethod(initialWorkingMethod) ? initialWorkingMethod : "auto"
   );
+  const [reviewerProvider, setReviewerProvider] = useState(project?.reviewerProvider ?? "");
+  const [reviewerModel, setReviewerModel] = useState(project?.reviewerModel ?? "");
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDirectoryPickerOpen, setIsDirectoryPickerOpen] = useState(false);
@@ -237,6 +240,8 @@ export default function ProjectModal({ project, onClose, onSave }: ProjectModalP
       if (isProjectWorkingMethod(workingMethod)) {
         updates.workingMethod = workingMethod;
       }
+      updates.reviewerProvider = reviewerProvider || null;
+      updates.reviewerModel = reviewerProvider ? reviewerModel.trim() || null : null;
       updateMutation.mutate(
         { id: project.id, updates },
         {
@@ -608,21 +613,62 @@ export default function ProjectModal({ project, onClose, onSave }: ProjectModalP
 
           {/* Working Method (only show for editing) */}
           {isEditing && (
-            <div>
-              <label
-                htmlFor="project-working-method"
-                className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
-              >
-                Working Method
-              </label>
-              <WorkingMethodSelect
-                id="project-working-method"
-                value={workingMethod}
-                onChange={setWorkingMethod}
-              />
-              <p className="mt-1 text-xs text-[var(--text-tertiary)]">
-                Controls environment detection for AI assistants
-              </p>
+            <div className="space-y-4">
+              <div>
+                <label
+                  htmlFor="project-working-method"
+                  className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
+                >
+                  Working Method
+                </label>
+                <WorkingMethodSelect
+                  id="project-working-method"
+                  value={workingMethod}
+                  onChange={setWorkingMethod}
+                />
+                <p className="mt-1 text-xs text-[var(--text-tertiary)]">
+                  Controls environment detection for AI assistants
+                </p>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="project-reviewer-provider"
+                  className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
+                >
+                  Fresh-Eyes Reviewer
+                </label>
+                <div className="relative">
+                  <select
+                    id="project-reviewer-provider"
+                    value={reviewerProvider}
+                    onChange={(event) => setReviewerProvider(event.target.value)}
+                    className="w-full rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                  >
+                    <option value="">Inherit global default</option>
+                    {REVIEWER_CAPABLE_PROVIDER_IDS.map((providerId) => (
+                      <option key={providerId} value={providerId}>
+                        {PROVIDER_REGISTRY[providerId].displayName}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    size={14}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)] pointer-events-none"
+                  />
+                </div>
+                <input
+                  aria-label="Project reviewer model"
+                  value={reviewerModel}
+                  onChange={(event) => setReviewerModel(event.target.value)}
+                  placeholder="Reviewer model, or blank for provider default"
+                  disabled={!reviewerProvider}
+                  className="mt-2 w-full rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-60"
+                />
+                <p className="mt-1 text-xs text-[var(--text-tertiary)]">
+                  Per-launch reviewer choices override this project default.
+                </p>
+              </div>
             </div>
           )}
         </div>

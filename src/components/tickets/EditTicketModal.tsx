@@ -17,6 +17,7 @@ import { useToast } from "../Toast";
 import { TagInput } from "./TagInput";
 import { EpicSelect } from "./EpicSelect";
 import { LaunchActions, type LaunchType } from "./LaunchActions";
+import type { RalphAutonomousUiLaunchProvider } from "../../lib/launch-provider-contract";
 import type { LaunchModelSelection } from "../../lib/launch-model-catalog";
 import { CreateEpicModal } from "../epics/CreateEpicModal";
 import {
@@ -381,7 +382,12 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
 
   // Handle launch action through the shared ticket launch dispatcher.
   const handleLaunch = useCallback(
-    async (type: LaunchType, modelSelection: LaunchModelSelection) => {
+    async (
+      type: LaunchType,
+      modelSelection: LaunchModelSelection,
+      reviewerProvider?: RalphAutonomousUiLaunchProvider,
+      reviewerModelSelection?: LaunchModelSelection
+    ) => {
       setIsLaunching(true);
       setLaunchingType(type);
 
@@ -420,6 +426,8 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
               ticketId: ticket.id,
               preferredTerminal: settings?.terminalEmulator ?? null,
               modelSelection,
+              ...(reviewerProvider ? { reviewerProvider } : {}),
+              ...(reviewerModelSelection ? { reviewerModelSelection } : {}),
             },
             {
               ...defaultRalphLaunchDependencies,

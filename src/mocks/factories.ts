@@ -31,6 +31,8 @@ export function createMockProject(overrides: Partial<Project> = {}): Project {
     color: overrides.color ?? null,
     position: overrides.position ?? positionCounter,
     workingMethod: overrides.workingMethod ?? "auto",
+    reviewerProvider: overrides.reviewerProvider ?? null,
+    reviewerModel: overrides.reviewerModel ?? null,
     createdAt: overrides.createdAt ?? new Date().toISOString(),
   };
 }
@@ -112,6 +114,8 @@ export function createMockSettings(overrides: Partial<Settings> = {}): Settings 
     prTargetBranch: overrides.prTargetBranch ?? "dev",
     defaultProjectsDirectory: overrides.defaultProjectsDirectory ?? null,
     defaultWorkingMethod: overrides.defaultWorkingMethod ?? "auto",
+    defaultReviewerProvider: overrides.defaultReviewerProvider ?? null,
+    defaultReviewerModel: overrides.defaultReviewerModel ?? null,
     dockerRuntime: overrides.dockerRuntime ?? null,
     dockerSocketPath: overrides.dockerSocketPath ?? null,
     conversationRetentionDays: overrides.conversationRetentionDays ?? 90,
