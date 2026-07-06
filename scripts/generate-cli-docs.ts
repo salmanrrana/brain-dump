@@ -177,7 +177,7 @@ function generateDocs(): string {
   sections.push("| 1 | Error (validation, database, etc.) |");
   sections.push("");
 
-  return sections.join("\n") + "\n";
+  return sections.join("\n").trimEnd() + "\n";
 }
 
 // ── CLI ───────────────────────────────────────────────────────

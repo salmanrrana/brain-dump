@@ -70,7 +70,7 @@ vi.mock("../lib/db.ts", () => {
   };
 });
 
-function inputOf(spy: typeof launchTicketSpy): Record<string, unknown> {
+function inputOf(spy: typeof launchTicketSpy | typeof launchEpicSpy): Record<string, unknown> {
   const call = spy.mock.calls.at(-1);
   if (!call) throw new Error("launcher spy was never called");
   return call[1] as Record<string, unknown>;
@@ -191,6 +191,31 @@ describe("workflow launch-ticket CLI → launcher core wiring", () => {
     });
   });
 
+  it("validates and forwards fresh-eyes reviewer flags for ticket launches", async () => {
+    const { handle } = await import("../commands/workflow.ts");
+    await handle("launch-ticket", [
+      "--ticket",
+      "ticket-reviewer",
+      "--provider",
+      "claude-code",
+      "--review-provider",
+      "claude-code",
+      "--review-model",
+      "claude-sonnet-4-6",
+    ]);
+
+    expect(inputOf(launchTicketSpy)).toMatchObject({
+      ticketId: "ticket-reviewer",
+      aiBackend: "claude",
+      reviewerAiBackend: "claude",
+      reviewerModelSelection: {
+        kind: "concrete",
+        provider: "anthropic",
+        modelName: "claude-sonnet-4-6",
+      },
+    });
+  });
+
   it("prints a JSON result with the provider name so downstream tools can log which backend ran", async () => {
     const { handle } = await import("../commands/workflow.ts");
     await handle("launch-ticket", ["--ticket", "ticket-json", "--provider", "copilot-cli"]);
@@ -268,5 +293,23 @@ describe("workflow launch-epic CLI → launcher core wiring", () => {
     expect(input.epicId).toBe("epic-default");
     expect(input.aiBackend).toBeUndefined();
     expect(input.workingMethodOverride).toBeUndefined();
+  });
+
+  it("forwards fresh-eyes reviewer provider for epic launches", async () => {
+    const { handle } = await import("../commands/workflow.ts");
+    await handle("launch-epic", [
+      "--epic",
+      "epic-reviewer",
+      "--provider",
+      "claude-code",
+      "--review-provider",
+      "codex",
+    ]);
+
+    expect(inputOf(launchEpicSpy)).toMatchObject({
+      epicId: "epic-reviewer",
+      aiBackend: "claude",
+      reviewerAiBackend: "codex",
+    });
   });
 });

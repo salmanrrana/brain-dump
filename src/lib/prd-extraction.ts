@@ -111,6 +111,16 @@ export interface ProjectContext {
 /**
  * Enhanced PRD document with Loom-style structure
  */
+/**
+ * Fresh-eyes reviewer recorded in the PRD so agents and audit trails can see
+ * which backend/model owns the ai_review phase for this launch.
+ */
+export interface EnhancedPRDReviewer {
+  aiBackend: string;
+  modelProvider?: string;
+  modelName?: string;
+}
+
 export interface EnhancedPRDDocument {
   projectName: string;
   projectPath: string;
@@ -120,6 +130,7 @@ export interface EnhancedPRDDocument {
   userStories: EnhancedPRDItem[];
   projectContext: ProjectContext;
   generatedAt: string;
+  reviewer?: EnhancedPRDReviewer;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

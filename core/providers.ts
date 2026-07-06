@@ -546,6 +546,81 @@ export function getProviderDefinition(providerId: ProviderId): ProviderDefinitio
   return PROVIDER_REGISTRY[providerId];
 }
 
+// ============================================================================
+// FRESH-EYES REVIEWER CAPABILITY
+// ============================================================================
+
+/**
+ * Providers that can act as the fresh-eyes reviewer for the ai_review phase.
+ *
+ * The reviewer runs as a second headless CLI invocation inside the Ralph loop,
+ * so only providers whose Ralph backend binary is invoked directly qualify.
+ * Context-file working methods (vscode, cursor editor, copilot-cli) cannot
+ * host a separate reviewer binary.
+ */
+export const REVIEWER_CAPABLE_PROVIDER_IDS = [
+  "claude-code",
+  "codex",
+  "opencode",
+  "cursor-agent",
+  "pi",
+] as const satisfies readonly ProviderId[];
+
+export type ReviewerCapableProviderId = (typeof REVIEWER_CAPABLE_PROVIDER_IDS)[number];
+
+export function isReviewerCapableProvider(value: string): value is ReviewerCapableProviderId {
+  return (REVIEWER_CAPABLE_PROVIDER_IDS as readonly string[]).includes(value);
+}
+
+/**
+ * Canonical provider definition for a Ralph AI backend. Several providers can
+ * share the `claude` backend (vscode, copilot-cli, ...), but the binary that
+ * Ralph actually invokes is always the canonical CLI provider's.
+ */
+const CANONICAL_PROVIDER_FOR_BACKEND: Record<RalphAiBackend, ProviderId> = {
+  claude: "claude-code",
+  codex: "codex",
+  opencode: "opencode",
+  "cursor-agent": "cursor-agent",
+  pi: "pi",
+};
+
+export function getProviderDefinitionForAiBackend(backend: RalphAiBackend): ProviderDefinition {
+  return getProviderDefinition(CANONICAL_PROVIDER_FOR_BACKEND[backend]);
+}
+
+export interface ReviewerSelection {
+  aiBackend: RalphAiBackend;
+  modelSelection?: { provider: string; modelName: string };
+}
+
+/**
+ * Validate and translate a reviewer provider (+ optional model) into the
+ * backend pair the Ralph launch consumes. Throws `ValidationError` with an
+ * actionable message on any invalid input — reviewer selection must fail
+ * loud at launch, never silently fall back to the implementer.
+ */
+export function resolveReviewerSelection(
+  providerValue: string,
+  modelValue: string | undefined,
+  costModels: readonly CostModelLike[],
+  flagLabel: string = "--review-provider"
+): ReviewerSelection {
+  if (!isReviewerCapableProvider(providerValue)) {
+    throw new ValidationError(
+      `Invalid value for ${flagLabel}: "${providerValue}". The fresh-eyes reviewer must run headless inside the Ralph loop. Allowed: ${REVIEWER_CAPABLE_PROVIDER_IDS.join(", ")}`
+    );
+  }
+
+  const { aiBackend } = translateProviderForRalph(providerValue);
+  if (modelValue === undefined || modelValue === "") {
+    return { aiBackend };
+  }
+
+  const modelSelection = resolveProviderModelSelection(providerValue, modelValue, costModels);
+  return { aiBackend, modelSelection };
+}
+
 export function translateProviderForRalph(providerId: ProviderId): {
   aiBackend: RalphAiBackend;
   workingMethodOverride?: ProviderId;

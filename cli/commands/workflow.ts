@@ -9,8 +9,10 @@ import {
   startEpicWork,
   createRealGitOperations,
   InvalidActionError,
+  ValidationError,
   listCostModels,
 } from "../../core/index.ts";
+import { resolveReviewerSelection } from "../../core/providers.ts";
 import * as schema from "../../src/lib/schema.ts";
 import { launchRalphForTicketCore } from "../../src/lib/ralph-launch/launch-ticket.ts";
 import { launchRalphForEpicCore } from "../../src/lib/ralph-launch/launch-epic.ts";
@@ -40,6 +42,8 @@ interface SharedLaunchFlags {
   maxIterations: number | undefined;
   useSandbox: boolean;
   modelSelection: LaunchTicketInput["modelSelection"];
+  reviewerAiBackend: LaunchTicketInput["reviewerAiBackend"];
+  reviewerModelSelection: LaunchTicketInput["reviewerModelSelection"];
 }
 
 function parseSharedLaunchFlags(
@@ -47,12 +51,26 @@ function parseSharedLaunchFlags(
   costModels: ReturnType<typeof listCostModels>
 ): SharedLaunchFlags {
   const provider = parseProviderFlag(optionalFlag(flags, "provider"));
+  const reviewerProvider = optionalFlag(flags, "review-provider");
+  const reviewerModel = optionalFlag(flags, "review-model");
+  if (reviewerModel !== undefined && reviewerProvider === undefined) {
+    throw new ValidationError(
+      "--review-model requires --review-provider so Brain Dump can validate reviewer-specific model ids."
+    );
+  }
+  const reviewer = reviewerProvider
+    ? resolveReviewerSelection(reviewerProvider, reviewerModel, costModels)
+    : undefined;
   return {
     provider,
     preferredTerminal: optionalFlag(flags, "terminal"),
     maxIterations: numericFlag(flags, "max-iterations"),
     useSandbox: boolFlag(flags, "sandbox"),
     modelSelection: parseModelFlag(provider, optionalFlag(flags, "model"), costModels),
+    reviewerAiBackend: reviewer?.aiBackend,
+    reviewerModelSelection: reviewer?.modelSelection
+      ? { kind: "concrete", ...reviewer.modelSelection }
+      : undefined,
   };
 }
 
@@ -65,6 +83,8 @@ function applySharedLaunchFlags<T extends LaunchTicketInput | LaunchEpicInput>(
   if (shared.maxIterations !== undefined) input.maxIterations = shared.maxIterations;
   if (shared.useSandbox) input.useSandbox = true;
   if (shared.modelSelection) input.modelSelection = shared.modelSelection;
+  if (shared.reviewerAiBackend) input.reviewerAiBackend = shared.reviewerAiBackend;
+  if (shared.reviewerModelSelection) input.reviewerModelSelection = shared.reviewerModelSelection;
   return input;
 }
 

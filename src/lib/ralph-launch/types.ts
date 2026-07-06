@@ -2,6 +2,8 @@ import type { RalphPromptProfile, RalphReviewPromptProfile } from "../../api/ral
 import type { RalphAiBackend } from "../../api/ralph-script";
 import type { ConcreteLaunchModelSelection } from "../launch-model-catalog";
 
+export type { RalphReviewerConfig } from "../../api/ralph-script";
+
 export type RalphLaunchDb = typeof import("../db").db;
 export type RalphLaunchSqlite = typeof import("../db").sqlite;
 export type TicketRecord = typeof import("../schema").tickets.$inferSelect;
@@ -51,6 +53,10 @@ export interface LaunchTicketInput {
   aiBackend?: RalphAiBackend;
   workingMethodOverride?: RalphWorkingMethod;
   modelSelection?: ConcreteLaunchModelSelection;
+  /** Fresh-eyes reviewer backend for the ai_review phase (default: same as implementer). */
+  reviewerAiBackend?: RalphAiBackend;
+  /** Model for the reviewer backend (default: the reviewer provider's own default model). */
+  reviewerModelSelection?: ConcreteLaunchModelSelection;
 }
 
 export interface LaunchEpicInput {
@@ -62,6 +68,10 @@ export interface LaunchEpicInput {
   workingMethodOverride?: RalphWorkingMethod;
   modelSelection?: ConcreteLaunchModelSelection;
   launchProfile?: RalphEpicLaunchProfile;
+  /** Fresh-eyes reviewer backend for the ai_review phase (default: same as implementer). */
+  reviewerAiBackend?: RalphAiBackend;
+  /** Model for the reviewer backend (default: the reviewer provider's own default model). */
+  reviewerModelSelection?: ConcreteLaunchModelSelection;
 }
 
 export interface RalphLaunchDependencies {

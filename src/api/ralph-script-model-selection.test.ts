@@ -148,4 +148,41 @@ describe("generateRalphScript model selection", () => {
       'claude --dangerously-skip-permissions \\\n    --model "claude-sonnet-4-6" /workspace/.ralph-prompt.md'
     );
   });
+
+  it("generates a fresh-eyes reviewer invocation with isolated reviewer model env", () => {
+    const script = generateRalphScript(
+      "/tmp/project",
+      3,
+      false,
+      undefined,
+      undefined,
+      null,
+      undefined,
+      "claude",
+      { type: "implementation" },
+      {
+        kind: "concrete",
+        provider: "anthropic",
+        modelName: "claude-sonnet-4-6",
+      },
+      undefined,
+      {
+        aiBackend: "codex",
+        modelSelection: {
+          kind: "concrete",
+          provider: "openai",
+          modelName: "gpt-5.4",
+        },
+      }
+    );
+
+    expect(script).toContain("Fresh Eyes Review Split");
+    expect(script).toContain("Starting Codex fresh-eyes reviewer");
+    expect(script).toContain('export BRAIN_DUMP_LAUNCH_MODEL_PROVIDER="openai"');
+    expect(script).toContain('export BRAIN_DUMP_LAUNCH_MODEL="gpt-5.4"');
+    expect(script).toContain(
+      'codex exec "${CODEX_MODEL_ARGS[@]}" --dangerously-bypass-approvals-and-sandbox "$(cat "$PROMPT_FILE")"'
+    );
+    expect(script).toContain('export BRAIN_DUMP_LAUNCH_MODEL="claude-sonnet-4-6"');
+  });
 });

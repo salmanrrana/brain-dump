@@ -444,6 +444,20 @@ export const COMMAND_REGISTRY: CommandDef[] = [
         description: "Provider model id to pass to Ralph (requires --provider)",
       },
       {
+        name: "review-provider",
+        type: "enum",
+        required: false,
+        description: "Fresh-eyes reviewer backend for ai_review (headless Ralph providers only)",
+        enum: ["claude-code", "cursor-agent", "codex", "pi", "opencode"],
+      },
+      {
+        name: "review-model",
+        type: "string",
+        required: false,
+        description:
+          "Reviewer model id to pass to the fresh-eyes reviewer (requires --review-provider)",
+      },
+      {
         name: "max-iterations",
         type: "number",
         required: false,
@@ -496,6 +510,20 @@ export const COMMAND_REGISTRY: CommandDef[] = [
         type: "string",
         required: false,
         description: "Provider model id to pass to Ralph (requires --provider)",
+      },
+      {
+        name: "review-provider",
+        type: "enum",
+        required: false,
+        description: "Fresh-eyes reviewer backend for ai_review (headless Ralph providers only)",
+        enum: ["claude-code", "cursor-agent", "codex", "pi", "opencode"],
+      },
+      {
+        name: "review-model",
+        type: "string",
+        required: false,
+        description:
+          "Reviewer model id to pass to the fresh-eyes reviewer (requires --review-provider)",
       },
       {
         name: "max-iterations",

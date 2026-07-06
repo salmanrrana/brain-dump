@@ -238,7 +238,16 @@ export async function launchRalphForEpicCore(
     workingMethodOverride,
     modelSelection,
     launchProfile,
+    reviewerAiBackend,
+    reviewerModelSelection,
   } = input;
+  const reviewer =
+    reviewerAiBackend || reviewerModelSelection
+      ? {
+          aiBackend: reviewerAiBackend ?? aiBackend,
+          ...(reviewerModelSelection ? { modelSelection: reviewerModelSelection } : {}),
+        }
+      : undefined;
 
   const appSettings = db.select().from(settings).where(eq(settings.id, "default")).get();
   const timeoutSeconds = appSettings?.ralphTimeout ?? DEFAULT_TIMEOUT_SECONDS;
@@ -261,6 +270,14 @@ export async function launchRalphForEpicCore(
   let sshWarnings: string[] | undefined;
   let dockerHostEnv: string | null = null;
   if (useSandbox) {
+    if (reviewer) {
+      return {
+        success: false,
+        message:
+          "Fresh-eyes reviewer launches are only supported in native mode, not Docker sandbox mode.",
+      };
+    }
+
     if (aiBackend !== "claude") {
       return {
         success: false,
@@ -362,7 +379,18 @@ export async function launchRalphForEpicCore(
         epic.title,
         epic.description ?? undefined,
         humanRequestedChanges,
-        verificationFailures
+        verificationFailures,
+        reviewer
+          ? {
+              aiBackend: reviewer.aiBackend,
+              ...(reviewer.modelSelection
+                ? {
+                    modelProvider: reviewer.modelSelection.provider,
+                    modelName: reviewer.modelSelection.modelName,
+                  }
+                : {}),
+            }
+          : undefined
       );
       const ticketPrdPath = join(project.path, reviewLaunch.prdRelativePath);
       mkdirSync(dirname(ticketPrdPath), { recursive: true });
@@ -574,7 +602,18 @@ export async function launchRalphForEpicCore(
     epic.title,
     epic.description ?? undefined,
     humanRequestedChanges,
-    verificationFailures
+    verificationFailures,
+    reviewer
+      ? {
+          aiBackend: reviewer.aiBackend,
+          ...(reviewer.modelSelection
+            ? {
+                modelProvider: reviewer.modelSelection.provider,
+                modelName: reviewer.modelSelection.modelName,
+              }
+            : {}),
+        }
+      : undefined
   );
   const prdPath = join(plansDir, "prd.json");
   writeFileSync(prdPath, JSON.stringify(prd, null, 2));
@@ -596,7 +635,9 @@ export async function launchRalphForEpicCore(
       : undefined,
     aiBackend,
     promptProfile,
-    modelSelection
+    modelSelection,
+    undefined,
+    reviewer
   );
   const scriptDir = join(homedir(), ".brain-dump", "scripts");
   mkdirSync(scriptDir, { recursive: true });

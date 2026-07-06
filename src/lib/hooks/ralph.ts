@@ -45,6 +45,8 @@ export function useLaunchRalphForTicket() {
       useSandbox?: boolean;
       aiBackend?: "claude" | "opencode" | "codex" | "cursor-agent" | "pi";
       modelSelection?: ConcreteLaunchModelSelection;
+      reviewerAiBackend?: "claude" | "opencode" | "codex" | "cursor-agent" | "pi";
+      reviewerModelSelection?: ConcreteLaunchModelSelection;
       workingMethodOverride?:
         | "auto"
         | "claude-code"
@@ -76,6 +78,8 @@ export function useLaunchRalphForEpic() {
       useSandbox?: boolean;
       aiBackend?: "claude" | "opencode" | "codex" | "cursor-agent" | "pi";
       modelSelection?: ConcreteLaunchModelSelection;
+      reviewerAiBackend?: "claude" | "opencode" | "codex" | "cursor-agent" | "pi";
+      reviewerModelSelection?: ConcreteLaunchModelSelection;
       workingMethodOverride?:
         | "auto"
         | "claude-code"

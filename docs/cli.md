@@ -698,18 +698,20 @@ brain-dump workflow start-epic --epic abc --create-pr
 Launch Ralph for a single ticket in the chosen provider (parity with UI)
 
 ```bash
-brain-dump workflow launch-ticket --ticket <value> [--provider <claude-code|vscode|cursor|cursor-agent|copilot-cli|codex|pi|opencode>] [--terminal <value>] [--model <value>] [--max-iterations <n>] [--sandbox] [--pretty]
+brain-dump workflow launch-ticket --ticket <value> [--provider <claude-code|vscode|cursor|cursor-agent|copilot-cli|codex|pi|opencode>] [--terminal <value>] [--model <value>] [--review-provider <claude-code|cursor-agent|codex|pi|opencode>] [--review-model <value>] [--max-iterations <n>] [--sandbox] [--pretty]
 ```
 
-| Flag               | Type    | Required | Description                                                                                                                   |
-| ------------------ | ------- | -------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `--ticket`         | string  | Yes      | Ticket ID                                                                                                                     |
-| `--provider`       | enum    | No       | AI backend to launch (default: project setting) (claude-code, vscode, cursor, cursor-agent, copilot-cli, codex, pi, opencode) |
-| `--terminal`       | string  | No       | Preferred terminal emulator (e.g. ghostty, kitty, iterm2)                                                                     |
-| `--model`          | string  | No       | Provider model id to pass to Ralph (requires --provider)                                                                      |
-| `--max-iterations` | number  | No       | Override Ralph loop iteration cap                                                                                             |
-| `--sandbox`        | boolean | No       | Run inside the Docker sandbox (claude-code only)                                                                              |
-| `--pretty`         | boolean | No       | Human-readable output (default: JSON)                                                                                         |
+| Flag                | Type    | Required | Description                                                                                                                   |
+| ------------------- | ------- | -------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `--ticket`          | string  | Yes      | Ticket ID                                                                                                                     |
+| `--provider`        | enum    | No       | AI backend to launch (default: project setting) (claude-code, vscode, cursor, cursor-agent, copilot-cli, codex, pi, opencode) |
+| `--terminal`        | string  | No       | Preferred terminal emulator (e.g. ghostty, kitty, iterm2)                                                                     |
+| `--model`           | string  | No       | Provider model id to pass to Ralph (requires --provider)                                                                      |
+| `--review-provider` | enum    | No       | Fresh-eyes reviewer backend for ai_review (headless Ralph providers only) (claude-code, cursor-agent, codex, pi, opencode)    |
+| `--review-model`    | string  | No       | Reviewer model id to pass to the fresh-eyes reviewer (requires --review-provider)                                             |
+| `--max-iterations`  | number  | No       | Override Ralph loop iteration cap                                                                                             |
+| `--sandbox`         | boolean | No       | Run inside the Docker sandbox (claude-code only)                                                                              |
+| `--pretty`          | boolean | No       | Human-readable output (default: JSON)                                                                                         |
 
 **Examples:**
 
@@ -724,18 +726,20 @@ brain-dump workflow launch-ticket --ticket abc --provider claude-code --sandbox
 Launch Ralph for an entire epic in the chosen provider (parity with UI)
 
 ```bash
-brain-dump workflow launch-epic --epic <value> [--provider <claude-code|vscode|cursor|cursor-agent|copilot-cli|codex|pi|opencode>] [--terminal <value>] [--model <value>] [--max-iterations <n>] [--sandbox] [--pretty]
+brain-dump workflow launch-epic --epic <value> [--provider <claude-code|vscode|cursor|cursor-agent|copilot-cli|codex|pi|opencode>] [--terminal <value>] [--model <value>] [--review-provider <claude-code|cursor-agent|codex|pi|opencode>] [--review-model <value>] [--max-iterations <n>] [--sandbox] [--pretty]
 ```
 
-| Flag               | Type    | Required | Description                                                                                                                   |
-| ------------------ | ------- | -------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `--epic`           | string  | Yes      | Epic ID                                                                                                                       |
-| `--provider`       | enum    | No       | AI backend to launch (default: project setting) (claude-code, vscode, cursor, cursor-agent, copilot-cli, codex, pi, opencode) |
-| `--terminal`       | string  | No       | Preferred terminal emulator (e.g. ghostty, kitty, iterm2)                                                                     |
-| `--model`          | string  | No       | Provider model id to pass to Ralph (requires --provider)                                                                      |
-| `--max-iterations` | number  | No       | Override Ralph loop iteration cap                                                                                             |
-| `--sandbox`        | boolean | No       | Run inside the Docker sandbox (claude-code only)                                                                              |
-| `--pretty`         | boolean | No       | Human-readable output (default: JSON)                                                                                         |
+| Flag                | Type    | Required | Description                                                                                                                   |
+| ------------------- | ------- | -------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `--epic`            | string  | Yes      | Epic ID                                                                                                                       |
+| `--provider`        | enum    | No       | AI backend to launch (default: project setting) (claude-code, vscode, cursor, cursor-agent, copilot-cli, codex, pi, opencode) |
+| `--terminal`        | string  | No       | Preferred terminal emulator (e.g. ghostty, kitty, iterm2)                                                                     |
+| `--model`           | string  | No       | Provider model id to pass to Ralph (requires --provider)                                                                      |
+| `--review-provider` | enum    | No       | Fresh-eyes reviewer backend for ai_review (headless Ralph providers only) (claude-code, cursor-agent, codex, pi, opencode)    |
+| `--review-model`    | string  | No       | Reviewer model id to pass to the fresh-eyes reviewer (requires --review-provider)                                             |
+| `--max-iterations`  | number  | No       | Override Ralph loop iteration cap                                                                                             |
+| `--sandbox`         | boolean | No       | Run inside the Docker sandbox (claude-code only)                                                                              |
+| `--pretty`          | boolean | No       | Human-readable output (default: JSON)                                                                                         |
 
 **Examples:**
 

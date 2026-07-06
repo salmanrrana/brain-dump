@@ -1,5 +1,10 @@
-import { getRalphPrompt, type RalphPromptProfile } from "./ralph-prompts";
-import type { RalphAiBackend } from "../../core/providers.ts";
+import {
+  getFreshEyesReviewerPrompt,
+  getRalphPrompt,
+  type RalphFreshEyesInfo,
+  type RalphPromptProfile,
+} from "./ralph-prompts";
+import { getProviderDefinitionForAiBackend, type RalphAiBackend } from "../../core/providers.ts";
 import type { ConcreteLaunchModelSelection } from "../lib/launch-model-catalog";
 
 // ============================================================================
@@ -21,6 +26,16 @@ export interface ProjectOriginInfo {
   projectName: string;
   epicId?: string | undefined;
   epicTitle?: string | undefined;
+}
+
+/**
+ * Fresh-eyes reviewer configuration: a DIFFERENT backend (and optionally a
+ * different model) executes the ai_review phase inside the Ralph loop, so the
+ * implementer's blind spots don't review themselves.
+ */
+export interface RalphReviewerConfig {
+  aiBackend: RalphAiBackend;
+  modelSelection?: ConcreteLaunchModelSelection | undefined;
 }
 
 // ============================================================================
@@ -231,6 +246,42 @@ export const DEFAULT_TIMEOUT_SECONDS = 3600;
 // never exceed the session timeout.
 export const DEFAULT_PER_ITERATION_TIMEOUT_SECONDS = 1800;
 
+function buildLaunchModelEnvAssignments(
+  modelSelection: ConcreteLaunchModelSelection | undefined
+): string {
+  if (!modelSelection) {
+    return `unset BRAIN_DUMP_LAUNCH_MODEL_PROVIDER
+  unset BRAIN_DUMP_LAUNCH_MODEL`;
+  }
+
+  return `export BRAIN_DUMP_LAUNCH_MODEL_PROVIDER="${escapeForBashDoubleQuote(modelSelection.provider)}"
+  export BRAIN_DUMP_LAUNCH_MODEL="${escapeForBashDoubleQuote(modelSelection.modelName)}"`;
+}
+
+function buildNativeAiInvocation(
+  aiBackend: RalphAiBackend,
+  modelSelection: ConcreteLaunchModelSelection | undefined
+): string {
+  if (aiBackend === "claude") {
+    const claudeNativeModelArgument = modelSelection ? ` --model "$BRAIN_DUMP_LAUNCH_MODEL"` : "";
+    return `  # Run Claude in print mode (-p) so it exits after completion
+  # This allows the bash loop to continue to the next iteration
+  $ITER_TIMEOUT_CMD claude --dangerously-skip-permissions${claudeNativeModelArgument} --output-format text -p "$(cat "$PROMPT_FILE")"`;
+  }
+
+  return AI_BACKEND_CONFIGS[aiBackend].invocation;
+}
+
+function buildFreshEyesInfo(
+  implementerBackend: RalphAiBackend,
+  reviewer: RalphReviewerConfig
+): RalphFreshEyesInfo {
+  return {
+    implementerLabel: getProviderDefinitionForAiBackend(implementerBackend).displayName,
+    reviewerLabel: getProviderDefinitionForAiBackend(reviewer.aiBackend).displayName,
+  };
+}
+
 // ============================================================================
 // SCRIPT GENERATION
 // ============================================================================
@@ -247,7 +298,8 @@ export function generateRalphScript(
   aiBackend: RalphAiBackend = "claude",
   promptProfile: RalphPromptProfile = { type: "implementation" },
   modelSelection?: ConcreteLaunchModelSelection,
-  perIterationTimeoutSeconds: number = DEFAULT_PER_ITERATION_TIMEOUT_SECONDS
+  perIterationTimeoutSeconds: number = DEFAULT_PER_ITERATION_TIMEOUT_SECONDS,
+  reviewer?: RalphReviewerConfig | undefined
 ): string {
   const imageName = "brain-dump-ralph-sandbox:latest";
 
@@ -307,9 +359,19 @@ fi
     exit 1
   fi`;
 
-  // Validate required local AI CLI is installed for native mode.
-  const aiPreflightCheck = useSandbox ? "" : AI_BACKEND_CONFIGS[aiBackend].preflightCheck;
+  // Validate required local AI CLIs are installed for native mode.
+  const reviewerPreflightCheck = reviewer
+    ? AI_BACKEND_CONFIGS[reviewer.aiBackend].preflightCheck
+    : "";
+  const aiPreflightCheck = useSandbox
+    ? ""
+    : `${AI_BACKEND_CONFIGS[aiBackend].preflightCheck}${reviewerPreflightCheck}`;
   const launchModelEnvExports = buildLaunchModelEnvExports(modelSelection);
+  const freshEyes = reviewer ? buildFreshEyesInfo(aiBackend, reviewer) : undefined;
+  const effectivePromptProfile: RalphPromptProfile =
+    freshEyes && promptProfile.type === "implementation"
+      ? { ...promptProfile, freshEyes }
+      : promptProfile;
 
   // SSH setup for Docker sandbox mode
   // This allows git push from inside container using host's SSH keys
@@ -426,19 +488,20 @@ fi
 
   // AI backend display name
   const aiName = AI_BACKEND_CONFIGS[aiBackend].displayName;
-  const claudeNativeModelArgument =
-    aiBackend === "claude" && modelSelection ? ` --model "$BRAIN_DUMP_LAUNCH_MODEL"` : "";
   const claudeDockerModelArgument =
     aiBackend === "claude" && modelSelection
       ? ` \\
     --model "${escapeForBashDoubleQuote(modelSelection.modelName)}"`
       : "";
-  const nativeAiInvocation =
-    aiBackend === "claude"
-      ? `  # Run Claude in print mode (-p) so it exits after completion
-  # This allows the bash loop to continue to the next iteration
-  $ITER_TIMEOUT_CMD claude --dangerously-skip-permissions${claudeNativeModelArgument} --output-format text -p "$(cat "$PROMPT_FILE")"`
-      : AI_BACKEND_CONFIGS[aiBackend].invocation;
+  const nativeAiInvocation = buildNativeAiInvocation(aiBackend, modelSelection);
+  const reviewerAiName = reviewer ? AI_BACKEND_CONFIGS[reviewer.aiBackend].displayName : "";
+  const reviewerAiInvocation = reviewer
+    ? buildNativeAiInvocation(reviewer.aiBackend, reviewer.modelSelection)
+    : "";
+  const reviewerModelEnvAssignments = reviewer
+    ? buildLaunchModelEnvAssignments(reviewer.modelSelection)
+    : "";
+  const implementerModelEnvAssignments = buildLaunchModelEnvAssignments(modelSelection);
 
   // Generate the AI invocation command based on backend choice.
   // Sandbox mode always uses the Docker wrapper; native mode uses the backend config.
@@ -490,6 +553,55 @@ fi
 
   const iterationLabel = useSandbox ? "(Docker)" : "";
   const endMessage = useSandbox ? "" : `echo "Run again with: $0 <max_iterations>"`;
+  const reviewerBlock =
+    reviewer && freshEyes
+      ? `
+  if [ $AI_EXIT_CODE -eq 0 ]; then
+    REVIEW_PROMPT_FILE=""
+    REVIEW_PROMPT_FILE=$(mktemp "\${TMPDIR:-/tmp}/ralph-review-prompt.XXXXXX" 2>/dev/null || true)
+    if [ -z "$REVIEW_PROMPT_FILE" ]; then
+      REVIEW_PROMPT_FILE=$(mktemp -t ralph-review-prompt.XXXXXX 2>/dev/null || true)
+    fi
+    if [ -z "$REVIEW_PROMPT_FILE" ]; then
+      echo -e "\\033[0;31m❌ Failed to create reviewer prompt file\\033[0m"
+      echo "[$(date -Iseconds)] ERROR: Failed to create reviewer prompt file at iteration $i" >> "$PROGRESS_FILE"
+      AI_EXIT_CODE=1
+      AI_REVIEW_FAILED=true
+    else
+      cat > "$REVIEW_PROMPT_FILE" << 'RALPH_REVIEW_PROMPT_EOF'
+${getFreshEyesReviewerPrompt(freshEyes)}
+RALPH_REVIEW_PROMPT_EOF
+
+      if [ ! -s "$REVIEW_PROMPT_FILE" ]; then
+        echo -e "\\033[0;31m❌ Reviewer prompt file is empty.\\033[0m"
+        echo "[$(date -Iseconds)] ERROR: Empty reviewer prompt file at iteration $i" >> "$PROGRESS_FILE"
+        AI_EXIT_CODE=1
+        AI_REVIEW_FAILED=true
+      else
+        echo ""
+        echo -e "\\033[0;33m⏳ Starting ${reviewerAiName} fresh-eyes reviewer...\\033[0m"
+        echo ""
+        IMPLEMENTER_PROMPT_FILE="$PROMPT_FILE"
+        PROMPT_FILE="$REVIEW_PROMPT_FILE"
+        ${reviewerModelEnvAssignments}
+        set +e
+${reviewerAiInvocation}
+        REVIEW_EXIT_CODE=$?
+        set -e
+        PROMPT_FILE="$IMPLEMENTER_PROMPT_FILE"
+        ${implementerModelEnvAssignments}
+        if [ $REVIEW_EXIT_CODE -ne 0 ]; then
+          echo -e "\\033[0;31m⚠️  ${reviewerAiName} reviewer exited with code $REVIEW_EXIT_CODE\\033[0m"
+          echo "[$(date -Iseconds)] REVIEW FAILURE: ${reviewerAiName} exited with code $REVIEW_EXIT_CODE on iteration $i" >> "$PROGRESS_FILE"
+          AI_EXIT_CODE=$REVIEW_EXIT_CODE
+          AI_REVIEW_FAILED=true
+        fi
+      fi
+      rm -f "$REVIEW_PROMPT_FILE"
+    fi
+  fi
+`
+      : "";
 
   // Timeout trap handler - cleans up container and saves progress note
   const timeoutTrapHandler = useSandbox
@@ -681,7 +793,7 @@ for i in $(seq 1 $MAX_ITERATIONS); do
   # Create prompt file for this iteration
   ${promptFileSetup}
   cat > "$PROMPT_FILE" << 'RALPH_PROMPT_EOF'
-${getRalphPrompt(promptProfile)}
+${getRalphPrompt(effectivePromptProfile)}
 RALPH_PROMPT_EOF
 
   # Validate prompt file is non-empty before passing to Claude
@@ -706,6 +818,7 @@ RALPH_PROMPT_EOF
   AI_EXIT_CODE=1
   AI_INTERRUPTED=false
   AI_ITER_TIMEOUT=false
+  AI_REVIEW_FAILED=false
   for RETRY in $(seq 1 $MAX_RETRIES); do
     set +e
 ${aiInvocation}
@@ -729,6 +842,12 @@ ${aiInvocation}
       echo -e "\\033[0;33m⏹️  ${aiName} interrupted by user. Skipping retries for this iteration.\\033[0m"
       echo "[$(date -Iseconds)] INTERRUPTED: ${aiName} exited with code $AI_EXIT_CODE" >> "$PROGRESS_FILE"
       AI_INTERRUPTED=true
+      break
+    fi
+
+${reviewerBlock}
+
+    if [ "$AI_REVIEW_FAILED" = "true" ]; then
       break
     fi
 

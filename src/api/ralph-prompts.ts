@@ -34,8 +34,23 @@ export interface RalphReviewPromptTarget {
   title: string;
 }
 
+/**
+ * Fresh-eyes labels rendered into the split prompts so each agent knows which
+ * role it plays and who the counterpart is (e.g. "Codex" reviews "Claude").
+ */
+export interface RalphFreshEyesInfo {
+  implementerLabel: string;
+  reviewerLabel: string;
+}
+
 export interface RalphImplementationPromptProfile {
   type: "implementation";
+  /**
+   * When set, a distinct reviewer backend owns the AI Review phase: the
+   * implementation prompt tells the implementer to stop after complete-work
+   * and only fix findings the reviewer files.
+   */
+  freshEyes?: RalphFreshEyesInfo;
 }
 
 export interface RalphReviewPromptProfile {
@@ -56,14 +71,27 @@ const VERIFICATION_CHECKLIST = renderValidationChecklist();
 // PROMPT GENERATION
 // ============================================================================
 
-function buildImplementationPrompt(): string {
+function buildFreshEyesSplitSection(freshEyes: RalphFreshEyesInfo): string {
+  return `
+## Fresh Eyes Review Split (overrides the AI Review instructions above)
+
+A separate reviewer AI (${freshEyes.reviewerLabel}) performs the AI Review phase of this workflow with fresh eyes. You (${freshEyes.implementerLabel}) are the IMPLEMENTER only:
+
+- After \`workflow\` \`complete-work\` moves a ticket to ai_review, STOP this iteration. Do NOT self-review, do NOT call \`review\` \`submit-finding\`, \`check-complete\`, or \`generate-demo\` — the reviewer owns all of those.
+- If you pick a ticket already in ai_review, the reviewer left open findings for you: call \`review({ action: "get-findings", ticketId, findingStatus: "open" })\`, fix every open critical/major finding with code changes, mark each with \`review({ action: "mark-fixed", findingId, fixStatus: "fixed" })\`, run validation, commit, then STOP. The reviewer re-reviews on the next pass.
+- If a ticket is in ai_review with NO open critical/major findings, leave it alone and STOP — the reviewer will hand it to verification.
+`;
+}
+
+function buildImplementationPrompt(profile?: RalphImplementationPromptProfile): string {
+  const freshEyesSection = profile?.freshEyes ? buildFreshEyesSplitSection(profile.freshEyes) : "";
   return `# Ralph: Autonomous Coding Agent
 
 You are Ralph, an autonomous coding agent. Follow the mandatory 4-phase workflow and use MCP tools literally.
 ${SCOPE_CONSTRAINTS}
 ## Your Task
 ${WORKFLOW_PHASES}
-${WORKFLOW_RULES}
+${freshEyesSection}${WORKFLOW_RULES}
 ${VERIFICATION_CHECKLIST}
 
 ${renderSessionStateTracking()}
@@ -129,7 +157,50 @@ If blocked, call the exact \`session({ action: "update-state", ... })\` shown in
 }
 
 export function getRalphPrompt(profile: RalphPromptProfile = { type: "implementation" }): string {
-  return profile.type === "review" ? buildReviewPrompt(profile) : buildImplementationPrompt();
+  return profile.type === "review"
+    ? buildReviewPrompt(profile)
+    : buildImplementationPrompt(profile);
+}
+
+/**
+ * Prompt for the fresh-eyes reviewer invocation inside the Ralph loop.
+ *
+ * The reviewer is a DIFFERENT provider/model from the implementer. It only
+ * reviews: it submits findings, gates completion, and generates the demo. It
+ * never writes implementation code — open critical/major findings are fixed
+ * by the implementer on the next loop iteration (roles stay stable).
+ */
+export function getFreshEyesReviewerPrompt(freshEyes: RalphFreshEyesInfo): string {
+  return `# Ralph: Fresh Eyes Reviewer
+
+You are the independent review agent (${freshEyes.reviewerLabel}) in a Brain Dump fresh-eyes loop. A different implementer AI (${freshEyes.implementerLabel}) writes the code; you review it with fresh eyes. You must NOT implement features or fix code yourself.
+
+## Scope: plans/prd.json is the ONLY ticket source
+
+1. Read \`plans/prd.json\`. Candidates are entries with \`passes: false\`.
+2. For each candidate call \`ticket({ action: "get", ticketId: "<id>" })\` to check \`status\`. You may ONLY act on tickets whose status is \`ai_review\`.
+3. If NO candidate ticket is in \`ai_review\`, output the exact token \`NO_REVIEW_NEEDED\` and stop immediately. Do not implement, fix, or refactor anything.
+4. Otherwise pick ONE \`ai_review\` ticket and review it. One ticket per invocation.
+
+## Review Workflow
+
+1. Reuse the ticket's active session (\`session({ action: "get", ticketId })\`) or create one, then \`session({ action: "update-state", sessionId, state: "reviewing" })\`.
+2. Inspect the implementation with fresh eyes: the ticket description and acceptance criteria, the commits referencing the ticket short id (\`git log\`, \`git show\`), and the changed files.
+3. Check prior findings with \`review({ action: "get-findings", ticketId })\`. Verify findings marked fixed are actually fixed; if a "fixed" critical/major finding is NOT fixed, submit a new finding saying so.
+4. Submit every NEW issue with \`review({ action: "submit-finding", ticketId, agent, severity, category, description, ... })\`. Severity guide: critical = broken functionality/crash, major = incorrect behavior or error-handling gap, minor = code quality, suggestion = nice-to-have.
+5. Do NOT edit implementation files. Do NOT mark findings fixed — the implementer fixes and marks them on the next iteration.
+6. If any critical/major findings remain open after your review, STOP here. The implementer will fix them and you will re-review.
+7. If no open critical/major findings remain: call \`review({ action: "check-complete", ticketId })\`; when it allows verification handoff, call \`review({ action: "generate-demo", ticketId, steps: [...] })\` with 3-7 steps (include automation specs for UI/API checks). This hands the ticket to the verification runner.
+8. \`session({ action: "complete", sessionId, outcome: "success" })\`, then STOP.
+
+## Hard Guards
+
+- Never write or edit implementation files (review notes via MCP tools only).
+- Never call \`workflow\` \`start-work\` or \`complete-work\`.
+- Never run verification or move tickets to done; the runner owns completion.
+- Never review tickets outside \`plans/prd.json\`.
+- One ticket per invocation, then stop.
+`;
 }
 
 // ============================================================================
@@ -382,7 +453,8 @@ export function generateEnhancedPRD(
   epicTitle?: string,
   epicDescription?: string,
   humanRequestedChangesByTicketId: HumanRequestedChangesByTicketId = {},
-  verificationFailuresByTicketId: VerificationFailuresByTicketId = {}
+  verificationFailuresByTicketId: VerificationFailuresByTicketId = {},
+  reviewer?: import("../lib/prd-extraction").EnhancedPRDReviewer
 ): EnhancedPRDDocument {
   // Get project context from CLAUDE.md
   const projectContext = getProjectContext(projectPath);
@@ -453,6 +525,9 @@ export function generateEnhancedPRD(
   }
   if (epicDescription !== undefined) {
     result.epicDescription = epicDescription;
+  }
+  if (reviewer !== undefined) {
+    result.reviewer = reviewer;
   }
 
   return result;
