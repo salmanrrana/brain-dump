@@ -214,7 +214,7 @@ describe("verifyTicket", () => {
     });
 
     expect(run.status).toBe("passed");
-    expect(run.manifest.port).toBeGreaterThanOrEqual(42_400);
+    expect(run.manifest.port).toBeGreaterThan(0);
     expect(run.manifest.bootCommand).toEqual([process.execPath, "-e", script]);
   });
 
@@ -232,7 +232,7 @@ describe("verifyTicket", () => {
     });
 
     expect(run.status).toBe("infra_error");
-    expect(run.manifest.port).toBeGreaterThanOrEqual(42_400);
+    expect(run.manifest.port).toBeGreaterThan(0);
     expect(run.manifest.bootCommand).toEqual([process.execPath, "-e", script]);
     expect(run.manifest.bootLog).toContain("devtools EADDRINUSE fixed event bus port");
     expect(run.manifest.bootLog).toContain("Boot command exited before readiness");
@@ -261,12 +261,12 @@ describe("verifyTicket", () => {
     });
 
     expect(run.status).toBe("infra_error");
-    expect(run.manifest.port).toBeGreaterThanOrEqual(42_400);
+    expect(run.manifest.port).toBeGreaterThan(0);
     expect(run.manifest.bootCommand).toEqual([process.execPath, "-e", script]);
     expect(run.manifest.bootLog).toContain("ready before step failure");
   });
 
-  it("waits for UI text assertions instead of reading text content immediately", async () => {
+  it("skips the splash screen and waits for UI text assertions", async () => {
     seedDemo([uiTextStep()]);
     const waitFor = vi.fn(async () => {});
     const isVisible = vi.fn(async () => true);
@@ -274,6 +274,7 @@ describe("verifyTicket", () => {
     const toContainText = vi.fn(async () => {});
     const addInitScript = vi.fn(async () => {});
     const goto = vi.fn(async () => {});
+    const evaluate = vi.fn(async () => ({ ok: true }));
     const screenshot = vi.fn(async ({ path }: { path: string }) =>
       writeFileSync(path, "fake image")
     );
@@ -288,6 +289,7 @@ describe("verifyTicket", () => {
           newPage: vi.fn(async () => ({
             addInitScript,
             goto,
+            evaluate,
             keyboard: { press: vi.fn(async () => {}) },
             locator,
             screenshot,
@@ -303,11 +305,57 @@ describe("verifyTicket", () => {
     const run = await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
 
     expect(run.status).toBe("passed");
-    expect(addInitScript).toHaveBeenCalledWith(expect.any(Function), "bd:splash-shown");
+    expect(addInitScript).toHaveBeenCalledWith(expect.any(Function), {
+      resultKey: "__brainDumpVerificationSplashSkip",
+      splashShownKey: "bd:splash-shown",
+    });
     expect(goto).toHaveBeenCalledWith(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
+    expect(evaluate).toHaveBeenCalledWith(
+      expect.any(Function),
+      "__brainDumpVerificationSplashSkip"
+    );
     expect(toContainText).toHaveBeenCalledWith("Projects", { timeout: 10_000 });
     expect(textContent).not.toHaveBeenCalled();
     expect(close).toHaveBeenCalled();
+  });
+
+  it("fails UI steps when splash skip setup fails", async () => {
+    seedDemo([uiTextStep()]);
+    const waitFor = vi.fn(async () => {});
+    const isVisible = vi.fn(async () => true);
+    const toContainText = vi.fn(async () => {});
+    const screenshot = vi.fn(async ({ path }: { path: string }) =>
+      writeFileSync(path, "fake image")
+    );
+    const locator = vi.fn(() => ({
+      first: () => ({ isVisible }),
+      waitFor,
+    }));
+    vi.doMock("@playwright/test", () => ({
+      chromium: {
+        launch: vi.fn(async () => ({
+          newPage: vi.fn(async () => ({
+            addInitScript: vi.fn(async () => {}),
+            goto: vi.fn(async () => {}),
+            evaluate: vi.fn(async () => ({ ok: false, error: "session storage disabled" })),
+            keyboard: { press: vi.fn(async () => {}) },
+            locator,
+            screenshot,
+            url: () => "http://127.0.0.1:4242/",
+          })),
+          close: vi.fn(async () => {}),
+        })),
+      },
+      expect: () => ({ toContainText }),
+    }));
+    const baseUrl = await startFixtureServer();
+
+    const run = await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+
+    expect(run.status).toBe("failed");
+    expect(run.manifest.stepVerdicts[0]?.message).toContain(
+      "Brain Dump splash skip setup failed: session storage disabled"
+    );
   });
 
   it("records a certified run and completes the ticket when all automation passes", async () => {

@@ -2,6 +2,7 @@ import { randomUUID, createHmac } from "crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import { spawn } from "child_process";
+import { createServer } from "net";
 import type {
   DbHandle,
   DemoStep,
@@ -134,11 +135,18 @@ interface GitInfo {
   changedFiles: string[];
 }
 
+interface BrowserSplashSkipResult {
+  ok: boolean;
+  error?: string;
+}
+
 const BODY_LIMIT = 16_384;
 const BOOT_LOG_LIMIT = 8_192;
 const DEFAULT_TIMEOUT_MS = 30_000;
 const UI_ASSERTION_TIMEOUT_MS = 10_000;
-const BRAIN_DUMP_SPLASH_SHOWN_KEY = "bd:splash-shown";
+// Mirrors src/routes/__root.tsx so verifier-controlled Brain Dump boots skip the cold splash.
+const SPLASH_SHOWN_KEY = "bd:splash-shown";
+const SPLASH_SKIP_RESULT_KEY = "__brainDumpVerificationSplashSkip";
 
 function truncate(value: string, limit = BODY_LIMIT): string {
   if (value.length <= limit) return value;
@@ -530,8 +538,26 @@ function discoverBootCommand(projectPath: string, port: number): string[] {
   }
 }
 
-function choosePort(): number {
-  return 42_400 + Math.floor(Math.random() * 1000);
+async function chooseFreePort(): Promise<number> {
+  return await new Promise<number>((resolve, reject) => {
+    const server = createServer();
+    server.unref();
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        if (!address || typeof address === "string") {
+          reject(new ValidationError("Unable to reserve a free verification boot port."));
+          return;
+        }
+        resolve(address.port);
+      });
+    });
+  });
 }
 
 async function sleep(ms: number): Promise<void> {
@@ -566,7 +592,7 @@ async function bootApp(params: {
   timeoutMs: number;
 }): Promise<BootedApp> {
   const url = params.baseUrl ? new URL(params.baseUrl) : null;
-  const port = url?.port ? Number(url.port) : choosePort();
+  const port = url?.port ? Number(url.port) : await chooseFreePort();
   const baseUrl = params.baseUrl ?? `http://127.0.0.1:${port}`;
   if (params.baseUrl) {
     await waitForReady(baseUrl, params.fetchImpl, params.timeoutMs);
@@ -823,14 +849,31 @@ async function runUiStep(
   const failures: string[] = [];
   try {
     try {
-      await page.addInitScript((key) => {
-        try {
-          sessionStorage.setItem(key, "1");
-        } catch {
-          // Best-effort: if sessionStorage is unavailable, UI assertions still fail loudly.
-        }
-      }, BRAIN_DUMP_SPLASH_SHOWN_KEY);
+      await page.addInitScript(
+        ({ resultKey, splashShownKey }) => {
+          const state = window as unknown as Record<string, BrowserSplashSkipResult>;
+          try {
+            sessionStorage.setItem(splashShownKey, "1");
+            state[resultKey] = { ok: true };
+          } catch (error) {
+            state[resultKey] = {
+              ok: false,
+              error: error instanceof Error ? error.message : String(error),
+            };
+          }
+        },
+        { resultKey: SPLASH_SKIP_RESULT_KEY, splashShownKey: SPLASH_SHOWN_KEY }
+      );
       await page.goto(url, { waitUntil: "domcontentloaded" });
+      const splashSkipResult = await page.evaluate((resultKey) => {
+        const state = window as unknown as Record<string, BrowserSplashSkipResult | undefined>;
+        return state[resultKey] ?? { ok: false, error: "init script did not report a result" };
+      }, SPLASH_SKIP_RESULT_KEY);
+      if (!splashSkipResult.ok) {
+        failures.push(
+          `Brain Dump splash skip setup failed: ${splashSkipResult.error ?? "unknown"}`
+        );
+      }
       for (const action of step.automation.actions ?? []) {
         if (action.act === "click") await page.locator(action.selector ?? "").click();
         if (action.act === "fill")
