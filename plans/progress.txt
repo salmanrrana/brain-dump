@@ -1,6 +1,15 @@
 # Ralph Progress Log
 # Previous entries archived to: archives/progress-20260315-130551.txt
 
+### 2026-07-06 - Ralph Session: Ticket fd379617 legacy handoff audit
+- **Ticket:** fd379617-5789-4165-855e-313958822e94 — Repair legacy handoffs and regenerate executable demos for the AI Verification Gate epic
+- **Live epic audit:** `ticket.list-by-epic` found 31 tickets in epic `bc99b396-465b-4b36-8443-223a854f6de4`: 6 `done`, 3 `ai_verification`, 1 `in_progress`, and 21 `backlog`/`ready` waiting for implementation. No ticket is currently in legacy `human_review`.
+- **AI verification handoffs:** Current `ai_verification` tickets have executable demo scripts with no manual-only steps: `714bbbdd` has 2 UI steps and 1 API step, `92b41d17` has 3 UI steps and 1 API step, and `5ea2e1e6` has 3 UI steps.
+- **Remaining verification state:** `714bbbdd` is blocked by a recorded verifier app-readiness infra error; `92b41d17` and `5ea2e1e6` have no recorded verification runs yet. `review.get-verification-job` reported no queued/running job for all three current `ai_verification` tickets, so automatic queue repair remains future work and this Ralph session did not run verification manually.
+- **PRD sync:** Scoped `plans/prd.json` has `passes:false` for all 25 non-done epic tickets and `passes:true` only for scoped tickets that are live `done`.
+
+---
+
 
 ### 2026-02-13 17:57:37 - Session Timeout
 - **Reason:** Timeout reached (1h limit)
