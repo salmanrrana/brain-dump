@@ -4,7 +4,7 @@
 ### 2026-07-06 - Ralph Session: Ticket fd379617 verification handoff repair
 - **Ticket:** fd379617-5789-4165-855e-313958822e94 — Repair legacy handoffs and regenerate executable demos for the AI Verification Gate epic
 - **Verification failure triage:** Run `739fed15-efa4-49fc-b84d-6c30cce70c86` failed only step 4 because the API check fetched `/ticket/fd379617-5789-4165-855e-313958822e94` and expected client-rendered ticket text in the initial HTML shell.
-- **Repair:** Treat the failed API/body-text assertion as an invalid handoff spec, not an application regression. The replacement demo should use UI automation for rendered ticket content and file automation for the persisted audit record/PRD state, avoiding shallow HTML body checks.
+- **Repair:** Treat the failed API/body-text assertion as an invalid handoff spec, not an application regression. Run `739fed15-efa4-49fc-b84d-6c30cce70c86` remains failed and non-certified until a replacement demo is generated and runner-certified. The replacement demo should verify rendered ticket content through UI automation and persisted audit/PRD state without shallow HTML body checks.
 
 ---
 
