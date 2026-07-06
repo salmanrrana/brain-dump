@@ -268,8 +268,9 @@ export type DemoStepAutomationValue =
   | string
   | number
   | boolean
-  | Record<string, NonNullable<unknown>>
-  | Array<NonNullable<unknown>>;
+  | null
+  | { [key: string]: DemoStepAutomationValue }
+  | DemoStepAutomationValue[];
 
 export interface DemoStepUiAutomation {
   kind: "ui";

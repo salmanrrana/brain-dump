@@ -12,6 +12,7 @@ import type {
   ReviewCompletionStatus,
   DemoScript,
   DemoStep,
+  DemoStepAutomationValue,
   FindingSeverity,
   FindingStatus,
   FindingAgent,
@@ -351,6 +352,35 @@ function validateStringRecord(value: unknown, path: string): void {
   }
 }
 
+function validateAutomationValue(
+  value: unknown,
+  path: string,
+  seen = new Set<object>()
+): asserts value is DemoStepAutomationValue {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return;
+  if (typeof value === "number") {
+    if (Number.isFinite(value)) return;
+    throw new ValidationError(`${path} must be a finite JSON number.`);
+  }
+  if (Array.isArray(value)) {
+    if (seen.has(value)) throw new ValidationError(`${path} must not contain circular data.`);
+    seen.add(value);
+    value.forEach((entry, index) => validateAutomationValue(entry, `${path}[${index}]`, seen));
+    seen.delete(value);
+    return;
+  }
+  if (isRecord(value)) {
+    if (seen.has(value)) throw new ValidationError(`${path} must not contain circular data.`);
+    seen.add(value);
+    for (const [key, entry] of Object.entries(value)) {
+      validateAutomationValue(entry, `${path}.${key}`, seen);
+    }
+    seen.delete(value);
+    return;
+  }
+  throw new ValidationError(`${path} must be JSON-serializable data.`);
+}
+
 function validateUiAutomation(step: DemoStep, index: number): void {
   const label = getStepLabel(step, index);
   const automation = step.automation;
@@ -384,14 +414,23 @@ function validateUiAutomation(step: DemoStep, index: number): void {
     throw new ValidationError(`${label} UI automation assert must contain at least one assertion.`);
   }
   for (const [assertIndex, assertion] of automation.assert.entries()) {
+    const assertionType = isRecord(assertion) ? String(assertion.type) : "";
     if (
       !isRecord(assertion) ||
-      !["visible", "text", "url"].includes(String(assertion.type)) ||
+      !["visible", "text", "url"].includes(assertionType) ||
       (assertion.selector !== undefined && typeof assertion.selector !== "string") ||
       (assertion.expected !== undefined && typeof assertion.expected !== "string")
     ) {
       throw new ValidationError(
         `${label} UI automation assertion at index ${assertIndex} is invalid.`
+      );
+    }
+    if (
+      (assertionType === "text" || assertionType === "url") &&
+      (typeof assertion.expected !== "string" || assertion.expected.length === 0)
+    ) {
+      throw new ValidationError(
+        `${label} UI automation ${assertionType} assertion at index ${assertIndex} requires a non-empty expected value.`
       );
     }
   }
@@ -417,6 +456,9 @@ function validateApiAutomation(step: DemoStep, index: number): void {
   if (automation.request.headers !== undefined) {
     validateStringRecord(automation.request.headers, `${label} API automation request headers`);
   }
+  if (automation.request.body !== undefined) {
+    validateAutomationValue(automation.request.body, `${label} API automation request body`);
+  }
   if (!Array.isArray(automation.assert) || automation.assert.length === 0) {
     throw new ValidationError(
       `${label} API automation assert must contain at least one assertion.`
@@ -433,16 +475,19 @@ function validateApiAutomation(step: DemoStep, index: number): void {
         `${label} API automation assertion at index ${assertIndex} is invalid.`
       );
     }
+    validateAutomationValue(
+      assertion.expected,
+      `${label} API automation assertion at index ${assertIndex} expected`
+    );
   }
 }
 
 function validateDemoStepAutomation(step: DemoStep, index: number): void {
   const label = getStepLabel(step, index);
   if (step.type === "manual") {
-    if (step.automation !== undefined) {
-      throw new ValidationError(`${label} is manual and must not include automation.`);
-    }
-    return;
+    throw new ValidationError(
+      `${label} is manual. AI verification handoff steps must be visual or automated with executable automation.`
+    );
   }
 
   if (step.automation === undefined) {
@@ -482,7 +527,7 @@ function validateDemoSteps(steps: GenerateDemoParams["steps"]): void {
 
   if (executableSteps === 0) {
     throw new ValidationError(
-      "Demo scripts for AI verification must include at least one visual or automated step with executable automation. Manual steps are audit-only and cannot certify a ticket."
+      "Demo scripts for AI verification must include at least one visual or automated step with executable automation. Manual steps are legacy read-only data and cannot enter AI verification."
     );
   }
 }
@@ -504,13 +549,25 @@ export function repairLegacyHumanReviewHandoff(
   }
 
   const now = new Date().toISOString();
-  const demo = db.prepare("SELECT id FROM demo_scripts WHERE ticket_id = ?").get(ticketId) as
-    | { id: string }
-    | undefined;
-  const newStatus = demo ? "ai_verification" : "ai_review";
-  const reason = demo
-    ? "Legacy human_review ticket has a demo script; moved to AI verification for runner certification."
-    : "Legacy human_review ticket has no demo script; moved to AI review so a verification handoff can be regenerated.";
+  const demo = db
+    .prepare("SELECT id, steps FROM demo_scripts WHERE ticket_id = ?")
+    .get(ticketId) as { id: string; steps: string } | undefined;
+  let newStatus: "ai_review" | "ai_verification" = "ai_review";
+  let reason =
+    "Legacy human_review ticket has no demo script; moved to AI review so a verification handoff can be regenerated.";
+
+  if (demo) {
+    try {
+      const steps = JSON.parse(demo.steps) as GenerateDemoParams["steps"];
+      validateDemoSteps(steps);
+      newStatus = "ai_verification";
+      reason =
+        "Legacy human_review ticket has a valid executable demo script; moved to AI verification for runner certification.";
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      reason = `Legacy human_review ticket has an invalid demo script; moved to AI review so a verification handoff can be regenerated. Invalid demo: ${message}`;
+    }
+  }
 
   getOrCreateWorkflowState(db, ticketId);
   db.prepare("UPDATE tickets SET status = ?, updated_at = ? WHERE id = ?").run(
@@ -520,7 +577,7 @@ export function repairLegacyHumanReviewHandoff(
   );
   db.prepare(
     "UPDATE ticket_workflow_state SET current_phase = ?, demo_generated = ?, updated_at = ? WHERE ticket_id = ?"
-  ).run(newStatus, demo ? 1 : 0, now, ticketId);
+  ).run(newStatus, newStatus === "ai_verification" ? 1 : 0, now, ticketId);
   addComment(db, {
     ticketId,
     author: "brain-dump",

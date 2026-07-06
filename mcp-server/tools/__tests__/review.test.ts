@@ -191,9 +191,14 @@ describe("review tool generate-demo PR sync", () => {
           },
           {
             order: 1,
-            description: "Generate the demo script",
-            expectedOutcome: "The ticket moves to ai_verification.",
-            type: "manual",
+            description: "Check the status API",
+            expectedOutcome: "The status endpoint returns OK.",
+            type: "automated",
+            automation: {
+              kind: "api",
+              request: { method: "GET", path: "/api/status" },
+              assert: [{ type: "status", expected: 200 }],
+            },
           },
         ],
       },
@@ -208,9 +213,9 @@ describe("review tool generate-demo PR sync", () => {
     );
     expect(result.content[0]?.text).toContain("Updated PR #42 with 2 demo steps.");
     expect(readPrdPasses(tempDir)).toBe(false);
-    expect(readFileSync(editedBodyPath, "utf8")).toContain("1. Generate the demo script");
+    expect(readFileSync(editedBodyPath, "utf8")).toContain("1. Check the status API");
     expect(readFileSync(editedBodyPath, "utf8")).toContain(
-      "Expected: The ticket moves to ai_verification."
+      "Expected: The status endpoint returns OK."
     );
 
     const ticket = db.prepare("SELECT status FROM tickets WHERE id = ?").get("ticket-1") as {
@@ -307,5 +312,32 @@ describe("review tool generate-demo PR sync", () => {
 
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain("API automation assertion at index 0 is invalid");
+  });
+
+  it("blocks legacy handoff repair before mutation when the scoped PRD is malformed", async () => {
+    seedProject(db, { id: "proj-1", path: tempDir });
+    seedTicket(db, { id: "ticket-1", projectId: "proj-1", status: "human_review" });
+    writeMalformedPrd(tempDir);
+
+    const server = new McpServer({ name: "test", version: "1.0.0" });
+    registerReviewTool(server, db);
+
+    const handler = getToolHandler(server, "review");
+    const result = (await handler(
+      {
+        action: "repair-legacy-handoff",
+        ticketId: "ticket-1",
+      },
+      {}
+    )) as { content: Array<{ text: string }>; isError?: boolean };
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Cannot repair legacy handoff because PRD sync failed"
+    );
+    const ticket = db.prepare("SELECT status FROM tickets WHERE id = ?").get("ticket-1") as {
+      status: string;
+    };
+    expect(ticket.status).toBe("human_review");
   });
 });

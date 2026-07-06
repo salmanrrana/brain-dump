@@ -507,9 +507,8 @@ describe("generateDemo", () => {
     const demo = generateDemo(db, {
       ticketId: "ticket-1",
       steps: [
-        { order: 1, description: "Open the app", expectedOutcome: "App loads", type: "manual" },
         {
-          order: 2,
+          order: 1,
           description: "Check the status API",
           expectedOutcome: "The status endpoint returns OK",
           type: "automated",
@@ -524,15 +523,15 @@ describe("generateDemo", () => {
 
     expect(demo.id).toBeTruthy();
     expect(demo.ticketId).toBe("ticket-1");
-    expect(demo.steps.length).toBe(2);
-    expect(demo.steps[0]!.description).toBe("Open the app");
+    expect(demo.steps.length).toBe(1);
+    expect(demo.steps[0]!.description).toBe("Check the status API");
 
     // Verify ticket status changed
     const ticket = db.prepare("SELECT status FROM tickets WHERE id = ?").get("ticket-1") as {
       status: string;
     };
     expect(ticket.status).toBe("ai_verification");
-    expect(demo.steps[1]!.automation).toMatchObject({ kind: "api" });
+    expect(demo.steps[0]!.automation).toMatchObject({ kind: "api" });
   });
 
   it("accepts and persists UI automation specs for visual steps", () => {
@@ -581,7 +580,7 @@ describe("generateDemo", () => {
     ).toThrow(/requires automation/);
   });
 
-  it("rejects manual steps with automation", () => {
+  it("rejects manual steps even when automation is present", () => {
     seedProject();
     seedAiReviewTicket();
 
@@ -602,10 +601,10 @@ describe("generateDemo", () => {
           },
         ],
       })
-    ).toThrow(/must not include automation/);
+    ).toThrow(/manual.*must be visual or automated/);
   });
 
-  it("rejects manual-only demo scripts because manual steps are audit-only", () => {
+  it("rejects manual-only demo scripts because manual steps cannot enter verification", () => {
     seedProject();
     seedAiReviewTicket();
 
@@ -616,7 +615,31 @@ describe("generateDemo", () => {
           { order: 1, description: "Manual smoke", expectedOutcome: "Looks good", type: "manual" },
         ],
       })
-    ).toThrow(/at least one visual or automated step/);
+    ).toThrow(/manual.*must be visual or automated/);
+  });
+
+  it("rejects UI text and URL assertions without expected values", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    const steps = [
+      {
+        order: 1,
+        description: "Open the app",
+        expectedOutcome: "The app URL is correct",
+        type: "visual",
+        automation: {
+          kind: "ui",
+          route: "/",
+          assert: [{ type: "url" }],
+          screenshot: true,
+        },
+      },
+    ] as unknown as DemoStep[];
+
+    expect(() => generateDemo(db, { ticketId: "ticket-1", steps })).toThrow(
+      /url assertion at index 0 requires a non-empty expected value/
+    );
   });
 
   it("rejects malformed automation specs with a helpful error", () => {
@@ -664,6 +687,29 @@ describe("generateDemo", () => {
 
     expect(() => generateDemo(db, { ticketId: "ticket-1", steps })).toThrow(
       /API automation assertion at index 0 is invalid/
+    );
+  });
+
+  it("rejects API automation values that cannot be stored as JSON", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    const steps = [
+      {
+        order: 1,
+        description: "Check the status API",
+        expectedOutcome: "The status endpoint returns OK",
+        type: "automated",
+        automation: {
+          kind: "api",
+          request: { method: "POST", path: "/api/status", body: { value: Number.NaN } },
+          assert: [{ type: "jsonPath", expected: { ok: true } }],
+        },
+      },
+    ] as unknown as DemoStep[];
+
+    expect(() => generateDemo(db, { ticketId: "ticket-1", steps })).toThrow(
+      /API automation request body.value must be a finite JSON number/
     );
   });
 
@@ -780,7 +826,7 @@ describe("generateDemo", () => {
     const demo = generateDemo(db, {
       ticketId: "ticket-1",
       steps: [
-        { order: 1, description: "New step", expectedOutcome: "Updated", type: "manual" },
+        automatedStep(1),
         {
           order: 2,
           description: "Confirm refresh",
@@ -797,7 +843,7 @@ describe("generateDemo", () => {
 
     expect(demo.id).toBe("demo-1");
     expect(demo.steps).toHaveLength(2);
-    expect(demo.steps[0]!.description).toBe("New step");
+    expect(demo.steps[0]!.description).toBe("Check the status API");
     expect(demo.generatedAt).not.toBe(originalGeneratedAt);
     expect(demo.executedAt).toBeNull();
     expect(demo.feedback).toBeNull();
@@ -894,6 +940,31 @@ describe("repairLegacyHumanReviewHandoff", () => {
     expect(ticket.status).toBe("ai_review");
   });
 
+  it("moves legacy human_review tickets with invalid demo scripts back to ai_review", () => {
+    seedProject();
+    seedHumanReviewTicket();
+    db.prepare(
+      `INSERT INTO demo_scripts (id, ticket_id, steps, generated_at)
+       VALUES (?, ?, ?, ?)`
+    ).run(
+      "demo-1",
+      "ticket-1",
+      JSON.stringify([
+        { order: 1, description: "Manual only", expectedOutcome: "Looks good", type: "manual" },
+      ]),
+      new Date().toISOString()
+    );
+
+    const result = repairLegacyHumanReviewHandoff(db, "ticket-1");
+
+    expect(result.newStatus).toBe("ai_review");
+    expect(result.reason).toContain("invalid demo script");
+    const ticket = db.prepare("SELECT status FROM tickets WHERE id = ?").get("ticket-1") as {
+      status: string;
+    };
+    expect(ticket.status).toBe("ai_review");
+  });
+
   it("rejects non-legacy statuses", () => {
     seedProject();
     seedAiReviewTicket();
@@ -972,7 +1043,7 @@ describe("updateDemoStep", () => {
     const demo = generateDemo(db, {
       ticketId: "ticket-1",
       steps: [
-        { order: 1, description: "Step 1", expectedOutcome: "OK", type: "manual" },
+        automatedStep(1),
         {
           order: 2,
           description: "Step 2",

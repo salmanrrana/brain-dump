@@ -179,13 +179,13 @@ export function handle(action: string, args: string[]): void {
 
       case "repair-legacy-handoff": {
         const ticketId = requireFlag(flags, "ticket");
-        const result = repairLegacyHumanReviewHandoff(db, ticketId);
         const prdSync = updatePrdForDbTicketIfPresent(db, ticketId, false);
         if (prdSync.required && !prdSync.success) {
           throw new ValidationError(
             `Cannot repair legacy handoff because PRD sync failed: ${prdSync.message}`
           );
         }
+        const result = repairLegacyHumanReviewHandoff(db, ticketId);
         outputResult({ ...result, prdSync }, pretty);
         break;
       }

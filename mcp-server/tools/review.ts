@@ -131,7 +131,7 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
 ### mark-fixed - Mark finding as fixed, wont_fix, or duplicate
 ### get-findings - Get findings for a ticket (filterable by status, severity, agent)
 ### check-complete - Check if all critical/major findings resolved (returns canProceedToVerification)
-### generate-demo - Generate demo script for AI verification (moves ticket to ai_verification). visual/automated steps require automation specs; manual steps are audit-only and at least one executable step is required.
+### generate-demo - Generate demo script for AI verification (moves ticket to ai_verification). Steps must be visual/automated with executable automation specs; manual steps are legacy read-only data and are rejected for new handoffs.
 ### get-demo - Get the demo script for a ticket
 ### get-verification-history - Read verification run history for a ticket
 ### repair-legacy-handoff - Repair a legacy human_review ticket to ai_verification (with demo) or ai_review (without demo)
@@ -376,13 +376,13 @@ No MCP action uploads evidence or marks verification passed. The verification ru
 
           case "repair-legacy-handoff": {
             const ticketId = requireParam(params.ticketId, "ticketId", "repair-legacy-handoff");
-            const result = repairLegacyHumanReviewHandoff(db, ticketId);
             const prdSync = syncPrdPassMarker(db, ticketId, false);
             if (prdSync.required && !prdSync.success) {
               throw new Error(
                 `Cannot repair legacy handoff because PRD sync failed: ${prdSync.message}`
               );
             }
+            const result = repairLegacyHumanReviewHandoff(db, ticketId);
             return formatResult(
               { ...result, prdSync },
               `Legacy human_review handoff repaired: ticket moved to ${result.newStatus}.\n\n${formatPrdSyncNote(prdSync)}`
