@@ -272,6 +272,8 @@ describe("verifyTicket", () => {
     const isVisible = vi.fn(async () => true);
     const textContent = vi.fn(async () => "Loading Brain Dump");
     const toContainText = vi.fn(async () => {});
+    const addInitScript = vi.fn(async () => {});
+    const goto = vi.fn(async () => {});
     const screenshot = vi.fn(async ({ path }: { path: string }) =>
       writeFileSync(path, "fake image")
     );
@@ -284,7 +286,8 @@ describe("verifyTicket", () => {
       chromium: {
         launch: vi.fn(async () => ({
           newPage: vi.fn(async () => ({
-            goto: vi.fn(async () => {}),
+            addInitScript,
+            goto,
             keyboard: { press: vi.fn(async () => {}) },
             locator,
             screenshot,
@@ -300,6 +303,8 @@ describe("verifyTicket", () => {
     const run = await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
 
     expect(run.status).toBe("passed");
+    expect(addInitScript).toHaveBeenCalledWith(expect.any(Function), "bd:splash-shown");
+    expect(goto).toHaveBeenCalledWith(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
     expect(toContainText).toHaveBeenCalledWith("Projects", { timeout: 10_000 });
     expect(textContent).not.toHaveBeenCalled();
     expect(close).toHaveBeenCalled();

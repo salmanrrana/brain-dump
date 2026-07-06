@@ -138,6 +138,7 @@ const BODY_LIMIT = 16_384;
 const BOOT_LOG_LIMIT = 8_192;
 const DEFAULT_TIMEOUT_MS = 30_000;
 const UI_ASSERTION_TIMEOUT_MS = 10_000;
+const BRAIN_DUMP_SPLASH_SHOWN_KEY = "bd:splash-shown";
 
 function truncate(value: string, limit = BODY_LIMIT): string {
   if (value.length <= limit) return value;
@@ -822,7 +823,14 @@ async function runUiStep(
   const failures: string[] = [];
   try {
     try {
-      await page.goto(url);
+      await page.addInitScript((key) => {
+        try {
+          sessionStorage.setItem(key, "1");
+        } catch {
+          // Best-effort: if sessionStorage is unavailable, UI assertions still fail loudly.
+        }
+      }, BRAIN_DUMP_SPLASH_SHOWN_KEY);
+      await page.goto(url, { waitUntil: "domcontentloaded" });
       for (const action of step.automation.actions ?? []) {
         if (action.act === "click") await page.locator(action.selector ?? "").click();
         if (action.act === "fill")
