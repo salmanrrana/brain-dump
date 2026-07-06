@@ -303,6 +303,7 @@ export {
   getFindings,
   checkComplete,
   validateGenerateDemo,
+  validateRepairLegacyHumanReviewHandoff,
   generateDemo,
   getDemo,
   repairLegacyHumanReviewHandoff,

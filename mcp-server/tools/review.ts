@@ -21,6 +21,7 @@ import {
   validateGenerateDemo,
   generateDemo,
   getDemo,
+  validateRepairLegacyHumanReviewHandoff,
   repairLegacyHumanReviewHandoff,
 } from "../../core/review.ts";
 import { listVerificationRuns } from "../../core/verification.ts";
@@ -376,6 +377,7 @@ No MCP action uploads evidence or marks verification passed. The verification ru
 
           case "repair-legacy-handoff": {
             const ticketId = requireParam(params.ticketId, "ticketId", "repair-legacy-handoff");
+            validateRepairLegacyHumanReviewHandoff(db, ticketId);
             const prdSync = syncPrdPassMarker(db, ticketId, false);
             if (prdSync.required && !prdSync.success) {
               throw new Error(

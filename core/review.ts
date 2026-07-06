@@ -341,6 +341,12 @@ function getStepLabel(step: DemoStep, index: number): string {
   return `Demo step at index ${index}${typeof step.order === "number" ? ` (order ${step.order})` : ""}`;
 }
 
+function validateAppRelativePath(value: string, path: string): void {
+  if (!value.startsWith("/") || value.startsWith("//") || /^[a-zA-Z][a-zA-Z\d+.-]*:/.test(value)) {
+    throw new ValidationError(`${path} must be an app-relative path starting with "/".`);
+  }
+}
+
 function validateStringRecord(value: unknown, path: string): void {
   if (!isRecord(value)) {
     throw new ValidationError(`${path} must be an object with string values.`);
@@ -370,6 +376,10 @@ function validateAutomationValue(
     return;
   }
   if (isRecord(value)) {
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) {
+      throw new ValidationError(`${path} must be a plain JSON object.`);
+    }
     if (seen.has(value)) throw new ValidationError(`${path} must not contain circular data.`);
     seen.add(value);
     for (const [key, entry] of Object.entries(value)) {
@@ -390,6 +400,7 @@ function validateUiAutomation(step: DemoStep, index: number): void {
   if (typeof automation.route !== "string" || automation.route.length === 0) {
     throw new ValidationError(`${label} UI automation route is required.`);
   }
+  validateAppRelativePath(automation.route, `${label} UI automation route`);
   if (automation.screenshot !== true) {
     throw new ValidationError(`${label} UI automation screenshot must be true.`);
   }
@@ -453,6 +464,7 @@ function validateApiAutomation(step: DemoStep, index: number): void {
   ) {
     throw new ValidationError(`${label} API automation request method and path are required.`);
   }
+  validateAppRelativePath(automation.request.path, `${label} API automation request path`);
   if (automation.request.headers !== undefined) {
     validateStringRecord(automation.request.headers, `${label} API automation request headers`);
   }
@@ -509,12 +521,18 @@ function validateDemoSteps(steps: GenerateDemoParams["steps"]): void {
     throw new ValidationError("Demo steps must be an array.");
   }
 
-  let executableSteps = 0;
+  if (steps.length === 0) {
+    throw new ValidationError(
+      "Demo scripts for AI verification must include at least one visual or automated step with executable automation. Manual steps are legacy read-only data and cannot enter AI verification."
+    );
+  }
+
   for (const [index, step] of steps.entries()) {
     if (
       typeof step !== "object" ||
       step === null ||
-      typeof step.order !== "number" ||
+      !Number.isSafeInteger(step.order) ||
+      step.order <= 0 ||
       typeof step.description !== "string" ||
       typeof step.expectedOutcome !== "string" ||
       !["manual", "visual", "automated"].includes(step.type)
@@ -522,13 +540,6 @@ function validateDemoSteps(steps: GenerateDemoParams["steps"]): void {
       throw new ValidationError(`Demo step at index ${index} is invalid.`);
     }
     validateDemoStepAutomation(step, index);
-    if (step.type !== "manual") executableSteps += 1;
-  }
-
-  if (executableSteps === 0) {
-    throw new ValidationError(
-      "Demo scripts for AI verification must include at least one visual or automated step with executable automation. Manual steps are legacy read-only data and cannot enter AI verification."
-    );
   }
 }
 
@@ -539,19 +550,27 @@ export interface RepairLegacyHumanReviewResult {
   reason: string;
 }
 
-export function repairLegacyHumanReviewHandoff(
-  db: DbHandle,
-  ticketId: string
-): RepairLegacyHumanReviewResult {
+function getRepairableLegacyHumanReviewTicket(db: DbHandle, ticketId: string): void {
   const ticket = getTicketRow(db, ticketId);
   if (ticket.status !== "human_review") {
     throw new InvalidStateError("ticket", ticket.status, "human_review", "repair legacy handoff");
   }
+}
+
+export function validateRepairLegacyHumanReviewHandoff(db: DbHandle, ticketId: string): void {
+  getRepairableLegacyHumanReviewTicket(db, ticketId);
+}
+
+export function repairLegacyHumanReviewHandoff(
+  db: DbHandle,
+  ticketId: string
+): RepairLegacyHumanReviewResult {
+  getRepairableLegacyHumanReviewTicket(db, ticketId);
 
   const now = new Date().toISOString();
-  const demo = db
-    .prepare("SELECT id, steps FROM demo_scripts WHERE ticket_id = ?")
-    .get(ticketId) as { id: string; steps: string } | undefined;
+  const demo = db.prepare("SELECT steps FROM demo_scripts WHERE ticket_id = ?").get(ticketId) as
+    | { steps: string }
+    | undefined;
   let newStatus: "ai_review" | "ai_verification" = "ai_review";
   let reason =
     "Legacy human_review ticket has no demo script; moved to AI review so a verification handoff can be regenerated.";
@@ -569,21 +588,23 @@ export function repairLegacyHumanReviewHandoff(
     }
   }
 
-  getOrCreateWorkflowState(db, ticketId);
-  db.prepare("UPDATE tickets SET status = ?, updated_at = ? WHERE id = ?").run(
-    newStatus,
-    now,
-    ticketId
-  );
-  db.prepare(
-    "UPDATE ticket_workflow_state SET current_phase = ?, demo_generated = ?, updated_at = ? WHERE ticket_id = ?"
-  ).run(newStatus, newStatus === "ai_verification" ? 1 : 0, now, ticketId);
-  addComment(db, {
-    ticketId,
-    author: "brain-dump",
-    type: "comment",
-    content: `## Legacy Workflow Repair\n\n${reason}\n\nManual approval has been retired; the verification runner owns completion.`,
-  });
+  db.transaction(() => {
+    getOrCreateWorkflowState(db, ticketId);
+    db.prepare("UPDATE tickets SET status = ?, updated_at = ? WHERE id = ?").run(
+      newStatus,
+      now,
+      ticketId
+    );
+    db.prepare(
+      "UPDATE ticket_workflow_state SET current_phase = ?, demo_generated = ?, updated_at = ? WHERE ticket_id = ?"
+    ).run(newStatus, newStatus === "ai_verification" ? 1 : 0, now, ticketId);
+    addComment(db, {
+      ticketId,
+      author: "brain-dump",
+      type: "comment",
+      content: `## Legacy Workflow Repair\n\n${reason}\n\nManual approval has been retired; the verification runner owns completion.`,
+    });
+  })();
   return { ticketId, previousStatus: "human_review", newStatus, reason };
 }
 

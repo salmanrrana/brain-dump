@@ -642,6 +642,69 @@ describe("generateDemo", () => {
     );
   });
 
+  it("rejects UI automation routes outside the local app", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    const steps = [
+      {
+        order: 1,
+        description: "Open an external page",
+        expectedOutcome: "External page is visible",
+        type: "visual",
+        automation: {
+          kind: "ui",
+          route: "https://example.com/tickets/ticket-1",
+          assert: [{ type: "visible", selector: "body" }],
+          screenshot: true,
+        },
+      },
+    ] as unknown as DemoStep[];
+
+    expect(() => generateDemo(db, { ticketId: "ticket-1", steps })).toThrow(
+      /UI automation route must be an app-relative path/
+    );
+  });
+
+  it("rejects API automation paths outside the local app", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    const steps = [
+      {
+        order: 1,
+        description: "Call an external API",
+        expectedOutcome: "External API responds",
+        type: "automated",
+        automation: {
+          kind: "api",
+          request: { method: "GET", path: "//example.com/api/status" },
+          assert: [{ type: "status", expected: 200 }],
+        },
+      },
+    ] as unknown as DemoStep[];
+
+    expect(() => generateDemo(db, { ticketId: "ticket-1", steps })).toThrow(
+      /API automation request path must be an app-relative path/
+    );
+  });
+
+  it("rejects non-finite demo step order values", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    const steps = [
+      {
+        ...automatedStep(),
+        order: Number.POSITIVE_INFINITY,
+      },
+    ] as unknown as DemoStep[];
+
+    expect(() => generateDemo(db, { ticketId: "ticket-1", steps })).toThrow(
+      /Demo step at index 0 is invalid/
+    );
+  });
+
   it("rejects malformed automation specs with a helpful error", () => {
     seedProject();
     seedAiReviewTicket();
@@ -710,6 +773,29 @@ describe("generateDemo", () => {
 
     expect(() => generateDemo(db, { ticketId: "ticket-1", steps })).toThrow(
       /API automation request body.value must be a finite JSON number/
+    );
+  });
+
+  it("rejects non-plain API automation objects that would serialize differently", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    const steps = [
+      {
+        order: 1,
+        description: "Check the status API",
+        expectedOutcome: "The status endpoint returns OK",
+        type: "automated",
+        automation: {
+          kind: "api",
+          request: { method: "POST", path: "/api/status", body: { value: new Date() } },
+          assert: [{ type: "jsonPath", expected: { ok: true } }],
+        },
+      },
+    ] as unknown as DemoStep[];
+
+    expect(() => generateDemo(db, { ticketId: "ticket-1", steps })).toThrow(
+      /API automation request body.value must be a plain JSON object/
     );
   });
 

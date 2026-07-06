@@ -13,6 +13,7 @@ import {
   getDemo,
   getFindings,
   listVerificationRuns,
+  validateRepairLegacyHumanReviewHandoff,
   repairLegacyHumanReviewHandoff,
   updatePrdForDbTicketIfPresent,
   InvalidActionError,
@@ -179,6 +180,7 @@ export function handle(action: string, args: string[]): void {
 
       case "repair-legacy-handoff": {
         const ticketId = requireFlag(flags, "ticket");
+        validateRepairLegacyHumanReviewHandoff(db, ticketId);
         const prdSync = updatePrdForDbTicketIfPresent(db, ticketId, false);
         if (prdSync.required && !prdSync.success) {
           throw new ValidationError(
