@@ -3,18 +3,17 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { ToastProvider } from "../Toast";
 import { TicketCard } from "./TicketCard";
-import type { Ticket } from "../../lib/schema";
+import type { TicketSummary } from "../../api/tickets";
 
 function renderCard(ui: ReactElement) {
   return render(<ToastProvider>{ui}</ToastProvider>);
 }
 
 // Helper to create a minimal ticket with required fields
-function createTicket(overrides: Partial<Ticket> = {}): Ticket {
+function createTicket(overrides: Partial<TicketSummary> = {}): TicketSummary {
   return {
     id: "test-ticket-1",
     title: "Test Ticket Title",
-    description: null,
     status: "backlog",
     priority: "medium",
     position: 1,
@@ -24,8 +23,6 @@ function createTicket(overrides: Partial<Ticket> = {}): Ticket {
     subtasks: null,
     isBlocked: false,
     blockedReason: null,
-    linkedFiles: null,
-    attachments: null,
     createdAt: "2026-01-15T10:00:00Z",
     updatedAt: "2026-01-15T10:00:00Z",
     completedAt: null,
@@ -90,5 +87,43 @@ describe("TicketCard", () => {
       screen.getByText("Verification failed 3 consecutive times on step 1.")
     ).toBeInTheDocument();
     expect(screen.queryByText("Verification Ready")).not.toBeInTheDocument();
+  });
+
+  it("distinguishes queued and running verification jobs on cards", () => {
+    const queuedTicket = createTicket({
+      status: "ai_verification",
+      verificationJobStatus: "queued",
+    });
+    const runningTicket = createTicket({
+      id: "test-ticket-2",
+      title: "Running verification ticket",
+      status: "ai_verification",
+      verificationJobStatus: "running",
+    });
+
+    renderCard(
+      <>
+        <TicketCard ticket={queuedTicket} />
+        <TicketCard ticket={runningTicket} />
+      </>
+    );
+
+    expect(screen.getByText("Verification Queued")).toBeInTheDocument();
+    expect(screen.getByText("Verification Running")).toBeInTheDocument();
+  });
+
+  it("flags blocked verification jobs even before the ticket blocked flag is set", () => {
+    const ticket = createTicket({
+      status: "ai_verification",
+      isBlocked: false,
+      verificationJobStatus: "dead",
+      verificationJobLastError: "Verification worker exhausted retries.",
+    });
+
+    renderCard(<TicketCard ticket={ticket} />);
+
+    expect(screen.getByText("Needs Attention")).toBeInTheDocument();
+    expect(screen.getByText("Verification worker exhausted retries.")).toBeInTheDocument();
+    expect(screen.queryByText("Verification Blocked")).not.toBeInTheDocument();
   });
 });

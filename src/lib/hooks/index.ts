@@ -165,11 +165,13 @@ export {
 export {
   useDemoScript,
   useTicketAttachments,
+  useVerificationJobStatus,
   useVerificationRuns,
   useWorkflowState,
   type Attachment,
   type DemoScript,
   type UseWorkflowStateResult,
+  type VerificationJob,
   type VerificationRunSummary,
   type VerificationStepVerdict,
   type WorkflowDisplayState,

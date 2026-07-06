@@ -119,6 +119,7 @@ export const queryKeys = {
 
   // Verification Runs
   verificationRuns: (ticketId: string) => ["verificationRuns", ticketId] as const,
+  verificationJob: (ticketId: string) => ["verificationJob", ticketId] as const,
 
   // Workflow State
   workflowState: (ticketId: string) => ["workflowState", ticketId] as const,

@@ -5,11 +5,13 @@ import { DemoPanel } from "./DemoPanel";
 
 const mockUseDemoScript = vi.hoisted(() => vi.fn());
 const mockUseVerificationRuns = vi.hoisted(() => vi.fn());
+const mockUseVerificationJobStatus = vi.hoisted(() => vi.fn());
 const mockUseTicketAttachments = vi.hoisted(() => vi.fn());
 
 vi.mock("../../lib/hooks", () => ({
   useDemoScript: mockUseDemoScript,
   useVerificationRuns: mockUseVerificationRuns,
+  useVerificationJobStatus: mockUseVerificationJobStatus,
   useTicketAttachments: mockUseTicketAttachments,
 }));
 
@@ -26,6 +28,12 @@ function mockBaseQueries() {
   });
   mockUseTicketAttachments.mockReturnValue({
     attachments: [],
+    loading: false,
+    error: null,
+    refetch: vi.fn(),
+  });
+  mockUseVerificationJobStatus.mockReturnValue({
+    verificationJob: null,
     loading: false,
     error: null,
     refetch: vi.fn(),
@@ -215,7 +223,7 @@ describe("DemoPanel", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows the runner command while ai_verification is waiting for its first run", () => {
+  it("shows a no-job error instead of a manual runner command", () => {
     mockBaseQueries();
     mockUseDemoScript.mockReturnValue({
       demoScript: {
@@ -230,7 +238,7 @@ describe("DemoPanel", () => {
             order: 1,
             type: "automated",
             description: "Check pending runner state.",
-            expectedOutcome: "The runner command is visible.",
+            expectedOutcome: "The automatic runner state is visible.",
             status: "pending",
           },
         ],
@@ -242,10 +250,101 @@ describe("DemoPanel", () => {
 
     render(<DemoPanel ticketId="ticket-1" ticketStatus="ai_verification" />);
 
-    expect(screen.getByText("Runner pending")).toBeInTheDocument();
-    expect(
-      screen.getByText("brain-dump verify run --ticket ticket-1 --pretty")
-    ).toBeInTheDocument();
+    expect(screen.getByText("No verification job found")).toBeInTheDocument();
+    expect(screen.getByText(/no automatic runner job is queued yet/i)).toBeInTheDocument();
+    expect(screen.queryByText(/brain-dump verify run/)).not.toBeInTheDocument();
+  });
+
+  it("shows queued, running, retrying, and blocked verification job states", () => {
+    mockBaseQueries();
+    mockUseDemoScript.mockReturnValue({
+      demoScript: {
+        id: "demo-1",
+        ticketId: "ticket-1",
+        generatedAt: "2026-04-25T10:00:00.000Z",
+        completedAt: null,
+        passed: null,
+        feedback: null,
+        steps: [],
+      },
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    const baseJob = {
+      id: "job-1",
+      ticketId: "ticket-1",
+      demoScriptId: "demo-1",
+      status: "queued",
+      attemptCount: 0,
+      nextRunAt: "2026-04-25T10:00:00.000Z",
+      lastError: null,
+      leasedBy: null,
+      leaseExpiresAt: null,
+      createdAt: "2026-04-25T10:00:00.000Z",
+      updatedAt: "2026-04-25T10:00:00.000Z",
+      completedAt: null,
+    };
+
+    const { rerender } = render(<DemoPanel ticketId="ticket-1" ticketStatus="ai_verification" />);
+
+    mockUseVerificationJobStatus.mockReturnValue({
+      verificationJob: baseJob,
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    rerender(<DemoPanel ticketId="ticket-1" ticketStatus="ai_verification" />);
+    expect(screen.getByText("Verification queued")).toBeInTheDocument();
+    expect(screen.getByText("No attempts yet")).toBeInTheDocument();
+
+    mockUseVerificationJobStatus.mockReturnValue({
+      verificationJob: {
+        ...baseJob,
+        status: "running",
+        attemptCount: 1,
+        leasedBy: "worker-1",
+        leaseExpiresAt: "2026-04-25T10:05:00.000Z",
+      },
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    rerender(<DemoPanel ticketId="ticket-1" ticketStatus="ai_verification" />);
+    expect(screen.getByText("Verification running")).toBeInTheDocument();
+    expect(screen.getByText("Lease expires")).toBeInTheDocument();
+
+    mockUseVerificationJobStatus.mockReturnValue({
+      verificationJob: {
+        ...baseJob,
+        status: "failed",
+        attemptCount: 2,
+        nextRunAt: "2026-04-25T10:10:00.000Z",
+        lastError: "App boot failed; retry scheduled.",
+      },
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    rerender(<DemoPanel ticketId="ticket-1" ticketStatus="ai_verification" />);
+    expect(screen.getByText("Verification retry scheduled")).toBeInTheDocument();
+    expect(screen.getByText("App boot failed; retry scheduled.")).toBeInTheDocument();
+
+    mockUseVerificationJobStatus.mockReturnValue({
+      verificationJob: {
+        ...baseJob,
+        status: "blocked",
+        attemptCount: 3,
+        lastError: "Retries exhausted.",
+      },
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    rerender(<DemoPanel ticketId="ticket-1" ticketStatus="ai_verification" />);
+    expect(screen.getByText("Verification blocked")).toBeInTheDocument();
+    expect(screen.getByText("Retries exhausted.")).toBeInTheDocument();
   });
 
   it("shows tampered integrity state in run history", () => {

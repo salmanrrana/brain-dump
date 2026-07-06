@@ -1,5 +1,5 @@
 import { memo, useMemo } from "react";
-import { ShieldCheck, TriangleAlert } from "lucide-react";
+import { Loader2, ShieldCheck, TriangleAlert } from "lucide-react";
 import type { TicketSummary } from "../../api/tickets";
 import { GitInfo } from "./GitInfo";
 import { TicketTags } from "./TicketTags";
@@ -23,6 +23,24 @@ const PRIORITY_BORDER_COLORS: Record<string, string> = {
   medium: "border-l-[var(--accent-warning)]",
   low: "border-l-[var(--text-tertiary)]",
 };
+
+function getVerificationLabel(ticket: TicketSummary): string {
+  switch (ticket.verificationJobStatus) {
+    case "queued":
+      return "Verification Queued";
+    case "running":
+      return "Verification Running";
+    case "failed":
+      return "Verification Retrying";
+    case "blocked":
+    case "dead":
+      return "Verification Blocked";
+    case "succeeded":
+      return "Verification Complete";
+    default:
+      return "Verification Pending";
+  }
+}
 
 /**
  * Safely parse tags JSON with fallback to empty array.
@@ -58,7 +76,11 @@ export const TicketCard = memo(function TicketCard({
 
   const priorityBorderClass =
     PRIORITY_BORDER_COLORS[ticket.priority ?? ""] ?? "border-l-transparent";
-  const isBlocked = ticket.isBlocked === true;
+  const isVerificationJobBlocked =
+    ticket.status === "ai_verification" &&
+    (ticket.verificationJobStatus === "blocked" || ticket.verificationJobStatus === "dead");
+  const isBlocked = ticket.isBlocked === true || isVerificationJobBlocked;
+  const verificationLabel = getVerificationLabel(ticket);
 
   return (
     <div
@@ -95,16 +117,20 @@ export const TicketCard = memo(function TicketCard({
             <TriangleAlert size={12} aria-hidden="true" />
             <span>Needs Attention</span>
           </div>
-          {ticket.blockedReason && (
+          {(ticket.blockedReason || ticket.verificationJobLastError) && (
             <span className="line-clamp-2 text-[var(--text-secondary)]">
-              {ticket.blockedReason}
+              {ticket.blockedReason ?? ticket.verificationJobLastError}
             </span>
           )}
         </div>
       ) : ticket.status === "ai_verification" ? (
         <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-[var(--info-muted)] text-[var(--info)] text-xs font-medium w-fit">
-          <ShieldCheck size={12} aria-hidden="true" />
-          <span>Verification Ready</span>
+          {ticket.verificationJobStatus === "running" ? (
+            <Loader2 size={12} className="animate-spin" aria-hidden="true" />
+          ) : (
+            <ShieldCheck size={12} aria-hidden="true" />
+          )}
+          <span>{verificationLabel}</span>
         </div>
       ) : null}
 

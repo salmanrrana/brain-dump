@@ -7,7 +7,9 @@ import { useQuery } from "@tanstack/react-query";
 import { getAttachments, type Attachment } from "../../api/attachments";
 import { getDemoScript } from "../../api/demo";
 import {
+  getVerificationJobStatus,
   getVerificationRuns,
+  type VerificationJob,
   type VerificationRunSummary,
   type VerificationStepVerdict,
 } from "../../api/verification";
@@ -25,7 +27,7 @@ const logger = createBrowserLogger("hooks:workflow");
 
 // Re-export types for consumers
 export type { WorkflowDisplayState, WorkflowDisplayResult, DemoStep };
-export type { Attachment, VerificationRunSummary, VerificationStepVerdict };
+export type { Attachment, VerificationJob, VerificationRunSummary, VerificationStepVerdict };
 
 // =============================================================================
 // DEMO SCRIPT TYPES
@@ -131,6 +133,33 @@ export function useVerificationRuns(
 
   return {
     verificationRuns: (query.data ?? []) as VerificationRunSummary[],
+    loading: query.isLoading,
+    error: query.error?.message ?? null,
+    refetch: query.refetch,
+  };
+}
+
+export function useVerificationJobStatus(
+  ticketId: string,
+  options: {
+    /** Whether to enable the query (default: true when ticketId is provided) */
+    enabled?: boolean;
+    /** Polling interval in ms for live verification job status (default: 0 = disabled) */
+    pollingInterval?: number;
+  } = {}
+) {
+  const { enabled = Boolean(ticketId), pollingInterval = 0 } = options;
+
+  const query = useQuery({
+    queryKey: queryKeys.verificationJob(ticketId),
+    queryFn: async () => getVerificationJobStatus({ data: { ticketId } }),
+    enabled,
+    refetchInterval: pollingInterval > 0 ? pollingInterval : false,
+    staleTime: pollingInterval > 0 ? pollingInterval : 30 * 1000,
+  });
+
+  return {
+    verificationJob: (query.data ?? null) as VerificationJob | null,
     loading: query.isLoading,
     error: query.error?.message ?? null,
     refetch: query.refetch,

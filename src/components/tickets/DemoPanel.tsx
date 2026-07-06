@@ -17,8 +17,10 @@ import {
 import {
   useDemoScript,
   useTicketAttachments,
+  useVerificationJobStatus,
   useVerificationRuns,
   type Attachment,
+  type VerificationJob,
   type VerificationRunSummary,
   type VerificationStepVerdict,
 } from "../../lib/hooks";
@@ -114,6 +116,41 @@ const INTEGRITY_CONFIG: Record<
 function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
   return `${(ms / 1000).toFixed(1)}s`;
+}
+
+function formatDateTime(value: string): string {
+  return new Date(value).toLocaleString();
+}
+
+function formatJobAttempt(job: VerificationJob): string {
+  return job.attemptCount === 0 ? "No attempts yet" : `Attempt ${job.attemptCount}`;
+}
+
+function getVerificationJobTitle(job: VerificationJob): string {
+  if (job.status === "queued") return "Verification queued";
+  if (job.status === "running") return "Verification running";
+  if (job.status === "failed") return "Verification retry scheduled";
+  if (job.status === "blocked" || job.status === "dead") return "Verification blocked";
+  return "Verification complete";
+}
+
+function getVerificationJobClassName(job: VerificationJob): string {
+  if (job.status === "blocked" || job.status === "dead") {
+    return "border-[var(--accent-danger)]/40 bg-[var(--accent-danger)]/10";
+  }
+  if (job.status === "failed") return "border-[var(--warning)]/30 bg-[var(--warning-muted)]";
+  return "border-[var(--info)]/30 bg-[var(--bg-secondary)]";
+}
+
+function getPanelSubheading(
+  ticketStatus: string | undefined,
+  latestRun: VerificationRunSummary | null
+): string {
+  if (latestRun) return "Runner results, evidence, and integrity checks are recorded below.";
+  if (ticketStatus === "ai_verification") {
+    return "The automatic verification runner owns execution, evidence, and completion.";
+  }
+  return "These steps are waiting for the verification runner. Manual approval has been retired.";
 }
 
 function filenameFromPath(path: string): string {
@@ -451,6 +488,94 @@ function VerificationRunHistory({ runs }: { runs: VerificationRunSummary[] }) {
   );
 }
 
+function VerificationJobStatusPanel({
+  job,
+  loading,
+  error,
+}: {
+  job: VerificationJob | null;
+  loading: boolean;
+  error: string | null;
+}) {
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-3 text-sm text-[var(--text-secondary)]">
+        <Loader2 className="animate-spin" size={16} aria-hidden="true" />
+        Loading verification queue status...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-lg border border-[var(--accent-danger)]/30 bg-[var(--accent-danger)]/10 p-4 text-sm text-[var(--accent-danger)]">
+        <p className="font-medium">Verification queue status unavailable</p>
+        <p className="mt-1 text-[var(--text-secondary)]">{error}</p>
+      </div>
+    );
+  }
+
+  if (!job) {
+    return (
+      <div className="rounded-lg border border-[var(--warning)]/30 bg-[var(--warning-muted)] p-4 text-sm text-[var(--text-secondary)]">
+        <p className="font-medium text-[var(--text-primary)]">No verification job found</p>
+        <p className="mt-1">
+          This ticket is in AI verification, but no automatic runner job is queued yet. Regenerate
+          the demo or check the verification worker health.
+        </p>
+      </div>
+    );
+  }
+
+  const blocked = job.status === "blocked" || job.status === "dead";
+  const running = job.status === "running";
+  const succeeded = job.status === "succeeded";
+  const title = getVerificationJobTitle(job);
+  const borderClass = getVerificationJobClassName(job);
+
+  return (
+    <div className={`rounded-lg border p-4 text-sm text-[var(--text-secondary)] ${borderClass}`}>
+      <div className="mb-2 flex flex-wrap items-center gap-2 font-semibold text-[var(--text-primary)]">
+        {running ? <Loader2 className="animate-spin" size={16} aria-hidden="true" /> : null}
+        {blocked ? <AlertTriangle size={16} aria-hidden="true" /> : null}
+        <span>{title}</span>
+      </div>
+      <dl className="grid gap-2 sm:grid-cols-2">
+        <div>
+          <dt className="text-xs uppercase tracking-wide text-[var(--text-tertiary)]">Status</dt>
+          <dd className="capitalize text-[var(--text-primary)]">{job.status.replace("_", " ")}</dd>
+        </div>
+        <div>
+          <dt className="text-xs uppercase tracking-wide text-[var(--text-tertiary)]">Attempt</dt>
+          <dd className="text-[var(--text-primary)]">{formatJobAttempt(job)}</dd>
+        </div>
+        <div>
+          <dt className="text-xs uppercase tracking-wide text-[var(--text-tertiary)]">Next run</dt>
+          <dd className="text-[var(--text-primary)]">{formatDateTime(job.nextRunAt)}</dd>
+        </div>
+        {job.leaseExpiresAt && (
+          <div>
+            <dt className="text-xs uppercase tracking-wide text-[var(--text-tertiary)]">
+              Lease expires
+            </dt>
+            <dd className="text-[var(--text-primary)]">{formatDateTime(job.leaseExpiresAt)}</dd>
+          </div>
+        )}
+      </dl>
+      {job.lastError && (
+        <p className="mt-3 rounded-md bg-[var(--bg-secondary)] p-2 text-[var(--text-secondary)]">
+          {job.lastError}
+        </p>
+      )}
+      {succeeded && (
+        <p className="mt-3 text-[var(--text-secondary)]">
+          The latest queued verification job completed; run evidence is shown below when available.
+        </p>
+      )}
+    </div>
+  );
+}
+
 /**
  * Read-only verification evidence panel.
  *
@@ -474,6 +599,14 @@ export function DemoPanel({
     loading: runsLoading,
     error: runsError,
   } = useVerificationRuns(ticketId, {
+    pollingInterval: shouldPoll ? pollingInterval : 0,
+  });
+  const {
+    verificationJob,
+    loading: jobLoading,
+    error: jobError,
+  } = useVerificationJobStatus(ticketId, {
+    enabled: ticketStatus === "ai_verification",
     pollingInterval: shouldPoll ? pollingInterval : 0,
   });
   const { attachments } = useTicketAttachments(ticketId, { enabled: verificationRuns.length > 0 });
@@ -524,9 +657,7 @@ export function DemoPanel({
   }
 
   const heading = ticketStatus === "done" ? "Verification Evidence" : "AI Verification Handoff";
-  const subheading = latestRun
-    ? "Runner results, evidence, and integrity checks are recorded below."
-    : "These steps are waiting for the verification runner. Manual approval has been retired.";
+  const subheading = getPanelSubheading(ticketStatus, latestRun);
 
   return (
     <div className="space-y-4 rounded-lg border border-[var(--info)]/30 bg-[var(--info-muted)] p-6">
@@ -565,16 +696,7 @@ export function DemoPanel({
       )}
 
       {!latestRun && ticketStatus === "ai_verification" && (
-        <div className="rounded-lg border border-[var(--warning)]/30 bg-[var(--warning-muted)] p-4 text-sm text-[var(--text-secondary)]">
-          <p className="font-medium text-[var(--text-primary)]">Runner pending</p>
-          <p className="mt-1">
-            Start verification from the project root with this command. Manual approval cannot
-            complete this ticket.
-          </p>
-          <code className="mt-3 block overflow-x-auto rounded bg-[var(--bg-secondary)] px-3 py-2 font-mono text-xs text-[var(--text-primary)]">
-            brain-dump verify run --ticket {ticketId} --pretty
-          </code>
-        </div>
+        <VerificationJobStatusPanel job={verificationJob} loading={jobLoading} error={jobError} />
       )}
 
       <VerificationRunHistory runs={verificationRuns} />

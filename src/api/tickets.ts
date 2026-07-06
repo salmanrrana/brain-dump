@@ -1,6 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import { db, sqlite } from "../lib/db";
-import { tickets, projects, epics, ticketComments, type Ticket } from "../lib/schema";
+import {
+  tickets,
+  projects,
+  epics,
+  ticketComments,
+  verificationJobs,
+  type Ticket,
+} from "../lib/schema";
 import { eq, and, sql, type SQL } from "drizzle-orm";
 import { tagFilterConditions } from "../lib/sql-helpers";
 import { randomUUID } from "crypto";
@@ -13,6 +20,7 @@ import {
   isActiveTicketStatus,
   isDirectStatusUpdateStatus,
 } from "../../core/workflow-steps.ts";
+import type { VerificationJobStatus } from "../../core/verification-queue.ts";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("tickets-api");
@@ -374,6 +382,10 @@ export interface TicketSummary {
   prNumber: number | null;
   prUrl: string | null;
   prStatus: "draft" | "open" | "merged" | "closed" | null;
+  verificationJobStatus?: VerificationJobStatus | null;
+  verificationJobAttemptCount?: number | null;
+  verificationJobNextRunAt?: string | null;
+  verificationJobLastError?: string | null;
 }
 
 /** Columns selected for summary queries — omits heavy text fields (description, linkedFiles, attachments). */
@@ -396,6 +408,10 @@ const TICKET_SUMMARY_COLUMNS = {
   prNumber: tickets.prNumber,
   prUrl: tickets.prUrl,
   prStatus: tickets.prStatus,
+  verificationJobStatus: verificationJobs.status,
+  verificationJobAttemptCount: verificationJobs.attemptCount,
+  verificationJobNextRunAt: verificationJobs.nextRunAt,
+  verificationJobLastError: verificationJobs.lastError,
 };
 
 /**
@@ -414,7 +430,10 @@ export const getTicketSummaries = createServerFn({ method: "GET" })
       conditions.push(...tagFilterConditions(filters.tags));
     }
 
-    let query = db.select(TICKET_SUMMARY_COLUMNS).from(tickets);
+    let query = db
+      .select(TICKET_SUMMARY_COLUMNS)
+      .from(tickets)
+      .leftJoin(verificationJobs, eq(verificationJobs.ticketId, tickets.id));
     if (conditions.length > 0) {
       query = query.where(and(...conditions)) as typeof query;
     }
@@ -471,7 +490,10 @@ export const getPaginatedTicketSummaries = createServerFn({ method: "GET" })
     const total = countQuery.get()?.count ?? 0;
 
     // Paginated data query
-    let query = db.select(TICKET_SUMMARY_COLUMNS).from(tickets);
+    let query = db
+      .select(TICKET_SUMMARY_COLUMNS)
+      .from(tickets)
+      .leftJoin(verificationJobs, eq(verificationJobs.ticketId, tickets.id));
     if (whereClause) {
       query = query.where(whereClause) as typeof query;
     }
