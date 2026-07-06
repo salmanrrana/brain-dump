@@ -1,6 +1,13 @@
 # Ralph Progress Log
 # Previous entries archived to: archives/progress-20260315-130551.txt
 
+### 2026-07-06 - Ralph Session: Ticket fd379617 verification handoff repair
+- **Ticket:** fd379617-5789-4165-855e-313958822e94 — Repair legacy handoffs and regenerate executable demos for the AI Verification Gate epic
+- **Verification failure triage:** Run `739fed15-efa4-49fc-b84d-6c30cce70c86` failed only step 4 because the API check fetched `/ticket/fd379617-5789-4165-855e-313958822e94` and expected client-rendered ticket text in the initial HTML shell.
+- **Repair:** Treat the failed API/body-text assertion as an invalid handoff spec, not an application regression. The replacement demo should use UI automation for rendered ticket content and file automation for the persisted audit record/PRD state, avoiding shallow HTML body checks.
+
+---
+
 ### 2026-07-06 - Ralph Session: Ticket fd379617 legacy handoff audit
 - **Ticket:** fd379617-5789-4165-855e-313958822e94 — Repair legacy handoffs and regenerate executable demos for the AI Verification Gate epic
 - **Live epic audit:** `ticket.list-by-epic` found 31 tickets in epic `bc99b396-465b-4b36-8443-223a854f6de4`: 6 `done`, 3 `ai_verification`, 1 `in_progress`, and 21 `backlog`/`ready` waiting for implementation. No ticket is currently in legacy `human_review`.
