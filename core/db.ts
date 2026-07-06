@@ -281,6 +281,8 @@ function ensureBaseSchema(db: DbHandle, logger: Logger): void {
       path TEXT NOT NULL UNIQUE,
       color TEXT,
       working_method TEXT DEFAULT 'auto',
+      reviewer_provider TEXT,
+      reviewer_model TEXT,
       position REAL NOT NULL DEFAULT 0,
       default_isolation_mode TEXT,
       worktree_location TEXT DEFAULT 'sibling',
@@ -347,6 +349,8 @@ function ensureBaseSchema(db: DbHandle, logger: Logger): void {
       pr_target_branch TEXT DEFAULT 'main',
       default_projects_directory TEXT,
       default_working_method TEXT DEFAULT 'auto',
+      default_reviewer_provider TEXT,
+      default_reviewer_model TEXT,
       docker_runtime TEXT,
       docker_socket_path TEXT,
       conversation_retention_days INTEGER DEFAULT 90,
@@ -654,6 +658,8 @@ export function runMigrations(db: DbHandle, logger: Logger = silentLogger): void
 
   // Project columns
   addColumnIfMissing(db, "projects", "working_method", "TEXT DEFAULT 'auto'", logger);
+  addColumnIfMissing(db, "projects", "reviewer_provider", "TEXT", logger);
+  addColumnIfMissing(db, "projects", "reviewer_model", "TEXT", logger);
 
   const positionExisted = columnExists(db, "projects", "position");
   addColumnIfMissing(db, "projects", "position", "REAL NOT NULL DEFAULT 0", logger);
@@ -1030,6 +1036,8 @@ export function runMigrations(db: DbHandle, logger: Logger = silentLogger): void
   addColumnIfMissing(db, "settings", "ralph_max_iterations", "INTEGER DEFAULT 10", logger);
   addColumnIfMissing(db, "settings", "epic_auto_pr", "INTEGER DEFAULT 1", logger);
   addColumnIfMissing(db, "settings", "default_working_method", "TEXT DEFAULT 'auto'", logger);
+  addColumnIfMissing(db, "settings", "default_reviewer_provider", "TEXT", logger);
+  addColumnIfMissing(db, "settings", "default_reviewer_model", "TEXT", logger);
   addColumnIfMissing(db, "settings", "default_projects_directory", "TEXT", logger);
   addColumnIfMissing(db, "settings", "docker_runtime", "TEXT", logger);
   addColumnIfMissing(db, "settings", "docker_socket_path", "TEXT", logger);

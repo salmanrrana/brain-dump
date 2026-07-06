@@ -136,6 +136,8 @@ function initTables() {
         path TEXT NOT NULL UNIQUE,
         color TEXT,
         working_method TEXT DEFAULT 'auto',
+        reviewer_provider TEXT,
+        reviewer_model TEXT,
         position REAL NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
       )
@@ -261,6 +263,14 @@ function migrateProjectsTable() {
     console.log("Adding working_method column to projects...");
     ensureColumnExists("projects", "working_method", "TEXT DEFAULT 'auto'");
   }
+  if (!columnExists("projects", "reviewer_provider")) {
+    console.log("Adding reviewer_provider column to projects...");
+    ensureColumnExists("projects", "reviewer_provider", "TEXT");
+  }
+  if (!columnExists("projects", "reviewer_model")) {
+    console.log("Adding reviewer_model column to projects...");
+    ensureColumnExists("projects", "reviewer_model", "TEXT");
+  }
 
   const shouldBackfillExistingPositions = (): boolean => {
     const maxRow = sqlite.prepare("SELECT MAX(position) as maxPosition FROM projects").get() as {
@@ -385,6 +395,8 @@ function initSettings() {
         pr_target_branch TEXT DEFAULT 'dev',
         default_projects_directory TEXT,
         default_working_method TEXT DEFAULT 'auto',
+        default_reviewer_provider TEXT,
+        default_reviewer_model TEXT,
         docker_runtime TEXT,
         docker_socket_path TEXT,
         conversation_retention_days INTEGER DEFAULT 90,
@@ -426,6 +438,12 @@ function initSettings() {
     }
     if (!columns.includes("default_working_method")) {
       sqlite.exec("ALTER TABLE settings ADD COLUMN default_working_method TEXT DEFAULT 'auto'");
+    }
+    if (!columns.includes("default_reviewer_provider")) {
+      sqlite.exec("ALTER TABLE settings ADD COLUMN default_reviewer_provider TEXT");
+    }
+    if (!columns.includes("default_reviewer_model")) {
+      sqlite.exec("ALTER TABLE settings ADD COLUMN default_reviewer_model TEXT");
     }
     if (!columns.includes("default_projects_directory")) {
       sqlite.exec("ALTER TABLE settings ADD COLUMN default_projects_directory TEXT");
@@ -854,7 +872,7 @@ function runSchemaMigrations(): void {
  * Bump this whenever a new table/column migration is added to
  * `runSchemaMigrations()` so existing DBs re-run the checks once and re-stamp.
  */
-const CURRENT_SCHEMA_VERSION = 3;
+const CURRENT_SCHEMA_VERSION = 4;
 
 // Gate the migration checks behind PRAGMA user_version (standard SQLite
 // pattern). When the DB is already at the current version we skip all ~25
