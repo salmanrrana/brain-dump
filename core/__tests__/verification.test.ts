@@ -366,6 +366,63 @@ describe("verifyTicket", () => {
     expect(close).toHaveBeenCalled();
   });
 
+  it("warms up UI routes before assertions on self-booted apps and tolerates warm-up failures", async () => {
+    seedDemo([uiTextStep()]);
+    const gotoCalls: { url: string; options?: { waitUntil?: string } }[] = [];
+    const goto = vi.fn(async (url: string, options?: { waitUntil?: string }) => {
+      gotoCalls.push({ url, ...(options !== undefined ? { options } : {}) });
+      // The warm-up navigation crashing must not fail the run: real steps
+      // re-navigate and assert for themselves.
+      if (options?.waitUntil === "networkidle") throw new Error("warm-up nav crashed");
+    });
+    const toContainText = vi.fn(async () => {});
+    const screenshot = vi.fn(async ({ path }: { path: string }) =>
+      writeFileSync(path, "fake image")
+    );
+    const locator = vi.fn(() => ({
+      first: () => ({ isVisible: vi.fn(async () => true) }),
+      waitFor: vi.fn(async () => {}),
+    }));
+    vi.doMock("@playwright/test", () => ({
+      chromium: {
+        launch: vi.fn(async () => ({
+          newPage: vi.fn(async () => ({
+            addInitScript: vi.fn(async () => {}),
+            goto,
+            evaluate: vi.fn(async () => ({ ok: true })),
+            keyboard: { press: vi.fn(async () => {}) },
+            locator,
+            screenshot,
+            url: () => "http://127.0.0.1:4242/",
+          })),
+          close: vi.fn(async () => {}),
+        })),
+      },
+      expect: () => ({ toContainText }),
+    }));
+    const script = `
+      const http = require("http");
+      http.createServer((request, response) => {
+        response.writeHead(200);
+        response.end("ready");
+      }).listen(Number(process.env.PORT), "127.0.0.1");
+    `;
+
+    const run = await verifyTicket(db, {
+      ticketId: "ticket-1",
+      bootCommand: [process.execPath, "-e", script],
+      timeoutMs: 5_000,
+    });
+
+    expect(run.status).toBe("passed");
+    // Warm-up visits the step's route first with a settled-network wait...
+    expect(gotoCalls[0]?.options?.waitUntil).toBe("networkidle");
+    expect(gotoCalls[0]?.url.endsWith("/")).toBe(true);
+    // ...and the real step still performs its own navigation and assertions.
+    expect(gotoCalls.some((call) => call.options?.waitUntil === "domcontentloaded")).toBe(true);
+    expect(toContainText).toHaveBeenCalledWith("Projects", { timeout: 10_000 });
+  });
+
   it("fails UI steps when splash skip setup fails", async () => {
     seedDemo([uiTextStep()]);
     const waitFor = vi.fn(async () => {});
