@@ -9,7 +9,14 @@ await build({
   target: "node18",
   outfile: "dist/index.js",
   sourcemap: true,
-  external: ["better-sqlite3"],
+  external: [
+    "better-sqlite3",
+    "@playwright/test",
+    "playwright",
+    "playwright-core",
+    "playwright-core/*",
+    "chromium-bidi/*",
+  ],
   banner: { js: "#!/usr/bin/env node" },
 });
 
