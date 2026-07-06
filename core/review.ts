@@ -38,6 +38,7 @@ import {
   updateEpicReviewRunTicketLink,
 } from "./epic-review-run.ts";
 import { completeActiveSessionsForTicket } from "./session.ts";
+import { addComment } from "./comment.ts";
 import {
   assertTransition,
   isTicketStatus,
@@ -463,6 +464,7 @@ function validateDemoSteps(steps: GenerateDemoParams["steps"]): void {
     throw new ValidationError("Demo steps must be an array.");
   }
 
+  let executableSteps = 0;
   for (const [index, step] of steps.entries()) {
     if (
       typeof step !== "object" ||
@@ -475,7 +477,57 @@ function validateDemoSteps(steps: GenerateDemoParams["steps"]): void {
       throw new ValidationError(`Demo step at index ${index} is invalid.`);
     }
     validateDemoStepAutomation(step, index);
+    if (step.type !== "manual") executableSteps += 1;
   }
+
+  if (executableSteps === 0) {
+    throw new ValidationError(
+      "Demo scripts for AI verification must include at least one visual or automated step with executable automation. Manual steps are audit-only and cannot certify a ticket."
+    );
+  }
+}
+
+export interface RepairLegacyHumanReviewResult {
+  ticketId: string;
+  previousStatus: "human_review";
+  newStatus: "ai_review" | "ai_verification";
+  reason: string;
+}
+
+export function repairLegacyHumanReviewHandoff(
+  db: DbHandle,
+  ticketId: string
+): RepairLegacyHumanReviewResult {
+  const ticket = getTicketRow(db, ticketId);
+  if (ticket.status !== "human_review") {
+    throw new InvalidStateError("ticket", ticket.status, "human_review", "repair legacy handoff");
+  }
+
+  const now = new Date().toISOString();
+  const demo = db.prepare("SELECT id FROM demo_scripts WHERE ticket_id = ?").get(ticketId) as
+    | { id: string }
+    | undefined;
+  const newStatus = demo ? "ai_verification" : "ai_review";
+  const reason = demo
+    ? "Legacy human_review ticket has a demo script; moved to AI verification for runner certification."
+    : "Legacy human_review ticket has no demo script; moved to AI review so a verification handoff can be regenerated.";
+
+  getOrCreateWorkflowState(db, ticketId);
+  db.prepare("UPDATE tickets SET status = ?, updated_at = ? WHERE id = ?").run(
+    newStatus,
+    now,
+    ticketId
+  );
+  db.prepare(
+    "UPDATE ticket_workflow_state SET current_phase = ?, demo_generated = ?, updated_at = ? WHERE ticket_id = ?"
+  ).run(newStatus, demo ? 1 : 0, now, ticketId);
+  addComment(db, {
+    ticketId,
+    author: "brain-dump",
+    type: "comment",
+    content: `## Legacy Workflow Repair\n\n${reason}\n\nManual approval has been retired; the verification runner owns completion.`,
+  });
+  return { ticketId, previousStatus: "human_review", newStatus, reason };
 }
 
 function validateDemoGeneration(db: DbHandle, ticketId: string): void {

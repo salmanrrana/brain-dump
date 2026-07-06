@@ -10,7 +10,7 @@ import {
   createRealGitOperations,
   GitError,
   isTicketStatus,
-  OPEN_TICKET_STATUSES,
+  RALPH_PRD_TICKET_STATUSES,
   startWork,
   updateEpicReviewRun,
   updateEpicReviewRunTicketLink,
@@ -316,7 +316,7 @@ export async function launchRalphForEpicCore(
   const epicTickets = db
     .select()
     .from(tickets)
-    .where(and(eq(tickets.epicId, epicId), inArray(tickets.status, OPEN_TICKET_STATUSES)))
+    .where(and(eq(tickets.epicId, epicId), inArray(tickets.status, RALPH_PRD_TICKET_STATUSES)))
     .all();
   if (epicTickets.length === 0) {
     return { success: false, message: "No pending tickets in this epic" };

@@ -21,6 +21,7 @@ import {
   validateGenerateDemo,
   generateDemo,
   getDemo,
+  repairLegacyHumanReviewHandoff,
 } from "../../core/review.ts";
 import { listVerificationRuns } from "../../core/verification.ts";
 import type { MarkFixedStatus } from "../../core/review.ts";
@@ -45,6 +46,7 @@ const ACTIONS = [
   "generate-demo",
   "get-demo",
   "get-verification-history",
+  "repair-legacy-handoff",
 ] as const;
 
 const SEVERITIES = ["critical", "major", "minor", "suggestion"] as const;
@@ -129,9 +131,10 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
 ### mark-fixed - Mark finding as fixed, wont_fix, or duplicate
 ### get-findings - Get findings for a ticket (filterable by status, severity, agent)
 ### check-complete - Check if all critical/major findings resolved (returns canProceedToVerification)
-### generate-demo - Generate demo script for AI verification (moves ticket to ai_verification). visual/automated steps require automation specs; manual steps must not include automation.
+### generate-demo - Generate demo script for AI verification (moves ticket to ai_verification). visual/automated steps require automation specs; manual steps are audit-only and at least one executable step is required.
 ### get-demo - Get the demo script for a ticket
 ### get-verification-history - Read verification run history for a ticket
+### repair-legacy-handoff - Repair a legacy human_review ticket to ai_verification (with demo) or ai_review (without demo)
 
 No MCP action uploads evidence or marks verification passed. The verification runner owns evidence writes and ai_verification -> done.`,
     {
@@ -369,6 +372,21 @@ No MCP action uploads evidence or marks verification passed. The verification ru
               return formatEmpty("verification runs for this ticket");
             }
             return formatResult(runs, `Found ${runs.length} verification run(s)`);
+          }
+
+          case "repair-legacy-handoff": {
+            const ticketId = requireParam(params.ticketId, "ticketId", "repair-legacy-handoff");
+            const result = repairLegacyHumanReviewHandoff(db, ticketId);
+            const prdSync = syncPrdPassMarker(db, ticketId, false);
+            if (prdSync.required && !prdSync.success) {
+              throw new Error(
+                `Cannot repair legacy handoff because PRD sync failed: ${prdSync.message}`
+              );
+            }
+            return formatResult(
+              { ...result, prdSync },
+              `Legacy human_review handoff repaired: ticket moved to ${result.newStatus}.\n\n${formatPrdSyncNote(prdSync)}`
+            );
           }
         }
       } catch (err) {

@@ -89,6 +89,11 @@ export const KANBAN_STATUSES = TICKET_STATUSES.filter(
 
 export const OPEN_TICKET_STATUSES = TICKET_STATUSES.filter((status) => status !== "done");
 
+export const RALPH_PRD_TICKET_STATUSES = [
+  ...OPEN_TICKET_STATUSES,
+  ...LEGACY_TICKET_STATUSES,
+] as const;
+
 export const STATUS_OPTIONS = TICKET_STATUSES.map((status) => ({
   value: status,
   label: TICKET_STATUS_METADATA[status].label,

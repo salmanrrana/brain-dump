@@ -1,6 +1,6 @@
 /**
  * Review commands: submit-finding, mark-fixed, check-complete, generate-demo, get-demo, get-findings,
- * get-verification-history.
+ * get-verification-history, repair-legacy-handoff.
  */
 
 import { readFileSync } from "fs";
@@ -13,6 +13,7 @@ import {
   getDemo,
   getFindings,
   listVerificationRuns,
+  repairLegacyHumanReviewHandoff,
   updatePrdForDbTicketIfPresent,
   InvalidActionError,
   ValidationError,
@@ -44,6 +45,7 @@ const ACTIONS = [
   "get-demo",
   "get-findings",
   "get-verification-history",
+  "repair-legacy-handoff",
 ];
 
 export function handle(action: string, args: string[]): void {
@@ -172,6 +174,19 @@ export function handle(action: string, args: string[]): void {
         const ticketId = requireFlag(flags, "ticket");
         const result = listVerificationRuns(db, ticketId);
         outputResult(result, pretty);
+        break;
+      }
+
+      case "repair-legacy-handoff": {
+        const ticketId = requireFlag(flags, "ticket");
+        const result = repairLegacyHumanReviewHandoff(db, ticketId);
+        const prdSync = updatePrdForDbTicketIfPresent(db, ticketId, false);
+        if (prdSync.required && !prdSync.success) {
+          throw new ValidationError(
+            `Cannot repair legacy handoff because PRD sync failed: ${prdSync.message}`
+          );
+        }
+        outputResult({ ...result, prdSync }, pretty);
         break;
       }
 

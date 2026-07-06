@@ -113,6 +113,7 @@ export {
   TICKET_STATUS_METADATA,
   KANBAN_STATUSES,
   OPEN_TICKET_STATUSES,
+  RALPH_PRD_TICKET_STATUSES,
   STATUS_OPTIONS,
   STATUS_ORDER,
   WorkflowTransitionError,
@@ -304,6 +305,7 @@ export {
   validateGenerateDemo,
   generateDemo,
   getDemo,
+  repairLegacyHumanReviewHandoff,
   validateSubmitFeedback,
 } from "./review.ts";
 
@@ -312,6 +314,7 @@ export type {
   MarkFixedStatus,
   GetFindingsFilters,
   GenerateDemoParams,
+  RepairLegacyHumanReviewResult,
   DemoStepStatus,
   SubmitFeedbackParams,
 } from "./review.ts";

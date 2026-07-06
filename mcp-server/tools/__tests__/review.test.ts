@@ -128,6 +128,20 @@ function readPrdPasses(projectPath: string): boolean {
   return story.passes;
 }
 
+function automatedStep(order = 1) {
+  return {
+    order,
+    description: "Check the status API",
+    expectedOutcome: "The status endpoint returns OK.",
+    type: "automated" as const,
+    automation: {
+      kind: "api" as const,
+      request: { method: "GET", path: "/api/status" },
+      assert: [{ type: "status" as const, expected: 200 }],
+    },
+  };
+}
+
 function seedAiReviewTicketWithPr(ticketId: string): void {
   seedProject(db, { id: "proj-1", path: tempDir });
   seedTicket(db, {
@@ -218,14 +232,7 @@ describe("review tool generate-demo PR sync", () => {
       {
         action: "generate-demo",
         ticketId: "ticket-1",
-        steps: [
-          {
-            order: 1,
-            description: "Generate the demo script",
-            expectedOutcome: "The ticket moves to ai_verification.",
-            type: "manual",
-          },
-        ],
+        steps: [automatedStep()],
       },
       {}
     )) as { content: Array<{ text: string }> };
@@ -255,14 +262,7 @@ describe("review tool generate-demo PR sync", () => {
       {
         action: "generate-demo",
         ticketId: "ticket-1",
-        steps: [
-          {
-            order: 1,
-            description: "Generate the demo script",
-            expectedOutcome: "The ticket moves to ai_verification.",
-            type: "manual",
-          },
-        ],
+        steps: [automatedStep()],
       },
       {}
     )) as { content: Array<{ text: string }>; isError?: boolean };

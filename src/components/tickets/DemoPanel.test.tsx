@@ -215,6 +215,39 @@ describe("DemoPanel", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows the runner command while ai_verification is waiting for its first run", () => {
+    mockBaseQueries();
+    mockUseDemoScript.mockReturnValue({
+      demoScript: {
+        id: "demo-1",
+        ticketId: "ticket-1",
+        generatedAt: "2026-04-25T10:00:00.000Z",
+        completedAt: null,
+        passed: null,
+        feedback: null,
+        steps: [
+          {
+            order: 1,
+            type: "automated",
+            description: "Check pending runner state.",
+            expectedOutcome: "The runner command is visible.",
+            status: "pending",
+          },
+        ],
+      },
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    render(<DemoPanel ticketId="ticket-1" ticketStatus="ai_verification" />);
+
+    expect(screen.getByText("Runner pending")).toBeInTheDocument();
+    expect(
+      screen.getByText("brain-dump verify run --ticket ticket-1 --pretty")
+    ).toBeInTheDocument();
+  });
+
   it("shows tampered integrity state in run history", () => {
     mockUseDemoScript.mockReturnValue({
       demoScript: {

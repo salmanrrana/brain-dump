@@ -564,6 +564,19 @@ export function DemoPanel({
         </div>
       )}
 
+      {!latestRun && ticketStatus === "ai_verification" && (
+        <div className="rounded-lg border border-[var(--warning)]/30 bg-[var(--warning-muted)] p-4 text-sm text-[var(--text-secondary)]">
+          <p className="font-medium text-[var(--text-primary)]">Runner pending</p>
+          <p className="mt-1">
+            Start verification from the project root with this command. Manual approval cannot
+            complete this ticket.
+          </p>
+          <code className="mt-3 block overflow-x-auto rounded bg-[var(--bg-secondary)] px-3 py-2 font-mono text-xs text-[var(--text-primary)]">
+            brain-dump verify run --ticket {ticketId} --pretty
+          </code>
+        </div>
+      )}
+
       <VerificationRunHistory runs={verificationRuns} />
 
       {demoScript.completedAt && (

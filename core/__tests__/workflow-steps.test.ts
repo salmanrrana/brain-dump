@@ -8,6 +8,7 @@ import {
   getTicketStatusLabel,
   isTicketStatus,
   KANBAN_STATUSES,
+  RALPH_PRD_TICKET_STATUSES,
   STATUS_ORDER,
   TICKET_STATUSES,
   WorkflowTransitionError,
@@ -44,6 +45,17 @@ describe("workflow status specification", () => {
     expect(getTicketStatusLabel("ai_review")).toBe("AI Review");
     expect(isTicketStatus("done")).toBe(true);
     expect(isTicketStatus("blocked")).toBe(false);
+  });
+
+  it("keeps Ralph PRD generation scoped to every non-done and legacy-repairable ticket", () => {
+    expect(RALPH_PRD_TICKET_STATUSES).toEqual([
+      "backlog",
+      "ready",
+      "in_progress",
+      "ai_review",
+      "ai_verification",
+      "human_review",
+    ]);
   });
 
   it("captures the currently enforced workflow transitions", () => {

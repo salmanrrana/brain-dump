@@ -8,6 +8,7 @@ import {
   checkComplete,
   generateDemo,
   getDemo,
+  repairLegacyHumanReviewHandoff,
   updateDemoStep,
   submitFeedback,
 } from "../review.ts";
@@ -47,6 +48,20 @@ function seedAiReviewTicket(id = "ticket-1", projectId = "proj-1") {
 
 function seedHumanReviewTicket(id = "ticket-1", projectId = "proj-1") {
   return seedTicket(id, projectId, "human_review");
+}
+
+function automatedStep(order = 1): DemoStep {
+  return {
+    order,
+    description: "Check the status API",
+    expectedOutcome: "The status endpoint returns OK",
+    type: "automated",
+    automation: {
+      kind: "api",
+      request: { method: "GET", path: "/api/status" },
+      assert: [{ type: "status", expected: 200 }],
+    },
+  };
 }
 
 beforeEach(() => {
@@ -590,6 +605,20 @@ describe("generateDemo", () => {
     ).toThrow(/must not include automation/);
   });
 
+  it("rejects manual-only demo scripts because manual steps are audit-only", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    expect(() =>
+      generateDemo(db, {
+        ticketId: "ticket-1",
+        steps: [
+          { order: 1, description: "Manual smoke", expectedOutcome: "Looks good", type: "manual" },
+        ],
+      })
+    ).toThrow(/at least one visual or automated step/);
+  });
+
   it("rejects malformed automation specs with a helpful error", () => {
     seedProject();
     seedAiReviewTicket();
@@ -656,9 +685,7 @@ describe("generateDemo", () => {
 
     generateDemo(db, {
       ticketId: "ticket-1",
-      steps: [
-        { order: 1, description: "Open the app", expectedOutcome: "App loads", type: "manual" },
-      ],
+      steps: [automatedStep()],
     });
 
     const session = db.prepare("SELECT * FROM ralph_sessions WHERE id = ?").get("session-1") as {
@@ -685,7 +712,7 @@ describe("generateDemo", () => {
     expect(() =>
       generateDemo(db, {
         ticketId: "ticket-1",
-        steps: [{ order: 1, description: "Test", expectedOutcome: "Pass", type: "manual" }],
+        steps: [automatedStep()],
       })
     ).toThrow(InvalidStateError);
   });
@@ -705,7 +732,7 @@ describe("generateDemo", () => {
     expect(() =>
       generateDemo(db, {
         ticketId: "ticket-1",
-        steps: [{ order: 1, description: "Test", expectedOutcome: "Pass", type: "manual" }],
+        steps: [automatedStep()],
       })
     ).toThrow(ValidationError);
   });
@@ -724,7 +751,7 @@ describe("generateDemo", () => {
 
     const demo = generateDemo(db, {
       ticketId: "ticket-1",
-      steps: [{ order: 1, description: "Test", expectedOutcome: "Pass", type: "manual" }],
+      steps: [automatedStep()],
     });
 
     expect(demo.id).toBeTruthy();
@@ -786,7 +813,7 @@ describe("generateDemo", () => {
     expect(() =>
       generateDemo(db, {
         ticketId: "nonexistent",
-        steps: [{ order: 1, description: "Test", expectedOutcome: "Pass", type: "manual" }],
+        steps: [automatedStep()],
       })
     ).toThrow(TicketNotFoundError);
   });
@@ -820,7 +847,7 @@ describe("generateDemo", () => {
 
     const demo = generateDemo(db, {
       ticketId: "ticket-1",
-      steps: [{ order: 1, description: "Test", expectedOutcome: "Pass", type: "manual" }],
+      steps: [automatedStep()],
     });
 
     expect(demo.epicReviewRunId).toBe(run.id);
@@ -829,6 +856,49 @@ describe("generateDemo", () => {
     expect(updatedRun.status).toBe("completed");
     expect(updatedRun.summary).toContain("Focused review completed.");
     expect(updatedRun.completedAt).toBeTruthy();
+  });
+});
+
+describe("repairLegacyHumanReviewHandoff", () => {
+  it("moves legacy human_review tickets with a demo script to ai_verification", () => {
+    seedProject();
+    seedHumanReviewTicket();
+    db.prepare(
+      `INSERT INTO demo_scripts (id, ticket_id, steps, generated_at)
+       VALUES (?, ?, ?, ?)`
+    ).run("demo-1", "ticket-1", JSON.stringify([automatedStep()]), new Date().toISOString());
+
+    const result = repairLegacyHumanReviewHandoff(db, "ticket-1");
+
+    expect(result.newStatus).toBe("ai_verification");
+    const ticket = db.prepare("SELECT status FROM tickets WHERE id = ?").get("ticket-1") as {
+      status: string;
+    };
+    expect(ticket.status).toBe("ai_verification");
+    const comment = db
+      .prepare("SELECT content FROM ticket_comments WHERE ticket_id = ?")
+      .get("ticket-1") as { content: string };
+    expect(comment.content).toContain("Legacy Workflow Repair");
+  });
+
+  it("moves legacy human_review tickets without a demo script back to ai_review", () => {
+    seedProject();
+    seedHumanReviewTicket();
+
+    const result = repairLegacyHumanReviewHandoff(db, "ticket-1");
+
+    expect(result.newStatus).toBe("ai_review");
+    const ticket = db.prepare("SELECT status FROM tickets WHERE id = ?").get("ticket-1") as {
+      status: string;
+    };
+    expect(ticket.status).toBe("ai_review");
+  });
+
+  it("rejects non-legacy statuses", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    expect(() => repairLegacyHumanReviewHandoff(db, "ticket-1")).toThrow(InvalidStateError);
   });
 });
 
@@ -843,7 +913,7 @@ describe("getDemo", () => {
 
     generateDemo(db, {
       ticketId: "ticket-1",
-      steps: [{ order: 1, description: "Test", expectedOutcome: "Pass", type: "manual" }],
+      steps: [automatedStep()],
     });
 
     const demo = getDemo(db, "ticket-1");
@@ -935,7 +1005,7 @@ describe("updateDemoStep", () => {
 
     const demo = generateDemo(db, {
       ticketId: "ticket-1",
-      steps: [{ order: 1, description: "Step 1", expectedOutcome: "OK", type: "manual" }],
+      steps: [automatedStep()],
     });
 
     expect(() => updateDemoStep(db, demo.id, 99, "passed")).toThrow(ValidationError);
@@ -953,7 +1023,7 @@ describe("submitFeedback", () => {
 
     generateDemo(db, {
       ticketId: "ticket-1",
-      steps: [{ order: 1, description: "Test", expectedOutcome: "Pass", type: "manual" }],
+      steps: [automatedStep()],
     });
 
     expect(() =>

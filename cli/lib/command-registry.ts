@@ -706,6 +706,13 @@ export const COMMAND_REGISTRY: CommandDef[] = [
     examples: ["brain-dump review get-verification-history --ticket abc --pretty"],
   },
   {
+    resource: "review",
+    action: "repair-legacy-handoff",
+    description: "Repair a legacy human_review ticket into the active AI verification flow",
+    flags: [ticketFlag, prettyFlag],
+    examples: ["brain-dump review repair-legacy-handoff --ticket abc --pretty"],
+  },
+  {
     resource: "verify",
     action: "run",
     description: "Run AI verification for a ticket",
