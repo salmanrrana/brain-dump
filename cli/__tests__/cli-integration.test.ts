@@ -145,6 +145,14 @@ describe("verify", () => {
     expect(result.stdout).toContain("brain-dump verify <action> [flags]");
     expect(existsSync(join(tempDir, "data"))).toBe(false);
   });
+
+  it("rejects unknown actions without running verification", async () => {
+    const result = await run("verify", "histroy", "--ticket", "ticket-1");
+
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toContain("histroy");
+    expect(existsSync(join(tempDir, "data"))).toBe(false);
+  });
 });
 
 // ── Project Commands ────────────────────────────────────────────

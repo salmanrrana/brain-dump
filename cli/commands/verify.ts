@@ -5,13 +5,22 @@
 import { boolFlag, optionalFlag, parseFlags, requireFlag } from "../lib/args.ts";
 import { getDb } from "../lib/db.ts";
 import { outputError, outputResult, showResourceHelp } from "../lib/output.ts";
-import { execFileNoThrow, listVerificationRuns, verifyTicket } from "../../core/index.ts";
+import {
+  execFileNoThrow,
+  InvalidActionError,
+  listVerificationRuns,
+  verifyTicket,
+} from "../../core/index.ts";
+
+const ACTIONS = ["run", "history"];
 
 export async function handle(action: string, args: string[]): Promise<void> {
   const normalizedArgs = action.startsWith("--") ? [action, ...args] : args;
   const flags = parseFlags(normalizedArgs);
   const pretty = boolFlag(flags, "pretty");
-  const history = boolFlag(flags, "history") || action === "history";
+  const isFlagShortcut = action.startsWith("--");
+  const isHistoryAction = action === "history";
+  const history = boolFlag(flags, "history") || isHistoryAction;
 
   if (!action || action === "--help" || action === "help") {
     showResourceHelp("verify");
@@ -19,6 +28,10 @@ export async function handle(action: string, args: string[]): Promise<void> {
   }
 
   try {
+    if (!isFlagShortcut && action !== "run" && !isHistoryAction) {
+      throw new InvalidActionError("verify", action, ACTIONS);
+    }
+
     const { db } = getDb();
     const ticketId = requireFlag(flags, "ticket");
     if (history) {
