@@ -258,7 +258,7 @@ The workflow is designed to be a pipeline:
     ↓
 /demo
     ↓
-[Human reviews and approves]
+[AI verification runner certifies evidence]
     ↓
 /reconcile-learnings (optional)
     ↓

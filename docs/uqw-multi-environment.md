@@ -423,7 +423,7 @@ The mandatory AI review phase is identical across all environments:
 
 10. Call `review` tool, `action: "generate-demo"`, `ticketId`, `steps`
     - Only allowed if review is complete (`review "check-complete"` returned true)
-    - Include at least 3 manual test steps
+    - Include 3-7 verification steps with automation specs for visual/automated checks
     - Sets status to `ai_verification`
 
 ### Phase 4: AI Verification (STOP - Wait for Runner)
@@ -683,7 +683,7 @@ OpenCode requires comprehensive AGENTS.md documentation because plugins provide 
    - Fix critical/major issues
    - Call: `review` tool, `action: "check-complete"`, `ticketId`
    - Generate demo: `review` tool, `action: "generate-demo"`, `ticketId`, `steps`
-   - **STOP** - Wait for human approval
+   - **STOP** - Wait for AI verification runner certification
 
 6. **Self-Review Checklist** (for OpenCode - no external agents available)
    - [ ] Type safety: All types correct, no `any`
@@ -779,7 +779,7 @@ Access telemetry in Brain Dump UI:
 The Universal Quality Workflow exists because:
 
 1. **Consistency** - Same workflow regardless of environment (Claude Code, OpenCode, Cursor, VS Code)
-2. **Quality** - Mandatory code review before human approval prevents bugs
+2. **Quality** - Mandatory code review before AI verification prevents bugs
 3. **Discipline** - State enforcement prevents accidental merges of unreviewed code
 4. **Auditability** - Complete audit trail of who did what, when, and why
 5. **Learning** - Telemetry shows patterns and bottlenecks for process improvement

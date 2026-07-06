@@ -43,7 +43,7 @@ Primary actions:
 ### Phase 3: Demo Generation
 
 1. Invoke `review({ action: "generate-demo", ticketId: "<ticketId>", steps: [...] })`
-2. Provide at least 3 manual test steps
+2. Provide 3-7 verification steps with automation specs for visual/automated checks
 3. Confirm ticket moved to `ai_verification`
 
 ### Phase 4: Stop for Verification
@@ -113,7 +113,7 @@ Run these checks before calling `workflow({ action: "complete-work" })`:
 
 ### Before Calling session({ action: "complete" })
 
-- `review({ action: "generate-demo" })` called with at least 3 manual test steps
+- `review({ action: "generate-demo" })` called with 3-7 verification steps and automation specs where applicable
 - Ticket status is `ai_verification`
 - The verification runner will execute the demo and certify completion (not you)
 

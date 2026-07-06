@@ -71,7 +71,7 @@ pnpm brain-dump status --pretty
 | Feature                | What It Does                                                                                      |
 | ---------------------- | ------------------------------------------------------------------------------------------------- |
 | **One-click context**  | Click a ticket → AI opens with full context (description, acceptance criteria, linked files)      |
-| **Quality Workflow**   | AI review → fix loop → human demo approval. Same quality in all environments.                     |
+| **Quality Workflow**   | AI review → fix loop → AI verification evidence. Same quality in all environments.                |
 | **Ralph Mode**         | Autonomous agent works your backlog while you sleep                                               |
 | **Multi-environment**  | Works in Claude Code, Codex, Cursor, VS Code, OpenCode, Copilot CLI, Pi with same tools/workflows |
 | **MCP-powered**        | AI can update tickets, link commits, manage your board directly                                   |

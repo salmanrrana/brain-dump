@@ -97,6 +97,6 @@ Does check-complete return canProceedToVerification: true?
 |-- NO: Still have open critical/major findings
 
 Did generate-demo succeed?
-|-- YES: STOP. Wait for human approval.
+|-- YES: STOP. Wait for AI verification runner certification.
 |-- NO: Check error message and fix the issue.
 ```
