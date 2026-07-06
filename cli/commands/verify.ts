@@ -12,7 +12,6 @@ export async function handle(action: string, args: string[]): Promise<void> {
   const flags = parseFlags(normalizedArgs);
   const pretty = boolFlag(flags, "pretty");
   const history = boolFlag(flags, "history") || action === "history";
-  const { db } = getDb();
 
   if (!action || action === "--help" || action === "help") {
     showResourceHelp("verify");
@@ -20,6 +19,7 @@ export async function handle(action: string, args: string[]): Promise<void> {
   }
 
   try {
+    const { db } = getDb();
     const ticketId = requireFlag(flags, "ticket");
     if (history) {
       const result = listVerificationRuns(db, ticketId);

@@ -6,7 +6,7 @@
  */
 
 import { execFile } from "child_process";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join, resolve } from "path";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
@@ -133,6 +133,18 @@ beforeEach(() => {
 
 afterEach(() => {
   rmSync(tempDir, { recursive: true, force: true });
+});
+
+// ── Verify Commands ─────────────────────────────────────────────
+
+describe("verify", () => {
+  it("prints help without initializing the database", async () => {
+    const result = await run("verify", "--help");
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("brain-dump verify <action> [flags]");
+    expect(existsSync(join(tempDir, "data"))).toBe(false);
+  });
 });
 
 // ── Project Commands ────────────────────────────────────────────
