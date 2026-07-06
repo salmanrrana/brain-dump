@@ -380,6 +380,9 @@ function validateAutomationValue(
     if (prototype !== Object.prototype && prototype !== null) {
       throw new ValidationError(`${path} must be a plain JSON object.`);
     }
+    if (Object.hasOwn(value, "toJSON")) {
+      throw new ValidationError(`${path} must not define custom JSON serialization.`);
+    }
     if (seen.has(value)) throw new ValidationError(`${path} must not contain circular data.`);
     seen.add(value);
     for (const [key, entry] of Object.entries(value)) {

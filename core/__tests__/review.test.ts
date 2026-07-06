@@ -799,6 +799,35 @@ describe("generateDemo", () => {
     );
   });
 
+  it("rejects API automation objects with custom JSON serialization", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    const payload = { value: "stored" } as { value: string; toJSON?: () => { value: string } };
+    Object.defineProperty(payload, "toJSON", {
+      value: () => ({ value: "different" }),
+      enumerable: false,
+    });
+
+    const steps = [
+      {
+        order: 1,
+        description: "Check the status API",
+        expectedOutcome: "The status endpoint returns OK",
+        type: "automated",
+        automation: {
+          kind: "api",
+          request: { method: "POST", path: "/api/status", body: payload },
+          assert: [{ type: "jsonPath", expected: { ok: true } }],
+        },
+      },
+    ] as unknown as DemoStep[];
+
+    expect(() => generateDemo(db, { ticketId: "ticket-1", steps })).toThrow(
+      /API automation request body must not define custom JSON serialization/
+    );
+  });
+
   it("completes active Ralph sessions when handing the ticket to ai_verification", () => {
     seedProject();
     seedAiReviewTicket();
