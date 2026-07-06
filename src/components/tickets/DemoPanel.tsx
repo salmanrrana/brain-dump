@@ -162,14 +162,25 @@ function isLikelyImage(path: string): boolean {
 }
 
 function buildAttachmentLookup(attachments: Attachment[]): Map<string, Attachment> {
-  return new Map(attachments.map((attachment) => [attachment.filename, attachment]));
+  const lookup = new Map<string, Attachment>();
+  for (const attachment of attachments) {
+    lookup.set(`filename:${attachment.filename}`, attachment);
+
+    const hash = attachment.description?.match(/evidence \(([^)]+)\)/)?.[1];
+    if (hash) lookup.set(`hash:${hash}`, attachment);
+  }
+  return lookup;
 }
 
 function findAttachmentForEvidence(
   attachmentLookup: Map<string, Attachment>,
-  evidencePath: string
+  evidenceFile: { path: string; hash: string }
 ): Attachment | null {
-  return attachmentLookup.get(filenameFromPath(evidencePath)) ?? null;
+  return (
+    attachmentLookup.get(`hash:${evidenceFile.hash}`) ??
+    attachmentLookup.get(`filename:${filenameFromPath(evidenceFile.path)}`) ??
+    null
+  );
 }
 
 function StatusPill({ config }: { config: { label: string; className: string; icon: ReactNode } }) {
@@ -338,7 +349,7 @@ function EvidenceList({
   return (
     <div className="grid gap-2 sm:grid-cols-2">
       {verdict.evidenceFiles.map((file) => {
-        const attachment = findAttachmentForEvidence(attachmentLookup, file.path);
+        const attachment = findAttachmentForEvidence(attachmentLookup, file);
         const label = filenameFromPath(file.path);
         const showImage = attachment?.isImage || isLikelyImage(file.path);
 
@@ -609,7 +620,9 @@ export function DemoPanel({
     enabled: ticketStatus === "ai_verification",
     pollingInterval: shouldPoll ? pollingInterval : 0,
   });
-  const { attachments } = useTicketAttachments(ticketId, { enabled: verificationRuns.length > 0 });
+  const { attachments, error: attachmentsError } = useTicketAttachments(ticketId, {
+    enabled: verificationRuns.length > 0,
+  });
   const [lightboxAttachment, setLightboxAttachment] = useState<Attachment | null>(null);
 
   const attachmentLookup = useMemo(() => buildAttachmentLookup(attachments), [attachments]);
@@ -692,6 +705,12 @@ export function DemoPanel({
         <div className="flex items-center gap-2 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-3 text-sm text-[var(--text-secondary)]">
           <Loader2 className="animate-spin" size={16} aria-hidden="true" />
           Loading verification run history...
+        </div>
+      )}
+
+      {attachmentsError && (
+        <div className="rounded-lg border border-[var(--warning)]/30 bg-[var(--warning-muted)] p-3 text-sm text-[var(--warning)]">
+          Verification evidence attachments could not be loaded: {attachmentsError}
         </div>
       )}
 

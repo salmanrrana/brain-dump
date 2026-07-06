@@ -411,7 +411,7 @@ const TICKET_SUMMARY_COLUMNS = {
   verificationJobStatus: verificationJobs.status,
   verificationJobAttemptCount: verificationJobs.attemptCount,
   verificationJobNextRunAt: verificationJobs.nextRunAt,
-  verificationJobLastError: verificationJobs.lastError,
+  verificationJobLastError: sql<string | null>`substr(${verificationJobs.lastError}, 1, 240)`,
 };
 
 /**

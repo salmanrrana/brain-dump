@@ -149,8 +149,20 @@ describe("DemoPanel", () => {
     mockUseTicketAttachments.mockReturnValue({
       attachments: [
         {
-          id: "attachment-1",
+          id: "attachment-old",
           filename: "step-1.png",
+          size: 1000,
+          isImage: true,
+          url: "data:image/png;base64,old",
+          type: "verification-screenshot",
+          priority: "primary",
+          uploadedBy: "opencode ralph",
+          uploadedAt: "2026-04-25T09:00:02.000Z",
+          description: "Verification run old-run evidence (old-hash)",
+        },
+        {
+          id: "attachment-1",
+          filename: "step-1_1.png",
           size: 1000,
           isImage: true,
           url: "data:image/png;base64,abc",
@@ -158,6 +170,7 @@ describe("DemoPanel", () => {
           priority: "primary",
           uploadedBy: "opencode ralph",
           uploadedAt: "2026-04-25T10:00:02.000Z",
+          description: "Verification run run-1 evidence (hash-1)",
         },
       ],
       loading: false,
@@ -175,7 +188,7 @@ describe("DemoPanel", () => {
     await user.click(screen.getByRole("button", { name: /open screenshot evidence step-1\.png/i }));
 
     expect(
-      screen.getByRole("dialog", { name: /evidence image: step-1\.png/i })
+      screen.getByRole("dialog", { name: /evidence image: step-1_1\.png/i })
     ).toBeInTheDocument();
 
     await user.keyboard("{Escape}");
@@ -393,5 +406,61 @@ describe("DemoPanel", () => {
 
     expect(screen.getByText("Tampered")).toBeInTheDocument();
     expect(screen.getByText("Evidence files: 0")).toBeInTheDocument();
+  });
+
+  it("warns when verification evidence attachments cannot be loaded", () => {
+    mockUseDemoScript.mockReturnValue({
+      demoScript: {
+        id: "demo-1",
+        ticketId: "ticket-1",
+        generatedAt: "2026-04-25T10:00:00.000Z",
+        completedAt: null,
+        passed: null,
+        feedback: null,
+        steps: [],
+      },
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    mockUseVerificationRuns.mockReturnValue({
+      verificationRuns: [
+        {
+          id: "run-1",
+          ticketId: "ticket-1",
+          round: 1,
+          status: "failed",
+          certified: false,
+          integrityStatus: "valid",
+          gitSha: null,
+          startedAt: "2026-04-25T10:00:00.000Z",
+          finishedAt: "2026-04-25T10:00:01.000Z",
+          durationMs: 1000,
+          manifest: null,
+        },
+      ],
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    mockUseVerificationJobStatus.mockReturnValue({
+      verificationJob: null,
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    mockUseTicketAttachments.mockReturnValue({
+      attachments: [],
+      loading: false,
+      error: "Attachment store is unavailable",
+      refetch: vi.fn(),
+    });
+
+    render(<DemoPanel ticketId="ticket-1" ticketStatus="done" />);
+
+    expect(
+      screen.getByText(/verification evidence attachments could not be loaded/i)
+    ).toBeInTheDocument();
+    expect(screen.getByText(/attachment store is unavailable/i)).toBeInTheDocument();
   });
 });
