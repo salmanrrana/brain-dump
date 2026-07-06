@@ -726,6 +726,57 @@ describe("generateDemo", () => {
     ).toThrow(/argv must be argv array data, not a shell command string/);
   });
 
+  it("rejects command automation shell interpreters and eval flags", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    expect(() =>
+      generateDemo(db, {
+        ticketId: "ticket-1",
+        steps: [
+          {
+            order: 1,
+            description: "Run through a shell",
+            expectedOutcome: "The command is rejected",
+            type: "automated",
+            automation: {
+              kind: "command",
+              command: {
+                argv: ["bash", "-lc", "pnpm test"],
+                timeoutMs: 1000,
+                expectedExitCode: 0,
+              },
+              assert: [{ type: "stdoutContains", expected: "PASS" }],
+            },
+          },
+        ],
+      })
+    ).toThrow(/must not invoke a shell interpreter/);
+
+    expect(() =>
+      generateDemo(db, {
+        ticketId: "ticket-1",
+        steps: [
+          {
+            order: 1,
+            description: "Use shell eval syntax",
+            expectedOutcome: "The command is rejected",
+            type: "automated",
+            automation: {
+              kind: "command",
+              command: {
+                argv: ["pnpm", "-c", "test"],
+                timeoutMs: 1000,
+                expectedExitCode: 0,
+              },
+              assert: [{ type: "stdoutContains", expected: "PASS" }],
+            },
+          },
+        ],
+      })
+    ).toThrow(/must not use shell evaluation flags/);
+  });
+
   it("rejects command automation without a timeout", () => {
     seedProject();
     seedAiReviewTicket();
@@ -751,6 +802,34 @@ describe("generateDemo", () => {
         ],
       } as never)
     ).toThrow(/command automation timeoutMs must be a positive integer/);
+  });
+
+  it("rejects command automation with an excessive timeout", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    expect(() =>
+      generateDemo(db, {
+        ticketId: "ticket-1",
+        steps: [
+          {
+            order: 1,
+            description: "Run an unbounded command",
+            expectedOutcome: "The command is rejected",
+            type: "automated",
+            automation: {
+              kind: "command",
+              command: {
+                argv: ["pnpm", "test"],
+                timeoutMs: 300_001,
+                expectedExitCode: 0,
+              },
+              assert: [{ type: "stdoutContains", expected: "PASS" }],
+            },
+          },
+        ],
+      })
+    ).toThrow(/command automation timeoutMs must be at most 300000ms/);
   });
 
   it("rejects command automation path escapes", () => {

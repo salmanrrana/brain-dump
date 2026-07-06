@@ -21,6 +21,7 @@ import {
   validateGenerateDemo,
   generateDemo,
   getDemo,
+  DEMO_COMMAND_MAX_TIMEOUT_MS,
   validateRepairLegacyHumanReviewHandoff,
   repairLegacyHumanReviewHandoff,
 } from "../../core/review.ts";
@@ -102,7 +103,7 @@ const DEMO_STEP_AUTOMATION_SCHEMA = z.union([
     command: z.object({
       argv: z.array(z.string()),
       cwd: z.string().optional(),
-      timeoutMs: z.number(),
+      timeoutMs: z.number().int().positive().max(DEMO_COMMAND_MAX_TIMEOUT_MS),
       expectedExitCode: z.number(),
     }),
     assert: z.array(

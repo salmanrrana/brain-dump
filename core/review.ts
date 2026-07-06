@@ -334,6 +334,27 @@ export interface GenerateDemoParams {
   steps: DemoStep[];
 }
 
+export const DEMO_COMMAND_MAX_TIMEOUT_MS = 300_000;
+
+const DEMO_COMMAND_SHELL_NAMES = new Set([
+  "bash",
+  "cmd",
+  "cmd.exe",
+  "fish",
+  "powershell",
+  "powershell.exe",
+  "pwsh",
+  "pwsh.exe",
+  "sh",
+  "zsh",
+]);
+
+const DEMO_COMMAND_EVAL_FLAGS = new Set(["-c", "-lc", "/c"]);
+
+function getCommandTokenName(value: string): string {
+  return value.split(/[\\/]/).pop()?.toLowerCase() ?? value.toLowerCase();
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -378,6 +399,12 @@ function validateNonShellArgv(argv: unknown, path: string): string[] {
     }
     if (argIndex === 0 && /\s/.test(arg)) {
       throw new ValidationError(`${path} must be argv array data, not a shell command string.`);
+    }
+    if (DEMO_COMMAND_SHELL_NAMES.has(getCommandTokenName(arg))) {
+      throw new ValidationError(`${path}[${argIndex}] must not invoke a shell interpreter.`);
+    }
+    if (DEMO_COMMAND_EVAL_FLAGS.has(arg.toLowerCase())) {
+      throw new ValidationError(`${path}[${argIndex}] must not use shell evaluation flags.`);
     }
     if (shellMetacharacters.test(arg)) {
       throw new ValidationError(`${path}[${argIndex}] must not contain shell metacharacters.`);
@@ -562,6 +589,11 @@ function validateCommandAutomation(step: DemoStep, index: number): void {
   }
   if (!Number.isSafeInteger(automation.command.timeoutMs) || automation.command.timeoutMs <= 0) {
     throw new ValidationError(`${label} command automation timeoutMs must be a positive integer.`);
+  }
+  if (automation.command.timeoutMs > DEMO_COMMAND_MAX_TIMEOUT_MS) {
+    throw new ValidationError(
+      `${label} command automation timeoutMs must be at most ${DEMO_COMMAND_MAX_TIMEOUT_MS}ms.`
+    );
   }
   if (
     !Number.isSafeInteger(automation.command.expectedExitCode) ||
