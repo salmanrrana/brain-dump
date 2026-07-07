@@ -781,6 +781,103 @@ describe("generateDemo", () => {
     ).toThrow(/must not use shell evaluation flags/);
   });
 
+  it("rejects unsupported, destructive, and package-manager exec command automation", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    expect(() =>
+      generateDemo(db, {
+        ticketId: "ticket-1",
+        steps: [
+          {
+            order: 1,
+            description: "Remove files",
+            expectedOutcome: "The command is rejected",
+            type: "automated",
+            automation: {
+              kind: "command",
+              command: {
+                argv: ["rm", "-rf", "tmp"],
+                timeoutMs: 1000,
+                expectedExitCode: 0,
+              },
+              assert: [{ type: "stdoutContains", expected: "removed" }],
+            },
+          },
+        ],
+      })
+    ).toThrow(/uses blocked command token "rm"/);
+
+    expect(() =>
+      generateDemo(db, {
+        ticketId: "ticket-1",
+        steps: [
+          {
+            order: 1,
+            description: "Run arbitrary package binary",
+            expectedOutcome: "The command is rejected",
+            type: "automated",
+            automation: {
+              kind: "command",
+              command: {
+                argv: ["pnpm", "exec", "vite", "--version"],
+                timeoutMs: 1000,
+                expectedExitCode: 0,
+              },
+              assert: [{ type: "stdoutContains", expected: "vite" }],
+            },
+          },
+        ],
+      })
+    ).toThrow(/must not use package-manager exec subcommands/);
+
+    expect(() =>
+      generateDemo(db, {
+        ticketId: "ticket-1",
+        steps: [
+          {
+            order: 1,
+            description: "Use node eval",
+            expectedOutcome: "The command is rejected",
+            type: "automated",
+            automation: {
+              kind: "command",
+              command: {
+                argv: ["node", "-e", "console.log('unsafe')"],
+                timeoutMs: 1000,
+                expectedExitCode: 0,
+              },
+              assert: [{ type: "stdoutContains", expected: "unsafe" }],
+            },
+          },
+        ],
+      })
+    ).toThrow(/must not use interpreter eval flags/);
+
+    expect(() =>
+      generateDemo(db, {
+        ticketId: "ticket-1",
+        steps: [
+          {
+            order: 1,
+            description: "Use unsupported command",
+            expectedOutcome: "The command is rejected",
+            type: "automated",
+            automation: {
+              kind: "command",
+              command: {
+                argv: ["python", "--version"],
+                timeoutMs: 1000,
+                expectedExitCode: 0,
+              },
+              assert: [{ type: "stdoutContains", expected: "Python" }],
+            },
+          },
+        ],
+      })
+    ).toThrow(/uses unsupported command "python"/);
+  });
+
   it("rejects command automation without a timeout", () => {
     seedProject();
     seedAiReviewTicket();
@@ -933,6 +1030,49 @@ describe("generateDemo", () => {
         ],
       })
     ).toThrow(/file automation path must not escape the project directory/);
+  });
+
+  it("rejects file automation targeting sensitive credential files", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    expect(() =>
+      generateDemo(db, {
+        ticketId: "ticket-1",
+        steps: [
+          {
+            order: 1,
+            description: "Inspect env file",
+            expectedOutcome: "The file check is rejected",
+            type: "automated",
+            automation: {
+              kind: "file",
+              path: ".env",
+              assert: [{ type: "exists" }],
+            },
+          },
+        ],
+      })
+    ).toThrow(/must not target sensitive credential or secret files/);
+
+    expect(() =>
+      generateDemo(db, {
+        ticketId: "ticket-1",
+        steps: [
+          {
+            order: 1,
+            description: "Inspect private key",
+            expectedOutcome: "The file check is rejected",
+            type: "automated",
+            automation: {
+              kind: "file",
+              path: "certs/private.pem",
+              assert: [{ type: "exists" }],
+            },
+          },
+        ],
+      })
+    ).toThrow(/must not target sensitive credential or secret files/);
   });
 
   it("rejects automated steps without automation", () => {

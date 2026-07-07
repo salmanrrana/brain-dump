@@ -351,9 +351,70 @@ const DEMO_COMMAND_SHELL_NAMES = new Set([
 ]);
 
 const DEMO_COMMAND_EVAL_FLAGS = new Set(["-c", "-lc", "/c"]);
+const DEMO_COMMAND_ALLOWED_BINARIES = new Set([
+  "brain-dump",
+  "bun",
+  "git",
+  "node",
+  "npm",
+  "pnpm",
+  "yarn",
+]);
+const DEMO_COMMAND_DENIED_TOKENS = new Set([
+  "cat",
+  "chmod",
+  "chown",
+  "cp",
+  "curl",
+  "dd",
+  "mkfs",
+  "mv",
+  "nc",
+  "netcat",
+  "rm",
+  "rsync",
+  "scp",
+  "sftp",
+  "ssh",
+  "sudo",
+  "wget",
+]);
+const DEMO_COMMAND_PACKAGE_MANAGER_EXEC_SUBCOMMANDS = new Set(["create", "dlx", "exec", "x"]);
+const DEMO_COMMAND_INTERPRETER_EVAL_FLAGS = new Set(["--eval", "--print", "-e", "-p"]);
+const DEMO_COMMAND_INTERPRETERS = new Set(["bun", "node"]);
+
+const SENSITIVE_AUTOMATION_FILE_BASENAMES = new Set([
+  ".env",
+  ".env.local",
+  ".env.production",
+  ".npmrc",
+  ".pypirc",
+  "credentials",
+  "credentials.json",
+  "id_dsa",
+  "id_ecdsa",
+  "id_ed25519",
+  "id_rsa",
+  "known_hosts",
+]);
+const SENSITIVE_AUTOMATION_FILE_EXTENSIONS = new Set([
+  ".cer",
+  ".crt",
+  ".der",
+  ".key",
+  ".p12",
+  ".pem",
+  ".pfx",
+]);
+const SENSITIVE_AUTOMATION_FILE_NAME_PATTERN =
+  /(secret|token|credential|password|private[-_]?key)/i;
 
 function getCommandTokenName(value: string): string {
   return value.split(/[\\/]/).pop()?.toLowerCase() ?? value.toLowerCase();
+}
+
+function getPathBasename(value: string): string {
+  return value.split("/").pop()?.toLowerCase() ?? value.toLowerCase();
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -550,6 +611,7 @@ export function validateNonShellArgv(argv: unknown, path: string): string[] {
   }
 
   const shellMetacharacters = /[;&|<>`$]/;
+  const executable = typeof argv[0] === "string" ? getCommandTokenName(argv[0]) : "";
   for (const [argIndex, arg] of argv.entries()) {
     if (typeof arg !== "string" || arg.length === 0) {
       throw new ValidationError(`${path}[${argIndex}] must be a non-empty string.`);
@@ -572,9 +634,44 @@ export function validateNonShellArgv(argv: unknown, path: string): string[] {
     if (arg.split("/").some((segment) => segment === "..")) {
       throw new ValidationError(`${path}[${argIndex}] must not escape the project directory.`);
     }
+    const tokenName = getCommandTokenName(arg);
+    if (DEMO_COMMAND_DENIED_TOKENS.has(tokenName)) {
+      throw new ValidationError(`${path}[${argIndex}] uses blocked command token "${tokenName}".`);
+    }
+  }
+
+  if (!DEMO_COMMAND_ALLOWED_BINARIES.has(executable)) {
+    throw new ValidationError(`${path}[0] uses unsupported command "${executable}".`);
+  }
+  if (DEMO_COMMAND_INTERPRETERS.has(executable)) {
+    for (const arg of argv.slice(1) as string[]) {
+      if (DEMO_COMMAND_INTERPRETER_EVAL_FLAGS.has(arg.toLowerCase())) {
+        throw new ValidationError(`${path} must not use interpreter eval flags.`);
+      }
+    }
+  }
+  if (["bun", "npm", "pnpm", "yarn"].includes(executable)) {
+    for (const arg of argv.slice(1) as string[]) {
+      if (DEMO_COMMAND_PACKAGE_MANAGER_EXEC_SUBCOMMANDS.has(arg.toLowerCase())) {
+        throw new ValidationError(`${path} must not use package-manager exec subcommands.`);
+      }
+    }
   }
 
   return argv;
+}
+
+export function validateSafeAutomationFilePath(value: string, path: string): void {
+  validateProjectRelativePath(value, path);
+  const basename = getPathBasename(value);
+  const extension = basename.includes(".") ? `.${basename.split(".").pop()}` : "";
+  if (
+    SENSITIVE_AUTOMATION_FILE_BASENAMES.has(basename) ||
+    SENSITIVE_AUTOMATION_FILE_EXTENSIONS.has(extension) ||
+    SENSITIVE_AUTOMATION_FILE_NAME_PATTERN.test(value)
+  ) {
+    throw new ValidationError(`${path} must not target sensitive credential or secret files.`);
+  }
 }
 
 function validateStringRecord(value: unknown, path: string): void {
@@ -810,7 +907,7 @@ function validateFileAutomation(step: DemoStep, index: number): void {
   if (typeof automation.path !== "string") {
     throw new ValidationError(`${label} file automation path is required.`);
   }
-  validateProjectRelativePath(automation.path, `${label} file automation path`);
+  validateSafeAutomationFilePath(automation.path, `${label} file automation path`);
   if (!Array.isArray(automation.assert) || automation.assert.length === 0) {
     throw new ValidationError(
       `${label} file automation assert must contain at least one assertion.`

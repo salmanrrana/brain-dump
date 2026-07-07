@@ -27,6 +27,7 @@ import {
   DEMO_COMMAND_MAX_TIMEOUT_MS,
   validateNonShellArgv,
   validateProjectRelativePath,
+  validateSafeAutomationFilePath,
 } from "./review.ts";
 
 export type VerificationRunStatus = "passed" | "failed" | "uncertified" | "infra_error";
@@ -163,12 +164,13 @@ const SCROLL_INTO_VIEW_TIMEOUT_MS = 3_000;
 const REDACTED_SECRET = "[redacted]";
 const SECRET_ENV_KEY_PATTERN = /(SECRET|TOKEN|PASSWORD|PASS|KEY|AUTH|CREDENTIAL|COOKIE|SESSION)/i;
 const COMMAND_ENV_ALLOWLIST = ["PATH", "SystemRoot", "WINDIR", "COMSPEC", "PATHEXT"];
+const NON_SECRET_ENV_VALUES = new Set(["false", "none", "null", "true", "undefined"]);
 
 function collectSecretEnvValues(env: NodeJS.ProcessEnv = process.env): string[] {
   return Object.entries(env)
     .filter(([key, value]) => SECRET_ENV_KEY_PATTERN.test(key) && typeof value === "string")
     .map(([, value]) => value as string)
-    .filter((value) => value.length >= 4)
+    .filter((value) => value.length >= 8 && !NON_SECRET_ENV_VALUES.has(value.toLowerCase()))
     .sort((left, right) => right.length - left.length);
 }
 
@@ -1159,6 +1161,13 @@ async function runFileStep(
   }
   const start = Date.now();
   const automation = step.automation;
+  const needsContent = automation.assert.some(
+    (assertion) =>
+      assertion.type === "contains" ||
+      assertion.type === "notContains" ||
+      assertion.type === "jsonPath"
+  );
+  validateSafeAutomationFilePath(automation.path, `Step ${step.order} file automation path`);
   const filePath = resolveProjectPath(
     projectPath,
     automation.path,
@@ -1178,7 +1187,7 @@ async function runFileStep(
       size = stat.size;
       if (!stat.isFile()) {
         readError = `path ${automation.path} is not a regular file`;
-      } else if (size <= FILE_READ_LIMIT) {
+      } else if (needsContent && size <= FILE_READ_LIMIT) {
         content = readFileSync(filePath, "utf-8");
         targetFileHash = hmac(content, `brain-dump:file:${runId}`);
       }
@@ -1243,7 +1252,7 @@ async function runFileStep(
       size,
       hash: targetFileHash,
       readError,
-      snippet: content === null ? null : truncate(content, FILE_SNIPPET_LIMIT),
+      snippet: needsContent && content !== null ? truncate(content, FILE_SNIPPET_LIMIT) : null,
     },
     assertions: automation.assert,
     failures,
@@ -1326,13 +1335,7 @@ async function buildRun(
   const fetchImpl = params.fetchImpl ?? fetch;
   const timeoutMs = params.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const execFileNoThrow = params.execFileNoThrow ?? defaultExecFileNoThrow;
-  const commandOrFileStepsNeedGit = steps.some(
-    (step) => step.automation?.kind === "command" || step.automation?.kind === "file"
-  );
-  const gitInfo = await getGitInfo(
-    actualProjectPath,
-    params.execFileNoThrow ?? (commandOrFileStepsNeedGit ? execFileNoThrow : undefined)
-  );
+  const gitInfo = await getGitInfo(actualProjectPath, execFileNoThrow);
   let boot: BootedApp | null = null;
   let failedBootInfo: FailedBootInfo | null = null;
   let verdicts: VerificationStepVerdict[] = [];

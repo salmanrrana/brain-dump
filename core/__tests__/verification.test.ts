@@ -39,7 +39,7 @@ function seedProject(): void {
   db.prepare("INSERT INTO projects (id, name, path, created_at) VALUES (?, ?, ?, ?)").run(
     "project-1",
     "Fixture",
-    process.cwd(),
+    tempDir,
     new Date().toISOString()
   );
 }
@@ -847,6 +847,26 @@ describe("verifyTicket", () => {
     expect(commandExecuted).toBe(false);
   });
 
+  it("rejects destructive persisted command specs before execution", async () => {
+    const unsafeStep = commandStep();
+    if (unsafeStep.automation?.kind !== "command") throw new Error("Expected command step");
+    unsafeStep.automation.command.argv = ["rm", "-rf", "tmp"];
+    seedDemo([unsafeStep]);
+    let commandExecuted = false;
+
+    const run = await verifyTicket(db, {
+      ticketId: "ticket-1",
+      projectPath: tempDir,
+      execFileNoThrow: createCleanExecFileNoThrow((command) => {
+        if (command !== "git") commandExecuted = true;
+      }),
+    });
+
+    expect(run.status).toBe("infra_error");
+    expect(run.manifest.stepVerdicts[0]?.message).toContain("uses blocked command token");
+    expect(commandExecuted).toBe(false);
+  });
+
   it("records file read problems as failed step evidence", async () => {
     db.prepare("UPDATE projects SET path = ? WHERE id = 'project-1'").run(tempDir);
     mkdirSync(join(tempDir, "fixture.txt"));
@@ -865,6 +885,53 @@ describe("verifyTicket", () => {
     });
     expect(run.manifest.stepVerdicts[0]?.message).toContain("not a regular file");
     expect(run.manifest.stepVerdicts[0]?.evidenceFiles[0]?.path).toContain("step-2-file.json");
+  });
+
+  it("rejects sensitive persisted file specs before reading evidence", async () => {
+    db.prepare("UPDATE projects SET path = ? WHERE id = 'project-1'").run(tempDir);
+    writeFileSync(join(tempDir, ".env"), "DATABASE_URL=postgres://secret\n");
+    const sensitiveStep = fileStep();
+    if (sensitiveStep.automation?.kind !== "file") throw new Error("Expected file step");
+    sensitiveStep.automation.path = ".env";
+    sensitiveStep.automation.assert = [{ type: "exists" }];
+    seedDemo([sensitiveStep]);
+
+    const run = await verifyTicket(db, {
+      ticketId: "ticket-1",
+      projectPath: tempDir,
+      execFileNoThrow: createCleanExecFileNoThrow(),
+    });
+
+    expect(run.status).toBe("infra_error");
+    expect(run.manifest.stepVerdicts[0]?.message).toContain(
+      "must not target sensitive credential or secret files"
+    );
+    expect(JSON.stringify(run.manifest)).not.toContain("postgres://secret");
+  });
+
+  it("does not snapshot file contents for exists-only file assertions", async () => {
+    db.prepare("UPDATE projects SET path = ? WHERE id = 'project-1'").run(tempDir);
+    writeFileSync(join(tempDir, "fixture.txt"), "file ok\nextra content\n");
+    const existsStep = fileStep();
+    if (existsStep.automation?.kind !== "file") throw new Error("Expected file step");
+    existsStep.automation.assert = [{ type: "exists" }];
+    seedDemo([existsStep]);
+
+    const run = await verifyTicket(db, {
+      ticketId: "ticket-1",
+      projectPath: tempDir,
+      execFileNoThrow: createCleanExecFileNoThrow(),
+    });
+
+    const evidencePath = run.manifest.stepVerdicts[0]?.evidenceFiles[0]?.path;
+    if (!evidencePath) throw new Error("Expected file evidence");
+    const evidence = JSON.parse(readFileSync(evidencePath, "utf8")) as {
+      file: { snippet: string | null; hash: string | null };
+    };
+
+    expect(run.status).toBe("passed");
+    expect(evidence.file.snippet).toBeNull();
+    expect(evidence.file.hash).toBeNull();
   });
 
   it("rejects symlink escapes before reading file evidence", async () => {
