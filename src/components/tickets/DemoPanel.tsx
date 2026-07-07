@@ -304,28 +304,30 @@ function ApiEvidence({ verdict }: { verdict: VerificationStepVerdict }) {
       <summary className="cursor-pointer text-sm font-medium text-[var(--text-primary)]">
         API request and response
       </summary>
+      {/* min-w-0 on grid items: their default min-width:auto lets a long
+          unbroken response body widen the whole panel instead of wrapping. */}
       <div className="mt-3 grid gap-3 text-xs text-[var(--text-secondary)]">
         {verdict.request && (
-          <div>
+          <div className="min-w-0">
             <p className="mb-1 font-semibold text-[var(--text-primary)]">Request</p>
-            <div className="rounded-md bg-[var(--bg-tertiary)] p-2 font-mono">
+            <div className="break-all rounded-md bg-[var(--bg-tertiary)] p-2 font-mono">
               <span className="font-semibold text-[var(--info)]">{verdict.request.method}</span>{" "}
               {verdict.request.url}
             </div>
             {verdict.request.body !== undefined && (
-              <pre className="mt-2 max-h-48 overflow-auto rounded-md bg-[var(--bg-tertiary)] p-2 font-mono text-xs">
+              <pre className="mt-2 max-h-48 overflow-y-auto whitespace-pre-wrap break-all rounded-md bg-[var(--bg-tertiary)] p-2 font-mono text-xs">
                 {JSON.stringify(verdict.request.body, null, 2)}
               </pre>
             )}
           </div>
         )}
         {verdict.response && (
-          <div>
+          <div className="min-w-0">
             <p className="mb-1 font-semibold text-[var(--text-primary)]">Response</p>
             <div className="mb-2 inline-flex rounded-full bg-[var(--bg-tertiary)] px-2 py-1 font-mono">
               Status {verdict.response.status}
             </div>
-            <pre className="max-h-48 overflow-auto rounded-md bg-[var(--bg-tertiary)] p-2 font-mono text-xs">
+            <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap break-all rounded-md bg-[var(--bg-tertiary)] p-2 font-mono text-xs">
               {verdict.response.body}
             </pre>
           </div>
