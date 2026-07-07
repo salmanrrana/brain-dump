@@ -9,6 +9,8 @@ import { initializeWatcher, stopWatching } from "./db-watcher";
 import { startupIntegrityCheck } from "./integrity";
 import { ensureTelemetryTables, ensureTicketWorkflowColumns } from "./db-bootstrap";
 import {
+  drainVerificationQueue,
+  isVerificationExecutionAllowedFromEnv,
   shouldStartVerificationWorkerFromEnv,
   startVerificationWorker,
 } from "../../core/verification-worker.ts";
@@ -961,15 +963,37 @@ async function cleanupLaunchScripts() {
 cleanupLaunchScripts();
 
 function scheduleVerificationWorker(): void {
-  if (!shouldStartVerificationWorkerFromEnv()) return;
+  // Resident 10s poller is explicit opt-in (BRAIN_DUMP_VERIFICATION_WORKER_POLL=1).
+  if (shouldStartVerificationWorkerFromEnv()) {
+    setTimeout(() => {
+      try {
+        startVerificationWorker(sqlite, { execFileNoThrow });
+        console.log("[VerificationWorker] Started resident polling worker (opt-in)");
+      } catch (error) {
+        console.error("[VerificationWorker] Failed to start:", error);
+      }
+    }, 0).unref?.();
+    return;
+  }
 
+  if (!isVerificationExecutionAllowedFromEnv()) return;
+
+  // Default mode: one drain pass for jobs left over from previous sessions,
+  // then nothing runs until an enqueue spawns a one-shot drain. Boot-time
+  // in-process execution is safe — the module graph is fresh at boot.
   setTimeout(() => {
-    try {
-      startVerificationWorker(sqlite, { execFileNoThrow });
-      console.log("[VerificationWorker] Started automatic verification worker");
-    } catch (error) {
-      console.error("[VerificationWorker] Failed to start:", error);
-    }
+    drainVerificationQueue(sqlite, { execFileNoThrow })
+      .then((result) => {
+        if (result.processed > 0) {
+          console.log(`[VerificationWorker] Boot drain processed ${result.processed} job(s)`);
+        }
+        if (result.lastError) {
+          console.error(`[VerificationWorker] Boot drain last error: ${result.lastError}`);
+        }
+      })
+      .catch((error) => {
+        console.error("[VerificationWorker] Boot drain failed:", error);
+      });
   }, 0).unref?.();
 }
 scheduleVerificationWorker();

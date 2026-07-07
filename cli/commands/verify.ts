@@ -6,6 +6,7 @@ import { boolFlag, optionalFlag, parseFlags, requireFlag } from "../lib/args.ts"
 import { getDb } from "../lib/db.ts";
 import { outputError, outputResult, showResourceHelp } from "../lib/output.ts";
 import {
+  drainVerificationQueue,
   execFileNoThrow,
   getVerificationWorkerQueueStatus,
   InvalidActionError,
@@ -52,6 +53,15 @@ export async function handle(action: string, args: string[]): Promise<void> {
     }
     if (isWorkerAction) {
       const provider = optionalFlag(flags, "provider");
+      if (boolFlag(flags, "drain")) {
+        const result = await drainVerificationQueue(db, {
+          ...(provider !== undefined ? { provider } : {}),
+          execFileNoThrow,
+        });
+        outputResult(result, pretty);
+        if (result.lastError) process.exitCode = 1;
+        return;
+      }
       const result = await runNextVerificationJob(db, {
         ...(provider !== undefined ? { provider } : {}),
         execFileNoThrow,

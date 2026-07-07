@@ -1,6 +1,7 @@
 import { createServer, type Server } from "http";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "fs";
-import { join } from "path";
+import { join, resolve } from "path";
+import { pathToFileURL } from "url";
 import { tmpdir } from "os";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type Database from "better-sqlite3";
@@ -19,8 +20,13 @@ import {
   settleVerificationJob,
 } from "../verification-queue.ts";
 import {
+  drainVerificationQueue,
   getVerificationWorkerQueueStatus,
+  isVerificationExecutionAllowedFromEnv,
+  resolveBrainDumpRootFrom,
   runNextVerificationJob,
+  shouldStartVerificationWorkerFromEnv,
+  spawnDetachedVerificationDrain,
 } from "../verification-worker.ts";
 import type { DemoStep } from "../types.ts";
 
@@ -1562,5 +1568,116 @@ describe("verification worker", () => {
       byStatus: { queued: 1 },
       oldestQueuedAt: "2026-03-08T01:00:00.000Z",
     });
+  });
+});
+
+describe("verification drain (one-shot worker)", () => {
+  it("drains every claimable job until the queue is empty", async () => {
+    seedDemo([apiStep()]);
+    seedAdditionalTicket("ticket-2", [apiStep()]);
+    enqueueVerificationJob(db, "ticket-1", { now: "2026-03-08T01:00:00.000Z" });
+    enqueueVerificationJob(db, "ticket-2", { now: "2026-03-08T01:00:00.000Z" });
+    const baseUrl = await startFixtureServer();
+
+    const result = await drainVerificationQueue(db, {
+      baseUrl,
+      followRetryBudgetMs: 0,
+      now: () => new Date("2026-03-08T01:00:01.000Z"),
+    });
+
+    expect(result.processed).toBe(2);
+    expect(result.lastError).toBeNull();
+    expect(db.prepare("SELECT status FROM tickets WHERE id = 'ticket-1'").get()).toMatchObject({
+      status: "done",
+    });
+    expect(db.prepare("SELECT status FROM tickets WHERE id = 'ticket-2'").get()).toMatchObject({
+      status: "done",
+    });
+    expect(getVerificationWorkerQueueStatus(db).queueDepth).toBe(0);
+  });
+
+  it("returns without waiting when only future retries remain outside the budget", async () => {
+    seedDemo([apiStep()]);
+    enqueueVerificationJob(db, "ticket-1", { now: "2026-03-08T01:00:00.000Z" });
+    db.prepare("UPDATE verification_jobs SET next_run_at = ?").run("2026-03-08T02:00:00.000Z");
+
+    const result = await drainVerificationQueue(db, {
+      followRetryBudgetMs: 0,
+      now: () => new Date("2026-03-08T01:00:01.000Z"),
+    });
+
+    expect(result.processed).toBe(0);
+    expect(getVerificationJob(db, "ticket-1")).toMatchObject({ status: "queued" });
+  });
+
+  it("spawns a detached one-shot drain command that loads current on-disk code", () => {
+    const child = { pid: 4242, unref: vi.fn() };
+    const spawnImpl = vi.fn(() => child);
+
+    const result = spawnDetachedVerificationDrain({
+      brainDumpRoot: "/repo",
+      spawnImpl: spawnImpl as unknown as typeof import("child_process").spawn,
+    });
+
+    expect(result).toEqual({ spawned: true, pid: 4242 });
+    expect(spawnImpl).toHaveBeenCalledWith(
+      "pnpm",
+      ["brain-dump", "verify", "worker", "--drain"],
+      expect.objectContaining({
+        cwd: "/repo",
+        stdio: "ignore",
+        detached: process.platform !== "win32",
+      })
+    );
+    expect(child.unref).toHaveBeenCalled();
+  });
+
+  it("reports spawn failures instead of throwing so the job stays queued", () => {
+    const errors: string[] = [];
+
+    const result = spawnDetachedVerificationDrain({
+      brainDumpRoot: "/repo",
+      spawnImpl: (() => {
+        throw new Error("spawn ENOENT");
+      }) as unknown as typeof import("child_process").spawn,
+      logError: (message) => errors.push(message),
+    });
+
+    expect(result).toMatchObject({ spawned: false, error: "spawn ENOENT" });
+    expect(errors[0]).toContain("spawn ENOENT");
+  });
+
+  it("resolves the Brain Dump root from adapter module locations", () => {
+    const cliModuleUrl = pathToFileURL(join(process.cwd(), "cli", "commands", "verify.ts")).href;
+    const root = resolveBrainDumpRootFrom(cliModuleUrl);
+    expect(root && resolve(root)).toBe(resolve(process.cwd()));
+
+    const nowhere = pathToFileURL(join(tmpdir(), "not-brain-dump", "x.ts")).href;
+    expect(resolveBrainDumpRootFrom(nowhere)).toBeNull();
+  });
+
+  it("blocks execution in verifier boots and keeps the resident poller opt-in", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("VITEST", "false");
+    vi.stubEnv("BRAIN_DUMP_DISABLE_VERIFICATION_WORKER", "");
+    vi.stubEnv("BRAIN_DUMP_DISABLE_DB_STARTUP_TASKS", "");
+    vi.stubEnv("BRAIN_DUMP_VERIFY_BOOT", "");
+    vi.stubEnv("PLAYWRIGHT_E2E", "");
+    vi.stubEnv("BRAIN_DUMP_VERIFICATION_WORKER_POLL", "");
+    try {
+      expect(isVerificationExecutionAllowedFromEnv()).toBe(true);
+      // Default: no resident poller even where execution is allowed.
+      expect(shouldStartVerificationWorkerFromEnv()).toBe(false);
+
+      vi.stubEnv("BRAIN_DUMP_VERIFICATION_WORKER_POLL", "1");
+      expect(shouldStartVerificationWorkerFromEnv()).toBe(true);
+
+      // A verifier-booted app must never execute jobs, opt-in or not.
+      vi.stubEnv("BRAIN_DUMP_VERIFY_BOOT", "1");
+      expect(isVerificationExecutionAllowedFromEnv()).toBe(false);
+      expect(shouldStartVerificationWorkerFromEnv()).toBe(false);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });

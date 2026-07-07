@@ -342,9 +342,13 @@ export type {
 export { verifyTicket, listVerificationRuns, computeManifestIntegrity } from "./verification.ts";
 export { settleVerificationLifecycle } from "./verification-lifecycle.ts";
 export {
+  drainVerificationQueue,
   getVerificationWorkerQueueStatus,
+  isVerificationExecutionAllowedFromEnv,
+  resolveBrainDumpRootFrom,
   runNextVerificationJob,
   shouldStartVerificationWorkerFromEnv,
+  spawnDetachedVerificationDrain,
   startVerificationWorker,
 } from "./verification-worker.ts";
 export {

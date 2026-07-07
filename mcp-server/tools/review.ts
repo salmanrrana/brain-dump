@@ -27,6 +27,10 @@ import {
 } from "../../core/review.ts";
 import { listVerificationRuns } from "../../core/verification.ts";
 import { getVerificationJob } from "../../core/verification-queue.ts";
+import {
+  resolveBrainDumpRootFrom,
+  spawnDetachedVerificationDrain,
+} from "../../core/verification-worker.ts";
 import type { MarkFixedStatus } from "../../core/review.ts";
 import type { DemoStep, FindingAgent, FindingSeverity, FindingStatus } from "../../core/types.ts";
 import { addComment, type CommentAuthor } from "../../core/comment.ts";
@@ -394,9 +398,29 @@ No MCP action uploads evidence or marks verification passed. The verification ru
             });
 
             log.info(`Generated demo script for ticket ${ticketId} with ${steps.length} steps`);
+
+            // Hand execution to a detached one-shot drain running current
+            // on-disk code; this long-running MCP process never executes
+            // verification with its boot-time module graph.
+            const brainDumpRoot = resolveBrainDumpRootFrom(import.meta.url);
+            let drainNote = "Verification drain spawned; the runner will pick the job up shortly.";
+            if (brainDumpRoot) {
+              const drain = spawnDetachedVerificationDrain({
+                brainDumpRoot,
+                logError: (message) => log.error(message),
+              });
+              if (!drain.spawned) {
+                drainNote = `Verification drain not spawned (${drain.error ?? "unknown"}); the job stays queued for the next boot or enqueue drain.`;
+              }
+            } else {
+              drainNote =
+                "Verification drain not spawned (Brain Dump root not resolvable); the job stays queued for the next boot or enqueue drain.";
+              log.warn(drainNote);
+            }
+
             return formatResult(
               demo,
-              `Demo script generated! Ticket moved to ai_verification.\n\n${prdNote}\n\n${syncNote}`
+              `Demo script generated! Ticket moved to ai_verification.\n\n${prdNote}\n\n${syncNote}\n\n${drainNote}`
             );
           }
 

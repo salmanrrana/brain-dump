@@ -13,6 +13,8 @@ import {
   getDemo,
   getFindings,
   listVerificationRuns,
+  resolveBrainDumpRootFrom,
+  spawnDetachedVerificationDrain,
   validateRepairLegacyHumanReviewHandoff,
   repairLegacyHumanReviewHandoff,
   updatePrdForDbTicketIfPresent,
@@ -132,7 +134,22 @@ export function handle(action: string, args: string[]): void {
           );
         }
         const result = generateDemo(db, demoParams);
-        outputResult({ ...result, prdSync }, pretty);
+        // The handoff enqueued a verification job; hand execution to a
+        // detached one-shot drain so it runs current on-disk code and this
+        // command returns immediately.
+        const brainDumpRoot = resolveBrainDumpRootFrom(import.meta.url);
+        const drain = brainDumpRoot
+          ? spawnDetachedVerificationDrain({
+              brainDumpRoot,
+              logError: (message) => console.error(`[verify-drain] ${message}`),
+            })
+          : { spawned: false as const, error: "Brain Dump root not resolvable" };
+        if (!drain.spawned) {
+          console.error(
+            `[verify-drain] Drain not spawned (${drain.error ?? "unknown"}); job stays queued for the next boot or enqueue drain.`
+          );
+        }
+        outputResult({ ...result, prdSync, verificationDrain: drain }, pretty);
         break;
       }
 

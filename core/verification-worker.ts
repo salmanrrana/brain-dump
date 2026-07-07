@@ -1,4 +1,8 @@
 import { randomUUID } from "crypto";
+import { spawn } from "child_process";
+import { existsSync } from "fs";
+import { join } from "path";
+import { fileURLToPath } from "url";
 import type { DbHandle, ExecFileNoThrowResult } from "./types.ts";
 import { addComment } from "./comment.ts";
 import { ValidationError } from "./errors.ts";
@@ -323,11 +327,26 @@ export function getVerificationWorkerQueueStatus(db: DbHandle): VerificationWork
   };
 }
 
-export function shouldStartVerificationWorkerFromEnv(): boolean {
+export function isVerificationExecutionAllowedFromEnv(): boolean {
   if (process.env.BRAIN_DUMP_DISABLE_VERIFICATION_WORKER === "1") return false;
   if (process.env.BRAIN_DUMP_DISABLE_DB_STARTUP_TASKS === "1") return false;
   if (process.env.NODE_ENV === "test" || process.env.VITEST === "true") return false;
+  // Verifier-booted and Playwright-driven app instances must never execute
+  // jobs: a verification boot running its own worker recurses into the queue,
+  // and leaked boots become zombie executors running frozen code (observed
+  // 2026-07-06: a leaked boot's worker leased jobs with stale runner code).
+  if (process.env.BRAIN_DUMP_VERIFY_BOOT === "1") return false;
+  if (process.env.PLAYWRIGHT_E2E === "1") return false;
   return true;
+}
+
+export function shouldStartVerificationWorkerFromEnv(): boolean {
+  if (!isVerificationExecutionAllowedFromEnv()) return false;
+  // The resident 10s poller is explicit opt-in (long-lived CI/ops boxes).
+  // Default deployments drain once at boot and on every enqueue via one-shot
+  // processes, so nothing runs between enqueues and every execution loads
+  // current on-disk code instead of the server's boot-time module graph.
+  return process.env.BRAIN_DUMP_VERIFICATION_WORKER_POLL === "1";
 }
 
 export function startVerificationWorker(
@@ -396,4 +415,116 @@ export function startVerificationWorker(
       };
     },
   };
+}
+
+const DEFAULT_DRAIN_RETRY_FOLLOW_BUDGET_MS = 15 * 60 * 1000;
+const DRAIN_RETRY_WAIT_CHUNK_MS = 30_000;
+
+export interface DrainVerificationQueueResult {
+  workerId: string;
+  processed: number;
+  lastError: string | null;
+}
+
+/**
+ * Drain the verification queue until no job is claimable, then return.
+ *
+ * This is the one-shot replacement for the resident poller: it runs jobs
+ * back-to-back, follows infra_error retries scheduled in the near future
+ * (bounded by followRetryBudgetMs so a one-shot process still honors retry
+ * backoff), and exits when the queue is empty. Concurrent drains are safe:
+ * durable job leases serialize claims, and a drain that claims nothing exits.
+ */
+export async function drainVerificationQueue(
+  db: DbHandle,
+  options: VerificationWorkerOptions & { followRetryBudgetMs?: number } = {}
+): Promise<DrainVerificationQueueResult> {
+  const workerId = options.workerId ?? `verification-drain-${process.pid}-${randomUUID()}`;
+  const followRetryBudgetMs = options.followRetryBudgetMs ?? DEFAULT_DRAIN_RETRY_FOLLOW_BUDGET_MS;
+  const startedAtMs = (options.now?.() ?? new Date()).getTime();
+  let processed = 0;
+  let lastError: string | null = null;
+
+  for (;;) {
+    const result = await runNextVerificationJob(db, { ...options, workerId });
+    if (result.error) lastError = result.error;
+    if (result.claimed) {
+      processed += 1;
+      continue;
+    }
+
+    // Nothing claimable right now. If a queued job has a retry scheduled in
+    // the near future, wait for it inside the budget instead of stranding it
+    // until the next enqueue.
+    const row = db
+      .prepare("SELECT MIN(next_run_at) as next FROM verification_jobs WHERE status = 'queued'")
+      .get() as { next: string | null } | undefined;
+    if (!row?.next) break;
+    const nextMs = Date.parse(row.next);
+    if (!Number.isFinite(nextMs)) break;
+    const nowMs = (options.now?.() ?? new Date()).getTime();
+    const waitMs = Math.max(nextMs - nowMs, 250);
+    if (nowMs + waitMs - startedAtMs > followRetryBudgetMs) break;
+    await new Promise((resolve) => setTimeout(resolve, Math.min(waitMs, DRAIN_RETRY_WAIT_CHUNK_MS)));
+  }
+
+  return { workerId, processed, lastError };
+}
+
+export interface SpawnVerificationDrainOptions {
+  brainDumpRoot: string;
+  spawnImpl?: typeof spawn;
+  logError?: (message: string) => void;
+}
+
+export interface SpawnVerificationDrainResult {
+  spawned: boolean;
+  pid?: number;
+  error?: string;
+}
+
+/**
+ * Launch a detached one-shot `brain-dump verify worker --drain` process.
+ *
+ * The spawned process loads CURRENT on-disk code, so a long-running server
+ * that enqueues a job never executes verification with its boot-time module
+ * graph. Spawn failures are reported to the caller (and logError), never
+ * thrown: an enqueue must not fail because the drain could not start — the
+ * job stays queued for the next boot/enqueue drain.
+ */
+export function spawnDetachedVerificationDrain(
+  options: SpawnVerificationDrainOptions
+): SpawnVerificationDrainResult {
+  const spawnImpl = options.spawnImpl ?? spawn;
+  try {
+    const child = spawnImpl("pnpm", ["brain-dump", "verify", "worker", "--drain"], {
+      cwd: options.brainDumpRoot,
+      detached: process.platform !== "win32",
+      stdio: "ignore",
+      env: { ...process.env, BRAIN_DUMP_DISABLE_DB_STARTUP_TASKS: "1" },
+    });
+    child.unref?.();
+    return { spawned: true, ...(child.pid !== undefined ? { pid: child.pid } : {}) };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    options.logError?.(`Failed to spawn verification drain: ${message}`);
+    return { spawned: false, error: message };
+  }
+}
+
+/**
+ * Resolve the Brain Dump repo root from a module URL by probing for the CLI
+ * entrypoint. Works from source trees (cli/, mcp-server/tools/) and from the
+ * bundled MCP server (mcp-server/dist/index.js) alike.
+ */
+export function resolveBrainDumpRootFrom(moduleUrl: string): string | null {
+  for (const relative of ["..", "../..", "../../.."]) {
+    try {
+      const candidate = fileURLToPath(new URL(relative, moduleUrl));
+      if (existsSync(join(candidate, "cli", "brain-dump.ts"))) return candidate;
+    } catch {
+      // Invalid URL for this candidate depth; try the next one.
+    }
+  }
+  return null;
 }
