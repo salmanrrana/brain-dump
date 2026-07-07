@@ -623,16 +623,29 @@ async function getGitInfo(
   if (!execFileNoThrow) return { sha: null, dirty: false, changedFiles: [] };
   const shaResult = await execFileNoThrow("git", ["rev-parse", "HEAD"], { cwd: projectPath });
   const statusResult = await execFileNoThrow("git", ["status", "--short"], { cwd: projectPath });
-  const changedFiles = statusResult.success
+  const committedDiffResult = await execFileNoThrow(
+    "git",
+    ["diff", "--name-only", "HEAD~1", "HEAD"],
+    {
+      cwd: projectPath,
+    }
+  );
+  const dirtyFiles = statusResult.success
     ? statusResult.stdout
         .split(/\r?\n/)
         .map((line) => line.slice(3).trim())
         .filter(Boolean)
     : [];
+  const committedFiles = committedDiffResult.success
+    ? committedDiffResult.stdout
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+    : [];
   return {
     sha: shaResult.success ? shaResult.stdout.trim() : null,
-    dirty: statusResult.success ? changedFiles.length > 0 : true,
-    changedFiles,
+    dirty: statusResult.success ? dirtyFiles.length > 0 : true,
+    changedFiles: [...new Set([...dirtyFiles, ...committedFiles])],
   };
 }
 

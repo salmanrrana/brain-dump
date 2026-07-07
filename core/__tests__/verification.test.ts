@@ -225,6 +225,9 @@ function createCleanExecFileNoThrow(
     if (command === "git" && args.join(" ") === "status --short") {
       return { success: true, stdout: "", stderr: "", exitCode: 0 };
     }
+    if (command === "git" && args.join(" ") === "diff --name-only HEAD~1 HEAD") {
+      return { success: true, stdout: "", stderr: "", exitCode: 0 };
+    }
     onCommand?.(command, args, options);
     return { success: true, stdout: "command ok\n", stderr: "", exitCode: 0 };
   };
@@ -888,6 +891,55 @@ describe("verifyTicket", () => {
     expect(ticket.is_blocked).toBe(1);
   });
 
+  it("marks runs uncertified when committed verification code changed", async () => {
+    seedDemo([apiStep()]);
+    const baseUrl = await startFixtureServer();
+
+    const run = await verifyTicket(db, {
+      ticketId: "ticket-1",
+      baseUrl,
+      execFileNoThrow: async (command, args) => {
+        if (command === "git" && args.join(" ") === "rev-parse HEAD") {
+          return { success: true, stdout: "abc123\n", stderr: "", exitCode: 0 };
+        }
+        if (command === "git" && args.join(" ") === "status --short") {
+          return { success: true, stdout: "", stderr: "", exitCode: 0 };
+        }
+        if (command === "git" && args.join(" ") === "diff --name-only HEAD~1 HEAD") {
+          return {
+            success: true,
+            stdout: "core/verification-lifecycle.ts\n",
+            stderr: "",
+            exitCode: 0,
+          };
+        }
+        return { success: true, stdout: "", stderr: "", exitCode: 0 };
+      },
+    });
+
+    expect(run.status).toBe("uncertified");
+    expect(run.manifest.stepVerdicts.at(-1)?.message).toContain("verification/manifest code");
+  });
+
+  it("does not settle a passed run after the ticket leaves ai_verification", async () => {
+    seedDemo([commandStep()]);
+
+    await expect(
+      verifyTicket(db, {
+        ticketId: "ticket-1",
+        projectPath: tempDir,
+        execFileNoThrow: createCleanExecFileNoThrow((command) => {
+          if (command === "node") {
+            db.prepare("UPDATE tickets SET status = 'ready' WHERE id = 'ticket-1'").run();
+          }
+        }),
+      })
+    ).rejects.toThrow(/ai_verification/);
+    expect(db.prepare("SELECT status FROM tickets WHERE id = 'ticket-1'").get()).toMatchObject({
+      status: "ready",
+    });
+  });
+
   it("refuses to report certified evidence when an expected evidence file is missing", () => {
     const now = new Date().toISOString();
     const missingPath = join(tempDir, "missing-api.json");
@@ -1198,6 +1250,28 @@ describe("verification worker", () => {
       status: "running",
       leasedBy: "worker-2",
       attemptCount: 2,
+    });
+    expect(db.prepare("SELECT status FROM tickets WHERE id = 'ticket-1'").get()).toMatchObject({
+      status: "ai_verification",
+    });
+  });
+
+  it("rejects manual settlement while a worker owns the active lease", async () => {
+    seedDemo([apiStep()]);
+    enqueueVerificationJob(db, "ticket-1", { now: "2026-03-08T01:00:00.000Z" });
+    claimNextVerificationJob(db, {
+      workerId: "worker-1",
+      now: "2026-03-08T01:00:01.000Z",
+      leaseMs: 60_000,
+    });
+    const baseUrl = await startFixtureServer();
+
+    await expect(verifyTicket(db, { ticketId: "ticket-1", baseUrl })).rejects.toThrow(
+      /trusted lease/
+    );
+    expect(getVerificationJob(db, "ticket-1")).toMatchObject({
+      status: "running",
+      leasedBy: "worker-1",
     });
     expect(db.prepare("SELECT status FROM tickets WHERE id = 'ticket-1'").get()).toMatchObject({
       status: "ai_verification",

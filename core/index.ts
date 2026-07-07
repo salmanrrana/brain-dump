@@ -339,7 +339,7 @@ export type {
 } from "./review.ts";
 
 // Verification runner business logic
-export { verifyTicket, listVerificationRuns } from "./verification.ts";
+export { verifyTicket, listVerificationRuns, computeManifestIntegrity } from "./verification.ts";
 export { settleVerificationLifecycle } from "./verification-lifecycle.ts";
 export {
   getVerificationWorkerQueueStatus,
@@ -357,6 +357,7 @@ export {
 export type {
   VerificationRunStatus,
   VerificationStepStatus,
+  VerificationIntegrityStatus,
   VerificationEvidenceFile,
   VerificationStepVerdict,
   VerificationManifest,

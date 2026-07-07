@@ -270,9 +270,35 @@ function completeTicketIfCertified(db: DbHandle, ticketId: string, now: string):
 }
 
 function blockTicket(db: DbHandle, ticketId: string, reason: string, now: string): void {
+  assertTicketStillInVerification(db, ticketId, "block verification ticket");
   db.prepare(
     "UPDATE tickets SET is_blocked = 1, blocked_reason = ?, updated_at = ? WHERE id = ?"
   ).run(reason, now, ticketId);
+}
+
+function assertTicketStillInVerification(db: DbHandle, ticketId: string, action: string): void {
+  const ticket = getTicketRow(db, ticketId);
+  if (!isTicketStatus(ticket.status)) {
+    throw new InvalidStateError("ticket", ticket.status, "known ticket status", action);
+  }
+  if (ticket.status !== "ai_verification") {
+    throw new InvalidStateError("ticket", ticket.status, "ai_verification", action);
+  }
+}
+
+function assertNoActiveExternalLease(db: DbHandle, ticketId: string): void {
+  const job = db
+    .prepare(
+      `SELECT id, status, leased_by
+       FROM verification_jobs
+       WHERE ticket_id = ?`
+    )
+    .get(ticketId) as { id: string; status: string; leased_by: string | null } | undefined;
+  if (job?.status === "running" && job.leased_by) {
+    throw new ValidationError(
+      `Cannot settle verification job ${job.id} without a trusted lease; it is currently leased by ${job.leased_by}.`
+    );
+  }
 }
 
 function blockTicketAfterRepeatedVerificationFailures(
@@ -350,6 +376,7 @@ function settleJob(
     });
     return;
   }
+  assertNoActiveExternalLease(db, params.ticketId);
   settleVerificationJobForTicket(db, params.ticketId, params.status, {
     now: params.now,
     ...(params.error !== undefined ? { error: params.error } : {}),
@@ -369,6 +396,7 @@ export async function settleVerificationLifecycle(
     attachRunEvidenceAndReport(db, run, params.provider);
 
     if (run.status === "passed" && run.certified) {
+      assertTicketStillInVerification(db, run.ticketId, "complete verified ticket");
       completeTicketIfCertified(db, run.ticketId, now);
       settleJob(db, {
         ticketId: run.ticketId,
