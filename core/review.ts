@@ -521,6 +521,21 @@ function validateUiAutomation(step: DemoStep, index: number): void {
       );
     }
   }
+  // "body is visible" passes on any page — including one showing only a
+  // loading state — so it certifies nothing (observed: runs whose only UI
+  // evidence was the splash spinner). Require at least one assertion with
+  // real signal: text, url, or visibility of a specific element.
+  const hasMeaningfulAssertion = automation.assert.some((assertion) => {
+    if (!isRecord(assertion)) return false;
+    if (assertion.type === "text" || assertion.type === "url") return true;
+    const selector = typeof assertion.selector === "string" ? assertion.selector.trim() : "";
+    return assertion.type === "visible" && selector !== "" && selector !== "body";
+  });
+  if (!hasMeaningfulAssertion) {
+    throw new ValidationError(
+      `${label} UI automation must include at least one meaningful assertion (a text or url assertion, or a visible assertion on a specific selector other than "body").`
+    );
+  }
 }
 
 function validateApiAutomation(step: DemoStep, index: number): void {

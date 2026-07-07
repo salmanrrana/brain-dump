@@ -1095,6 +1095,33 @@ describe("generateDemo", () => {
     ).toThrow(/UI automation assert must contain at least one assertion/);
   });
 
+  it("rejects UI automation whose only assertion is body visibility", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    // "body is visible" passes on a page showing only a loading spinner, so a
+    // demo built from it certifies nothing (observed: splash-only evidence).
+    expect(() =>
+      generateDemo(db, {
+        ticketId: "ticket-1",
+        steps: [
+          {
+            order: 1,
+            description: "Open the list route",
+            expectedOutcome: "The list route renders",
+            type: "visual",
+            automation: {
+              kind: "ui",
+              route: "/list",
+              assert: [{ type: "visible", selector: "body" }],
+              screenshot: true,
+            },
+          },
+        ],
+      })
+    ).toThrow(/must include at least one meaningful assertion/);
+  });
+
   it("rejects API automation assertions without a defined expected value", () => {
     seedProject();
     seedAiReviewTicket();

@@ -152,6 +152,11 @@ const WARM_UP_TOTAL_BUDGET_MS = 60_000;
 // Mirrors src/routes/__root.tsx so verifier-controlled Brain Dump boots skip the cold splash.
 const SPLASH_SHOWN_KEY = "bd:splash-shown";
 const SPLASH_SKIP_RESULT_KEY = "__brainDumpVerificationSplashSkip";
+// Mirrors src/components/SplashScreen.tsx. The sessionStorage skip only takes
+// effect after hydration — the server ALWAYS renders the splash — so evidence
+// captured before this overlay detaches shows only a spinner.
+const SPLASH_OVERLAY_SELECTOR = '[data-testid="app-splash"]';
+const SPLASH_DISMISS_TIMEOUT_MS = 15_000;
 
 function truncate(value: string, limit = BODY_LIMIT): string {
   if (value.length <= limit) return value;
@@ -912,6 +917,19 @@ async function runUiStep(
       if (!splashSkipResult.ok) {
         failures.push(
           `Brain Dump splash skip setup failed: ${splashSkipResult.error ?? "unknown"}`
+        );
+      }
+      // Text assertions pass against the SSR DOM underneath the splash
+      // overlay, so without this wait a step can "pass" while the screenshot
+      // shows only a spinner. A splash that never dismisses means the app
+      // never hydrated — fail the step instead of certifying blank evidence.
+      try {
+        await page
+          .locator(SPLASH_OVERLAY_SELECTOR)
+          .waitFor({ state: "detached", timeout: SPLASH_DISMISS_TIMEOUT_MS });
+      } catch {
+        failures.push(
+          `App splash overlay did not dismiss within ${SPLASH_DISMISS_TIMEOUT_MS}ms; the app never became interactive, so UI evidence would only show the splash screen.`
         );
       }
       for (const action of step.automation.actions ?? []) {

@@ -432,6 +432,47 @@ describe("verifyTicket", () => {
     expect(close).toHaveBeenCalled();
   });
 
+  it("fails UI steps when the splash overlay never dismisses", async () => {
+    seedDemo([uiTextStep()]);
+    const toContainText = vi.fn(async () => {});
+    const screenshot = vi.fn(async ({ path }: { path: string }) =>
+      writeFileSync(path, "fake image")
+    );
+    // Text assertions pass against the SSR DOM under the overlay, so without
+    // the dismissal gate this run would certify a splash-only screenshot.
+    const locator = vi.fn((selector: string) => ({
+      first: () => ({ isVisible: vi.fn(async () => true) }),
+      waitFor: vi.fn(async (options?: { state?: string }) => {
+        if (selector === '[data-testid="app-splash"]' && options?.state === "detached") {
+          throw new Error("Timeout 15000ms exceeded");
+        }
+      }),
+    }));
+    vi.doMock("@playwright/test", () => ({
+      chromium: {
+        launch: vi.fn(async () => ({
+          newPage: vi.fn(async () => ({
+            addInitScript: vi.fn(async () => {}),
+            goto: vi.fn(async () => {}),
+            evaluate: vi.fn(async () => ({ ok: true })),
+            keyboard: { press: vi.fn(async () => {}) },
+            locator,
+            screenshot,
+            url: () => "http://127.0.0.1:4242/",
+          })),
+          close: vi.fn(async () => {}),
+        })),
+      },
+      expect: () => ({ toContainText }),
+    }));
+    const baseUrl = await startFixtureServer();
+
+    const run = await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+
+    expect(run.status).toBe("failed");
+    expect(run.manifest.stepVerdicts[0]?.message).toContain("splash overlay did not dismiss");
+  });
+
   it("warms up UI routes before assertions on self-booted apps and tolerates warm-up failures", async () => {
     seedDemo([uiTextStep()]);
     const gotoCalls: { url: string; options?: { waitUntil?: string } }[] = [];
