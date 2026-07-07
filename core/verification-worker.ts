@@ -471,11 +471,18 @@ export async function drainVerificationQueue(
     // until the next enqueue. Settled assertion-failure jobs (completed_at set,
     // ticket looped back to implementation) are NOT pending retries — without
     // the completed_at filter a one-shot drain would linger polling for the
-    // whole follow budget after every loop-back.
+    // whole follow budget after every loop-back. The ticket-status guard
+    // mirrors the claim path: a retry whose ticket already left
+    // ai_verification can never be claimed, so it must not be waited on.
     const row = db
       .prepare(
         `SELECT MIN(next_run_at) as next FROM verification_jobs
-         WHERE status IN ('queued', 'failed') AND completed_at IS NULL`
+         WHERE status IN ('queued', 'failed') AND completed_at IS NULL
+           AND EXISTS (
+             SELECT 1 FROM tickets
+             WHERE tickets.id = verification_jobs.ticket_id
+               AND tickets.status = 'ai_verification'
+           )`
       )
       .get() as { next: string | null } | undefined;
     if (!row?.next) break;
