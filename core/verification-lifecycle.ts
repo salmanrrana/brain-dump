@@ -296,7 +296,7 @@ function assertNoActiveExternalLease(db: DbHandle, ticketId: string): void {
     .get(ticketId) as { id: string; status: string; leased_by: string | null } | undefined;
   if (job?.status === "running" && job.leased_by) {
     throw new ValidationError(
-      `Cannot settle verification job ${job.id} without a trusted lease; it is currently leased by ${job.leased_by}.`
+      `Cannot settle verification job ${job.id} without a trusted lease; it has an active verification lease owned by ${job.leased_by}.`
     );
   }
 }

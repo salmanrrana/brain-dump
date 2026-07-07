@@ -1,6 +1,6 @@
 # Verification Lifecycle Interface
 
-Brain Dump verification has one durable settlement seam: `settleVerificationLifecycle` in `core/verification-lifecycle.ts`.
+Brain Dump verification has one durable settlement seam: `settleVerificationLifecycle` in `core/verification-lifecycle.ts`. This verification lifecycle keeps adapters thin and auditable.
 
 Adapters must not write verification run rows, evidence attachments, verification report comments, verification job settlement, PRD completion state, or ticket status transitions directly. CLI commands, queue workers, MCP tools, and server functions run verification through `verifyTicket` or read verification state through read-only queue/run APIs.
 

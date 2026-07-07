@@ -143,6 +143,7 @@ interface BrowserSplashSkipResult {
 const BODY_LIMIT = 16_384;
 const BOOT_LOG_LIMIT = 8_192;
 const COMMAND_OUTPUT_LIMIT = 16_384;
+const COMMAND_EXEC_BUFFER_LIMIT = 1_048_576;
 const FILE_SNIPPET_LIMIT = 16_384;
 const FILE_READ_LIMIT = 1_048_576;
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -1047,7 +1048,7 @@ async function runCommandStep(
   const result = await execFileNoThrow(command, args, {
     cwd,
     timeoutMs: automation.command.timeoutMs,
-    maxBuffer: COMMAND_OUTPUT_LIMIT,
+    maxBuffer: COMMAND_EXEC_BUFFER_LIMIT,
   });
   const stdout = truncate(result.stdout, COMMAND_OUTPUT_LIMIT);
   const stderr = truncate(result.stderr, COMMAND_OUTPUT_LIMIT);

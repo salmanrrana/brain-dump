@@ -1,5 +1,5 @@
 import { createServer, type Server } from "http";
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -216,9 +216,17 @@ function invalidAutomationStep(): DemoStep {
 }
 
 function createCleanExecFileNoThrow(
-  onCommand?: (command: string, args: string[], options?: { cwd?: string }) => void
+  onCommand?: (
+    command: string,
+    args: string[],
+    options?: { cwd?: string; timeoutMs?: number; maxBuffer?: number }
+  ) => void
 ) {
-  return async (command: string, args: string[], options?: { cwd?: string }) => {
+  return async (
+    command: string,
+    args: string[],
+    options?: { cwd?: string; timeoutMs?: number; maxBuffer?: number }
+  ) => {
     if (command === "git" && args.join(" ") === "rev-parse HEAD") {
       return { success: true, stdout: "abc123\n", stderr: "", exitCode: 0 };
     }
@@ -669,6 +677,38 @@ describe("verifyTicket", () => {
         expect.stringContaining("step-2-file.json"),
       ])
     );
+  });
+
+  it("allows noisy command output while keeping evidence output capped", async () => {
+    db.prepare("UPDATE projects SET path = ? WHERE id = 'project-1'").run(tempDir);
+    seedDemo([commandStep()]);
+    let commandMaxBuffer = 0;
+
+    const run = await verifyTicket(db, {
+      ticketId: "ticket-1",
+      projectPath: tempDir,
+      execFileNoThrow: async (command, args, options) => {
+        if (command === "git") return createCleanExecFileNoThrow()(command, args, options);
+        commandMaxBuffer = options?.maxBuffer ?? 0;
+        return {
+          success: true,
+          stdout: "command ok\n",
+          stderr: "warning\n".repeat(20_000),
+          exitCode: 0,
+        };
+      },
+    });
+
+    const evidencePath = run.manifest.stepVerdicts[0]?.evidenceFiles[0]?.path;
+    if (!evidencePath) throw new Error("Expected command evidence");
+    const evidence = JSON.parse(readFileSync(evidencePath, "utf8")) as {
+      result: { stderr: string };
+    };
+
+    expect(run.status).toBe("passed");
+    expect(commandMaxBuffer).toBeGreaterThan(16_384);
+    expect(evidence.result.stderr.length).toBeLessThan(20_000 * "warning\n".length);
+    expect(evidence.result.stderr).toContain("[truncated");
   });
 
   it("files actionable findings when command assertions fail", async () => {
