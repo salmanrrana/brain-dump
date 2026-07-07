@@ -17,11 +17,16 @@
  * Zero human interaction: no submit-feedback, no change_request comments, no
  * manual status flips. Only the runner (verifyTicket) moves the ticket to done.
  *
+ * The "automatic verification worker" block proves the same loop through the
+ * durable queue: generate-demo enqueues, one-shot drains lease and execute,
+ * crashed leases are re-leased after expiry, and no step needs a human to run
+ * a manual `brain-dump verify` command.
+ *
  * This file runs as part of `pnpm check` (see the test:verification-loop
  * script) because it is the epic's completion gate.
  */
 import { createServer, type Server } from "http";
-import { existsSync, mkdtempSync, rmSync } from "fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -35,6 +40,16 @@ import {
   listVerificationRuns,
   verifyTicket,
 } from "../core/verification.ts";
+import {
+  claimNextVerificationJob,
+  getVerificationJob,
+  settleVerificationJob,
+} from "../core/verification-queue.ts";
+import {
+  drainVerificationQueue,
+  getVerificationWorkerQueueStatus,
+  runNextVerificationJob,
+} from "../core/verification-worker.ts";
 import { getVerificationFailuresByTicketId } from "../src/lib/ralph-launch/change-request-context.ts";
 import type { DemoStep, GitCommandResult, GitOperations } from "../core/types.ts";
 
@@ -490,5 +505,233 @@ describe("verification loop end-to-end", () => {
         manifest: storedRun.manifest,
       }).integrityStatus
     ).toBe("uncertified-tripwire");
+  });
+});
+
+/** Scoped PRD file in the fixture project so verification settlement can prove
+ *  `passes` only flips true when the runner sets the ticket to done. */
+function seedPrdFile(): string {
+  const plansDir = join(tempDir, "plans");
+  mkdirSync(plansDir, { recursive: true });
+  const prdPath = join(plansDir, "prd.json");
+  writeFileSync(
+    prdPath,
+    JSON.stringify({
+      userStories: [{ id: LIVE_TICKET, title: "Live fixture ticket", passes: false }],
+    })
+  );
+  return prdPath;
+}
+
+function prdPasses(prdPath: string): boolean {
+  const prd = JSON.parse(readFileSync(prdPath, "utf-8")) as {
+    userStories: Array<{ id: string; passes: boolean }>;
+  };
+  return prd.userStories.find((story) => story.id === LIVE_TICKET)!.passes;
+}
+
+function verificationJobRowCount(): number {
+  return (db.prepare("SELECT COUNT(*) as count FROM verification_jobs").get() as { count: number })
+    .count;
+}
+
+/**
+ * Worker-driven proof: the automatic path from the merged acceptance criteria.
+ *
+ * No test in this block ever calls verifyTicket directly or shells out to
+ * `brain-dump verify` — tickets are driven exclusively through the public
+ * workflow/review APIs Ralph uses, and verification executes only behind the
+ * queue worker (drainVerificationQueue / runNextVerificationJob), exactly like
+ * the boot/enqueue one-shot drain processes in production. If a handoff ever
+ * stopped enqueueing runnable work, or a drain stopped picking it up, these
+ * tests fail — a ticket that can only move via a human running a manual
+ * command is the regression this block exists to catch.
+ */
+describe("automatic verification worker (queue-driven)", () => {
+  it("queues on generate-demo and drains failure → repair → rerun → done → epic auto-PR with no manual verify command", async () => {
+    seedTicket(LIVE_TICKET, "ready");
+    seedTicket(DONE_TICKET, "in_progress");
+    const prdPath = seedPrdFile();
+    const git = createMockGit();
+    const baseUrl = await startFixtureServer();
+
+    // ---- Implementation + review, exactly as Ralph drives it --------------
+    const started = startWork(db, LIVE_TICKET, git);
+    seedVerifiedDoneTicket(started.branch);
+    addTestReport(LIVE_TICKET);
+    completeWork(db, LIVE_TICKET, git, "Implemented the fixture endpoint");
+    expect(checkComplete(db, LIVE_TICKET).canProceedToVerification).toBe(true);
+    generateDemo(db, {
+      ticketId: LIVE_TICKET,
+      steps: [apiStep(1, 201), apiStep(2, 200)],
+    });
+
+    // The handoff itself recorded runnable work: one pending job, visible to
+    // queue health, with no human in the loop.
+    const queuedJob = getVerificationJob(db, LIVE_TICKET);
+    expect(queuedJob).toMatchObject({ status: "queued", attemptCount: 0 });
+    expect(getVerificationWorkerQueueStatus(db).queueDepth).toBe(1);
+    expect(prdPasses(prdPath)).toBe(false);
+
+    // ---- Drain 1: worker claims the queued job, round 1 fails -------------
+    const drain1Exec = createExecStub();
+    const drain1 = await drainVerificationQueue(db, {
+      workerId: "drain-round-1",
+      provider: PROVIDER,
+      baseUrl,
+      execFileNoThrow: drain1Exec.stub,
+    });
+    expect(drain1.processed).toBe(1);
+
+    // Loop-back happened entirely behind the worker: ticket back to
+    // implementation, job settled (not retryable — repair re-enqueues), and
+    // the failure context queued for the next Ralph iteration.
+    expect(ticketRow(LIVE_TICKET).status).toBe("in_progress");
+    const failedJob = getVerificationJob(db, LIVE_TICKET);
+    expect(failedJob).toMatchObject({ status: "failed", leasedBy: null });
+    expect(failedJob!.completedAt).toBeTruthy();
+    expect(failedJob!.lastError).toContain("returned to implementation");
+    expect(getVerificationFailuresByTicketId(db, [LIVE_TICKET])[LIVE_TICKET]).toContain("Step 1");
+    expect(prdPasses(prdPath)).toBe(false);
+
+    // A second drain right now claims nothing and exits immediately — the
+    // settled loop-back job is not a pending retry, so a one-shot drain never
+    // lingers waiting on work that only a repaired handoff can re-create.
+    const idleDrain = await drainVerificationQueue(db, {
+      workerId: "drain-idle",
+      provider: PROVIDER,
+      baseUrl,
+      execFileNoThrow: createExecStub().stub,
+    });
+    expect(idleDrain.processed).toBe(0);
+
+    // ---- Repair iteration: fix, regenerate demo, job re-queued ------------
+    const openFinding = db
+      .prepare(
+        "SELECT id FROM review_findings WHERE ticket_id = ? AND category = 'verification' AND status = 'open'"
+      )
+      .get(LIVE_TICKET) as { id: string };
+    addTestReport(LIVE_TICKET);
+    completeWork(db, LIVE_TICKET, git, "Fixed the endpoint status code");
+    markFixed(db, openFinding.id, "fixed");
+    generateDemo(db, { ticketId: LIVE_TICKET, steps: [apiStep(1, 200), apiStep(2, 200)] });
+
+    // Idempotent enqueue: the repair refreshed the SAME durable job row.
+    expect(verificationJobRowCount()).toBe(1);
+    expect(getVerificationJob(db, LIVE_TICKET)).toMatchObject({
+      status: "queued",
+      attemptCount: 0,
+      lastError: null,
+    });
+
+    // ---- Drain 2: a different worker (fresh process) completes the loop ---
+    const drain2Exec = createExecStub();
+    const drain2 = await drainVerificationQueue(db, {
+      workerId: "drain-round-2",
+      provider: PROVIDER,
+      baseUrl,
+      execFileNoThrow: drain2Exec.stub,
+    });
+    expect(drain2.processed).toBe(1);
+
+    // Runner-driven completion: done ticket, succeeded job, epic auto-PR.
+    const finalTicket = ticketRow(LIVE_TICKET);
+    expect(finalTicket.status).toBe("done");
+    expect(finalTicket.completed_at).toBeTruthy();
+    expect(finalTicket.pr_number).toBe(91);
+    expect(
+      drain2Exec.calls.some((call) => call[0] === "gh" && call[1] === "pr" && call[2] === "create")
+    ).toBe(true);
+
+    const finalJob = getVerificationJob(db, LIVE_TICKET);
+    expect(finalJob).toMatchObject({
+      status: "succeeded",
+      actor: `${PROVIDER} ralph`,
+      leasedBy: null,
+    });
+    // Stale-code hazard surfaced: the settled job records WHICH worker ran it
+    // and the verifier code SHA it executed, so a job verified by old code is
+    // attributable after the fact.
+    expect(finalJob!.workerId).toBe("drain-round-2");
+    expect(finalJob!.codeGitSha).toBe("e2e-sha-111");
+    expect(getVerificationWorkerQueueStatus(db).queueDepth).toBe(0);
+
+    // Full-suite rerun across rounds, evidence attributed to "{provider} ralph".
+    expect(listVerificationRuns(db, LIVE_TICKET).map((run) => run.round)).toEqual([2, 1]);
+    const reports = verificationReportComments(LIVE_TICKET);
+    expect(reports).toHaveLength(2);
+    expect(reports.every((report) => report.author === `${PROVIDER} ralph`)).toBe(true);
+
+    // PRD `passes` flipped true only via the runner's done transition.
+    expect(prdPasses(prdPath)).toBe(true);
+
+    // Nothing in the trail required a human: no manual verify invocation
+    // happened (verifyTicket was never called by this test), no legacy
+    // human_review status exists, no change_request comment exists.
+    const humanReviewTickets = db
+      .prepare("SELECT COUNT(*) as count FROM tickets WHERE status = 'human_review'")
+      .get() as { count: number };
+    expect(humanReviewTickets.count).toBe(0);
+    const changeRequests = db
+      .prepare(
+        "SELECT COUNT(*) as count FROM ticket_comments WHERE ticket_id = ? AND type = 'change_request'"
+      )
+      .get(LIVE_TICKET) as { count: number };
+    expect(changeRequests.count).toBe(0);
+  });
+
+  it("re-leases an expired lease after a worker restart and rejects stale settlement", async () => {
+    seedTicket(LIVE_TICKET, "ready", null);
+    const git = createMockGit();
+    const baseUrl = await startFixtureServer();
+
+    startWork(db, LIVE_TICKET, git);
+    addTestReport(LIVE_TICKET);
+    completeWork(db, LIVE_TICKET, git, "Implemented the fixture endpoint");
+    generateDemo(db, { ticketId: LIVE_TICKET, steps: [apiStep(1, 200)] });
+
+    // Worker A claims the job, then "crashes" without settling.
+    const t0 = new Date();
+    const crashedClaim = claimNextVerificationJob(db, {
+      workerId: "worker-crashed",
+      now: t0.toISOString(),
+      leaseMs: 60_000,
+    });
+    expect(crashedClaim).toMatchObject({ status: "running", leasedBy: "worker-crashed" });
+
+    // While the lease is active nobody else can claim the job — no duplicate
+    // in-flight verification runs.
+    const duringLease = new Date(t0.getTime() + 30_000).toISOString();
+    expect(claimNextVerificationJob(db, { workerId: "worker-eager", now: duringLease })).toBeNull();
+
+    // The queued job survived the crash: after lease expiry a restarted worker
+    // re-leases the SAME durable row and completes verification.
+    const afterExpiry = new Date(t0.getTime() + 120_000);
+    const resumed = await runNextVerificationJob(db, {
+      workerId: "worker-resumed",
+      provider: PROVIDER,
+      baseUrl,
+      execFileNoThrow: createExecStub().stub,
+      now: () => afterExpiry,
+    });
+    expect(resumed).toMatchObject({
+      claimed: true,
+      workerId: "worker-resumed",
+      ticketId: LIVE_TICKET,
+      runStatus: "passed",
+      jobStatus: "succeeded",
+    });
+    expect(ticketRow(LIVE_TICKET).status).toBe("done");
+    expect(verificationJobRowCount()).toBe(1);
+
+    // The crashed worker's stale lease can never settle the job it lost.
+    expect(() =>
+      settleVerificationJob(db, {
+        jobId: crashedClaim!.id,
+        workerId: "worker-crashed",
+        attemptCount: crashedClaim!.attemptCount,
+        status: "succeeded",
+      })
+    ).toThrow(/not leased/i);
   });
 });

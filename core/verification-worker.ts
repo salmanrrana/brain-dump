@@ -468,10 +468,14 @@ export async function drainVerificationQueue(
 
     // Nothing claimable right now. If a queued job has a retry scheduled in
     // the near future, wait for it inside the budget instead of stranding it
-    // until the next enqueue.
+    // until the next enqueue. Settled assertion-failure jobs (completed_at set,
+    // ticket looped back to implementation) are NOT pending retries — without
+    // the completed_at filter a one-shot drain would linger polling for the
+    // whole follow budget after every loop-back.
     const row = db
       .prepare(
-        "SELECT MIN(next_run_at) as next FROM verification_jobs WHERE status IN ('queued', 'failed')"
+        `SELECT MIN(next_run_at) as next FROM verification_jobs
+         WHERE status IN ('queued', 'failed') AND completed_at IS NULL`
       )
       .get() as { next: string | null } | undefined;
     if (!row?.next) break;
