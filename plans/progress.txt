@@ -1,6 +1,14 @@
 # Ralph Progress Log
 # Previous entries archived to: archives/progress-20260315-130551.txt
 
+### 2026-07-07 ~00:45 CDT - Manual session (Claude Code): worker lifecycle redesign (ticket c74cd5a3)
+- **Why:** the resident verification worker polled every 10s inside every server process forever, executing boot-time code (stale-worker incidents on 2026-07-06/07: ReferenceError on renamed exports, pre-fix maxBuffer failures, zombie leaked-boot executors, run-round collision).
+- **New model (903577b):** trigger in-process, execute out-of-process, idle at zero. drainVerificationQueue (one-shot until queue empty, bounded retry-follow), spawnDetachedVerificationDrain (detached `brain-dump verify worker --drain`, current on-disk code), boot-time leftover drain, CLI/MCP generate-demo spawn triggers, resident poller opt-in via BRAIN_DUMP_VERIFICATION_WORKER_POLL=1, execution banned in BRAIN_DUMP_VERIFY_BOOT/PLAYWRIGHT_E2E processes.
+- **Tickets updated:** 48f8387c (ops/health for the drain model + lease-aware rounds + requeue command), 7b615ca2 (identity: worker id + surface + executing git SHA per run; PATH-independent spawn).
+- **Note:** restart running dev servers to drop the old resident poller.
+
+---
+
 ### 2026-07-06 ~21:15 CDT - Manual repair session (Claude Code): below-fold screenshot evidence
 - **Bug:** UI evidence screenshots only captured the viewport top. The app shell scrolls inside nested overflow containers (body is h-screen overflow-hidden), so fullPage screenshots never include content deeper in a scroll container even when a text assertion proved it exists (fd379617 step 4: handoff-repair note asserted in the comment trail, invisible in evidence).
 - **Fix (79bf85d):** runner scrolls the first text assertion's content into view (getByText for body-scoped asserts, the assert selector otherwise) before capturing the screenshot; behavioral test locks scroll-before-screenshot ordering.
@@ -487,3 +495,4 @@
 [2026-07-06T11:49:41-05:00] STALLED: No progress for 3 iterations. 29/29 incomplete.
 [2026-07-06T13:08:18-05:00] STALLED: No progress for 3 iterations. 29/29 incomplete.
 [2026-07-06T23:04:52-05:00] STALLED: No new ticket completed for 3 iterations. 14/15 incomplete. Likely a repeating blocker; needs human attention.
+[2026-07-07T00:13:01-05:00] STALLED: No new ticket completed for 3 iterations. 11/14 incomplete. Likely a repeating blocker; needs human attention.
