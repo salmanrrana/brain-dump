@@ -9,6 +9,7 @@ interface VerificationFailureRow {
   ticket_id: string;
   id: string;
   round: number;
+  status: string;
   manifest: string;
   finished_at: string;
 }
@@ -86,7 +87,7 @@ export function getHumanRequestedChangesByTicketId(
 function formatVerificationFailure(row: VerificationFailureRow): string {
   const manifest = parseVerificationManifest(row.manifest);
   if (!manifest) {
-    return `Verification run ${row.id} failed at ${row.finished_at} (round ${row.round}).\n\n- Manifest could not be parsed; inspect stored verification evidence for this run.`;
+    return `Verification run ${row.id} ended with ${row.status} at ${row.finished_at} (round ${row.round}).\n\n- Manifest could not be parsed; inspect stored verification evidence for this run.`;
   }
 
   const failedSteps = (manifest.stepVerdicts ?? []).filter(
@@ -102,7 +103,7 @@ function formatVerificationFailure(row: VerificationFailureRow): string {
   });
 
   return [
-    `Verification run ${manifest.runId ?? row.id} failed at ${row.finished_at} (round ${row.round}).`,
+    `Verification run ${manifest.runId ?? row.id} ended with ${row.status} at ${row.finished_at} (round ${row.round}).`,
     "",
     ...stepLines,
   ].join("\n");
@@ -119,18 +120,18 @@ export function getVerificationFailuresByTicketId(
   const placeholders = ticketIds.map(() => "?").join(", ");
   const rows = sqlite
     .prepare(
-      `SELECT vr.ticket_id, vr.id, vr.round, vr.manifest, vr.finished_at
+      `SELECT vr.ticket_id, vr.id, vr.round, vr.status, vr.manifest, vr.finished_at
        FROM verification_runs vr
        JOIN tickets t ON t.id = vr.ticket_id
        WHERE vr.ticket_id IN (${placeholders})
-         AND vr.status = 'failed'
-         AND t.status != 'done'
-         AND vr.round = (
-           SELECT MAX(latest.round)
-           FROM verification_runs latest
-           WHERE latest.ticket_id = vr.ticket_id
-             AND latest.status = 'failed'
-         )
+          AND vr.status IN ('failed', 'infra_error', 'uncertified')
+          AND t.status != 'done'
+          AND vr.round = (
+            SELECT MAX(latest.round)
+            FROM verification_runs latest
+            WHERE latest.ticket_id = vr.ticket_id
+              AND latest.status IN ('failed', 'infra_error', 'uncertified')
+          )
          AND NOT EXISTS (
            SELECT 1
            FROM verification_runs passing

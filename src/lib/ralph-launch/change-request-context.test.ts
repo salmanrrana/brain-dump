@@ -27,7 +27,7 @@ function insertVerificationRun(
   ticketId: string,
   id: string,
   round: number,
-  status: "passed" | "failed",
+  status: "passed" | "failed" | "infra_error" | "uncertified",
   finishedAt: string
 ): void {
   sqlite
@@ -149,9 +149,20 @@ describe("change request launch context", () => {
 
     const result = getVerificationFailuresByTicketId(sqlite, ["ticket-1"]);
 
-    expect(result["ticket-1"]).toContain("Verification run run-2 failed");
+    expect(result["ticket-1"]).toContain("Verification run run-2 ended with failed");
     expect(result["ticket-1"]).toContain("Step 2: Expected OK, got error");
     expect(result["ticket-1"]).toContain("/tmp/evidence.json");
+  });
+
+  it("returns latest unresolved infra error context", () => {
+    insertTicket("ticket-1", "in_progress");
+    insertVerificationRun("ticket-1", "run-1", 1, "failed", "2026-04-25T10:00:00.000Z");
+    insertVerificationRun("ticket-1", "run-2", 2, "infra_error", "2026-04-25T11:00:00.000Z");
+
+    const result = getVerificationFailuresByTicketId(sqlite, ["ticket-1"]);
+
+    expect(result["ticket-1"]).toContain("Verification run run-2 ended with infra_error");
+    expect(result["ticket-1"]).toContain("Step 2: Expected OK, got error");
   });
 
   it("does not return stale verification failures after a newer certified pass", () => {
@@ -171,7 +182,7 @@ describe("change request launch context", () => {
 
     const result = getVerificationFailuresByTicketId(sqlite, ["ticket-1"]);
 
-    expect(result["ticket-1"]).toContain("Verification run run-1 failed");
+    expect(result["ticket-1"]).toContain("Verification run run-1 ended with failed");
     expect(result["ticket-1"]).toContain("Manifest could not be parsed");
   });
 });
