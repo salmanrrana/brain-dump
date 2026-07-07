@@ -18,7 +18,7 @@ All commands output JSON by default. Add `--pretty` for human-readable output.
 | `workflow`   | Start work, complete work, start epic, launch Ralph — _start-work, complete-work, start-epic, launch-ticket, launch-epic_                                                              |
 | `comment`    | Add and list ticket comments — _add, list_                                                                                                                                             |
 | `review`     | Submit findings, generate demos, manage reviews — _submit-finding, mark-fixed, check-complete, generate-demo, get-demo, get-findings, get-verification-history, repair-legacy-handoff_ |
-| `verify`     | Run AI verification and inspect verification history — _run, history, status_                                                                                                          |
+| `verify`     | Run AI verification and inspect verification history — _run, history, status, worker-status, worker_                                                                                   |
 | `session`    | Create, update, complete Ralph sessions — _create, update, complete, get, list, update-state, emit-event, get-events, clear-events_                                                    |
 | `git`        | Link commits, PRs, sync ticket links — _link-commit, link-pr, sync_                                                                                                                    |
 | `telemetry`  | Start, end, get, list telemetry sessions, record token usage — _start, end, get, list, log-tool, log-prompt, log-context, record-usage, recalculate-costs, deep-recalculate-costs_     |
@@ -851,17 +851,17 @@ brain-dump review check-complete --ticket <value> [--pretty]
 
 ### brain-dump review generate-demo
 
-Generate a demo script for AI verification
+Generate a demo script for AI verification with criterion coverage and executable step specs
 
 ```bash
 brain-dump review generate-demo --ticket <value> --steps-file <value> [--pretty]
 ```
 
-| Flag           | Type    | Required | Description                           |
-| -------------- | ------- | -------- | ------------------------------------- |
-| `--ticket`     | string  | Yes      | Ticket ID                             |
-| `--steps-file` | string  | Yes      | JSON file with demo steps             |
-| `--pretty`     | boolean | No       | Human-readable output (default: JSON) |
+| Flag           | Type    | Required | Description                                                                                                                                                                                                                   |
+| -------------- | ------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--ticket`     | string  | Yes      | Ticket ID                                                                                                                                                                                                                     |
+| `--steps-file` | string  | Yes      | JSON file with visual/automated demo steps, covers references (criterion:1, subtask:<id>), and UI/API/command/file automation specs. coverageRationale must name non-certifiable criterion ids and keeps the run uncertified. |
+| `--pretty`     | boolean | No       | Human-readable output (default: JSON)                                                                                                                                                                                         |
 
 ### brain-dump review get-demo
 
@@ -995,6 +995,43 @@ brain-dump verify status --ticket <value> [--pretty]
 
 ```bash
 brain-dump verify status --ticket abc --pretty
+```
+
+### brain-dump verify worker-status
+
+Show automatic verification worker queue health
+
+```bash
+brain-dump verify worker-status [--pretty]
+```
+
+| Flag       | Type    | Required | Description                           |
+| ---------- | ------- | -------- | ------------------------------------- |
+| `--pretty` | boolean | No       | Human-readable output (default: JSON) |
+
+**Examples:**
+
+```bash
+brain-dump verify worker-status --pretty
+```
+
+### brain-dump verify worker
+
+Run one automatic verification worker iteration for debugging
+
+```bash
+brain-dump verify worker [--provider <value>] [--pretty]
+```
+
+| Flag         | Type    | Required | Description                                                            |
+| ------------ | ------- | -------- | ---------------------------------------------------------------------- |
+| `--provider` | string  | No       | Provider attribution for runner evidence, stored as '<provider> ralph' |
+| `--pretty`   | boolean | No       | Human-readable output (default: JSON)                                  |
+
+**Examples:**
+
+```bash
+brain-dump verify worker --pretty
 ```
 
 ---
@@ -1739,17 +1776,18 @@ brain-dump admin check --full
 Diagnose configuration issues
 
 ```bash
-brain-dump admin doctor [--pretty]
+brain-dump admin doctor [--verification]
 ```
 
-| Flag       | Type    | Required | Description                           |
-| ---------- | ------- | -------- | ------------------------------------- |
-| `--pretty` | boolean | No       | Human-readable output (default: JSON) |
+| Flag             | Type    | Required | Description                                                                                              |
+| ---------------- | ------- | -------- | -------------------------------------------------------------------------------------------------------- |
+| `--verification` | boolean | No       | Run only the Verification Runner & Epic Auto-PR capability checks; exit code reflects those checks alone |
 
 **Examples:**
 
 ```bash
 brain-dump admin doctor
+brain-dump doctor --verification
 ```
 
 ### brain-dump admin health

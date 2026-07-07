@@ -1410,8 +1410,16 @@ export const COMMAND_REGISTRY: CommandDef[] = [
     resource: "admin",
     action: "doctor",
     description: "Diagnose configuration issues",
-    flags: [prettyFlag],
-    examples: ["brain-dump admin doctor"],
+    flags: [
+      {
+        name: "verification",
+        type: "boolean",
+        required: false,
+        description:
+          "Run only the Verification Runner & Epic Auto-PR capability checks; exit code reflects those checks alone",
+      },
+    ],
+    examples: ["brain-dump admin doctor", "brain-dump doctor --verification"],
   },
   {
     resource: "admin",

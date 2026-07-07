@@ -338,7 +338,7 @@ switch (resource) {
     runAsync(admin.handle, "check", backwardArgs());
     break;
   case "doctor":
-    runAsync(admin.handle, "doctor", []);
+    runAsync(admin.handle, "doctor", backwardArgs());
     break;
 
   // ── Help ────────────────────────────────────────────────────

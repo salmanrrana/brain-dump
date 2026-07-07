@@ -276,11 +276,22 @@ interface DoctorIssue {
   fix?: string;
 }
 
-function handleDoctorAction(): void {
+function handleDoctorAction(args: string[] = []): void {
+  const issues: DoctorIssue[] = [];
+
+  // Scoped capability probe: report ONLY verification runner + epic auto-PR
+  // capability, with an exit code that ignores unrelated environment issues.
+  if (args.includes("--verification")) {
+    console.log("\nBrain Dump Environment Doctor (verification capability)\n");
+    console.log("=".repeat(63) + "\n");
+    checkVerificationCapability(issues);
+    reportDoctorIssues(issues);
+    return;
+  }
+
   console.log("\nBrain Dump Environment Doctor\n");
   console.log("=".repeat(63) + "\n");
 
-  const issues: DoctorIssue[] = [];
   const home = process.env.HOME || "";
 
   // Claude Code
@@ -615,7 +626,19 @@ function handleDoctorAction(): void {
 
   console.log();
 
-  // Verification Runner & Epic Auto-PR
+  checkVerificationCapability(issues);
+
+  runRemainingDoctorChecks(issues);
+}
+
+/**
+ * Verification Runner & Epic Auto-PR capability checks. Kept as a standalone
+ * section so `brain-dump doctor --verification` can report runner capability
+ * with an exit code scoped to THESE issues only — unrelated machine issues
+ * (missing optional hooks, editor integrations) must not fail a verification
+ * capability probe.
+ */
+function checkVerificationCapability(issues: DoctorIssue[]): void {
   console.log("Verification Runner & Epic Auto-PR");
   console.log("-".repeat(50));
 
@@ -681,7 +704,9 @@ function handleDoctorAction(): void {
   }
 
   console.log();
+}
 
+function runRemainingDoctorChecks(issues: DoctorIssue[]): void {
   // MCP workflow schema drift. This catches stale installed MCP bundles before they
   // move tickets through retired workflow states or drop automation fields.
   console.log("Workflow Schema");
@@ -758,6 +783,10 @@ function handleDoctorAction(): void {
   }
 
   console.log();
+  reportDoctorIssues(issues);
+}
+
+function reportDoctorIssues(issues: DoctorIssue[]): void {
   console.log("=".repeat(63) + "\n");
 
   if (issues.length === 0) {
@@ -810,7 +839,7 @@ export async function handle(action: string, args: string[]): Promise<void> {
         handleCheckAction(args);
         break;
       case "doctor":
-        handleDoctorAction();
+        handleDoctorAction(args);
         break;
       case "health":
         handleHealthAction(args);
