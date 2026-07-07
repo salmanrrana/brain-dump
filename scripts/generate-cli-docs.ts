@@ -11,6 +11,7 @@
 
 import { readFileSync, writeFileSync } from "fs";
 import { resolve, dirname } from "path";
+import { format } from "prettier";
 import { fileURLToPath } from "url";
 import {
   COMMAND_REGISTRY,
@@ -186,7 +187,7 @@ const args = process.argv.slice(2);
 const checkMode = args.includes("--check");
 const stdoutMode = args.includes("--stdout");
 
-const generated = generateDocs();
+const generated = await format(generateDocs(), { parser: "markdown" });
 
 if (stdoutMode) {
   process.stdout.write(generated);
