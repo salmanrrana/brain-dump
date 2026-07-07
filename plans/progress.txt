@@ -1,6 +1,15 @@
 # Ralph Progress Log
 # Previous entries archived to: archives/progress-20260315-130551.txt
 
+### 2026-07-06 ~20:30 CDT - Manual repair session (Claude Code): splash-only verification evidence
+- **Bug:** every certified run from 2026-07-06 carried at least one screenshot showing only the splash spinner. The server always SSRs the SplashScreen; the runner's sessionStorage splash-skip only applies after hydration, and text assertions pass against the SSR DOM underneath the overlay.
+- **Fix (e695d47):** SplashScreen exposes data-testid=app-splash; runUiStep waits for the overlay to detach before assertions/screenshots and fails the step if it never dismisses; generate-demo rejects UI steps whose only assertion is body visibility.
+- **Loop stopped:** the running Ralph epic loop (session 79102374, ticket 7ea6f80f) was stopped with user approval to land the fix; the session was completed as interrupted and 7ea6f80f stays resumable in ai_review.
+- **Evidence repair:** tickets 714bbbdd, 92b41d17, 5ea2e1e6, 9f63c408, c6285749, 269a9ce8, fd379617 reset done -> ai_verification and f3ceb470 -> ai_review (demo regenerated with meaningful assertions) for re-verification with the fixed runner. 6d910ab3 was already awaiting verification.
+- **Tripwire note:** re-verification runs immediately after the fix commit were correctly uncertified because HEAD touched core/verification.ts; certification resumes once a non-verification commit (this one) is on top.
+
+---
+
 ### 2026-07-06 ~17:15 CDT - Manual repair session (Claude Code): environment + epic restructure
 - **Environment:** Rebuilt better-sqlite3 for Node 24 (CLI was hard-down with NODE_MODULE_VERSION 131/137 mismatch); committed the mcp-server esbuild playwright-externals fix (c8a890a); rebuilt mcp-server/dist; no stale MCP process remains.
 - **Unstranded:** f3ceb470 + 714bbbdd + 92b41d17 + 5ea2e1e6 all reached done through certified verification runs. 92b41d17 needed a real runner fix (56e0100: warm up UI routes after boot readiness - cold vite boots burned the 10s UI assertion timeout on first page load).

@@ -9,290 +9,142 @@
   ],
   "userStories": [
     {
-      "id": "348966d6-a8c9-486a-8ed8-9eeb2453720b",
-      "title": "Single source of truth for ticket statuses and workflow steps",
-      "passes": true,
+      "id": "6d910ab3-0a56-4cbf-9c4d-334370bd4d8f",
+      "title": "Centralize verification lifecycle orchestration behind one core interface",
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Committed inventory checklist with every site ticked off; final grep audit clean",
-        "Characterization tests written before the swap all still pass after it",
-        "One module owns statuses/order/metadata/guards; drift test in place",
-        "Docs cross-reference the executable spec; `pnpm check` and `pnpm build` pass"
+        "There is one externally used core interface for running/settling verification; queue worker and CLI do not duplicate status-transition SQL.",
+        "No adapter can mark verification passed, write verification evidence, or loop a ticket back without going through the lifecycle interface.",
+        "Tests cover identical lifecycle behavior through CLI/debug and worker call paths.",
+        "The extracted modules reduce coupling without changing the verification audit format or current UI/API behavior."
       ],
       "references": [],
-      "description": "## Why\nThe 6 ticket statuses are independently declared in ~30 places and the transition rules are inline guard clauses scattered across core/workflow.ts and core/review.ts. There is no central table. The ONLY executable specification of the flow today is mcp-server/tools/__tests__/status-transitions.test.ts — the docs diagrams (docs/claude-flow-ticket-lifecycle.md etc.) describe the flow but nothing enforces them. Adding a status today is a 40-file scavenger hunt. This ticket makes it a one-module edit, which the rest of the AI Verification Gate epic depends on.\n\n## Process — inventory first, then replace against the checklist (MANDATORY)\n1. **Phase 0 — Inventory.** Before changing anything, build the complete inventory of every status-literal site: grep for each of the six literals (\"backlog\", \"ready\", \"in_progress\", \"ai_review\", \"human_review\", \"done\") across core/, mcp-server/, cli/, src/, hooks/, scripts/. Commit the inventory as a checklist file (e.g. plans/specs/status-inventory.md) with file:line + what each site does. Seed it from the known list below, but re-grep — do not trust the seed list blindly.\n2. **Phase 1 — Characterization tests.** Where a site has no behavioral coverage, add a test BEFORE refactoring (user-behavior level: CLI accepts/rejects statuses, kanban renders all columns, MCP enum validation rejects unknown status, toasts fire on transition). These tests must pass before AND after the swap — they are the proof nothing broke.\n3. **Phase 2 — Replace.** Swap each site to import from the new module, checking each inventory line off in the checklist file as it's replaced.\n4. **Phase 3 — Audit.** Re-run the Phase 0 grep. Any remaining literal must be either checked off as intentionally kept (e.g. historical migration SQL) or fixed. The checklist with all boxes ticked goes in the PR.\n\n## Scope\n1. Create `core/workflow-steps.ts` exporting: the ordered status list, TicketStatus type derived from it, per-status metadata (label, color token, kanban column, workable/active flags), and a transition-guard helper (`assertTransition(from, to, context)`) encoding the guarded flow currently inline in startWork/completeWork/submitFinding/generateDemo/submitFeedback.\n2. Known inventory seed: core/types.ts:24, core/ticket.ts:154, src/lib/schema.ts:46, mcp-server/types.ts:31, mcp-server/tools/ticket.ts:46, cli/commands/{search,ticket,status}.ts, cli/lib/command-registry.ts (×4 enums), src/lib/constants.ts (×5 declarations), src/api/tickets.ts (×2 validStatuses), src/api/workflow.ts, KanbanBoard.tsx (×2 object literals), StatusPill.tsx, SearchBar.tsx, EpicTicketsList.tsx, ticket-form-schema.ts, EditTicketModal.tsx, LaunchActions.tsx, TicketCard.tsx, TicketModal.tsx, ticket.$id.tsx, board.tsx, list.tsx, src/api/ralph-prompts.ts, src/api/ralph-script.ts.\n3. Respect runtime boundaries: core/ and mcp-server are Node-only, src is the web app — the module must be dependency-free and importable from all three.\n4. **Drift test derived from the inventory**: a test that greps the codebase for re-declared status arrays/unions outside the canonical module and fails on any new one.\n5. **Memorialize the executable spec**: (a) header comment in core/workflow-steps.ts naming mcp-server/tools/__tests__/status-transitions.test.ts as the executable transition spec; (b) add core-level transition tests (core/__tests__/workflow-steps.test.ts) against assertTransition so the spec lives next to the source of truth, keeping the MCP test as adapter-level coverage; (c) add a note to docs/claude-flow-ticket-lifecycle.md and docs/universal-workflow.md: diagrams are illustrative — the enforced spec is the transition module + its tests, with paths.\n\n## Non-goals\nNo new status added here (next ticket). No behavior change — pure consolidation.\n\n## Acceptance criteria\n- Committed inventory checklist with every site ticked off; final grep audit clean\n- Characterization tests written before the swap all still pass after it\n- One module owns statuses/order/metadata/guards; drift test in place\n- Docs cross-reference the executable spec; `pnpm check` and `pnpm build` pass",
-      "priority": "high",
-      "tags": [
-        "foundation",
-        "refactor",
-        "workflow"
-      ]
-    },
-    {
-      "id": "042cd2bb-865a-4dad-8ef1-8b7db56af4ab",
-      "title": "Provider prompt/skill sync generator with drift gate",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Running the sync script regenerates all provider workflow sections AND the docs status-flow diagrams deterministically",
-        "`pnpm check` fails if a generated section is hand-edited or the canonical data changed without regeneration",
-        "Stale references fixed; each provider's file still passes that provider's expected format",
-        "Docs: short section in CLAUDE.md or docs/ on \"how to add a workflow step\" (edit the module, run the script, done)"
-      ],
-      "references": [],
-      "description": "## Why\nThe workflow step sequence is restated in ~10 independently drifting places: src/api/ralph-prompts.ts (WORKFLOW_PHASES/WORKFLOW_RULES), mcp-server/prompts/instructions.ts, .claude/skills/brain-dump-workflow/SKILL.md, .cursor/skills/brain-dump-workflow/SKILL.md, .cursor/rules/brain-dump-workflow.md, .opencode/skill/brain-dump-workflow/SKILL.md, .opencode/agent/ralph.md, .opencode/agent/ticket-worker.md, .pi/skills/brain-dump-workflow/SKILL.md, .pi/prompts/*.md. Some are already stale (.opencode/agent/ralph.md references a nonexistent src/api/ralph.ts; ticket-worker.md uses pre-consolidation tool syntax). The docs/ diagrams (claude-flow-ticket-lifecycle.md Mermaid state diagram, universal-workflow.md, flows/kanban-workflow.md) have the same problem: they describe the flow but nothing keeps them true. Without this, adding the ai_verification step means hand-editing every provider surface and hoping nothing drifts.\n\n## Scope\n1. Define the canonical workflow-step sequence (phases, MCP tool call per phase, state transitions, stop conditions) as structured data in or alongside `core/workflow-steps.ts` (depends on the \"single source of truth\" ticket).\n2. Write `scripts/sync-workflow-prompts.ts` (or similar) that renders the workflow sections of each provider skill/rule/prompt file from that data via per-provider templates (Claude skill format, Cursor rule format, Pi CLI-flavored prompts, OpenCode agent format). Only the workflow-sequence sections are generated — surrounding provider-specific prose stays hand-written between clearly delimited markers (e.g. BEGIN/END GENERATED comments).\n3. **Docs diagrams join the generated set**: the Mermaid stateDiagram in docs/claude-flow-ticket-lifecycle.md and the status-flow sections of docs/universal-workflow.md + docs/flows/kanban-workflow.md are generated from the same canonical data (Mermaid is trivially renderable from a transition table), between the same style of markers. Diagrams stop being aspirational.\n4. Add a drift check to `pnpm check` that regenerates and fails on diff.\n5. Fix the already-stale copies as part of the first generation pass.\n6. ralph-prompts.ts and mcp-server/prompts/instructions.ts should consume the structured data directly (imports) rather than generated text where feasible.\n\n## Acceptance criteria\n- Running the sync script regenerates all provider workflow sections AND the docs status-flow diagrams deterministically\n- `pnpm check` fails if a generated section is hand-edited or the canonical data changed without regeneration\n- Stale references fixed; each provider's file still passes that provider's expected format\n- Docs: short section in CLAUDE.md or docs/ on \"how to add a workflow step\" (edit the module, run the script, done)",
-      "priority": "high",
-      "tags": [
-        "foundation",
-        "providers",
-        "workflow"
-      ]
-    },
-    {
-      "id": "9f63c408-6c90-4a2d-bb36-247e0ca16d38",
-      "title": "Add ai_verification status and retire human_review from the active flow",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "generate-demo moves ai_review → ai_verification; board shows the new column and no human_review column",
-        "Only the runner path can set done from ai_verification; the generic update-status escape hatch is documented (kanban drag remains unguarded as today)",
-        "Ralph integration tests prove: PRD_COMPLETE only when all tickets are done; no infinite loop when a ticket is blocked in ai_verification",
-        "Migration tested (db:generate/db:migrate + backup/restore check); provider prompts regenerated via sync script",
-        "pnpm check + pnpm build pass"
-      ],
-      "references": [],
-      "description": "## Why\nNew flow: backlog → ready → in_progress → ai_review → **ai_verification** → done. There is NO human review step anymore — a clean verification pass is the completion gate, and Brain Dump (the runner, never the agent) sets the ticket to done.\n\nDepends on: \"Single source of truth for ticket statuses\" + \"Provider prompt/skill sync generator\" (this should be the first proof that adding/removing a status is now cheap).\n\n## Scope\n1. Add `ai_verification` to core/workflow-steps.ts (order, label \"AI Verification\", column, metadata). Types/enums/UI maps update via the central module.\n2. Transition changes in core/review.ts: `generateDemo` now sets status to `ai_verification` (not human_review). New runner-only guarded transitions: ai_verification → done (verification pass; sets completed_at, fires the existing epic all-done trigger at src/api/tickets.ts:257-276) and ai_verification → in_progress (verification fail).\n3. Retire human_review: remove from the active status flow, kanban columns, STATUS_ORDER, and transition guards. Deprecate/remove the `submit-feedback` MCP action and DemoPanel approval flow (evidence UI ticket handles the replacement panel). Keep the enum value readable for historical data only, or fully remove after migration — pick one and document.\n4. Data migration (precedent: drizzle/0009_migrate_review_status.sql): existing human_review tickets → done (they had already passed AI review + demo generation and were awaiting a rubber-stamp the user no longer wants). Set completed_at. Flag this in the PR description so it's a conscious call.\n5. `ticket_workflow_state.current_phase` gains `ai_verification`; WorkflowProgress stepper (src/components/tickets/WorkflowProgress.tsx PHASES) and src/api/workflow.ts getWorkflowDisplayState show: Started → Implemented → AI Review → AI Verification → Done.\n6. Ralph loop — this change SIMPLIFIES it: src/api/ralph-prompts.ts:473 `passes:` becomes `status === \"done\"` only, and the PRD_COMPLETE instruction (~55-100) no longer mentions human_review; the \"stuck in human_review\" no-progress copy in ralph-script.ts:805-812 becomes \"blocked in ai_verification\". Tickets in ai_verification count as incomplete.\n7. Toast text branches in src/routes/board.tsx / list.tsx; TicketCard badge check (TicketCard.tsx:90); DemoPanel/TicketModal gating (TicketModal.tsx:1108, ticket.$id.tsx) shows verification state for ai_verification and evidence view for done.\n8. Tests: update mcp-server/tools/__tests__/status-transitions.test.ts (the de facto state-machine spec), core review/workflow tests, KanbanBoard/StatusPill tests, cross-environment tests.\n\n## Acceptance criteria\n- generate-demo moves ai_review → ai_verification; board shows the new column and no human_review column\n- Only the runner path can set done from ai_verification; the generic update-status escape hatch is documented (kanban drag remains unguarded as today)\n- Ralph integration tests prove: PRD_COMPLETE only when all tickets are done; no infinite loop when a ticket is blocked in ai_verification\n- Migration tested (db:generate/db:migrate + backup/restore check); provider prompts regenerated via sync script\n- pnpm check + pnpm build pass",
-      "priority": "high",
-      "tags": [
-        "workflow",
-        "status-flow"
-      ]
-    },
-    {
-      "id": "714bbbdd-b8df-42c7-89dd-68c3441426ca",
-      "title": "Machine-executable demo step specs (automation field on DemoStep)",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "generate-demo accepts and persists automation specs; rejects malformed ones with informative errors",
-        "Old demo scripts still load and render",
-        "One DemoStep definition, imported everywhere"
-      ],
-      "references": [],
-      "description": "## Why\nDemo steps (demo_scripts.steps JSON, DemoStep type at core/types.ts:262 duplicated in src/lib/schema.ts:865) already have `type: \"manual\"|\"visual\"|\"automated\"`, but `automated` is a display label — nothing can execute a step. The verification runner needs declarative, machine-executable specs authored by the agent at generate-demo time.\n\n## Scope\n1. Extend DemoStep with an optional `automation` field, discriminated on kind:\n   - `{ kind: \"ui\", route: string, actions?: Array<{ act: \"click\"|\"fill\"|\"press\"|\"waitFor\", selector?: string, value?: string }>, assert: Array<{ type: \"visible\"|\"text\"|\"url\", selector?: string, expected?: string }>, screenshot: true }`\n   - `{ kind: \"api\", request: { method, path, headers?, body? }, assert: Array<{ type: \"status\"|\"jsonPath\"|\"bodyContains\", expected }> }`\n   Keep it deliberately small — declarative data only, no executable strings/eval, so the runner (not the author) does all execution.\n2. Consolidate the duplicated DemoStep type into one definition (core), imported by schema.\n3. Zod validation in mcp-server/tools/review.ts generate-demo action; core/review.ts validateDemoGeneration validates the shape. Steps with `type: \"automated\"` (and optionally \"visual\") REQUIRE an automation spec; manual steps must not have one. Backward compatible: existing stored demos without automation remain readable everywhere (get-demo, DemoPanel, update-demo-step).\n4. Update generate-demo tool description + workflow prompt data (via the sync generator) so agents know to author automation specs for anything verifiable, and to include at least one automated step when the ticket touches UI or API surface.\n5. Unit tests for validation; fixture demos for the runner ticket.\n\n## Acceptance criteria\n- generate-demo accepts and persists automation specs; rejects malformed ones with informative errors\n- Old demo scripts still load and render\n- One DemoStep definition, imported everywhere",
+      "description": "## Why\nThe verification gate is becoming the deepest workflow in Brain Dump: it boots apps, executes step specs, writes evidence, persists audit rows, files findings, changes ticket status, syncs PRD state, and triggers epic auto-PR. Today most of that lives inside core/verification.ts. Adding a queue worker, CLI/debug commands, and UI status reads without a deliberate seam risks duplicating transition and evidence rules across adapters.\n\n## Scope\n1. Define one core verification lifecycle interface that owns the durable state transition from ai_verification to done, in_progress, or blocked ai_verification.\n2. Keep adapters thin: CLI run/debug commands, the automatic worker, future MCP read tools, and UI/server functions must call the lifecycle/read interfaces instead of issuing their own verification SQL or status transitions.\n3. Split implementation internals only where they buy locality: boot/discovery, step executors, evidence/report writing, queue/job coordination, and epic completion can be internal modules behind the same lifecycle interface.\n4. Preserve current semantics exactly: certified pass completes, assertion failure files findings and loops back, infra_error/uncertified blocks loudly, PRD sync and epic auto-PR happen only through the lifecycle.\n5. Add tests proving CLI/manual debug and worker execution produce the same persisted run, comments, findings, PRD updates, and ticket status for pass, fail, infra_error, and uncertified outcomes.\n6. Add an architecture note documenting the interface invariants and the adapters that are allowed to cross this seam.\n\n## Acceptance criteria\n- There is one externally used core interface for running/settling verification; queue worker and CLI do not duplicate status-transition SQL.\n- No adapter can mark verification passed, write verification evidence, or loop a ticket back without going through the lifecycle interface.\n- Tests cover identical lifecycle behavior through CLI/debug and worker call paths.\n- The extracted modules reduce coupling without changing the verification audit format or current UI/API behavior.",
       "priority": "high",
       "tags": [
         "verification",
-        "schema",
-        "mcp"
+        "architecture",
+        "worker"
       ]
     },
     {
-      "id": "92b41d17-f310-4eb9-b0ad-2608bc967f75",
-      "title": "Verification runner: core module + brain-dump verify CLI",
-      "passes": true,
+      "id": "b0278bea-b8fe-4d59-a6fe-c5a78e269501",
+      "title": "Extract reusable durable job leasing for verification and epic review queues",
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "`brain-dump verify --ticket <id>` on a ticket with automation specs boots the app, produces per-step evidence + sealed manifest, records the numbered audit round, and sets the ticket to done on a certified pass",
-        "Full audit history queryable per ticket: what failed in round N, which finding it raised, when it was fixed, and proof that round N+1 re-ran the FULL suite",
-        "Evidence provably from the fresh boot: manifest records SHA/port/boot log; screenshots exist for failed steps too",
-        "Infra errors and uncertified runs never move a ticket to done and never send it back to implementation; blocked state visible on the board",
-        "pnpm check passes; migration via db:generate/db:migrate; no blocking work added to MCP dispatch or app startup hot paths"
+        "Verification queue leasing reuses a shared core implementation or an explicitly documented shared pattern, not copy-pasted SQL.",
+        "Concurrent workers cannot run the same ticket verification job.",
+        "Expired running jobs recover deterministically after restart.",
+        "Tests cover claim/retry/dead-letter behavior and prove enqueue remains cheap."
       ],
       "references": [],
-      "description": "## Why\nThe heart of the gate: a deterministic harness that executes automation specs against a FRESH boot of the current code and produces evidence the implementing agent cannot fabricate. The agent's only involvement is invoking `brain-dump verify --ticket <id>`; all execution, evaluation, evidence writing, and the transition to done happen in runner code. The agent has no way to set done.\n\n## Scope\n1. `core/verification.ts`: orchestrates a run — load demo script, discover the target project's boot command (do NOT assume pnpm; read the project's config/docs the way Ralph launch does), build + boot on an ephemeral port with timeout, wait for readiness, execute steps in order, evaluate assertions, tear down. Use execFileNoThrow (array args — Rule 3, no shell interpolation).\n2. Executors:\n   - API steps: real HTTP via fetch against the booted port; capture full request, response status/headers/body (truncated at a size cap), timings.\n   - UI steps: Playwright (chromium) driving the booted app; perform actions, evaluate assertions, capture a screenshot per step — on pass AND fail. Playwright is an optional capability: when unavailable, UI steps degrade with an explicit note in the report and the run is marked uncertified (cannot silently pass without evidence); `brain-dump doctor` reports availability.\n3. Provenance manifest per run: git HEAD SHA + dirty flag, boot command + log excerpt, port, start/end timestamps, per-step verdicts, evidence file list with HMAC-SHA256 content hashes (reuse the enterprise-logging hashing util). Tripwire: if the ticket's diff touches core/verification* or the manifest tooling, the run is marked `uncertified`.\n4. Outcome wiring (uses transitions from the ai_verification status ticket):\n   - All pass (certified) → runner sets ticket ai_verification → done (completed_at set; epic all-done trigger fires — feeds the epic auto-PR ticket); PRD passes=true via core/prd-sync.\n   - Any assertion fail → handled by the loop-back ticket (this ticket just persists the run result + evidence; expose a clean result object).\n   - Infra failure (boot timeout, port conflict) → retry once; then leave ticket in ai_verification with an infra-error report — do NOT loop back to implementation for infrastructure noise.\n   - Uncertified (tripwire / missing evidence capability) → ticket stays in ai_verification, isBlocked=true with blockedReason explaining why; surfaced as needs-attention. Nothing self-certifies to done without sealed evidence.\n5. Persistence — `verification_runs` is a PERMANENT AUDIT LOG, not just state: table (id, ticket_id, round number, demo generation, started/finished, status: passed|failed|uncertified|infra_error, manifest JSON with per-step verdicts, git_sha) via pnpm db:generate migration. Every round is numbered per ticket; per-step pass/fail verdicts, findings raised (refs to review_findings), and when they were resolved must be reconstructable for any past round. Verdict rows and manifests are NEVER deleted; only evidence FILES are pruned (latest-3-runs retention). Expose read access: `brain-dump verify --ticket <id> --history [--pretty]` and a read-only MCP/review query action so agents and UI can show the full round-by-round history.\n6. `cli/commands/verify.ts` (`brain-dump verify --ticket <id> [--pretty]`) + command-registry wiring; exit code reflects outcome so hooks/scripts can gate on it.\n7. Tests: unit tests for assertion evaluation + manifest hashing + round numbering/history retrieval; integration test with a tiny fixture server (API path) — full app-boot e2e lands in the final epic ticket.\n\n## Acceptance criteria\n- `brain-dump verify --ticket <id>` on a ticket with automation specs boots the app, produces per-step evidence + sealed manifest, records the numbered audit round, and sets the ticket to done on a certified pass\n- Full audit history queryable per ticket: what failed in round N, which finding it raised, when it was fixed, and proof that round N+1 re-ran the FULL suite\n- Evidence provably from the fresh boot: manifest records SHA/port/boot log; screenshots exist for failed steps too\n- Infra errors and uncertified runs never move a ticket to done and never send it back to implementation; blocked state visible on the board\n- pnpm check passes; migration via db:generate/db:migrate; no blocking work added to MCP dispatch or app startup hot paths",
+      "description": "## Why\nThe codebase already has queue-shaped state for focused epic review runs (epic_review_runs and epic_review_run_tickets), and the AI Verification Gate now needs durable queued/running/retry/dead-letter behavior too. Implementing a second bespoke lease/retry model would duplicate fragile concurrency logic and make stalled jobs harder to reason about.\n\n## Scope\n1. Audit existing epic review run queue behavior and the planned verification queue requirements.\n2. Extract or codify a shared durable job/lease helper in core for claim, heartbeat/lease expiry, complete, fail/retry, dead-letter, and stale-running recovery.\n3. Apply the helper to the verification queue, and either adapt epic review run ticket leasing to it or document a concrete reason it must remain separate.\n4. Keep SQLite writes narrow and indexed; no polling or lease recovery work in route loaders, MCP dispatch, or app startup hot paths.\n5. Include race tests for two workers claiming the same job, expired lease recovery, idempotent enqueue, retry backoff, and dead-letter state.\n6. Expose the minimal read model needed by UI/CLI without leaking mutation methods to implementing agents.\n\n## Acceptance criteria\n- Verification queue leasing reuses a shared core implementation or an explicitly documented shared pattern, not copy-pasted SQL.\n- Concurrent workers cannot run the same ticket verification job.\n- Expired running jobs recover deterministically after restart.\n- Tests cover claim/retry/dead-letter behavior and prove enqueue remains cheap.",
       "priority": "high",
       "tags": [
         "verification",
-        "core",
-        "cli",
-        "anti-fabrication"
+        "queue",
+        "architecture"
       ]
     },
     {
-      "id": "5ea2e1e6-2eb1-4537-a62c-7faa3748716e",
-      "title": "Harden AI verification gate workflow invariants",
-      "passes": true,
+      "id": "a2deebcf-c6b5-485a-aff4-2cbabcf24c46",
+      "title": "Gate generated verification plans against acceptance-criteria coverage",
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Invalid demo scripts cannot transition tickets into `ai_verification` silently.",
-        "A ticket in `ai_verification` has an obvious next action: a queued/running verification attempt or a visible runner command/status.",
-        "Legacy `human_review` tickets are surfaced and repairable without disappearing from the epic/PRD scope.",
-        "PRD generation includes all Ralph-relevant non-done epic tickets and has regression coverage for drift.",
-        "Adversarial workflow tests prove the gate fails loud rather than certifying or hiding broken states."
-      ],
-      "references": [
-        "plans/prd.json"
-      ],
-      "description": "## Why\nThe AI Verification Gate is the trust layer for autonomous Ralph work. Recent runs exposed invalid workflow states: tickets entered `ai_verification` without a runner invocation, demo steps were labeled automated without executable automation specs, manual-only demo steps could reach runner certification, stale MCP/server code stranded tickets in legacy `human_review`, and `plans/prd.json` drifted from the live epic state. These failures make tickets appear stuck or falsely ready.\n\n## Scope\n1. Enforce demo-step validity before `review.generate-demo` can move a ticket to `ai_verification`: every runner-certifiable step must include executable `automation` data; reject `type: automated`/`visual` without matching automation specs.\n2. Define and enforce manual-step semantics for the verification gate: either disallow manual steps for `ai_verification`, or mark them explicitly as audit-only so they cannot be mistaken for runner-certifiable checks.\n3. Make the `ai_verification` handoff explicit and observable: either enqueue/run verification automatically when the ticket enters `ai_verification`, or show a clear pending-runner state with the exact `brain-dump verify run --ticket <id>` command and history status.\n4. Add a legacy workflow repair/migration path for tickets stranded in `human_review`, with audit comments and deterministic target status rules.\n5. Harden PRD regeneration so scoped `plans/prd.json` cannot silently hide active epic tickets in legacy or waiting states; add tests for PRD/live-ticket drift.\n6. Add adversarial workflow tests covering stale server/schema behavior, missing automation specs, manual-only demos, failed app boot, dirty git/tripwire behavior, failed verification loop-back, blocked tickets, and epic auto-PR completion.\n\n## Acceptance criteria\n- Invalid demo scripts cannot transition tickets into `ai_verification` silently.\n- A ticket in `ai_verification` has an obvious next action: a queued/running verification attempt or a visible runner command/status.\n- Legacy `human_review` tickets are surfaced and repairable without disappearing from the epic/PRD scope.\n- PRD generation includes all Ralph-relevant non-done epic tickets and has regression coverage for drift.\n- Adversarial workflow tests prove the gate fails loud rather than certifying or hiding broken states.",
-      "priority": "high",
-      "tags": [
-        "verification",
-        "workflow",
-        "reliability",
-        "hardening"
-      ]
-    },
-    {
-      "id": "c6285749-9fe3-4e20-b33a-bd93feeb9f4f",
-      "title": "Verification UI shows queued/running auto-runner state instead of manual command",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "ai_verification tickets never show a required manual command as the primary path.",
-        "Users can tell whether automatic verification is queued, currently running, retrying, blocked, or complete.",
-        "UI updates after worker completion through existing polling/query invalidation paths.",
-        "Component tests cover pending, running, retrying, blocked, and no-job error states."
+        "A ticket cannot enter ai_verification with executable steps that leave acceptance criteria uncovered without a loud rationale.",
+        "Verification reports show criterion-to-step coverage for every run.",
+        "Existing legacy demo scripts remain readable, but regenerated handoffs must satisfy the coverage gate.",
+        "Tests prove shallow smoke checks are rejected when they do not cover the ticket's acceptance criteria."
       ],
       "references": [],
-      "description": "## Why\nOnce verification is automatic, the ticket modal should not tell the user to run brain-dump verify manually. It should show whether the runner is queued, running, retrying, blocked, failed, or certified.\n\n## Scope\n1. Replace the pending-runner command block in DemoPanel/VerificationPanel with job status from the new verification queue read API.\n2. Show queued/running/retrying state with latest attempt, next retry time, elapsed duration, and clear blocked reason when applicable.\n3. Keep run history and evidence visible beneath the current job state.\n4. Board/list ticket cards should visually distinguish queued/running verification from blocked verification without adding noisy polling.\n5. Preserve accessibility and keyboard behavior in the modal; avoid layout shifts while the status changes.\n\n## Acceptance criteria\n- ai_verification tickets never show a required manual command as the primary path.\n- Users can tell whether automatic verification is queued, currently running, retrying, blocked, or complete.\n- UI updates after worker completion through existing polling/query invalidation paths.\n- Component tests cover pending, running, retrying, blocked, and no-job error states.",
+      "description": "## Why\nExecutable demo steps prevent fake manual approval, but they do not guarantee the steps prove the ticket. An agent can still generate a shallow check such as loading a page title while the real acceptance criteria remain unverified. The epic needs a verification-plan quality gate so automation maps to the ticket's actual requirements.\n\n## Scope\n1. Extend demo generation validation so each acceptance criterion/subtask is covered by at least one executable verification step, or has an explicit non-certifiable rationale that keeps the ticket from certified completion.\n2. Add stable coverage references to DemoStep or demo script metadata so run reports can show which criteria each step proves.\n3. Reject new ai_verification handoffs when coverage is missing, vague, or manual-only for criteria that can be automated.\n4. Update Ralph prompts/tool descriptions so agents author coverage-aware steps for UI, API, command, and file automation.\n5. Surface coverage in the verification panel/report so reviewers can audit what was and was not proven.\n6. Add tests for tickets with subtasks, markdown acceptance criteria, regenerated demos after loop-back, and shallow/vague automation attempts.\n\n## Acceptance criteria\n- A ticket cannot enter ai_verification with executable steps that leave acceptance criteria uncovered without a loud rationale.\n- Verification reports show criterion-to-step coverage for every run.\n- Existing legacy demo scripts remain readable, but regenerated handoffs must satisfy the coverage gate.\n- Tests prove shallow smoke checks are rejected when they do not cover the ticket's acceptance criteria.",
       "priority": "high",
       "tags": [
         "verification",
-        "ui",
-        "frontend",
+        "quality-gate",
+        "prd"
+      ]
+    },
+    {
+      "id": "1af0de42-6cc0-47b4-9448-1ea250198849",
+      "title": "Define command and file automation safety policy before execution",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Unsafe command/file automation is rejected before execution with actionable errors.",
+        "Runtime execution enforces the same policy as generate-demo validation.",
+        "Evidence and findings cannot leak common secret/token environment values.",
+        "Tests cover injection, traversal, symlink, timeout, output cap, and redaction cases."
+      ],
+      "references": [],
+      "description": "## Scope note (2026-07-06 epic audit)\nCommand/file automation execution already shipped in tickets 36f2306d and 68ecfac3 (commits fd32c95..bc4185f) before this policy ticket ran. This ticket is now a RETROACTIVE AUDIT + HARDENING pass: audit the shipped executor in core/verification.ts against the policy below, close any gaps, and encode the policy as executable checks/tests rather than a design doc. The title's \"before execution\" framing is obsolete.\n\n## Why\nCommand and file automation are necessary for docs, prompt generation, and validation tickets, but they also create an AI-authored execution surface. argv arrays and project-scoped paths are necessary but not sufficient: the runner needs an explicit safety policy before it executes commands or reads files as certification evidence.\n\n## Scope\n1. Define a core safety policy for command/file automation: allowed command categories, denylisted binaries/flags, project-scoped cwd, path normalization, timeout, output/file size caps, and no shell interpolation.\n2. Strip or explicitly allow environment variables for command steps; redact secrets/tokens from stdout, stderr, manifests, evidence JSON, and verification findings.\n3. Add per-project trust/config controls for enabling command automation, with a safe default for untrusted or missing config.\n4. Route schema validation and executor enforcement through the same policy module so validation and runtime behavior cannot drift.\n5. Record policy decisions in evidence: accepted command metadata, rejected reason, timeout/kill details, and redaction markers without leaking sensitive values.\n6. Add adversarial tests for path traversal, symlink escapes, shell metacharacters, dangerous binaries, missing timeouts, oversized output/files, and secret redaction.\n\n## Acceptance criteria\n- Unsafe command/file automation is rejected before execution with actionable errors.\n- Runtime execution enforces the same policy as generate-demo validation.\n- Evidence and findings cannot leak common secret/token environment values.\n- Tests cover injection, traversal, symlink, timeout, output cap, and redaction cases.",
+      "priority": "high",
+      "tags": [
+        "verification",
+        "security",
         "automation"
       ]
     },
     {
-      "id": "269a9ce8-7122-4fcb-95b5-b56e6bdfcd69",
-      "title": "Make verifier app boot isolated and reliable beside an existing Brain Dump dev server",
-      "passes": true,
+      "id": "7b615ca2-cb4f-4200-bc9c-9accd4787428",
+      "title": "Define automatic verifier identity and evidence attribution",
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Running verification while Brain Dump is already open does not fail because of devtools/event-bus port conflicts.",
-        "The manifest records the actual boot command, port, and useful boot log on failure.",
-        "The runner can boot Brain Dump on a random free port and reach it successfully.",
-        "pnpm check passes with focused tests for boot command construction/readiness behavior."
+        "Automatic worker verification reports are attributed to the correct provider-qualified Ralph identity when provider data exists.",
+        "Unknown attribution is visible and diagnostic, not silently treated as normal.",
+        "Comments, attachments, manifests, telemetry, and UI run history agree on the verifier identity for a run.",
+        "Tests cover provider inference, legacy repair, regenerated demos, and missing-provider fallback."
       ],
       "references": [],
-      "description": "## Why\nThe first real verification run failed before executing any demo steps because the runner tried to start another Brain Dump dev server while the TanStack devtools event bus fixed port was already occupied. The current boot command also forwards --port after a package script that already hardcodes --port 4242, so the chosen ephemeral port may not be honored.\n\n## Scope\n1. Fix discoverBootCommand/bootApp so Vite/TanStack Start projects boot on the runner-selected ephemeral port, with host 127.0.0.1, without relying on package scripts that ignore forwarded args.\n2. Set the environment needed to disable fixed-port devtools/event-bus behavior for verification boots, reusing the existing PLAYWRIGHT_E2E path or a dedicated BRAIN_DUMP_VERIFY_BOOT env.\n3. Detect an already-running app and support baseUrl as an optimization, but the automatic worker must be able to boot a clean isolated app when no UI dev server is open.\n4. Capture boot stderr/stdout into the manifest so infra failures explain the real crash, not only readiness timeout.\n5. Add regression tests for port honoring, fixed-port devtools conflicts, and boot failure reporting.\n\n## Acceptance criteria\n- Running verification while Brain Dump is already open does not fail because of devtools/event-bus port conflicts.\n- The manifest records the actual boot command, port, and useful boot log on failure.\n- The runner can boot Brain Dump on a random free port and reach it successfully.\n- pnpm check passes with focused tests for boot command construction/readiness behavior.",
+      "description": "## Scope note (2026-07-06 epic audit)\nThe verification queue, automatic worker (embedded in the app server, src/lib/db.ts startup), and evidence storage already shipped (tickets 8ec01ace, dca5c6f8, 7ea6f80f). This ticket is now a RETROACTIVE AUDIT + COMPLETION pass over the shipped attribution path. Known real-world gap observed 2026-07-06: worker-executed runs attribute evidence with whatever provider the embedded worker infers, and a stale long-running dev server's worker can execute jobs with outdated code and identity - actor/provenance on jobs and runs must make that visible.\n\n## Why\nManual CLI runs can pass --provider, but the automatic verification worker is supposed to remove the human from the loop. Without a provider/actor model for queued jobs, automatic evidence falls back to weak attribution such as unknown ralph, making the audit trail less useful and breaking the epic's provider-qualified evidence goal.\n\n## Scope\n1. Define the verifier identity model for automatic jobs: actor, provider, source surface, and fallback behavior when provider cannot be inferred.\n2. Store provider/actor on verification jobs and verification runs, and include it in manifests, verification_report comments, attachment uploaders, telemetry, and UI run history.\n3. Establish provider source precedence: explicit launch/review profile, active Ralph/session metadata, ticket branch/session telemetry, environment, then a loud unknown fallback.\n4. Ensure repair-legacy-handoff and regenerated demos create jobs with preserved or recomputed attribution.\n5. Update tests so worker-run evidence is attributed consistently across comments, attachments, manifests, and run history.\n6. Document that implementing agents cannot choose attribution at evidence-write time; the runner resolves it from trusted workflow state.\n\n## Acceptance criteria\n- Automatic worker verification reports are attributed to the correct provider-qualified Ralph identity when provider data exists.\n- Unknown attribution is visible and diagnostic, not silently treated as normal.\n- Comments, attachments, manifests, telemetry, and UI run history agree on the verifier identity for a run.\n- Tests cover provider inference, legacy repair, regenerated demos, and missing-provider fallback.",
       "priority": "high",
       "tags": [
         "verification",
-        "reliability",
-        "boot",
-        "vite"
-      ]
-    },
-    {
-      "id": "36f2306d-50b4-4754-a2fe-2922f4cba353",
-      "title": "Extend DemoStep automation schema for command and file assertions",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "review.generate-demo accepts validated command/file automation specs and rejects unsafe or malformed specs with clear errors.",
-        "Absolute paths, parent-directory escapes, shell strings, and missing timeouts are rejected.",
-        "Existing UI/API automation continues to work.",
-        "Tests cover core validation, MCP schema validation, CLI generate-demo, and legacy demo readability."
-      ],
-      "references": [],
-      "description": "## Why\nMany tickets in this epic need evidence that is not a browser click or HTTP request: focused tests passed, docs no longer contain stale workflow language, generated prompts were synced, and files contain expected text. Today the runner can only certify UI and API automation, so agents fall back to manual demo steps that cannot be certified.\n\n## Scope\n1. Add declarative DemoStep automation kinds for command and file checks.\n2. Command automation must be argv-array based, never shell strings, with cwd scoped to the project, timeout, expected exit code, and stdout/stderr contains/notContains assertions.\n3. File automation must restrict paths to the project, support exists/notExists and contains/notContains assertions, and optionally JSON-path checks for structured files.\n4. Update core validation, MCP Zod schema, CLI generate-demo parsing, PR body/demo rendering, and workflow prompt docs.\n5. Preserve backward compatibility for stored demos while rejecting new ai_verification handoffs with manual-only or malformed automation.\n\n## Acceptance criteria\n- review.generate-demo accepts validated command/file automation specs and rejects unsafe or malformed specs with clear errors.\n- Absolute paths, parent-directory escapes, shell strings, and missing timeouts are rejected.\n- Existing UI/API automation continues to work.\n- Tests cover core validation, MCP schema validation, CLI generate-demo, and legacy demo readability.",
-      "priority": "high",
-      "tags": [
-        "verification",
-        "schema",
-        "automation",
-        "tests"
-      ]
-    },
-    {
-      "id": "68ecfac3-b2d6-4329-a7ac-1fdd1d7d4b2e",
-      "title": "Execute command and file verification steps with sealed evidence",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Command/file steps can certify a ticket end-to-end and produce manifest/evidence attachments.",
-        "Failed command/file assertions file verification findings with actionable expected/actual details.",
-        "Unsafe commands or file paths fail validation before execution.",
-        "Full-suite reruns include command/file steps, not just previously failed steps."
-      ],
-      "references": [],
-      "description": "## Why\nAdding command/file specs is not enough; the runner must execute them, capture evidence, and include those results in the manifest just like UI screenshots and API captures. This is what lets docs/test/provider tickets be certified without a human audit step.\n\n## Scope\n1. Implement runner executors for command and file automation kinds.\n2. Command executor uses execFileNoThrow with argv arrays, cwd scoped to the project, timeout/kill behavior, stdout/stderr truncation, and evidence JSON capture.\n3. File executor reads only project-scoped files, applies assertions, and writes evidence JSON with file hash/snippet metadata without leaking huge files.\n4. Include command/file verdicts in verification_reports, attachments, history, and failed verification findings.\n5. Add safety limits for output size, file size, command duration, and number of files per step.\n6. Add fixture integration tests that verify a command step, a file step, a failing assertion, and rerun behavior.\n\n## Acceptance criteria\n- Command/file steps can certify a ticket end-to-end and produce manifest/evidence attachments.\n- Failed command/file assertions file verification findings with actionable expected/actual details.\n- Unsafe commands or file paths fail validation before execution.\n- Full-suite reruns include command/file steps, not just previously failed steps.",
-      "priority": "high",
-      "tags": [
-        "verification",
-        "runner",
         "evidence",
-        "tests"
+        "worker"
       ]
     },
     {
-      "id": "fd379617-5789-4165-855e-313958822e94",
-      "title": "Repair legacy handoffs and regenerate executable demos for the AI Verification Gate epic",
-      "passes": true,
+      "id": "1eb529b0-1fd4-41c2-a757-f3c05d9c309f",
+      "title": "Consolidate verification evidence read model across UI, CLI, and MCP",
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "No current epic ticket remains in legacy human_review.",
-        "Every ai_verification ticket in the epic has a certifiable demo script with no manual-only steps.",
-        "PRD passes flags match live done status for all scoped epic tickets.",
-        "A report comment summarizes repaired tickets, regenerated demos, and any remaining blockers."
+        "Attachment/evidence normalization lives in one core read model rather than being copied in UI and MCP adapters.",
+        "UI, CLI, and MCP surfaces report the same verification evidence metadata and integrity state for a seeded run.",
+        "Missing/oversized/tampered evidence produces consistent, loud warnings without crashing the reader.",
+        "No evidence read adapter exposes write/pass/fail capabilities to implementing agents."
       ],
       "references": [],
-      "description": "## Why\nSeveral tickets in this epic are stranded in legacy human_review with demo steps that are manual-only or marked automated without executable automation. Some PRD entries were also marked passing while the live ticket was not done. Those tickets will never be automatically certified until their handoffs are repaired and their demos are regenerated with executable specs.\n\n## Scope\n1. Audit every non-done ticket in epic bc99b396-465b-4b36-8443-223a854f6de4 for live status, PRD passes flag, demo script validity, open findings, and verification history.\n2. Use repair-legacy-handoff where valid; otherwise move back to ai_review and regenerate a demo with executable UI/API/command/file specs.\n3. Replace vague demo assertions such as body contains automation with assertions tied to each ticket's acceptance criteria.\n4. Ensure plans/prd.json contains every non-done epic ticket with passes=false until the runner certifies it done.\n5. Run the automatic worker or focused verification after repair and record exact outcomes.\n\n## Acceptance criteria\n- No current epic ticket remains in legacy human_review.\n- Every ai_verification ticket in the epic has a certifiable demo script with no manual-only steps.\n- PRD passes flags match live done status for all scoped epic tickets.\n- A report comment summarizes repaired tickets, regenerated demos, and any remaining blockers.",
-      "priority": "high",
+      "description": "## Why\nVerification evidence is only valuable if every surface reads and presents the same artifact model. Today core writes evidence attachments, the UI/server attachment path builds its own read objects, and the MCP attachment loader has separate normalization/loading logic. As the automatic runner adds queue state, run history, reports, and failure context, duplicated evidence readers can drift on filenames, uploader normalization, size limits, image handling, and manifest integrity.\n\n## Scope\n1. Define a core read model for ticket attachments and verification evidence: metadata normalization, file lookup, MIME/type detection, safe size limits, evidence attachment resolution, and manifest integrity summary.\n2. Move UI/server attachment reads, verification run history enrichment, CLI history output, and MCP attachment/context loading onto that read model or thin adapters over it.\n3. Preserve adapter-specific presentation concerns only at the adapter layer: React image/lightbox rendering, MCP content blocks, CLI pretty output, and API response shapes.\n4. Make missing evidence, oversized artifacts, tampered manifests, and legacy attachment metadata produce consistent warnings across surfaces.\n5. Ensure evidence read paths remain read-only; no MCP/tool surface can write or mutate runner evidence.\n6. Add tests that seed the same verification run/attachments and assert UI API, CLI history, and MCP context agree on evidence IDs, uploader, type, integrity, and warning behavior.\n\n## Acceptance criteria\n- Attachment/evidence normalization lives in one core read model rather than being copied in UI and MCP adapters.\n- UI, CLI, and MCP surfaces report the same verification evidence metadata and integrity state for a seeded run.\n- Missing/oversized/tampered evidence produces consistent, loud warnings without crashing the reader.\n- No evidence read adapter exposes write/pass/fail capabilities to implementing agents.",
+      "priority": "medium",
       "tags": [
         "verification",
-        "migration",
-        "workflow",
-        "cleanup"
-      ]
-    },
-    {
-      "id": "f3ceb470-6c11-4d2f-a2a3-bd094580f210",
-      "title": "Detect stale MCP/CLI workflow schema drift before it strands tickets",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "A stale MCP server cannot silently move a ticket into human_review or strip automation specs.",
-        "brain-dump doctor reports workflow schema drift with exact rebuild/restart remediation.",
-        "Provider setup scripts keep the installed MCP server aligned with the current workflow schema.",
-        "Tests cover stale schema detection for CLI/MCP/app surfaces."
-      ],
-      "references": [],
-      "description": "## Why\nThe earlier failures were caused partly by stale MCP server code that still moved tickets to human_review and stripped automation fields. The system needs to fail loud when an installed/running MCP server or CLI command set is older than the workflow schema expected by the app and PRD.\n\n## Scope\n1. Add a canonical workflow schema/version value exported by core and surfaced by CLI, MCP server, and app/server APIs.\n2. MCP server startup and tool responses should expose that version; the app/doctor should detect mismatch between source, built mcp-server/dist, and running MCP server where possible.\n3. review.generate-demo and workflow actions should reject or warn loudly when the active server cannot support ai_verification and automation specs.\n4. setup/install scripts should rebuild/restart or clearly instruct the user when the MCP server build is stale.\n5. Add a doctor check and regression test that simulates stale human_review-only MCP schema.\n\n## Acceptance criteria\n- A stale MCP server cannot silently move a ticket into human_review or strip automation specs.\n- brain-dump doctor reports workflow schema drift with exact rebuild/restart remediation.\n- Provider setup scripts keep the installed MCP server aligned with the current workflow schema.\n- Tests cover stale schema detection for CLI/MCP/app surfaces.",
-      "priority": "high",
-      "tags": [
-        "verification",
-        "mcp",
-        "cli",
-        "reliability"
+        "evidence",
+        "architecture",
+        "mcp"
       ]
     },
     {
@@ -337,6 +189,28 @@
         "verification",
         "ralph",
         "workflow"
+      ]
+    },
+    {
+      "id": "c1619c4b-df30-40c8-b08a-82237e560d8b",
+      "title": "Evidence viewer UI: verification panel, run history, image rendering",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "A done ticket's modal/detail page shows per-step evidence, run history, and integrity status; a blocked ticket is unmistakable on the board and in the modal",
+        "Keyboard + ARIA on all new interactive elements",
+        "Bundle gates recorded (before/after numbers in completion summary per the perf runbook)"
+      ],
+      "references": [],
+      "description": "## Why\nThere is no human approval step anymore, but the evidence must still be fully auditable after the fact: done tickets show proof, and blocked verification must be loud on the board. Today DemoPanel (src/components/tickets/DemoPanel.tsx) is a manual Pass/Fail checklist and Comment.tsx's markdown renderer cannot display images at all — evidence would be invisible.\n\n## Scope\n1. Replace the DemoPanel approval flow with a VerificationPanel (rename or evolve in place): per-step runner verdict with evidence — screenshot thumbnail (click → full-size lightbox with keyboard support: Esc close, focus trap — Rule 4) or API request/response viewer (method, URL, status pill, collapsible headers/body). No Pass/Fail buttons, no Approve/Request Changes — the runner decides; humans audit.\n2. Verification run history: compact list of runs (status pill: passed/failed/uncertified/infra_error, git SHA, timestamp, duration), latest expanded. Integrity badge per run: manifest hash re-check (valid / tampered / uncertified-tripwire) with a tooltip explaining what it means.\n3. Status-aware views: ai_verification → \"verification pending/running/failed\" live view (reuse the existing polling interval logic in ticket.$id.tsx); ai_verification + isBlocked → prominent needs-attention treatment (board card flag + panel banner with blockedReason and stuck-step evidence); done → read-only evidence trail.\n4. Comment.tsx: verification_report comment type rendering (author chip \"{Provider} Ralph\" with provider color, verdict summary table, links to evidence); markdown renderer learns image support ONLY for attachment-served URLs (no arbitrary external images).\n5. Attachment serving: evidence images served through the existing attachment read path; lazy-load thumbnails, no layout shift.\n6. Performance: DemoPanel is already lazy-loaded — keep the lightbox/response-viewer inside that chunk; run pnpm build:analyze (bundle-sensitive: modal + route chunks) and pnpm test:e2e perf-renders if render counts change.\n7. Tests (user behavior only): failed step shows screenshot + failure text; blocked ticket shows needs-attention banner with reason; integrity badge shows tampered state when manifest mismatch; done ticket shows full evidence trail.\n\n## Acceptance criteria\n- A done ticket's modal/detail page shows per-step evidence, run history, and integrity status; a blocked ticket is unmistakable on the board and in the modal\n- Keyboard + ARIA on all new interactive elements\n- Bundle gates recorded (before/after numbers in completion summary per the perf runbook)",
+      "priority": "medium",
+      "tags": [
+        "verification",
+        "ui",
+        "frontend"
       ]
     },
     {
@@ -476,167 +350,6 @@
         "verification",
         "worker",
         "ops"
-      ]
-    },
-    {
-      "id": "c1619c4b-df30-40c8-b08a-82237e560d8b",
-      "title": "Evidence viewer UI: verification panel, run history, image rendering",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "A done ticket's modal/detail page shows per-step evidence, run history, and integrity status; a blocked ticket is unmistakable on the board and in the modal",
-        "Keyboard + ARIA on all new interactive elements",
-        "Bundle gates recorded (before/after numbers in completion summary per the perf runbook)"
-      ],
-      "references": [],
-      "description": "## Why\nThere is no human approval step anymore, but the evidence must still be fully auditable after the fact: done tickets show proof, and blocked verification must be loud on the board. Today DemoPanel (src/components/tickets/DemoPanel.tsx) is a manual Pass/Fail checklist and Comment.tsx's markdown renderer cannot display images at all — evidence would be invisible.\n\n## Scope\n1. Replace the DemoPanel approval flow with a VerificationPanel (rename or evolve in place): per-step runner verdict with evidence — screenshot thumbnail (click → full-size lightbox with keyboard support: Esc close, focus trap — Rule 4) or API request/response viewer (method, URL, status pill, collapsible headers/body). No Pass/Fail buttons, no Approve/Request Changes — the runner decides; humans audit.\n2. Verification run history: compact list of runs (status pill: passed/failed/uncertified/infra_error, git SHA, timestamp, duration), latest expanded. Integrity badge per run: manifest hash re-check (valid / tampered / uncertified-tripwire) with a tooltip explaining what it means.\n3. Status-aware views: ai_verification → \"verification pending/running/failed\" live view (reuse the existing polling interval logic in ticket.$id.tsx); ai_verification + isBlocked → prominent needs-attention treatment (board card flag + panel banner with blockedReason and stuck-step evidence); done → read-only evidence trail.\n4. Comment.tsx: verification_report comment type rendering (author chip \"{Provider} Ralph\" with provider color, verdict summary table, links to evidence); markdown renderer learns image support ONLY for attachment-served URLs (no arbitrary external images).\n5. Attachment serving: evidence images served through the existing attachment read path; lazy-load thumbnails, no layout shift.\n6. Performance: DemoPanel is already lazy-loaded — keep the lightbox/response-viewer inside that chunk; run pnpm build:analyze (bundle-sensitive: modal + route chunks) and pnpm test:e2e perf-renders if render counts change.\n7. Tests (user behavior only): failed step shows screenshot + failure text; blocked ticket shows needs-attention banner with reason; integrity badge shows tampered state when manifest mismatch; done ticket shows full evidence trail.\n\n## Acceptance criteria\n- A done ticket's modal/detail page shows per-step evidence, run history, and integrity status; a blocked ticket is unmistakable on the board and in the modal\n- Keyboard + ARIA on all new interactive elements\n- Bundle gates recorded (before/after numbers in completion summary per the perf runbook)",
-      "priority": "medium",
-      "tags": [
-        "verification",
-        "ui",
-        "frontend"
-      ]
-    },
-    {
-      "id": "6d910ab3-0a56-4cbf-9c4d-334370bd4d8f",
-      "title": "Centralize verification lifecycle orchestration behind one core interface",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "There is one externally used core interface for running/settling verification; queue worker and CLI do not duplicate status-transition SQL.",
-        "No adapter can mark verification passed, write verification evidence, or loop a ticket back without going through the lifecycle interface.",
-        "Tests cover identical lifecycle behavior through CLI/debug and worker call paths.",
-        "The extracted modules reduce coupling without changing the verification audit format or current UI/API behavior."
-      ],
-      "references": [],
-      "description": "## Why\nThe verification gate is becoming the deepest workflow in Brain Dump: it boots apps, executes step specs, writes evidence, persists audit rows, files findings, changes ticket status, syncs PRD state, and triggers epic auto-PR. Today most of that lives inside core/verification.ts. Adding a queue worker, CLI/debug commands, and UI status reads without a deliberate seam risks duplicating transition and evidence rules across adapters.\n\n## Scope\n1. Define one core verification lifecycle interface that owns the durable state transition from ai_verification to done, in_progress, or blocked ai_verification.\n2. Keep adapters thin: CLI run/debug commands, the automatic worker, future MCP read tools, and UI/server functions must call the lifecycle/read interfaces instead of issuing their own verification SQL or status transitions.\n3. Split implementation internals only where they buy locality: boot/discovery, step executors, evidence/report writing, queue/job coordination, and epic completion can be internal modules behind the same lifecycle interface.\n4. Preserve current semantics exactly: certified pass completes, assertion failure files findings and loops back, infra_error/uncertified blocks loudly, PRD sync and epic auto-PR happen only through the lifecycle.\n5. Add tests proving CLI/manual debug and worker execution produce the same persisted run, comments, findings, PRD updates, and ticket status for pass, fail, infra_error, and uncertified outcomes.\n6. Add an architecture note documenting the interface invariants and the adapters that are allowed to cross this seam.\n\n## Acceptance criteria\n- There is one externally used core interface for running/settling verification; queue worker and CLI do not duplicate status-transition SQL.\n- No adapter can mark verification passed, write verification evidence, or loop a ticket back without going through the lifecycle interface.\n- Tests cover identical lifecycle behavior through CLI/debug and worker call paths.\n- The extracted modules reduce coupling without changing the verification audit format or current UI/API behavior.",
-      "priority": "high",
-      "tags": [
-        "verification",
-        "architecture",
-        "worker"
-      ]
-    },
-    {
-      "id": "b0278bea-b8fe-4d59-a6fe-c5a78e269501",
-      "title": "Extract reusable durable job leasing for verification and epic review queues",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Verification queue leasing reuses a shared core implementation or an explicitly documented shared pattern, not copy-pasted SQL.",
-        "Concurrent workers cannot run the same ticket verification job.",
-        "Expired running jobs recover deterministically after restart.",
-        "Tests cover claim/retry/dead-letter behavior and prove enqueue remains cheap."
-      ],
-      "references": [],
-      "description": "## Why\nThe codebase already has queue-shaped state for focused epic review runs (epic_review_runs and epic_review_run_tickets), and the AI Verification Gate now needs durable queued/running/retry/dead-letter behavior too. Implementing a second bespoke lease/retry model would duplicate fragile concurrency logic and make stalled jobs harder to reason about.\n\n## Scope\n1. Audit existing epic review run queue behavior and the planned verification queue requirements.\n2. Extract or codify a shared durable job/lease helper in core for claim, heartbeat/lease expiry, complete, fail/retry, dead-letter, and stale-running recovery.\n3. Apply the helper to the verification queue, and either adapt epic review run ticket leasing to it or document a concrete reason it must remain separate.\n4. Keep SQLite writes narrow and indexed; no polling or lease recovery work in route loaders, MCP dispatch, or app startup hot paths.\n5. Include race tests for two workers claiming the same job, expired lease recovery, idempotent enqueue, retry backoff, and dead-letter state.\n6. Expose the minimal read model needed by UI/CLI without leaking mutation methods to implementing agents.\n\n## Acceptance criteria\n- Verification queue leasing reuses a shared core implementation or an explicitly documented shared pattern, not copy-pasted SQL.\n- Concurrent workers cannot run the same ticket verification job.\n- Expired running jobs recover deterministically after restart.\n- Tests cover claim/retry/dead-letter behavior and prove enqueue remains cheap.",
-      "priority": "high",
-      "tags": [
-        "verification",
-        "queue",
-        "architecture"
-      ]
-    },
-    {
-      "id": "a2deebcf-c6b5-485a-aff4-2cbabcf24c46",
-      "title": "Gate generated verification plans against acceptance-criteria coverage",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "A ticket cannot enter ai_verification with executable steps that leave acceptance criteria uncovered without a loud rationale.",
-        "Verification reports show criterion-to-step coverage for every run.",
-        "Existing legacy demo scripts remain readable, but regenerated handoffs must satisfy the coverage gate.",
-        "Tests prove shallow smoke checks are rejected when they do not cover the ticket's acceptance criteria."
-      ],
-      "references": [],
-      "description": "## Why\nExecutable demo steps prevent fake manual approval, but they do not guarantee the steps prove the ticket. An agent can still generate a shallow check such as loading a page title while the real acceptance criteria remain unverified. The epic needs a verification-plan quality gate so automation maps to the ticket's actual requirements.\n\n## Scope\n1. Extend demo generation validation so each acceptance criterion/subtask is covered by at least one executable verification step, or has an explicit non-certifiable rationale that keeps the ticket from certified completion.\n2. Add stable coverage references to DemoStep or demo script metadata so run reports can show which criteria each step proves.\n3. Reject new ai_verification handoffs when coverage is missing, vague, or manual-only for criteria that can be automated.\n4. Update Ralph prompts/tool descriptions so agents author coverage-aware steps for UI, API, command, and file automation.\n5. Surface coverage in the verification panel/report so reviewers can audit what was and was not proven.\n6. Add tests for tickets with subtasks, markdown acceptance criteria, regenerated demos after loop-back, and shallow/vague automation attempts.\n\n## Acceptance criteria\n- A ticket cannot enter ai_verification with executable steps that leave acceptance criteria uncovered without a loud rationale.\n- Verification reports show criterion-to-step coverage for every run.\n- Existing legacy demo scripts remain readable, but regenerated handoffs must satisfy the coverage gate.\n- Tests prove shallow smoke checks are rejected when they do not cover the ticket's acceptance criteria.",
-      "priority": "high",
-      "tags": [
-        "verification",
-        "quality-gate",
-        "prd"
-      ]
-    },
-    {
-      "id": "1af0de42-6cc0-47b4-9448-1ea250198849",
-      "title": "Define command and file automation safety policy before execution",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Unsafe command/file automation is rejected before execution with actionable errors.",
-        "Runtime execution enforces the same policy as generate-demo validation.",
-        "Evidence and findings cannot leak common secret/token environment values.",
-        "Tests cover injection, traversal, symlink, timeout, output cap, and redaction cases."
-      ],
-      "references": [],
-      "description": "## Scope note (2026-07-06 epic audit)\nCommand/file automation execution already shipped in tickets 36f2306d and 68ecfac3 (commits fd32c95..bc4185f) before this policy ticket ran. This ticket is now a RETROACTIVE AUDIT + HARDENING pass: audit the shipped executor in core/verification.ts against the policy below, close any gaps, and encode the policy as executable checks/tests rather than a design doc. The title's \"before execution\" framing is obsolete.\n\n## Why\nCommand and file automation are necessary for docs, prompt generation, and validation tickets, but they also create an AI-authored execution surface. argv arrays and project-scoped paths are necessary but not sufficient: the runner needs an explicit safety policy before it executes commands or reads files as certification evidence.\n\n## Scope\n1. Define a core safety policy for command/file automation: allowed command categories, denylisted binaries/flags, project-scoped cwd, path normalization, timeout, output/file size caps, and no shell interpolation.\n2. Strip or explicitly allow environment variables for command steps; redact secrets/tokens from stdout, stderr, manifests, evidence JSON, and verification findings.\n3. Add per-project trust/config controls for enabling command automation, with a safe default for untrusted or missing config.\n4. Route schema validation and executor enforcement through the same policy module so validation and runtime behavior cannot drift.\n5. Record policy decisions in evidence: accepted command metadata, rejected reason, timeout/kill details, and redaction markers without leaking sensitive values.\n6. Add adversarial tests for path traversal, symlink escapes, shell metacharacters, dangerous binaries, missing timeouts, oversized output/files, and secret redaction.\n\n## Acceptance criteria\n- Unsafe command/file automation is rejected before execution with actionable errors.\n- Runtime execution enforces the same policy as generate-demo validation.\n- Evidence and findings cannot leak common secret/token environment values.\n- Tests cover injection, traversal, symlink, timeout, output cap, and redaction cases.",
-      "priority": "high",
-      "tags": [
-        "verification",
-        "security",
-        "automation"
-      ]
-    },
-    {
-      "id": "7b615ca2-cb4f-4200-bc9c-9accd4787428",
-      "title": "Define automatic verifier identity and evidence attribution",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Automatic worker verification reports are attributed to the correct provider-qualified Ralph identity when provider data exists.",
-        "Unknown attribution is visible and diagnostic, not silently treated as normal.",
-        "Comments, attachments, manifests, telemetry, and UI run history agree on the verifier identity for a run.",
-        "Tests cover provider inference, legacy repair, regenerated demos, and missing-provider fallback."
-      ],
-      "references": [],
-      "description": "## Scope note (2026-07-06 epic audit)\nThe verification queue, automatic worker (embedded in the app server, src/lib/db.ts startup), and evidence storage already shipped (tickets 8ec01ace, dca5c6f8, 7ea6f80f). This ticket is now a RETROACTIVE AUDIT + COMPLETION pass over the shipped attribution path. Known real-world gap observed 2026-07-06: worker-executed runs attribute evidence with whatever provider the embedded worker infers, and a stale long-running dev server's worker can execute jobs with outdated code and identity - actor/provenance on jobs and runs must make that visible.\n\n## Why\nManual CLI runs can pass --provider, but the automatic verification worker is supposed to remove the human from the loop. Without a provider/actor model for queued jobs, automatic evidence falls back to weak attribution such as unknown ralph, making the audit trail less useful and breaking the epic's provider-qualified evidence goal.\n\n## Scope\n1. Define the verifier identity model for automatic jobs: actor, provider, source surface, and fallback behavior when provider cannot be inferred.\n2. Store provider/actor on verification jobs and verification runs, and include it in manifests, verification_report comments, attachment uploaders, telemetry, and UI run history.\n3. Establish provider source precedence: explicit launch/review profile, active Ralph/session metadata, ticket branch/session telemetry, environment, then a loud unknown fallback.\n4. Ensure repair-legacy-handoff and regenerated demos create jobs with preserved or recomputed attribution.\n5. Update tests so worker-run evidence is attributed consistently across comments, attachments, manifests, and run history.\n6. Document that implementing agents cannot choose attribution at evidence-write time; the runner resolves it from trusted workflow state.\n\n## Acceptance criteria\n- Automatic worker verification reports are attributed to the correct provider-qualified Ralph identity when provider data exists.\n- Unknown attribution is visible and diagnostic, not silently treated as normal.\n- Comments, attachments, manifests, telemetry, and UI run history agree on the verifier identity for a run.\n- Tests cover provider inference, legacy repair, regenerated demos, and missing-provider fallback.",
-      "priority": "high",
-      "tags": [
-        "verification",
-        "evidence",
-        "worker"
-      ]
-    },
-    {
-      "id": "1eb529b0-1fd4-41c2-a757-f3c05d9c309f",
-      "title": "Consolidate verification evidence read model across UI, CLI, and MCP",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Attachment/evidence normalization lives in one core read model rather than being copied in UI and MCP adapters.",
-        "UI, CLI, and MCP surfaces report the same verification evidence metadata and integrity state for a seeded run.",
-        "Missing/oversized/tampered evidence produces consistent, loud warnings without crashing the reader.",
-        "No evidence read adapter exposes write/pass/fail capabilities to implementing agents."
-      ],
-      "references": [],
-      "description": "## Why\nVerification evidence is only valuable if every surface reads and presents the same artifact model. Today core writes evidence attachments, the UI/server attachment path builds its own read objects, and the MCP attachment loader has separate normalization/loading logic. As the automatic runner adds queue state, run history, reports, and failure context, duplicated evidence readers can drift on filenames, uploader normalization, size limits, image handling, and manifest integrity.\n\n## Scope\n1. Define a core read model for ticket attachments and verification evidence: metadata normalization, file lookup, MIME/type detection, safe size limits, evidence attachment resolution, and manifest integrity summary.\n2. Move UI/server attachment reads, verification run history enrichment, CLI history output, and MCP attachment/context loading onto that read model or thin adapters over it.\n3. Preserve adapter-specific presentation concerns only at the adapter layer: React image/lightbox rendering, MCP content blocks, CLI pretty output, and API response shapes.\n4. Make missing evidence, oversized artifacts, tampered manifests, and legacy attachment metadata produce consistent warnings across surfaces.\n5. Ensure evidence read paths remain read-only; no MCP/tool surface can write or mutate runner evidence.\n6. Add tests that seed the same verification run/attachments and assert UI API, CLI history, and MCP context agree on evidence IDs, uploader, type, integrity, and warning behavior.\n\n## Acceptance criteria\n- Attachment/evidence normalization lives in one core read model rather than being copied in UI and MCP adapters.\n- UI, CLI, and MCP surfaces report the same verification evidence metadata and integrity state for a seeded run.\n- Missing/oversized/tampered evidence produces consistent, loud warnings without crashing the reader.\n- No evidence read adapter exposes write/pass/fail capabilities to implementing agents.",
-      "priority": "medium",
-      "tags": [
-        "verification",
-        "evidence",
-        "architecture",
-        "mcp"
       ]
     }
   ],
@@ -787,7 +500,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-07-06T22:16:43.167Z",
+  "generatedAt": "2026-07-07T01:07:33.277Z",
   "epicTitle": "AI Verification Gate (Evidence-Based Review)",
   "epicDescription": "Replace human review entirely with an evidence-based AI verification gate. New flow: backlog → ready → in_progress → ai_review → ai_verification → done. A deterministic runner executes machine-executable demo steps against a fresh boot of the current code, capturing tamper-evident evidence (Playwright screenshots for UI steps, real HTTP request/response captures for API steps) attributed to \"{provider} ralph\" (claude ralph, pi ralph, cursor ralph, ...). Verification pass → Brain Dump itself sets the ticket to done (no human approval step). Fail → verification findings are filed and the ticket loops back to implementation with failed steps + evidence injected into the next Ralph iteration, repeating until clean. Re-verification always re-runs the full step suite so fixes cannot regress previously passing steps.\n\nEpic auto-PR: when the last ticket in an epic reaches done, Brain Dump detects epic completion and creates/readies the PR itself (via gh) with an evidence-linked body — no human prompting.\n\nAnti-fabrication guarantees: the implementing agent only authors step specs — it cannot mark steps passed, upload evidence, or set done (no MCP action exists for any of these; only the runner transitions ai_verification → done). The runner boots the app itself on an ephemeral port, records git HEAD SHA + dirty flag + boot log in an HMAC-SHA256-sealed provenance manifest, and refuses to certify runs whose diff touches the runner itself. Exception state instead of human gate: uncertified/tripwire runs and 3 consecutive failed repair loops leave the ticket in ai_verification flagged blocked/needs-attention — nothing self-certifies past a broken runner.\n\nFoundation-first: tickets 1-2 centralize the status/workflow-step definitions (currently duplicated across ~30 code sites) and generate provider skill/prompt files from that single source, so this step — and every future step — is cheap to add for all providers.\n\nFull plan document: see the \"AI Verification Gate\" artifact (published 2026-07-04)."
 }
