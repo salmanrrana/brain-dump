@@ -706,7 +706,7 @@ describe("verifyTicket", () => {
     };
 
     expect(run.status).toBe("passed");
-    expect(commandMaxBuffer).toBeGreaterThan(16_384);
+    expect(commandMaxBuffer).toBe(16 * 1024 * 1024);
     expect(evidence.result.stderr.length).toBeLessThan(20_000 * "warning\n".length);
     expect(evidence.result.stderr).toContain("[truncated");
   });
