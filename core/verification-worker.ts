@@ -213,7 +213,9 @@ export async function runNextVerificationJob(
   try {
     const run = await verify(db, {
       ticketId: job.ticketId,
-      ...(options.provider !== undefined ? { provider: options.provider } : {}),
+      ...(options.provider !== undefined
+        ? { provider: options.provider }
+        : { provider: job.provider }),
       executionSurface: options.executionSurface ?? "enqueue-drain",
       ...(options.projectPath !== undefined ? { projectPath: options.projectPath } : {}),
       ...(options.baseUrl !== undefined ? { baseUrl: options.baseUrl } : {}),
@@ -468,7 +470,9 @@ export async function drainVerificationQueue(
     // the near future, wait for it inside the budget instead of stranding it
     // until the next enqueue.
     const row = db
-      .prepare("SELECT MIN(next_run_at) as next FROM verification_jobs WHERE status = 'queued'")
+      .prepare(
+        "SELECT MIN(next_run_at) as next FROM verification_jobs WHERE status IN ('queued', 'failed')"
+      )
       .get() as { next: string | null } | undefined;
     if (!row?.next) break;
     const nextMs = Date.parse(row.next);

@@ -7,7 +7,11 @@ import {
   type VerificationManifest,
   type VerificationRunStatus,
 } from "../../core/verification.ts";
-import type { VerifierIdentity } from "../../core/verifier-identity.ts";
+import type {
+  VerificationExecutionSurface,
+  VerificationProviderSource,
+  VerifierIdentity,
+} from "../../core/verifier-identity.ts";
 import { verificationJobs, verificationRuns } from "../lib/schema";
 
 export type {
@@ -40,6 +44,61 @@ function durationMs(startedAt: string, finishedAt: string): number {
   const finished = new Date(finishedAt).getTime();
   if (!Number.isFinite(started) || !Number.isFinite(finished)) return 0;
   return Math.max(0, finished - started);
+}
+
+const PROVIDER_SOURCES = new Set<VerificationProviderSource>([
+  "explicit",
+  "session",
+  "telemetry",
+  "environment",
+  "unknown",
+]);
+
+const EXECUTION_SURFACES = new Set<VerificationExecutionSurface>([
+  "boot-drain",
+  "enqueue-drain",
+  "resident-poller",
+  "cli-direct",
+]);
+
+type VerificationRunIdentityRow = Pick<
+  typeof verificationRuns.$inferSelect,
+  "provider" | "actor" | "providerSource" | "executionSurface" | "workerId" | "codeGitSha"
+>;
+
+function isProviderSource(value: string | null): value is VerificationProviderSource {
+  return value !== null && PROVIDER_SOURCES.has(value as VerificationProviderSource);
+}
+
+function isExecutionSurface(value: string | null): value is VerificationExecutionSurface {
+  return value !== null && EXECUTION_SURFACES.has(value as VerificationExecutionSurface);
+}
+
+export function verifierFromRunRow(
+  row: VerificationRunIdentityRow,
+  manifest: VerificationManifest | null
+): VerifierIdentity | null {
+  if (manifest?.verifier) return manifest.verifier;
+  const hasIdentityColumns =
+    row.provider !== null ||
+    row.actor !== null ||
+    row.providerSource !== null ||
+    row.executionSurface !== null ||
+    row.workerId !== null ||
+    row.codeGitSha !== null;
+  if (!hasIdentityColumns) return null;
+
+  const provider = row.provider ?? "unknown";
+  return {
+    provider,
+    actor: (row.actor ?? `${provider} ralph`) as `${string} ralph`,
+    providerSource: isProviderSource(row.providerSource) ? row.providerSource : "unknown",
+    executionSurface: isExecutionSurface(row.executionSurface)
+      ? row.executionSurface
+      : "cli-direct",
+    workerId: row.workerId ?? null,
+    codeGitSha: row.codeGitSha ?? null,
+  };
 }
 
 export const getVerificationRuns = createServerFn({ method: "GET" })
@@ -77,7 +136,7 @@ export const getVerificationRuns = createServerFn({ method: "GET" })
         startedAt: row.startedAt,
         finishedAt: row.finishedAt,
         durationMs: durationMs(row.startedAt, row.finishedAt),
-        verifier: manifest?.verifier ?? null,
+        verifier: verifierFromRunRow(row, manifest),
         manifest,
       };
     });

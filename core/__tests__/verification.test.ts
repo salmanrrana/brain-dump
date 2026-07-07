@@ -10,6 +10,7 @@ import {
   listVerificationRuns,
   verificationTestInternals,
   verifyTicket,
+  type VerifyTicketParams,
   type VerificationRun,
 } from "../verification.ts";
 import {
@@ -250,6 +251,48 @@ function createCleanExecFileNoThrow(
     }
     onCommand?.(command, args, options);
     return { success: true, stdout: "command ok\n", stderr: "", exitCode: 0 };
+  };
+}
+
+function fakeWorkerRun(params: VerifyTicketParams): VerificationRun {
+  const now = new Date().toISOString();
+  const provider = params.provider ?? "unknown";
+  const identity = {
+    provider,
+    actor: `${provider} ralph` as `${string} ralph`,
+    providerSource: params.provider ? "explicit" : "unknown",
+    executionSurface: params.executionSurface ?? "enqueue-drain",
+    workerId: params.verificationJobLease?.workerId ?? null,
+    codeGitSha: "verifier-sha",
+  } as const;
+  return {
+    id: "fake-run",
+    ticketId: params.ticketId,
+    round: 1,
+    status: "passed",
+    certified: true,
+    gitSha: "target-sha",
+    identity,
+    startedAt: now,
+    finishedAt: now,
+    manifest: {
+      runId: "fake-run",
+      ticketId: params.ticketId,
+      round: 1,
+      status: "passed",
+      certified: true,
+      gitSha: "target-sha",
+      dirty: false,
+      port: 0,
+      bootCommand: [],
+      bootLog: "",
+      startedAt: now,
+      finishedAt: now,
+      stepVerdicts: [],
+      evidenceFiles: [],
+      verifier: identity,
+      manifestHash: "fake-hash",
+    },
   };
 }
 
@@ -676,6 +719,36 @@ describe("verifyTicket", () => {
       workerId: null,
     });
     expect(run.manifest.verifier).toEqual(run.identity);
+  });
+
+  it("records verifier code sha separately from the target project sha", async () => {
+    seedDemo([commandStep()]);
+
+    const run = await verifyTicket(db, {
+      ticketId: "ticket-1",
+      projectPath: tempDir,
+      execFileNoThrow: async (command, args, options) => {
+        if (command === "git" && args.join(" ") === "rev-parse HEAD") {
+          return {
+            success: true,
+            stdout: options?.cwd === tempDir ? "target-sha\n" : "verifier-sha\n",
+            stderr: "",
+            exitCode: 0,
+          };
+        }
+        if (command === "git" && args.join(" ") === "status --short") {
+          return { success: true, stdout: "", stderr: "", exitCode: 0 };
+        }
+        if (command === "git" && args.join(" ") === "diff --name-only HEAD~1 HEAD") {
+          return { success: true, stdout: "", stderr: "", exitCode: 0 };
+        }
+        return { success: true, stdout: "command ok\n", stderr: "", exitCode: 0 };
+      },
+    });
+
+    expect(run.gitSha).toBe("target-sha");
+    expect(run.identity.codeGitSha).toBe("verifier-sha");
+    expect(run.manifest.verifier.codeGitSha).toBe("verifier-sha");
   });
 
   it("keeps runs with non-certifiable coverage rationale uncertified", async () => {
@@ -1616,6 +1689,59 @@ describe("verification worker", () => {
     expect(db.prepare("SELECT status FROM tickets WHERE id = 'ticket-1'").get()).toMatchObject({
       status: "done",
     });
+  });
+
+  it("preserves queued provider attribution when a drain has no provider option", async () => {
+    seedDemo([apiStep()]);
+    enqueueVerificationJob(db, "ticket-1", {
+      now: "2026-03-08T01:00:00.000Z",
+      provider: "opencode",
+    });
+    const baseUrl = await startFixtureServer();
+
+    await runNextVerificationJob(db, {
+      workerId: "worker-1",
+      executionSurface: "enqueue-drain",
+      baseUrl,
+      now: () => new Date("2026-03-08T01:00:01.000Z"),
+    });
+
+    expect(getVerificationJob(db, "ticket-1")).toMatchObject({
+      provider: "opencode",
+      actor: "opencode ralph",
+      providerSource: "explicit",
+    });
+    expect(listVerificationRuns(db, "ticket-1")[0]?.identity).toMatchObject({
+      provider: "opencode",
+      actor: "opencode ralph",
+      providerSource: "explicit",
+    });
+  });
+
+  it("drains failed retry jobs that become ready inside the follow budget", async () => {
+    seedDemo([apiStep()]);
+    const job = enqueueVerificationJob(db, "ticket-1", { now: new Date().toISOString() });
+    const nextRunAt = new Date(Date.now() + 10).toISOString();
+    db.prepare(
+      "UPDATE verification_jobs SET status = 'failed', next_run_at = ?, last_error = 'retry me' WHERE id = ?"
+    ).run(nextRunAt, job.id);
+
+    const result = await drainVerificationQueue(db, {
+      workerId: "drain-worker",
+      followRetryBudgetMs: 1_000,
+      verifyTicketFn: async (_db, params) => {
+        settleVerificationJob(db, {
+          jobId: params.verificationJobLease!.jobId,
+          workerId: params.verificationJobLease!.workerId,
+          attemptCount: params.verificationJobLease!.attemptCount,
+          status: "succeeded",
+        });
+        return fakeWorkerRun(params);
+      },
+    });
+
+    expect(result.processed).toBe(1);
+    expect(getVerificationJob(db, "ticket-1")).toMatchObject({ status: "succeeded" });
   });
 
   it("infers queued job attribution from session metadata before falling back to unknown", () => {

@@ -2,6 +2,7 @@ import { randomUUID, createHmac } from "crypto";
 import { existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "fs";
 import { dirname, isAbsolute, join, relative, resolve } from "path";
 import { spawn } from "child_process";
+import { fileURLToPath } from "url";
 import { createServer } from "net";
 import type {
   DbHandle,
@@ -39,6 +40,8 @@ import {
 export type VerificationRunStatus = "passed" | "failed" | "uncertified" | "infra_error";
 export type VerificationStepStatus = "passed" | "failed" | "skipped";
 export type VerificationIntegrityStatus = "valid" | "tampered" | "uncertified-tripwire";
+
+const VERIFIER_CODE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 export interface VerificationEvidenceFile {
   path: string;
@@ -1363,13 +1366,17 @@ async function buildRun(
   const timeoutMs = params.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const execFileNoThrow = params.execFileNoThrow ?? defaultExecFileNoThrow;
   const gitInfo = await getGitInfo(actualProjectPath, execFileNoThrow);
+  const verifierGitInfo =
+    resolve(actualProjectPath) === VERIFIER_CODE_ROOT
+      ? gitInfo
+      : await getGitInfo(VERIFIER_CODE_ROOT, execFileNoThrow);
   const identity = resolveVerifierIdentity(db, {
     ticketId: params.ticketId,
     provider: params.provider,
     executionSurface:
       params.executionSurface ?? (params.verificationJobLease ? "enqueue-drain" : "cli-direct"),
     workerId: params.verificationJobLease?.workerId,
-    codeGitSha: gitInfo.sha,
+    codeGitSha: verifierGitInfo.sha,
   });
   let boot: BootedApp | null = null;
   let failedBootInfo: FailedBootInfo | null = null;
