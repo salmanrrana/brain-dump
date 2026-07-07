@@ -70,6 +70,26 @@ export function assertUserWritableAttachmentMetadata(
   }
 }
 
+export function normalizeUserWritableAttachmentFilenames(
+  attachments: unknown
+): string[] | undefined {
+  if (attachments === undefined || attachments === null) return undefined;
+  if (!Array.isArray(attachments)) {
+    throw new ValidationError(
+      "Ticket attachments must be an array of pending attachment filenames."
+    );
+  }
+
+  return attachments.map((attachment, index) => {
+    if (typeof attachment !== "string" || attachment.trim().length === 0) {
+      throw new ValidationError(
+        `Ticket attachment at index ${index} must be a pending attachment filename.`
+      );
+    }
+    return attachment;
+  });
+}
+
 function getTicketAttachmentRow(db: DbHandle, ticketId: string): TicketAttachmentRow {
   const row = db.prepare("SELECT id, attachments FROM tickets WHERE id = ?").get(ticketId) as
     | TicketAttachmentRow
@@ -78,7 +98,7 @@ function getTicketAttachmentRow(db: DbHandle, ticketId: string): TicketAttachmen
   return row;
 }
 
-function sanitizeFilename(filename: string): string {
+export function sanitizeAttachmentFilename(filename: string): string {
   const sanitized = basename(filename).replace(/[^a-zA-Z0-9._-]/g, "_");
   if (!sanitized || sanitized === "." || sanitized === "..") {
     throw new ValidationError("Attachment filename is invalid after sanitization.");
@@ -86,8 +106,8 @@ function sanitizeFilename(filename: string): string {
   return sanitized;
 }
 
-function uniqueFilename(ticketDir: string, filename: string): string {
-  const sanitized = sanitizeFilename(filename);
+export function uniqueAttachmentFilename(ticketDir: string, filename: string): string {
+  const sanitized = sanitizeAttachmentFilename(filename);
   let finalFilename = sanitized;
   let counter = 1;
   while (existsSync(join(ticketDir, finalFilename))) {
@@ -153,7 +173,7 @@ export function writeAttachmentFromFile(
     throw new ValidationError(`Attachment source is not a file: ${params.filePath}`);
 
   const ticketDir = ensureTicketDir(params.ticketId);
-  const finalFilename = uniqueFilename(
+  const finalFilename = uniqueAttachmentFilename(
     ticketDir,
     params.metadata?.filename ?? basename(params.filePath)
   );
@@ -167,7 +187,10 @@ export function writeAttachmentFromBuffer(
 ): TicketAttachment {
   getTicketAttachmentRow(db, params.ticketId);
   const ticketDir = ensureTicketDir(params.ticketId);
-  const finalFilename = uniqueFilename(ticketDir, params.metadata?.filename ?? params.filename);
+  const finalFilename = uniqueAttachmentFilename(
+    ticketDir,
+    params.metadata?.filename ?? params.filename
+  );
   writeFileSync(join(ticketDir, finalFilename), params.buffer, { mode: 0o600 });
   return appendAttachment(db, params.ticketId, params.metadata, finalFilename);
 }

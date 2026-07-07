@@ -11,7 +11,7 @@ import {
   getVerificationWorkerQueueStatus,
   InvalidActionError,
   getVerificationJob,
-  listVerificationRuns,
+  listVerificationRunSummaries,
   runNextVerificationJob,
   verifyTicket,
 } from "../../core/index.ts";
@@ -94,7 +94,7 @@ export async function handle(action: string, args: string[]): Promise<void> {
     }
 
     if (history) {
-      const result = listVerificationRuns(db, ticketId);
+      const result = listVerificationRunSummaries(db, ticketId);
       outputResult(result, pretty);
       return;
     }

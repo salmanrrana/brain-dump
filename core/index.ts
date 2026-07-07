@@ -277,6 +277,7 @@ export {
   MIME_TYPES,
   IMAGE_EXTENSIONS,
   createProviderRalphUploader,
+  isSafeAttachmentFilename,
   normalizeAttachmentProvider,
   normalizeAttachmentUploader,
   normalizeAttachments,
@@ -296,6 +297,9 @@ export type {
 
 export {
   getAttachmentsDir,
+  normalizeUserWritableAttachmentFilenames,
+  sanitizeAttachmentFilename,
+  uniqueAttachmentFilename,
   writeAttachmentFromBuffer,
   writeAttachmentFromFile,
 } from "./attachments.ts";
@@ -305,6 +309,24 @@ export type {
   WriteAttachmentFromBufferParams,
   WriteAttachmentFromFileParams,
 } from "./attachments.ts";
+
+// Attachment/evidence read model (read-only; shared by UI, CLI, and MCP)
+export {
+  MAX_ATTACHMENT_UPLOAD_SIZE,
+  MAX_ATTACHMENT_INLINE_SIZE,
+  RECOMMENDED_ATTACHMENT_INLINE_SIZE,
+  getAttachmentsDirPath,
+  getTicketAttachmentsDirPath,
+  readTicketAttachments,
+  resolveTicketAttachmentFiles,
+} from "./attachments-read.ts";
+
+export type {
+  AttachmentFileStatus,
+  ResolvedTicketAttachment,
+  ResolveTicketAttachmentOptions,
+  TicketAttachmentReadModel,
+} from "./attachments-read.ts";
 
 export {
   updatePrdForTicket,
@@ -339,7 +361,12 @@ export type {
 } from "./review.ts";
 
 // Verification runner business logic
-export { verifyTicket, listVerificationRuns, computeManifestIntegrity } from "./verification.ts";
+export {
+  verifyTicket,
+  listVerificationRuns,
+  listVerificationRunSummaries,
+  computeManifestIntegrity,
+} from "./verification.ts";
 export { settleVerificationLifecycle } from "./verification-lifecycle.ts";
 export {
   drainVerificationQueue,
@@ -366,6 +393,7 @@ export type {
   VerificationStepVerdict,
   VerificationManifest,
   VerificationRun,
+  VerificationRunSummary,
   VerifyTicketParams,
 } from "./verification.ts";
 
@@ -385,8 +413,14 @@ export type {
 export type { VerificationJob, VerificationJobStatus } from "./verification-queue.ts";
 export type {
   VerifierIdentity,
+  VerifierLegacyRunColumns,
   VerificationExecutionSurface,
   VerificationProviderSource,
+} from "./verifier-identity.ts";
+export {
+  isVerificationExecutionSurface,
+  isVerificationProviderSource,
+  verifierFromLegacyRunColumns,
 } from "./verifier-identity.ts";
 
 // Session & event business logic

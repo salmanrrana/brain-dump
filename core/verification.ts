@@ -32,6 +32,7 @@ import {
 } from "./review.ts";
 import {
   resolveVerifierIdentity,
+  verifierFromLegacyRunColumns,
   type VerifierIdentity,
   type VerificationExecutionSurface,
   type VerificationProviderSource,
@@ -1528,10 +1529,113 @@ export function listVerificationRuns(db: DbHandle, ticketId: string): Verificati
   return rows.map(toVerificationRun);
 }
 
+/**
+ * Audit-ready view of a stored verification run: integrity re-checked against
+ * the sealed manifest, verifier identity resolved, and safe against corrupted
+ * manifest JSON (reported as tampered instead of thrown).
+ */
+export interface VerificationRunSummary {
+  id: string;
+  ticketId: string;
+  round: number;
+  status: VerificationRunStatus;
+  certified: boolean;
+  integrityStatus: VerificationIntegrityStatus;
+  gitSha: string | null;
+  startedAt: string;
+  finishedAt: string;
+  durationMs: number;
+  verifier: VerifierIdentity | null;
+  manifest: VerificationManifest | null;
+}
+
+function runDurationMs(startedAt: string, finishedAt: string): number {
+  const started = new Date(startedAt).getTime();
+  const finished = new Date(finishedAt).getTime();
+  if (!Number.isFinite(started) || !Number.isFinite(finished)) return 0;
+  return Math.max(0, finished - started);
+}
+
+/**
+ * The consolidated verification run read model. UI run history, CLI history
+ * output, and MCP context all derive from this so every surface reports the
+ * same evidence metadata and integrity state.
+ */
+export function listVerificationRunSummaries(
+  db: DbHandle,
+  ticketId: string
+): VerificationRunSummary[] {
+  getTicketRow(db, ticketId);
+  const rows = db
+    .prepare(
+      `SELECT id, ticket_id, round, status, certified, manifest, git_sha,
+              started_at, finished_at, provider, actor, provider_source,
+              execution_surface, worker_id, code_git_sha
+       FROM verification_runs WHERE ticket_id = ? ORDER BY round DESC`
+    )
+    .all(ticketId) as Array<{
+    id: string;
+    ticket_id: string;
+    round: number;
+    status: string;
+    certified: number;
+    manifest: string;
+    git_sha: string | null;
+    started_at: string;
+    finished_at: string;
+    provider: string | null;
+    actor: string | null;
+    provider_source: string | null;
+    execution_surface: string | null;
+    worker_id: string | null;
+    code_git_sha: string | null;
+  }>;
+
+  return rows.map((row) => {
+    const { manifest, integrityStatus } = computeManifestIntegrity({
+      id: row.id,
+      ticketId: row.ticket_id,
+      round: row.round,
+      status: row.status,
+      certified: row.certified === 1,
+      gitSha: row.git_sha,
+      startedAt: row.started_at,
+      finishedAt: row.finished_at,
+      manifest: row.manifest,
+    });
+
+    return {
+      id: row.id,
+      ticketId: row.ticket_id,
+      round: row.round,
+      status: row.status as VerificationRunStatus,
+      certified: row.certified === 1,
+      integrityStatus,
+      gitSha: row.git_sha,
+      startedAt: row.started_at,
+      finishedAt: row.finished_at,
+      durationMs: runDurationMs(row.started_at, row.finished_at),
+      verifier: verifierFromLegacyRunColumns(
+        {
+          provider: row.provider,
+          actor: row.actor,
+          providerSource: row.provider_source,
+          executionSurface: row.execution_surface,
+          workerId: row.worker_id,
+          codeGitSha: row.code_git_sha,
+        },
+        manifest
+      ),
+      manifest,
+    };
+  });
+}
+
 export const verificationTestInternals = {
   resolveJsonPath,
   summarizeStatus,
   hashEvidence,
+  manifestHashFor,
   attachRunEvidenceAndReport,
   discoverBootCommand,
 };

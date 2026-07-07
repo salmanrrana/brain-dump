@@ -4,7 +4,11 @@ import { tmpdir } from "os";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type Database from "better-sqlite3";
 import { createTestDatabase } from "../db.ts";
-import { assertUserWritableAttachmentMetadata, writeAttachmentFromFile } from "../attachments.ts";
+import {
+  assertUserWritableAttachmentMetadata,
+  normalizeUserWritableAttachmentFilenames,
+  writeAttachmentFromFile,
+} from "../attachments.ts";
 import { normalizeAttachments } from "../attachment-types.ts";
 import { addVerificationReportComment, listComments } from "../comment.ts";
 import { updateAttachmentMetadata } from "../ticket.ts";
@@ -104,6 +108,15 @@ describe("core attachment evidence writes", () => {
     );
   });
 
+  it("rejects structured attachment metadata when creating user tickets", () => {
+    expect(normalizeUserWritableAttachmentFilenames(["pending.png"])).toEqual(["pending.png"]);
+    expect(() =>
+      normalizeUserWritableAttachmentFilenames([
+        { filename: "manifest.json", type: "verification-manifest", uploadedBy: "claude ralph" },
+      ])
+    ).toThrow(/pending attachment filename/);
+  });
+
   it("rejects verification evidence types in attachment metadata updates", () => {
     const sourceFile = join(tempDir, "notes.txt");
     writeFileSync(sourceFile, "reference notes");
@@ -116,6 +129,22 @@ describe("core attachment evidence writes", () => {
     expect(() =>
       updateAttachmentMetadata(db, "ticket-1", attachment.id, {
         type: "api-evidence",
+      })
+    ).toThrow(/runner-only/);
+  });
+
+  it("rejects metadata updates on existing runner evidence attachments", () => {
+    const sourceFile = join(tempDir, "manifest.json");
+    writeFileSync(sourceFile, "{}");
+    const attachment = writeAttachmentFromFile(db, {
+      ticketId: "ticket-1",
+      filePath: sourceFile,
+      metadata: { type: "verification-manifest", provider: "claude" },
+    });
+
+    expect(() =>
+      updateAttachmentMetadata(db, "ticket-1", attachment.id, {
+        description: "edited outside runner",
       })
     ).toThrow(/runner-only/);
   });

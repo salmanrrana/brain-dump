@@ -13,6 +13,7 @@ import { tagFilterConditions } from "../lib/sql-helpers";
 import { randomUUID } from "crypto";
 import { ensureExists, safeJsonStringify } from "../lib/utils";
 import { handleEpicCompletionLearnings } from "../../core/index";
+import { normalizeUserWritableAttachmentFilenames } from "../../core/attachments.ts";
 import {
   canDirectlyUpdateTicketStatus,
   DIRECT_STATUS_UPDATE_STATUSES,
@@ -114,7 +115,10 @@ export const createTicket = createServerFn({ method: "POST" })
     if (!input.projectId) {
       throw new Error("Project ID is required");
     }
-    return input;
+    return {
+      ...input,
+      attachments: normalizeUserWritableAttachmentFilenames(input.attachments),
+    };
   })
   .handler(async ({ data: input }) => {
     // Verify project exists

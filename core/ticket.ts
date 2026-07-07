@@ -59,7 +59,7 @@ function toTicketWithProject(
     isBlocked: row.is_blocked === 1,
     blockedReason: row.blocked_reason,
     linkedFiles: safeJsonParse<string[]>(row.linked_files, []),
-    attachments: safeJsonParse(row.attachments, []),
+    attachments: normalizeAttachments(row.attachments),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     completedAt: row.completed_at,
@@ -568,6 +568,12 @@ export function updateAttachmentMetadata(
   }
 
   const attachment = normalizedAttachments[attachmentIndex]!;
+  if (isRunnerEvidenceAttachmentType(attachment.type)) {
+    throw new ValidationError(
+      "Verification evidence attachment metadata is runner-only and cannot be updated through ticket metadata updates.",
+      { type: attachment.type }
+    );
+  }
   if (metadata.type !== undefined) {
     if (!isValidAttachmentType(metadata.type)) {
       throw new ValidationError(`Invalid attachment type: ${metadata.type}`, {

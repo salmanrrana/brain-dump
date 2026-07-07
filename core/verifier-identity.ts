@@ -1,18 +1,87 @@
 import { createProviderRalphUploader, normalizeAttachmentProvider } from "./attachment-types.ts";
 import type { DbHandle } from "./types.ts";
 
-export type VerificationExecutionSurface =
-  | "boot-drain"
-  | "enqueue-drain"
-  | "resident-poller"
-  | "cli-direct";
+export const VERIFICATION_EXECUTION_SURFACES = [
+  "boot-drain",
+  "enqueue-drain",
+  "resident-poller",
+  "cli-direct",
+] as const;
 
-export type VerificationProviderSource =
-  | "explicit"
-  | "session"
-  | "telemetry"
-  | "environment"
-  | "unknown";
+export type VerificationExecutionSurface = (typeof VERIFICATION_EXECUTION_SURFACES)[number];
+
+export const VERIFICATION_PROVIDER_SOURCES = [
+  "explicit",
+  "session",
+  "telemetry",
+  "environment",
+  "unknown",
+] as const;
+
+export type VerificationProviderSource = (typeof VERIFICATION_PROVIDER_SOURCES)[number];
+
+export function isVerificationProviderSource(value: unknown): value is VerificationProviderSource {
+  return (
+    typeof value === "string" &&
+    (VERIFICATION_PROVIDER_SOURCES as readonly string[]).includes(value)
+  );
+}
+
+export function isVerificationExecutionSurface(
+  value: unknown
+): value is VerificationExecutionSurface {
+  return (
+    typeof value === "string" &&
+    (VERIFICATION_EXECUTION_SURFACES as readonly string[]).includes(value)
+  );
+}
+
+/**
+ * Legacy identity columns persisted on verification_runs rows before the
+ * verifier identity moved into the sealed manifest.
+ */
+export interface VerifierLegacyRunColumns {
+  provider: string | null;
+  actor: string | null;
+  providerSource: string | null;
+  executionSurface: string | null;
+  workerId: string | null;
+  codeGitSha: string | null;
+}
+
+/**
+ * Resolve the verifier identity for a stored run: the sealed manifest wins,
+ * legacy identity columns are the fallback, and null means attribution is
+ * genuinely unknown (surfaces must show that loudly rather than invent one).
+ */
+export function verifierFromLegacyRunColumns(
+  row: VerifierLegacyRunColumns,
+  manifest: { verifier?: VerifierIdentity } | null
+): VerifierIdentity | null {
+  if (manifest?.verifier) return manifest.verifier;
+  const hasIdentityColumns =
+    row.provider !== null ||
+    row.actor !== null ||
+    row.providerSource !== null ||
+    row.executionSurface !== null ||
+    row.workerId !== null ||
+    row.codeGitSha !== null;
+  if (!hasIdentityColumns) return null;
+
+  const provider = row.provider ?? "unknown";
+  return {
+    provider,
+    actor: (row.actor ?? `${provider} ralph`) as `${string} ralph`,
+    providerSource: isVerificationProviderSource(row.providerSource)
+      ? row.providerSource
+      : "unknown",
+    executionSurface: isVerificationExecutionSurface(row.executionSurface)
+      ? row.executionSurface
+      : "cli-direct",
+    workerId: row.workerId ?? null,
+    codeGitSha: row.codeGitSha ?? null,
+  };
+}
 
 export interface VerifierIdentity {
   provider: string;

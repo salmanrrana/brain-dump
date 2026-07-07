@@ -205,6 +205,21 @@ const ATTACHMENT_PROVIDERS: AttachmentProvider[] = [
 
 const BASE_UPLOADERS: BaseAttachmentUploader[] = ["human", "ralph", ...ATTACHMENT_PROVIDERS];
 
+/** Maximum size accepted when uploading an attachment through any surface. */
+export const MAX_ATTACHMENT_UPLOAD_SIZE = 10 * 1024 * 1024;
+
+/**
+ * Maximum size a reader will load inline (e.g. MCP content blocks). Larger
+ * files are reported as oversized instead of being read into memory.
+ */
+export const MAX_ATTACHMENT_INLINE_SIZE = 5 * 1024 * 1024;
+
+/**
+ * Above this size readers still load the file but attach a warning, since
+ * large inline content is unreliable for some AI clients.
+ */
+export const RECOMMENDED_ATTACHMENT_INLINE_SIZE = 1024 * 1024;
+
 export function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -213,6 +228,17 @@ export function formatFileSize(bytes: number): string {
 
 export function isImageExtension(ext: string): boolean {
   return (IMAGE_EXTENSIONS as readonly string[]).includes(ext.toLowerCase());
+}
+
+/**
+ * A stored attachment filename is safe when it matches what the write-side
+ * sanitizer (core/attachments.ts) would have produced. Read surfaces use this
+ * to reject DB rows that reference traversal-style paths instead of trusting
+ * them.
+ */
+export function isSafeAttachmentFilename(filename: string): boolean {
+  if (!filename || filename === "." || filename === "..") return false;
+  return /^[a-zA-Z0-9._-]+$/.test(filename);
 }
 
 export function isValidAttachmentType(type: unknown): type is AttachmentType {
