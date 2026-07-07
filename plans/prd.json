@@ -391,7 +391,7 @@
     {
       "id": "c74cd5a3-018e-4741-a72e-8caf8ffe5031",
       "title": "Replace resident verification worker with enqueue-triggered one-shot drains",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
