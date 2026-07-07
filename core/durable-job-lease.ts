@@ -43,7 +43,7 @@ export function claimDurableJobLease<Row extends { id: string }, Job>(
 ): Job | null {
   assertSafeIdentifier(options.tableName);
 
-  return db.transaction(() => {
+  const claim = db.transaction(() => {
     const row = db.prepare(options.selectReadySql).get(...options.selectReadyArgs) as
       | Row
       | undefined;
@@ -68,7 +68,9 @@ export function claimDurableJobLease<Row extends { id: string }, Job>(
       .prepare(`SELECT * FROM ${options.tableName} WHERE id = ?`)
       .get(row.id) as Row;
     return options.toJob(claimed);
-  })();
+  });
+
+  return claim.immediate();
 }
 
 export function settleDurableJobLease<Row, Job>(
@@ -77,29 +79,33 @@ export function settleDurableJobLease<Row, Job>(
 ): Job {
   assertSafeIdentifier(options.tableName);
 
-  db.prepare(
-    `UPDATE ${options.tableName}
-     SET status = ?, next_run_at = ?, last_error = ?, leased_by = NULL,
-         lease_expires_at = NULL, completed_at = ?, updated_at = ?
-     WHERE id = ? AND status = 'running' AND leased_by = ? AND attempt_count = ?`
-  ).run(
-    options.status,
-    options.nextRunAt,
-    options.error,
-    options.completedAt,
-    options.now,
-    options.jobId,
-    options.workerId,
-    options.attemptCount
-  );
+  const settle = db.transaction(() => {
+    db.prepare(
+      `UPDATE ${options.tableName}
+       SET status = ?, next_run_at = ?, last_error = ?, leased_by = NULL,
+           lease_expires_at = NULL, completed_at = ?, updated_at = ?
+       WHERE id = ? AND status = 'running' AND leased_by = ? AND attempt_count = ?`
+    ).run(
+      options.status,
+      options.nextRunAt,
+      options.error,
+      options.completedAt,
+      options.now,
+      options.jobId,
+      options.workerId,
+      options.attemptCount
+    );
 
-  if (getChanges(db) !== 1) {
-    throw new ValidationError(options.notLeasedMessage);
-  }
+    if (getChanges(db) !== 1) {
+      throw new ValidationError(options.notLeasedMessage);
+    }
 
-  const row = db.prepare(`SELECT * FROM ${options.tableName} WHERE id = ?`).get(options.jobId) as
-    | Row
-    | undefined;
-  if (!row) throw new ValidationError(`Durable job ${options.jobId} was not found.`);
-  return options.toJob(row);
+    const row = db.prepare(`SELECT * FROM ${options.tableName} WHERE id = ?`).get(options.jobId) as
+      | Row
+      | undefined;
+    if (!row) throw new ValidationError(`Durable job ${options.jobId} was not found.`);
+    return options.toJob(row);
+  });
+
+  return settle.immediate();
 }
