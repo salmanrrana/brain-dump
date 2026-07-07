@@ -90,11 +90,11 @@ function formatVerificationFailure(row: VerificationFailureRow): string {
     return `Verification run ${row.id} ended with ${row.status} at ${row.finished_at} (round ${row.round}).\n\n- Manifest could not be parsed; inspect stored verification evidence for this run.`;
   }
 
-  const failedSteps = (manifest.stepVerdicts ?? []).filter(
+  const unresolvedSteps = (manifest.stepVerdicts ?? []).filter(
     (step): step is VerificationManifestStep =>
-      isVerificationManifestStep(step) && step.status === "failed"
+      isVerificationManifestStep(step) && step.status !== "passed"
   );
-  const stepLines = failedSteps.map((step) => {
+  const stepLines = unresolvedSteps.map((step) => {
     const evidenceFiles = Array.isArray(step.evidenceFiles) ? step.evidenceFiles : [];
     const evidence = evidenceFiles.length
       ? evidenceFiles.map((file) => `${file.path} (${file.hash})`).join(", ")

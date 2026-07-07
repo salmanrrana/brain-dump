@@ -28,7 +28,8 @@ function insertVerificationRun(
   id: string,
   round: number,
   status: "passed" | "failed" | "infra_error" | "uncertified",
-  finishedAt: string
+  finishedAt: string,
+  stepStatus: "failed" | "skipped" = "failed"
 ): void {
   sqlite
     .prepare(
@@ -48,7 +49,7 @@ function insertVerificationRun(
         stepVerdicts: [
           {
             order: 2,
-            status: "failed",
+            status: stepStatus,
             message: "Expected OK, got error",
             evidenceFiles: [{ path: "/tmp/evidence.json", hash: "abc123" }],
           },
@@ -162,6 +163,23 @@ describe("change request launch context", () => {
     const result = getVerificationFailuresByTicketId(sqlite, ["ticket-1"]);
 
     expect(result["ticket-1"]).toContain("Verification run run-2 ended with infra_error");
+    expect(result["ticket-1"]).toContain("Step 2: Expected OK, got error");
+  });
+
+  it("returns unresolved skipped verdicts for uncertified runs", () => {
+    insertTicket("ticket-1", "ai_verification");
+    insertVerificationRun(
+      "ticket-1",
+      "run-1",
+      1,
+      "uncertified",
+      "2026-04-25T10:00:00.000Z",
+      "skipped"
+    );
+
+    const result = getVerificationFailuresByTicketId(sqlite, ["ticket-1"]);
+
+    expect(result["ticket-1"]).toContain("Verification run run-1 ended with uncertified");
     expect(result["ticket-1"]).toContain("Step 2: Expected OK, got error");
   });
 
