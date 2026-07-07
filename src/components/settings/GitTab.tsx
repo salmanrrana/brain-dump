@@ -92,10 +92,10 @@ export function GitTab({ isActive, form }: GitTabProps) {
           children={(field: BooleanFieldRenderProps) => (
             <div className={toggleStyles.row}>
               <div className={toggleStyles.info}>
-                <div className={toggleStyles.label}>Auto-ready Epic Pull Requests</div>
+                <div className={toggleStyles.label}>Epic auto-PR</div>
                 <div className={toggleStyles.desc}>
                   When AI verification completes the final ticket in an epic, create or ready the
-                  epic PR automatically.
+                  epic pull request automatically.
                 </div>
               </div>
               <button
@@ -104,7 +104,7 @@ export function GitTab({ isActive, form }: GitTabProps) {
                 className={toggleStyles.switch(field.state.value)}
                 role="switch"
                 aria-checked={field.state.value}
-                aria-label="Auto-ready Epic Pull Requests"
+                aria-label="Epic auto-PR"
               >
                 <span className={toggleStyles.knob(field.state.value)} />
               </button>
