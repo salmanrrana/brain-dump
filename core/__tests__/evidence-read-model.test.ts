@@ -258,6 +258,17 @@ describe("evidence read model cross-surface agreement", () => {
     expect(mcpResult.telemetry.failedFiles).toContain("../../etc/passwd");
   });
 
+  it("warns loudly when the attachments metadata column is corrupted JSON", () => {
+    db.prepare("UPDATE tickets SET attachments = ? WHERE id = ?").run("{not json", TICKET_ID);
+
+    const model = readTicketAttachments(db, TICKET_ID);
+
+    expect(model.attachments).toEqual([]);
+    expect(model.warnings).toContain(
+      `Ticket attachments metadata is corrupted JSON and was ignored: ${TICKET_ID}`
+    );
+  });
+
   it("normalizes legacy string attachments identically for core reads and MCP loading", () => {
     const legacyDir = getTicketAttachmentsDirPath(TICKET_ID);
     // Legacy rows stored raw filename strings in the attachments column.

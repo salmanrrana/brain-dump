@@ -230,6 +230,16 @@ export function resolveTicketAttachmentFiles(
  * orphan-only scan when requested) instead of an exception, so audit surfaces
  * keep rendering whatever evidence still exists.
  */
+function isCorruptedAttachmentsColumn(value: string | null): boolean {
+  if (!value) return false;
+  try {
+    JSON.parse(value);
+    return false;
+  } catch {
+    return true;
+  }
+}
+
 export function readTicketAttachments(
   db: DbHandle,
   ticketId: string,
@@ -246,6 +256,12 @@ export function readTicketAttachments(
   );
   if (!row) {
     model.warnings.unshift(`Ticket not found in database: ${ticketId}`);
+  } else if (isCorruptedAttachmentsColumn(row.attachments)) {
+    // normalizeAttachments swallows the parse failure and returns []; without
+    // this warning corrupted metadata would read as "no attachments".
+    model.warnings.unshift(
+      `Ticket attachments metadata is corrupted JSON and was ignored: ${ticketId}`
+    );
   }
   return model;
 }
