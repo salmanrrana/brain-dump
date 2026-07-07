@@ -198,22 +198,46 @@ What happens:
 - Verification run failed: profile page missing avatar field
 - Verification evidence attached for failed step
 
+#### The runner is automatic
+
+Nobody runs a per-ticket verification command in the normal flow. Verification is queue-driven:
+
+1. `generate-demo` moves the ticket to `ai_verification` and enqueues exactly one durable verification job (duplicate handoffs refresh the same job row).
+2. The enqueue surface (MCP tool or CLI) spawns a detached **one-shot drain** process (`brain-dump verify worker --drain`), and every Brain Dump server boot drains the queue once at startup. One-shot processes always load the **current on-disk code**, so a long-running server never verifies with its stale boot-time module graph.
+3. The drain leases the job (one active runner per ticket), runs the full step suite, and settles the outcome: certified pass → `done` (plus epic auto-PR when the last epic ticket completes), assertion failure → findings filed and loop-back to `in_progress`, `uncertified`/`infra_error` → blocked in `ai_verification` with the reason on the ticket.
+4. If a drain dies mid-run, its lease expires and the next drain re-leases the same job — queued work survives restarts and is never duplicated.
+
+**Operator controls (debugging and tests, not the normal path):**
+
+| Control                                    | Effect                                                                     |
+| ------------------------------------------ | -------------------------------------------------------------------------- |
+| `brain-dump verify status --ticket <id>`   | Inspect the ticket's queued/running job state                              |
+| `brain-dump verify worker-status`          | Queue health: depth by status, oldest queued age, stale leases, last error |
+| `brain-dump verify worker [--drain]`       | Manually run one worker iteration / drain the queue                        |
+| `brain-dump verify run --ticket <id>`      | Direct one-off run (respects an active worker lease)                       |
+| `BRAIN_DUMP_DISABLE_VERIFICATION_WORKER=1` | Disable all automatic verification execution                               |
+| `BRAIN_DUMP_VERIFICATION_WORKER_POLL=1`    | Opt in to a resident 10s poller (long-lived CI/ops boxes; off by default)  |
+
+Verification execution is automatically disabled inside test runs (`NODE_ENV=test`/Vitest), verifier-booted app instances (`BRAIN_DUMP_VERIFY_BOOT=1`), and Playwright E2E boots — a verification boot must never recurse into the queue or keep executing frozen code.
+
+**If tickets sit in `ai_verification`:** check `brain-dump verify worker-status` for queue depth and last error, then `brain-dump doctor` for runner capability (Playwright, attachments dir, `gh` auth). A queued job with no recent drain usually means the enqueue-time spawn failed — the next server boot or handoff drains it, or run `brain-dump verify worker --drain` once yourself.
+
 ## Cross-Provider Workflow Parity
 
 Every provider class must have a non-empty way to fulfill each workflow step. MCP clients use the `workflow`, `review`, `session`, and `comment` tools directly; Pi uses the `brain-dump` CLI equivalents; hook-capable providers add local guardrails, but MCP/core preconditions remain authoritative.
 
-| Workflow step                | MCP providers: Claude Code, VS Code, Cursor, OpenCode, Copilot CLI, Codex   | CLI-only provider: Pi                                                                                                   | Hook/prompt enforcement                                                                                  |
-| ---------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| Start work                   | `workflow { action: "start-work" }`                                         | `brain-dump workflow start-work --ticket <id>`                                                                          | Claude/Copilot/Cursor-agent hooks guide state; prompt guardrails for hook-less providers                 |
-| Track session                | `session create`, `session get`, `session update-state`, `session complete` | `brain-dump session create`, `brain-dump session get`, `brain-dump session update-state`, `brain-dump session complete` | State file is written by the session tool for all providers                                              |
-| Record validation            | `comment { action: "add", commentType: "test_report" }`                     | `brain-dump comment add --type test_report --ticket <id>`                                                               | `complete-work` requires a fresh test report                                                             |
-| Complete implementation      | `workflow { action: "complete-work" }`                                      | `brain-dump workflow complete-work --ticket <id>`                                                                       | Core transition requires `in_progress -> ai_review`                                                      |
-| Submit review findings       | `review { action: "submit-finding" }`                                       | `brain-dump review submit-finding --ticket <id> ...`                                                                    | Core transition requires `ai_review`                                                                     |
-| Mark findings fixed          | `review { action: "mark-fixed" }`                                           | `brain-dump review mark-fixed --finding <id> --status fixed`                                                            | `check-complete` blocks open critical/major findings                                                     |
-| Check review completion      | `review { action: "check-complete" }`                                       | `brain-dump review check-complete --ticket <id>`                                                                        | Result exposes `canProceedToVerification`                                                                |
-| Generate demo handoff        | `review { action: "generate-demo" }`                                        | `brain-dump review generate-demo --ticket <id> --steps-file <file>`                                                     | Core transition requires `ai_review -> ai_verification`; visual/automated steps require automation specs |
-| Inspect verification history | `review { action: "get-verification-history" }`                             | `brain-dump review get-verification-history --ticket <id>` or `brain-dump verify history --ticket <id>`                 | Read-only evidence/audit surface                                                                         |
-| Run verification             | Runner/core only, not an implementing agent MCP action                      | Runner/operator entrypoint: `brain-dump verify run --ticket <id> --provider <provider>`                                 | Runner owns evidence writes and `ai_verification -> done` or failure loop-back                           |
+| Workflow step                | MCP providers: Claude Code, VS Code, Cursor, OpenCode, Copilot CLI, Codex   | CLI-only provider: Pi                                                                                                    | Hook/prompt enforcement                                                                                  |
+| ---------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| Start work                   | `workflow { action: "start-work" }`                                         | `brain-dump workflow start-work --ticket <id>`                                                                           | Claude/Copilot/Cursor-agent hooks guide state; prompt guardrails for hook-less providers                 |
+| Track session                | `session create`, `session get`, `session update-state`, `session complete` | `brain-dump session create`, `brain-dump session get`, `brain-dump session update-state`, `brain-dump session complete`  | State file is written by the session tool for all providers                                              |
+| Record validation            | `comment { action: "add", commentType: "test_report" }`                     | `brain-dump comment add --type test_report --ticket <id>`                                                                | `complete-work` requires a fresh test report                                                             |
+| Complete implementation      | `workflow { action: "complete-work" }`                                      | `brain-dump workflow complete-work --ticket <id>`                                                                        | Core transition requires `in_progress -> ai_review`                                                      |
+| Submit review findings       | `review { action: "submit-finding" }`                                       | `brain-dump review submit-finding --ticket <id> ...`                                                                     | Core transition requires `ai_review`                                                                     |
+| Mark findings fixed          | `review { action: "mark-fixed" }`                                           | `brain-dump review mark-fixed --finding <id> --status fixed`                                                             | `check-complete` blocks open critical/major findings                                                     |
+| Check review completion      | `review { action: "check-complete" }`                                       | `brain-dump review check-complete --ticket <id>`                                                                         | Result exposes `canProceedToVerification`                                                                |
+| Generate demo handoff        | `review { action: "generate-demo" }`                                        | `brain-dump review generate-demo --ticket <id> --steps-file <file>`                                                      | Core transition requires `ai_review -> ai_verification`; visual/automated steps require automation specs |
+| Inspect verification history | `review { action: "get-verification-history" }`                             | `brain-dump review get-verification-history --ticket <id>` or `brain-dump verify history --ticket <id>`                  | Read-only evidence/audit surface                                                                         |
+| Run verification             | Automatic: `generate-demo` enqueues a job; one-shot drains execute it       | Automatic (same queue); debugging entrypoints: `brain-dump verify worker --drain`, `brain-dump verify run --ticket <id>` | Runner owns evidence writes and `ai_verification -> done` or failure loop-back                           |
 
 `submit-feedback` is intentionally not part of any provider class. Manual approval is retired; hook-less providers cannot bypass verification because the core review path rejects manual demo feedback and only the verification runner performs certified completion.
 
