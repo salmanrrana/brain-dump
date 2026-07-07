@@ -472,6 +472,8 @@ export async function drainVerificationQueue(
       continue;
     }
 
+    if (isVerificationWorkerPaused(db)) break;
+
     // Nothing claimable right now. If a queued job has a retry scheduled in
     // the near future, wait for it inside the budget instead of stranding it
     // until the next enqueue. Settled assertion-failure jobs (completed_at set,

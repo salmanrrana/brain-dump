@@ -2075,6 +2075,30 @@ describe("verification worker", () => {
 });
 
 describe("verification drain (one-shot worker)", () => {
+  it("exits immediately while paused instead of waiting on pending jobs", async () => {
+    seedDemo([apiStep()]);
+    enqueueVerificationJob(db, "ticket-1", { now: "2026-03-08T01:00:00.000Z" });
+    setVerificationWorkerPaused(db, {
+      paused: true,
+      reason: "maintenance",
+      now: "2026-03-08T01:00:01.000Z",
+    });
+    const verifyTicketFn: NonNullable<VerificationWorkerOptions["verifyTicketFn"]> = vi.fn(
+      async (_db, params) => fakeWorkerRun(params)
+    );
+
+    const startedAt = Date.now();
+    const result = await drainVerificationQueue(db, {
+      followRetryBudgetMs: 10_000,
+      verifyTicketFn,
+    });
+
+    expect(Date.now() - startedAt).toBeLessThan(500);
+    expect(result.processed).toBe(0);
+    expect(verifyTicketFn).not.toHaveBeenCalled();
+    expect(getVerificationJob(db, "ticket-1")).toMatchObject({ status: "queued" });
+  });
+
   it("drains every claimable job until the queue is empty", async () => {
     seedDemo([apiStep()]);
     seedAdditionalTicket("ticket-2", [apiStep()]);
