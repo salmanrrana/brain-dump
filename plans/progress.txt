@@ -1,6 +1,13 @@
 # Ralph Progress Log
 # Previous entries archived to: archives/progress-20260315-130551.txt
 
+### 2026-07-06 ~21:15 CDT - Manual repair session (Claude Code): below-fold screenshot evidence
+- **Bug:** UI evidence screenshots only captured the viewport top. The app shell scrolls inside nested overflow containers (body is h-screen overflow-hidden), so fullPage screenshots never include content deeper in a scroll container even when a text assertion proved it exists (fd379617 step 4: handoff-repair note asserted in the comment trail, invisible in evidence).
+- **Fix (79bf85d):** runner scrolls the first text assertion's content into view (getByText for body-scoped asserts, the assert selector otherwise) before capturing the screenshot; behavioral test locks scroll-before-screenshot ordering.
+- **Evidence repair:** fd379617 reset done -> ai_verification and re-verified with the fixed runner.
+
+---
+
 ### 2026-07-06 ~20:30 CDT - Manual repair session (Claude Code): splash-only verification evidence
 - **Bug:** every certified run from 2026-07-06 carried at least one screenshot showing only the splash spinner. The server always SSRs the SplashScreen; the runner's sessionStorage splash-skip only applies after hydration, and text assertions pass against the SSR DOM underneath the overlay.
 - **Fix (e695d47):** SplashScreen exposes data-testid=app-splash; runUiStep waits for the overlay to detach before assertions/screenshots and fails the step if it never dismisses; generate-demo rejects UI steps whose only assertion is body visibility.
