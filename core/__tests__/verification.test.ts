@@ -28,7 +28,7 @@ import {
   shouldStartVerificationWorkerFromEnv,
   spawnDetachedVerificationDrain,
 } from "../verification-worker.ts";
-import type { DemoStep } from "../types.ts";
+import type { DemoStep, ExecFileNoThrowOptions } from "../types.ts";
 
 let db: Database.Database;
 let server: Server | null = null;
@@ -222,17 +222,9 @@ function invalidAutomationStep(): DemoStep {
 }
 
 function createCleanExecFileNoThrow(
-  onCommand?: (
-    command: string,
-    args: string[],
-    options?: { cwd?: string; timeoutMs?: number; maxBuffer?: number }
-  ) => void
+  onCommand?: (command: string, args: string[], options?: ExecFileNoThrowOptions) => void
 ) {
-  return async (
-    command: string,
-    args: string[],
-    options?: { cwd?: string; timeoutMs?: number; maxBuffer?: number }
-  ) => {
+  return async (command: string, args: string[], options?: ExecFileNoThrowOptions) => {
     if (command === "git" && args.join(" ") === "rev-parse HEAD") {
       return { success: true, stdout: "abc123\n", stderr: "", exitCode: 0 };
     }
@@ -689,7 +681,12 @@ describe("verifyTicket", () => {
     db.prepare("UPDATE projects SET path = ? WHERE id = 'project-1'").run(tempDir);
     writeFileSync(join(tempDir, "fixture.txt"), "file ok\n");
     seedDemo([commandStep(), fileStep()]);
-    const commandCalls: Array<{ command: string; args: string[]; cwd?: string }> = [];
+    const commandCalls: Array<{
+      command: string;
+      args: string[];
+      cwd?: string;
+      env?: NodeJS.ProcessEnv;
+    }> = [];
 
     const run = await verifyTicket(db, {
       ticketId: "ticket-1",
@@ -699,6 +696,7 @@ describe("verifyTicket", () => {
           command,
           args,
           ...(options?.cwd ? { cwd: options.cwd } : {}),
+          ...(options?.env ? { env: options.env } : {}),
         });
       }),
     });
@@ -707,7 +705,14 @@ describe("verifyTicket", () => {
     expect(run.certified).toBe(true);
     expect(run.manifest.port).toBe(0);
     expect(run.manifest.bootCommand).toEqual([]);
-    expect(commandCalls).toEqual([{ command: "node", args: ["--version"], cwd: tempDir }]);
+    expect(commandCalls).toEqual([
+      {
+        command: "node",
+        args: ["--version"],
+        cwd: tempDir,
+        env: expect.not.objectContaining({ BRAIN_DUMP_PROVIDER: expect.any(String) }),
+      },
+    ]);
     expect(run.manifest.evidenceFiles.map((file) => file.path)).toEqual(
       expect.arrayContaining([
         expect.stringContaining("step-1-command.json"),
@@ -746,6 +751,59 @@ describe("verifyTicket", () => {
     expect(commandMaxBuffer).toBe(16 * 1024 * 1024);
     expect(evidence.result.stderr.length).toBeLessThan(20_000 * "warning\n".length);
     expect(evidence.result.stderr).toContain("[truncated");
+  });
+
+  it("strips secret environment variables from command execution and redacts captured evidence", async () => {
+    db.prepare("UPDATE projects SET path = ? WHERE id = 'project-1'").run(tempDir);
+    const previousSecret = process.env.BRAIN_DUMP_TEST_SECRET_TOKEN;
+    process.env.BRAIN_DUMP_TEST_SECRET_TOKEN = "super-secret-token-value";
+    seedDemo([
+      commandStep("missing super-secret-token-value"),
+      fileStep("missing super-secret-token-value"),
+    ]);
+    writeFileSync(join(tempDir, "fixture.txt"), "file leaked super-secret-token-value\n");
+    let commandEnv: NodeJS.ProcessEnv | undefined;
+
+    try {
+      const run = await verifyTicket(db, {
+        ticketId: "ticket-1",
+        projectPath: tempDir,
+        execFileNoThrow: async (command, args, options) => {
+          if (command === "git") return createCleanExecFileNoThrow()(command, args, options);
+          commandEnv = options?.env;
+          return {
+            success: true,
+            stdout: "stdout leaked super-secret-token-value\n",
+            stderr: "Authorization: Bearer super-secret-token-value\n",
+            exitCode: 0,
+          };
+        },
+      });
+
+      const commandEvidencePath = run.manifest.stepVerdicts[0]?.evidenceFiles[0]?.path;
+      const fileEvidencePath = run.manifest.stepVerdicts[1]?.evidenceFiles[0]?.path;
+      if (!commandEvidencePath || !fileEvidencePath) throw new Error("Expected evidence files");
+      const commandEvidence = readFileSync(commandEvidencePath, "utf8");
+      const fileEvidence = readFileSync(fileEvidencePath, "utf8");
+      const finding = db
+        .prepare("SELECT description FROM review_findings WHERE ticket_id = 'ticket-1' LIMIT 1")
+        .get() as { description: string };
+
+      expect(commandEnv).not.toHaveProperty("BRAIN_DUMP_TEST_SECRET_TOKEN");
+      expect(commandEvidence).not.toContain("super-secret-token-value");
+      expect(fileEvidence).not.toContain("super-secret-token-value");
+      expect(JSON.stringify(run.manifest)).not.toContain("super-secret-token-value");
+      expect(finding.description).not.toContain("super-secret-token-value");
+      expect(commandEvidence).toContain("[redacted]");
+      expect(fileEvidence).toContain("[redacted]");
+      expect(finding.description).toContain("[redacted]");
+    } finally {
+      if (previousSecret === undefined) {
+        delete process.env.BRAIN_DUMP_TEST_SECRET_TOKEN;
+      } else {
+        process.env.BRAIN_DUMP_TEST_SECRET_TOKEN = previousSecret;
+      }
+    }
   });
 
   it("files actionable findings when command assertions fail", async () => {

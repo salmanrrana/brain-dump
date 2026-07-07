@@ -7,6 +7,7 @@ import type {
   DbHandle,
   DemoStep,
   DemoStepAutomationValue,
+  ExecFileNoThrowOptions,
   ExecFileNoThrowResult,
 } from "./types.ts";
 import type { DbDemoScriptRow, DbTicketRow } from "./db-rows.ts";
@@ -99,7 +100,7 @@ export interface VerifyTicketParams {
   execFileNoThrow?: (
     command: string,
     args: string[],
-    options?: { cwd?: string; timeoutMs?: number; maxBuffer?: number }
+    options?: ExecFileNoThrowOptions
   ) => Promise<ExecFileNoThrowResult>;
   fetchImpl?: typeof fetch;
   verificationJobLease?: VerificationJobLease;
@@ -159,6 +160,50 @@ const SPLASH_SKIP_RESULT_KEY = "__brainDumpVerificationSplashSkip";
 const SPLASH_OVERLAY_SELECTOR = '[data-testid="app-splash"]';
 const SPLASH_DISMISS_TIMEOUT_MS = 15_000;
 const SCROLL_INTO_VIEW_TIMEOUT_MS = 3_000;
+const REDACTED_SECRET = "[redacted]";
+const SECRET_ENV_KEY_PATTERN = /(SECRET|TOKEN|PASSWORD|PASS|KEY|AUTH|CREDENTIAL|COOKIE|SESSION)/i;
+const COMMAND_ENV_ALLOWLIST = ["PATH", "SystemRoot", "WINDIR", "COMSPEC", "PATHEXT"];
+
+function collectSecretEnvValues(env: NodeJS.ProcessEnv = process.env): string[] {
+  return Object.entries(env)
+    .filter(([key, value]) => SECRET_ENV_KEY_PATTERN.test(key) && typeof value === "string")
+    .map(([, value]) => value as string)
+    .filter((value) => value.length >= 4)
+    .sort((left, right) => right.length - left.length);
+}
+
+function redactSecrets(value: string): string {
+  let redacted = value;
+  for (const secret of collectSecretEnvValues()) {
+    redacted = redacted.split(secret).join(REDACTED_SECRET);
+  }
+  return redacted
+    .replace(
+      /(\b[A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|PASS|KEY|AUTH|CREDENTIAL|COOKIE|SESSION)[A-Z0-9_]*\s*[:=]\s*)([^\s"',}]+)/gi,
+      `$1${REDACTED_SECRET}`
+    )
+    .replace(/(\b(?:Bearer|Basic)\s+)([A-Za-z0-9._~+/-]+=*)/gi, `$1${REDACTED_SECRET}`);
+}
+
+function redactVerificationValue(value: unknown): unknown {
+  if (typeof value === "string") return redactSecrets(value);
+  if (Array.isArray(value)) return value.map((entry) => redactVerificationValue(entry));
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [key, redactVerificationValue(entry)])
+    );
+  }
+  return value;
+}
+
+function commandAutomationEnv(): NodeJS.ProcessEnv {
+  return Object.fromEntries(
+    COMMAND_ENV_ALLOWLIST.flatMap((key) => {
+      const value = process.env[key];
+      return typeof value === "string" ? [[key, value]] : [];
+    })
+  );
+}
 
 function truncate(value: string, limit = BODY_LIMIT): string {
   if (value.length <= limit) return value;
@@ -412,8 +457,9 @@ function evidenceDir(runId: string): string {
 
 function writeEvidence(runId: string, name: string, content: string): VerificationEvidenceFile {
   const path = join(evidenceDir(runId), name);
-  writeFileSync(path, content, { mode: 0o600 });
-  return { path, hash: hashEvidence(content, runId) };
+  const safeContent = redactSecrets(content);
+  writeFileSync(path, safeContent, { mode: 0o600 });
+  return { path, hash: hashEvidence(safeContent, runId) };
 }
 
 function packageManagerCommand(projectPath: string, packageManagerArgs: string[]): string[] {
@@ -1047,6 +1093,7 @@ async function runCommandStep(
   assertRealPathInsideProject(projectPath, cwd, `Step ${step.order} command automation cwd`);
   const result = await execFileNoThrow(command, args, {
     cwd,
+    env: commandAutomationEnv(),
     timeoutMs: automation.command.timeoutMs,
     maxBuffer: COMMAND_EXEC_BUFFER_LIMIT,
   });
@@ -1350,7 +1397,8 @@ async function buildRun(
 
   const finishedAt = new Date().toISOString();
   const certified = status === "passed";
-  const evidenceFiles = verdicts.flatMap((step) => step.evidenceFiles);
+  const safeVerdicts = redactVerificationValue(verdicts) as VerificationStepVerdict[];
+  const evidenceFiles = safeVerdicts.flatMap((step) => step.evidenceFiles);
   const manifestBase = {
     runId,
     ticketId: params.ticketId,
@@ -1364,10 +1412,10 @@ async function buildRun(
       failedBootInfo?.port ??
       (params.baseUrl ? Number(new URL(params.baseUrl).port || 80) : 0),
     bootCommand: boot?.command ?? failedBootInfo?.command ?? params.bootCommand ?? [],
-    bootLog: boot?.log() ?? failedBootInfo?.bootLog ?? "",
+    bootLog: redactSecrets(boot?.log() ?? failedBootInfo?.bootLog ?? ""),
     startedAt,
     finishedAt,
-    stepVerdicts: verdicts,
+    stepVerdicts: safeVerdicts,
     evidenceFiles,
   };
   const manifestHash = manifestHashFor(manifestBase, runId);
