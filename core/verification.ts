@@ -24,6 +24,7 @@ import {
   settleVerificationLifecycle,
   type VerificationJobLease,
 } from "./verification-lifecycle.ts";
+import { getActiveVerificationLease } from "./verification-queue.ts";
 import {
   DEMO_COMMAND_MAX_TIMEOUT_MS,
   validateNonShellArgv,
@@ -1487,6 +1488,15 @@ export async function verifyTicket(
   db: DbHandle,
   params: VerifyTicketParams
 ): Promise<VerificationRun> {
+  if (params.verificationJobLease === undefined) {
+    const activeLease = getActiveVerificationLease(db, params.ticketId);
+    if (activeLease) {
+      throw new ValidationError(
+        `Cannot run verification directly for ticket ${params.ticketId}: automatic verification job ${activeLease.jobId} is leased by ${activeLease.leasedBy} until ${activeLease.leaseExpiresAt}. Wait for the worker to finish, or inspect with brain-dump verify status --ticket ${params.ticketId}.`
+      );
+    }
+  }
+
   const demo = getDemoScriptRow(db, params.ticketId);
   const steps = parseSteps(demo);
   const run = await buildRun(db, params);

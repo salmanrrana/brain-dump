@@ -8,16 +8,31 @@ import { outputError, outputResult, showResourceHelp } from "../lib/output.ts";
 import {
   drainVerificationQueue,
   execFileNoThrow,
-  getVerificationWorkerQueueStatus,
+  getVerificationOperationsStatus,
   InvalidActionError,
   getVerificationJob,
   listVerificationRunSummaries,
+  markVerificationJobDead,
+  requeueVerificationJob,
   runNextVerificationJob,
+  setVerificationWorkerPaused,
+  summarizeVerificationJobsForOps,
   verifyTicket,
 } from "../../core/index.ts";
 import type { VerificationExecutionSurface } from "../../core/verifier-identity.ts";
 
-const ACTIONS = ["run", "history", "status", "worker", "worker-status"];
+const ACTIONS = [
+  "run",
+  "history",
+  "status",
+  "jobs",
+  "worker",
+  "worker-status",
+  "pause",
+  "resume",
+  "requeue",
+  "dead",
+];
 
 function executionSurfaceFromEnv(
   fallback: VerificationExecutionSurface
@@ -40,6 +55,11 @@ export async function handle(action: string, args: string[]): Promise<void> {
   const isStatusAction = action === "status";
   const isWorkerAction = action === "worker";
   const isWorkerStatusAction = action === "worker-status";
+  const isJobsAction = action === "jobs";
+  const isPauseAction = action === "pause";
+  const isResumeAction = action === "resume";
+  const isRequeueAction = action === "requeue";
+  const isDeadAction = action === "dead";
   const history = boolFlag(flags, "history") || isHistoryAction;
 
   if (!action || action === "--help" || action === "help") {
@@ -53,15 +73,48 @@ export async function handle(action: string, args: string[]): Promise<void> {
       action !== "run" &&
       !isHistoryAction &&
       !isStatusAction &&
+      !isJobsAction &&
       !isWorkerAction &&
-      !isWorkerStatusAction
+      !isWorkerStatusAction &&
+      !isPauseAction &&
+      !isResumeAction &&
+      !isRequeueAction &&
+      !isDeadAction
     ) {
       throw new InvalidActionError("verify", action, ACTIONS);
     }
 
     const { db } = getDb();
     if (isWorkerStatusAction) {
-      outputResult(getVerificationWorkerQueueStatus(db), pretty);
+      outputResult(getVerificationOperationsStatus(db), pretty);
+      return;
+    }
+    if (isJobsAction) {
+      outputResult(summarizeVerificationJobsForOps(db), pretty);
+      return;
+    }
+    if (isPauseAction || isResumeAction) {
+      const result = setVerificationWorkerPaused(db, {
+        paused: isPauseAction,
+        reason: optionalFlag(flags, "reason"),
+      });
+      outputResult(result, pretty);
+      return;
+    }
+    if (isRequeueAction) {
+      const result = requeueVerificationJob(db, {
+        ticketId: requireFlag(flags, "ticket"),
+        reason: optionalFlag(flags, "reason"),
+      });
+      outputResult(result, pretty);
+      return;
+    }
+    if (isDeadAction) {
+      const result = markVerificationJobDead(db, {
+        ticketId: requireFlag(flags, "ticket"),
+        reason: requireFlag(flags, "reason"),
+      });
+      outputResult(result, pretty);
       return;
     }
     if (isWorkerAction) {

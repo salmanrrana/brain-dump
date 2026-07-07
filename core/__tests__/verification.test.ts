@@ -17,9 +17,16 @@ import {
   claimNextVerificationJob,
   enqueueVerificationJob,
   getVerificationJob,
+  isVerificationWorkerPaused,
   listVerificationJobs,
   settleVerificationJob,
 } from "../verification-queue.ts";
+import {
+  getVerificationOperationsStatus,
+  markVerificationJobDead,
+  requeueVerificationJob,
+  setVerificationWorkerPaused,
+} from "../verification-ops.ts";
 import {
   drainVerificationQueue,
   getVerificationWorkerQueueStatus,
@@ -28,6 +35,7 @@ import {
   runNextVerificationJob,
   shouldStartVerificationWorkerFromEnv,
   spawnDetachedVerificationDrain,
+  type VerificationWorkerOptions,
 } from "../verification-worker.ts";
 import type { DemoStep, ExecFileNoThrowOptions } from "../types.ts";
 
@@ -1817,7 +1825,7 @@ describe("verification worker", () => {
     });
   });
 
-  it("rejects manual settlement while a worker owns the active lease", async () => {
+  it("rejects a direct verification run before booting while a worker owns the active lease", async () => {
     seedDemo([apiStep()]);
     enqueueVerificationJob(db, "ticket-1", { now: "2026-03-08T01:00:00.000Z" });
     claimNextVerificationJob(db, {
@@ -1828,7 +1836,7 @@ describe("verification worker", () => {
     const baseUrl = await startFixtureServer();
 
     await expect(verifyTicket(db, { ticketId: "ticket-1", baseUrl })).rejects.toThrow(
-      /trusted lease/
+      /automatic verification job/
     );
     expect(getVerificationJob(db, "ticket-1")).toMatchObject({
       status: "running",
@@ -1914,6 +1922,155 @@ describe("verification worker", () => {
       byStatus: { queued: 1 },
       oldestQueuedAt: "2026-03-08T01:00:00.000Z",
     });
+    expect(getVerificationOperationsStatus(db, { now: "2026-03-08T01:01:00.000Z" })).toMatchObject({
+      queue: {
+        depth: 1,
+        runnableDepth: 1,
+        byStatus: { queued: 1 },
+        oldestQueuedAgeMs: 60_000,
+      },
+      schema: { ok: true },
+    });
+  });
+
+  it("pauses and resumes worker claims with ticket audit comments but no certification", async () => {
+    seedDemo([apiStep()]);
+    enqueueVerificationJob(db, "ticket-1", { now: "2026-03-08T01:00:00.000Z" });
+
+    const paused = setVerificationWorkerPaused(db, {
+      paused: true,
+      reason: "playwright outage",
+      now: "2026-03-08T01:00:01.000Z",
+    });
+    const verifyTicketFn: NonNullable<VerificationWorkerOptions["verifyTicketFn"]> = vi.fn(
+      async (_db, params) => fakeWorkerRun(params)
+    );
+    const result = await runNextVerificationJob(db, {
+      workerId: "paused-worker",
+      verifyTicketFn,
+    });
+
+    expect(paused).toMatchObject({ paused: true, affectedTicketIds: ["ticket-1"] });
+    expect(isVerificationWorkerPaused(db)).toBe(true);
+    expect(result).toEqual({ claimed: false, workerId: "paused-worker" });
+    expect(verifyTicketFn).not.toHaveBeenCalled();
+    expect(getVerificationJob(db, "ticket-1")).toMatchObject({ status: "queued" });
+    expect(listVerificationRuns(db, "ticket-1")).toHaveLength(0);
+
+    const resumed = setVerificationWorkerPaused(db, {
+      paused: false,
+      reason: "browser fixed",
+      now: "2026-03-08T01:00:02.000Z",
+    });
+    expect(resumed).toMatchObject({ paused: false, affectedTicketIds: ["ticket-1"] });
+    expect(isVerificationWorkerPaused(db)).toBe(false);
+    expect(listVerificationRuns(db, "ticket-1")).toHaveLength(0);
+
+    const comments = db
+      .prepare("SELECT content FROM ticket_comments WHERE ticket_id = ? ORDER BY created_at ASC")
+      .all("ticket-1") as Array<{ content: string }>;
+    expect(comments.map((comment) => comment.content).join("\n")).toContain(
+      "Verification Worker Paused"
+    );
+    expect(comments.map((comment) => comment.content).join("\n")).toContain(
+      "Verification Worker Resumed"
+    );
+  });
+
+  it("dead-letters and requeues jobs with audit comments without certifying tickets", () => {
+    seedDemo([apiStep()]);
+    enqueueVerificationJob(db, "ticket-1", { now: "2026-03-08T01:00:00.000Z" });
+
+    const dead = markVerificationJobDead(db, {
+      ticketId: "ticket-1",
+      reason: "fixture removed",
+      now: "2026-03-08T01:00:01.000Z",
+    });
+    expect(dead).toMatchObject({ previousStatus: "queued", ticketBlocked: true });
+    expect(getVerificationJob(db, "ticket-1")).toMatchObject({
+      status: "dead",
+      lastError: "Verification job marked dead: fixture removed",
+    });
+    expect(
+      db.prepare("SELECT status, is_blocked FROM tickets WHERE id = 'ticket-1'").get()
+    ).toMatchObject({
+      status: "ai_verification",
+      is_blocked: 1,
+    });
+    expect(listVerificationRuns(db, "ticket-1")).toHaveLength(0);
+
+    const requeued = requeueVerificationJob(db, {
+      ticketId: "ticket-1",
+      reason: "fixture restored",
+      now: "2026-03-08T01:00:02.000Z",
+    });
+    expect(requeued).toMatchObject({ previousStatus: "dead", ticketBlocked: false });
+    expect(getVerificationJob(db, "ticket-1")).toMatchObject({
+      status: "queued",
+      attemptCount: 0,
+      lastError: null,
+      completedAt: null,
+    });
+    expect(
+      db.prepare("SELECT status, is_blocked FROM tickets WHERE id = 'ticket-1'").get()
+    ).toMatchObject({
+      status: "ai_verification",
+      is_blocked: 0,
+    });
+    expect(listVerificationRuns(db, "ticket-1")).toHaveLength(0);
+
+    const comments = db
+      .prepare("SELECT content FROM ticket_comments WHERE ticket_id = ? ORDER BY created_at ASC")
+      .all("ticket-1") as Array<{ content: string }>;
+    const commentText = comments.map((comment) => comment.content).join("\n");
+    expect(commentText).toContain("Verification Job Dead-Lettered");
+    expect(commentText).toContain("Verification Job Requeued");
+  });
+
+  it("surfaces stale leases, retrying jobs, dead letters, and schema drift for doctor output", () => {
+    seedDemo([apiStep()]);
+    const job = enqueueVerificationJob(db, "ticket-1", { now: "2026-03-08T01:00:00.000Z" });
+    claimNextVerificationJob(db, {
+      workerId: "stale-worker",
+      now: "2026-03-08T01:00:01.000Z",
+      leaseMs: 1_000,
+    });
+
+    let status = getVerificationOperationsStatus(db, {
+      now: "2026-03-08T01:00:03.000Z",
+      strandedAfterMs: 1,
+    });
+    expect(status.queue.staleRunningLeases).toBe(1);
+    expect(status.issues.map((issue) => issue.message).join("\n")).toContain("stale");
+
+    requeueVerificationJob(db, {
+      ticketId: "ticket-1",
+      reason: "lease owner crashed",
+      now: "2026-03-08T01:00:04.000Z",
+    });
+    db.prepare(
+      `UPDATE verification_jobs
+       SET status = 'failed', next_run_at = ?, last_error = 'boot retry', completed_at = NULL, updated_at = ?
+       WHERE id = ?`
+    ).run("2026-03-08T01:05:00.000Z", "2026-03-08T01:00:05.000Z", job.id);
+
+    status = getVerificationOperationsStatus(db, { now: "2026-03-08T01:00:06.000Z" });
+    expect(status.queue.retryingCount).toBe(1);
+    expect(status.queue.lastError).toBe("boot retry");
+
+    markVerificationJobDead(db, {
+      ticketId: "ticket-1",
+      reason: "unrecoverable boot loop",
+      now: "2026-03-08T01:00:07.000Z",
+    });
+    status = getVerificationOperationsStatus(db, { now: "2026-03-08T01:00:08.000Z" });
+    expect(status.queue.deadCount).toBe(1);
+    expect(status.issues.map((issue) => issue.message).join("\n")).toContain("dead-letter");
+
+    db.prepare("ALTER TABLE verification_jobs RENAME TO verification_jobs_drift").run();
+    status = getVerificationOperationsStatus(db, { now: "2026-03-08T01:00:09.000Z" });
+    expect(status.schema).toMatchObject({ ok: false, missingTables: ["verification_jobs"] });
+    expect(status.issues.some((issue) => issue.severity === "error")).toBe(true);
   });
 });
 

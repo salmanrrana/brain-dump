@@ -22,7 +22,11 @@ import {
 } from "../../src/lib/backup";
 import { fullDatabaseCheck, quickIntegrityCheck } from "../../src/lib/integrity";
 import { createCliLogger } from "../../src/lib/logger";
-import { getAttachmentsDir, getDatabaseHealth } from "../../core/index.ts";
+import {
+  getAttachmentsDir,
+  getDatabaseHealth,
+  getVerificationOperationsStatus,
+} from "../../core/index.ts";
 import type { HealthDependencies } from "../../core/index.ts";
 import { parseFlags, boolFlag } from "../lib/args.ts";
 import { outputResult, outputError, showResourceHelp } from "../lib/output.ts";
@@ -701,6 +705,65 @@ function checkVerificationCapability(issues: DoctorIssue[]): void {
         fix: "gh auth login",
       });
     }
+  }
+
+  try {
+    const { db } = getDb();
+    const status = getVerificationOperationsStatus(db);
+    console.log(
+      `  ✓ Queue depth: ${status.queue.depth} pending / ${status.queue.runnableDepth} runnable / ${status.queue.byStatus.running ?? 0} running`
+    );
+    console.log(
+      `  ${status.worker.paused ? "!" : "✓"} Worker pause: ${status.worker.paused ? "paused" : "not paused"}`
+    );
+    console.log(
+      `  ✓ Resident poller: ${status.worker.residentPollingEnabled ? "enabled" : "not enabled (one-shot drains expected)"}`
+    );
+    if (status.lastDrain) {
+      console.log(`  ✓ Last drain: ${status.lastDrain.workerId} at ${status.lastDrain.finishedAt}`);
+    } else {
+      console.log("  o Last drain: none recorded yet");
+    }
+    if (status.queue.staleRunningLeases > 0) {
+      console.log(`  ! Stale running leases: ${status.queue.staleRunningLeases}`);
+    } else {
+      console.log("  ✓ Stale running leases: 0");
+    }
+    if (
+      status.queue.deadCount > 0 ||
+      status.queue.blockedCount > 0 ||
+      status.queue.retryingCount > 0
+    ) {
+      console.log(
+        `  ! Recovery states: ${status.queue.retryingCount} retrying / ${status.queue.blockedCount} blocked / ${status.queue.deadCount} dead`
+      );
+    } else {
+      console.log("  ✓ Recovery states: none retrying, blocked, or dead");
+    }
+    if (status.schema.ok) {
+      console.log("  ✓ Verification queue schema current");
+    } else {
+      console.log("  ✗ Verification queue schema drift detected");
+    }
+    for (const issue of status.issues) {
+      console.log(`  ${issue.severity === "error" ? "✗" : "!"} ${issue.message}`);
+      console.log(`    Fix: ${issue.remediation}`);
+      issues.push({
+        environment: "Verification",
+        component: "Worker Queue",
+        message: issue.message,
+        fix: issue.remediation,
+      });
+    }
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.log(`  ✗ Verification worker queue health check failed: ${errorMsg}`);
+    issues.push({
+      environment: "Verification",
+      component: "Worker Queue",
+      message: `Queue health check failed: ${errorMsg}`,
+      fix: "Run `brain-dump verify worker-status --pretty` after fixing database access.",
+    });
   }
 
   console.log();

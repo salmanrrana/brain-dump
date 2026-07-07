@@ -153,6 +153,9 @@ export const settings = sqliteTable("settings", {
   ralphMaxIterations: integer("ralph_max_iterations").default(10), // Max iterations for Ralph loop (default: 10)
   autoCreatePr: integer("auto_create_pr", { mode: "boolean" }).default(true), // Auto-create PR when done
   epicAutoPr: integer("epic_auto_pr", { mode: "boolean" }).default(true), // Auto-create/ready PR when an epic completes
+  verificationWorkerPaused: integer("verification_worker_paused", { mode: "boolean" }).default(
+    false
+  ), // Pause automatic verification claims
   prTargetBranch: text("pr_target_branch").default("dev"), // Target branch for PRs
   defaultProjectsDirectory: text("default_projects_directory"), // Where to create new projects
   defaultWorkingMethod: text("default_working_method").default("auto"), // Default environment for new projects: 'auto' | 'claude-code' | 'vscode' | 'opencode' | 'cursor' | 'cursor-agent' | 'copilot-cli' | 'codex' | 'pi'

@@ -6,7 +6,11 @@ import { fileURLToPath } from "url";
 import type { DbHandle, ExecFileNoThrowResult } from "./types.ts";
 import { addComment } from "./comment.ts";
 import { ValidationError } from "./errors.ts";
-import { getVerificationJob, claimNextVerificationJob } from "./verification-queue.ts";
+import {
+  claimNextVerificationJob,
+  getVerificationJob,
+  isVerificationWorkerPaused,
+} from "./verification-queue.ts";
 import { verifyTicket, type VerificationRun, type VerifyTicketParams } from "./verification.ts";
 import type { VerificationExecutionSurface } from "./verifier-identity.ts";
 
@@ -50,6 +54,7 @@ export interface VerificationWorkerRunResult {
 
 export interface VerificationWorkerQueueStatus {
   enabled: boolean;
+  paused: boolean;
   queueDepth: number;
   byStatus: Record<string, number>;
   oldestQueuedAt: string | null;
@@ -324,6 +329,7 @@ export function getVerificationWorkerQueueStatus(db: DbHandle): VerificationWork
 
   return {
     enabled: shouldStartVerificationWorkerFromEnv(),
+    paused: isVerificationWorkerPaused(db),
     queueDepth: rows.filter((row) => row.status === "queued" || row.status === "failed").length,
     byStatus,
     oldestQueuedAt,

@@ -18,7 +18,7 @@ All commands output JSON by default. Add `--pretty` for human-readable output.
 | `workflow`   | Start work, complete work, start epic, launch Ralph — _start-work, complete-work, start-epic, launch-ticket, launch-epic_                                                              |
 | `comment`    | Add and list ticket comments — _add, list_                                                                                                                                             |
 | `review`     | Submit findings, generate demos, manage reviews — _submit-finding, mark-fixed, check-complete, generate-demo, get-demo, get-findings, get-verification-history, repair-legacy-handoff_ |
-| `verify`     | Run AI verification and inspect verification history — _run, history, status, worker-status, worker_                                                                                   |
+| `verify`     | Run AI verification and inspect verification history — _run, history, status, jobs, worker-status, pause, resume, requeue, dead, worker_                                               |
 | `session`    | Create, update, complete Ralph sessions — _create, update, complete, get, list, update-state, emit-event, get-events, clear-events_                                                    |
 | `git`        | Link commits, PRs, sync ticket links — _link-commit, link-pr, sync_                                                                                                                    |
 | `telemetry`  | Start, end, get, list telemetry sessions, record token usage — _start, end, get, list, log-tool, log-prompt, log-context, record-usage, recalculate-costs, deep-recalculate-costs_     |
@@ -997,9 +997,27 @@ brain-dump verify status --ticket <value> [--pretty]
 brain-dump verify status --ticket abc --pretty
 ```
 
+### brain-dump verify jobs
+
+List verification jobs for operator diagnostics
+
+```bash
+brain-dump verify jobs [--pretty]
+```
+
+| Flag       | Type    | Required | Description                           |
+| ---------- | ------- | -------- | ------------------------------------- |
+| `--pretty` | boolean | No       | Human-readable output (default: JSON) |
+
+**Examples:**
+
+```bash
+brain-dump verify jobs --pretty
+```
+
 ### brain-dump verify worker-status
 
-Show automatic verification worker queue health
+Show automatic verification worker operations health
 
 ```bash
 brain-dump verify worker-status [--pretty]
@@ -1013,6 +1031,84 @@ brain-dump verify worker-status [--pretty]
 
 ```bash
 brain-dump verify worker-status --pretty
+```
+
+### brain-dump verify pause
+
+Pause automatic verification job claims without changing evidence or verdicts
+
+```bash
+brain-dump verify pause [--reason <value>] [--pretty]
+```
+
+| Flag       | Type    | Required | Description                           |
+| ---------- | ------- | -------- | ------------------------------------- |
+| `--reason` | string  | No       | Audit reason                          |
+| `--pretty` | boolean | No       | Human-readable output (default: JSON) |
+
+**Examples:**
+
+```bash
+brain-dump verify pause --reason "playwright outage" --pretty
+```
+
+### brain-dump verify resume
+
+Resume automatic verification job claims after an operator pause
+
+```bash
+brain-dump verify resume [--reason <value>] [--pretty]
+```
+
+| Flag       | Type    | Required | Description                           |
+| ---------- | ------- | -------- | ------------------------------------- |
+| `--reason` | string  | No       | Audit reason                          |
+| `--pretty` | boolean | No       | Human-readable output (default: JSON) |
+
+**Examples:**
+
+```bash
+brain-dump verify resume --reason "playwright fixed" --pretty
+```
+
+### brain-dump verify requeue
+
+Requeue a blocked, dead, failed, queued, or stale verification job after repair
+
+```bash
+brain-dump verify requeue --ticket <value> [--reason <value>] [--pretty]
+```
+
+| Flag       | Type    | Required | Description                           |
+| ---------- | ------- | -------- | ------------------------------------- |
+| `--ticket` | string  | Yes      | Ticket ID                             |
+| `--reason` | string  | No       | Audit reason                          |
+| `--pretty` | boolean | No       | Human-readable output (default: JSON) |
+
+**Examples:**
+
+```bash
+brain-dump verify requeue --ticket abc --reason "fixed browser deps" --pretty
+```
+
+### brain-dump verify dead
+
+Mark an unrecoverable verification job dead with an audit comment
+
+```bash
+brain-dump verify dead --ticket <value> --reason <value> [--pretty]
+```
+
+| Flag       | Type    | Required | Description                           |
+| ---------- | ------- | -------- | ------------------------------------- |
+| `--ticket` | string  | Yes      | Ticket ID                             |
+| `--reason` | string  | Yes      | Audit reason                          |
+| `--pretty` | boolean | No       | Human-readable output (default: JSON) |
+
+**Examples:**
+
+```bash
+brain-dump verify dead --ticket abc --reason "fixture removed" --pretty
 ```
 
 ### brain-dump verify worker

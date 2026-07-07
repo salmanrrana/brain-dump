@@ -380,10 +380,20 @@ export {
 } from "./verification-worker.ts";
 export {
   enqueueVerificationJob,
+  getActiveVerificationLease,
   getVerificationJob,
+  isVerificationWorkerPaused,
   listVerificationJobs,
   claimNextVerificationJob,
 } from "./verification-queue.ts";
+export {
+  getVerificationOperationsStatus,
+  getVerificationSchemaHealth,
+  markVerificationJobDead,
+  requeueVerificationJob,
+  setVerificationWorkerPaused,
+  summarizeVerificationJobsForOps,
+} from "./verification-ops.ts";
 
 export type {
   VerificationRunStatus,
@@ -410,7 +420,21 @@ export type {
   VerificationWorkerRunResult,
 } from "./verification-worker.ts";
 
-export type { VerificationJob, VerificationJobStatus } from "./verification-queue.ts";
+export type {
+  ActiveVerificationLease,
+  VerificationJob,
+  VerificationJobStatus,
+} from "./verification-queue.ts";
+export type {
+  MarkVerificationJobDeadParams,
+  RequeueVerificationJobParams,
+  SetVerificationWorkerPausedParams,
+  VerificationJobControlResult,
+  VerificationOperationsStatus,
+  VerificationOpsIssue,
+  VerificationSchemaHealth,
+  VerificationWorkerLastDrain,
+} from "./verification-ops.ts";
 export type {
   VerifierIdentity,
   VerifierLegacyRunColumns,

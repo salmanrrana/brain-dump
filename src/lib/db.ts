@@ -399,6 +399,7 @@ function initSettings() {
         ralph_max_iterations INTEGER DEFAULT 10,
         auto_create_pr INTEGER DEFAULT 1,
         epic_auto_pr INTEGER DEFAULT 1,
+        verification_worker_paused INTEGER DEFAULT 0,
         pr_target_branch TEXT DEFAULT 'dev',
         default_projects_directory TEXT,
         default_working_method TEXT DEFAULT 'auto',
@@ -432,6 +433,10 @@ function initSettings() {
     if (!columns.includes("epic_auto_pr")) {
       console.log("Adding epic_auto_pr column to settings...");
       sqlite.exec("ALTER TABLE settings ADD COLUMN epic_auto_pr INTEGER DEFAULT 1");
+    }
+    if (!columns.includes("verification_worker_paused")) {
+      console.log("Adding verification_worker_paused column to settings...");
+      sqlite.exec("ALTER TABLE settings ADD COLUMN verification_worker_paused INTEGER DEFAULT 0");
     }
     if (!columns.includes("pr_target_branch")) {
       console.log("Adding pr_target_branch column to settings...");

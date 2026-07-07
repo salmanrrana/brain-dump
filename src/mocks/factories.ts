@@ -111,6 +111,7 @@ export function createMockSettings(overrides: Partial<Settings> = {}): Settings 
     ralphMaxIterations: overrides.ralphMaxIterations ?? 10,
     autoCreatePr: overrides.autoCreatePr ?? true,
     epicAutoPr: overrides.epicAutoPr ?? true,
+    verificationWorkerPaused: overrides.verificationWorkerPaused ?? false,
     prTargetBranch: overrides.prTargetBranch ?? "dev",
     defaultProjectsDirectory: overrides.defaultProjectsDirectory ?? null,
     defaultWorkingMethod: overrides.defaultWorkingMethod ?? "auto",

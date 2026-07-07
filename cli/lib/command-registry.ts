@@ -759,10 +759,59 @@ export const COMMAND_REGISTRY: CommandDef[] = [
   },
   {
     resource: "verify",
+    action: "jobs",
+    description: "List verification jobs for operator diagnostics",
+    flags: [prettyFlag],
+    examples: ["brain-dump verify jobs --pretty"],
+  },
+  {
+    resource: "verify",
     action: "worker-status",
-    description: "Show automatic verification worker queue health",
+    description: "Show automatic verification worker operations health",
     flags: [prettyFlag],
     examples: ["brain-dump verify worker-status --pretty"],
+  },
+  {
+    resource: "verify",
+    action: "pause",
+    description: "Pause automatic verification job claims without changing evidence or verdicts",
+    flags: [
+      { name: "reason", type: "string", required: false, description: "Audit reason" },
+      prettyFlag,
+    ],
+    examples: ['brain-dump verify pause --reason "playwright outage" --pretty'],
+  },
+  {
+    resource: "verify",
+    action: "resume",
+    description: "Resume automatic verification job claims after an operator pause",
+    flags: [
+      { name: "reason", type: "string", required: false, description: "Audit reason" },
+      prettyFlag,
+    ],
+    examples: ['brain-dump verify resume --reason "playwright fixed" --pretty'],
+  },
+  {
+    resource: "verify",
+    action: "requeue",
+    description: "Requeue a blocked, dead, failed, queued, or stale verification job after repair",
+    flags: [
+      ticketFlag,
+      { name: "reason", type: "string", required: false, description: "Audit reason" },
+      prettyFlag,
+    ],
+    examples: ['brain-dump verify requeue --ticket abc --reason "fixed browser deps" --pretty'],
+  },
+  {
+    resource: "verify",
+    action: "dead",
+    description: "Mark an unrecoverable verification job dead with an audit comment",
+    flags: [
+      ticketFlag,
+      { name: "reason", type: "string", required: true, description: "Audit reason" },
+      prettyFlag,
+    ],
+    examples: ['brain-dump verify dead --ticket abc --reason "fixture removed" --pretty'],
   },
   {
     resource: "verify",

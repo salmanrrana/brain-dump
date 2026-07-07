@@ -64,7 +64,14 @@ export interface SettleVerificationJobOptions {
   codeGitSha?: string | null | undefined;
 }
 
+export interface ActiveVerificationLease {
+  jobId: string;
+  leasedBy: string;
+  leaseExpiresAt: string;
+}
+
 const DEFAULT_LEASE_MS = 5 * 60 * 1000;
+const SETTINGS_ID = "default";
 
 interface DbVerificationJobRow {
   id: string;
@@ -219,6 +226,35 @@ export function getVerificationJob(db: DbHandle, ticketId: string): Verification
   return row ? toVerificationJob(row) : null;
 }
 
+export function isVerificationWorkerPaused(db: DbHandle): boolean {
+  try {
+    db.prepare("INSERT OR IGNORE INTO settings (id) VALUES (?)").run(SETTINGS_ID);
+    const row = db
+      .prepare("SELECT verification_worker_paused FROM settings WHERE id = ?")
+      .get(SETTINGS_ID) as { verification_worker_paused: number | null } | undefined;
+    return row?.verification_worker_paused === 1;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/verification_worker_paused/i.test(message)) return false;
+    throw error;
+  }
+}
+
+export function getActiveVerificationLease(
+  db: DbHandle,
+  ticketId: string
+): ActiveVerificationLease | null {
+  const job = getVerificationJob(db, ticketId);
+  if (job?.status !== "running" || job.leasedBy === null || job.leaseExpiresAt === null) {
+    return null;
+  }
+  return {
+    jobId: job.id,
+    leasedBy: job.leasedBy,
+    leaseExpiresAt: job.leaseExpiresAt,
+  };
+}
+
 export function listVerificationJobs(db: DbHandle): VerificationJob[] {
   const rows = db
     .prepare("SELECT * FROM verification_jobs ORDER BY next_run_at ASC, created_at ASC")
@@ -230,6 +266,8 @@ export function claimNextVerificationJob(
   db: DbHandle,
   options: ClaimVerificationJobOptions
 ): VerificationJob | null {
+  if (isVerificationWorkerPaused(db)) return null;
+
   const now = nowIso(options.now);
   const leaseExpiresAt = new Date(
     new Date(now).getTime() + (options.leaseMs ?? DEFAULT_LEASE_MS)
