@@ -1020,13 +1020,14 @@ brain-dump verify worker-status --pretty
 Run one automatic verification worker iteration for debugging
 
 ```bash
-brain-dump verify worker [--provider <value>] [--pretty]
+brain-dump verify worker [--drain] [--provider <value>] [--pretty]
 ```
 
-| Flag         | Type    | Required | Description                                                            |
-| ------------ | ------- | -------- | ---------------------------------------------------------------------- |
-| `--provider` | string  | No       | Provider attribution for runner evidence, stored as '<provider> ralph' |
-| `--pretty`   | boolean | No       | Human-readable output (default: JSON)                                  |
+| Flag         | Type    | Required | Description                                                                |
+| ------------ | ------- | -------- | -------------------------------------------------------------------------- |
+| `--drain`    | boolean | No       | Drain all currently runnable verification jobs instead of claiming one job |
+| `--provider` | string  | No       | Provider attribution for runner evidence, stored as '<provider> ralph'     |
+| `--pretty`   | boolean | No       | Human-readable output (default: JSON)                                      |
 
 **Examples:**
 

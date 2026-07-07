@@ -770,6 +770,12 @@ export const COMMAND_REGISTRY: CommandDef[] = [
     description: "Run one automatic verification worker iteration for debugging",
     flags: [
       {
+        name: "drain",
+        type: "boolean",
+        required: false,
+        description: "Drain all currently runnable verification jobs instead of claiming one job",
+      },
+      {
         name: "provider",
         type: "string",
         required: false,
