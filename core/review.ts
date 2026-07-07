@@ -365,6 +365,13 @@ interface DemoCoverageCriterion {
   text: string;
 }
 
+function getSubtaskCriterionText(subtask: unknown): string {
+  if (!isRecord(subtask)) return "";
+  if (typeof subtask.text === "string") return subtask.text;
+  if (typeof subtask.criterion === "string") return subtask.criterion;
+  return "";
+}
+
 function getStepLabel(step: DemoStep, index: number): string {
   return `Demo step at index ${index}${typeof step.order === "number" ? ` (order ${step.order})` : ""}`;
 }
@@ -408,16 +415,13 @@ function getDemoCoverageCriteria(ticket: DbTicketRow): DemoCoverageCriterion[] {
   }));
   const subtasks = safeJsonParse<unknown[]>(ticket.subtasks, []);
   const subtaskCriteria = subtasks.flatMap((subtask, index) => {
-    if (
-      !isRecord(subtask) ||
-      typeof subtask.text !== "string" ||
-      subtask.text.trim().length === 0
-    ) {
+    const text = getSubtaskCriterionText(subtask);
+    if (!isRecord(subtask) || text.trim().length === 0) {
       return [];
     }
     const id =
       typeof subtask.id === "string" && subtask.id.length > 0 ? subtask.id : String(index + 1);
-    return [{ id: `subtask:${id}`, text: subtask.text.trim() }];
+    return [{ id: `subtask:${id}`, text: text.trim() }];
   });
 
   return [...descriptionCriteria, ...subtaskCriteria];
@@ -444,6 +448,99 @@ export function validateProjectRelativePath(value: string, path: string): void {
   }
   if (value.split("/").some((segment) => segment === "..")) {
     throw new ValidationError(`${path} must not escape the project directory.`);
+  }
+}
+
+const COVERAGE_STOP_WORDS = new Set([
+  "able",
+  "about",
+  "after",
+  "against",
+  "also",
+  "before",
+  "cannot",
+  "could",
+  "every",
+  "from",
+  "have",
+  "into",
+  "must",
+  "only",
+  "should",
+  "that",
+  "their",
+  "there",
+  "this",
+  "through",
+  "when",
+  "where",
+  "with",
+  "without",
+]);
+
+function normalizeCoverageText(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function getCoverageTokens(value: string): string[] {
+  return normalizeCoverageText(value)
+    .split(/\s+/)
+    .filter((token) => token.length >= 4 && !COVERAGE_STOP_WORDS.has(token));
+}
+
+function collectAutomationProofText(automation: DemoStep["automation"]): string[] {
+  if (!automation) return [];
+  if (automation.kind === "ui") {
+    return [
+      automation.route,
+      ...(automation.actions ?? []).flatMap((action) => [action.selector, action.value]),
+      ...automation.assert.flatMap((assertion) => [assertion.selector, assertion.expected]),
+    ].filter((entry): entry is string => typeof entry === "string");
+  }
+  if (automation.kind === "api") {
+    return [
+      automation.request.method,
+      automation.request.path,
+      JSON.stringify(automation.request.body ?? ""),
+      ...automation.assert.map((assertion) => JSON.stringify(assertion.expected)),
+    ];
+  }
+  if (automation.kind === "command") {
+    return [
+      ...automation.command.argv,
+      automation.command.cwd ?? "",
+      ...automation.assert.map((assertion) => assertion.expected),
+    ];
+  }
+  return [
+    automation.path,
+    ...automation.assert.flatMap((assertion) =>
+      "expected" in assertion && typeof assertion.expected === "string" ? [assertion.expected] : []
+    ),
+  ];
+}
+
+function validateStepAppearsToCoverCriterion(
+  step: DemoStep,
+  criterion: DemoCoverageCriterion,
+  index: number
+): void {
+  const criterionTokens = getCoverageTokens(criterion.text);
+  if (criterionTokens.length === 0) return;
+
+  const proofText = normalizeCoverageText(
+    [step.description, step.expectedOutcome, ...collectAutomationProofText(step.automation)].join(
+      " "
+    )
+  );
+  const hasOverlap = criterionTokens.some((token) => proofText.includes(token));
+  if (!hasOverlap) {
+    throw new ValidationError(
+      `${getStepLabel(step, index)} claims to cover ${criterion.id} (${criterion.text}) but the step description, expected outcome, and automation spec do not reference that criterion. Use a more specific step or add a non-certifiable coverageRationale.`
+    );
   }
 }
 
@@ -810,28 +907,34 @@ function validateDemoCoverage(ticket: DbTicketRow, steps: DemoStep[]): void {
   const criteria = getDemoCoverageCriteria(ticket);
   if (criteria.length === 0) return;
 
-  const validCriteria = new Set(criteria.map((criterion) => criterion.id));
+  const criteriaById = new Map(criteria.map((criterion) => [criterion.id, criterion]));
   const coveredCriteria = new Set<string>();
-  let hasRationale = false;
+  const rationaleText = steps.map((step) => step.coverageRationale ?? "").join("\n");
 
   for (const [index, step] of steps.entries()) {
-    if (step.coverageRationale?.trim()) hasRationale = true;
     for (const cover of step.covers ?? []) {
       const normalized = cover.trim();
-      if (!validCriteria.has(normalized)) {
+      const criterion = criteriaById.get(normalized);
+      if (!criterion) {
         throw new ValidationError(
           `${getStepLabel(step, index)} covers unknown criterion reference "${normalized}". Valid references: ${criteria.map((criterion) => `${criterion.id} (${criterion.text})`).join("; ")}.`
         );
       }
+      validateStepAppearsToCoverCriterion(step, criterion, index);
       coveredCriteria.add(normalized);
     }
   }
 
   const missingCriteria = criteria.filter((criterion) => !coveredCriteria.has(criterion.id));
-  if (missingCriteria.length === 0 || hasRationale) return;
+  if (missingCriteria.length === 0) return;
+
+  const rationalizedMissing = missingCriteria.filter((criterion) =>
+    rationaleText.includes(criterion.id)
+  );
+  if (rationalizedMissing.length === missingCriteria.length) return;
 
   throw new ValidationError(
-    `Demo steps must cover every acceptance criterion before AI verification. Add covers references or an explicit coverageRationale. Missing coverage: ${missingCriteria.map((criterion) => `${criterion.id} (${criterion.text})`).join("; ")}.`
+    `Demo steps must cover every acceptance criterion before AI verification. Add covers references or an explicit coverageRationale that names each non-certifiable criterion id. Missing coverage: ${missingCriteria.map((criterion) => `${criterion.id} (${criterion.text})`).join("; ")}.`
   );
 }
 

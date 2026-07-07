@@ -94,6 +94,7 @@ export interface VerificationReportStep {
   expected?: string | undefined;
   actual?: string | undefined;
   coverage?: string[] | undefined;
+  coverageRationale?: string | undefined;
   evidenceAttachments?: string[] | undefined;
 }
 
@@ -150,7 +151,9 @@ function formatVerificationReportContent(params: AddVerificationReportParams): s
   );
   for (const step of params.steps) {
     const details = step.actual ?? step.expected ?? step.description ?? "See evidence";
-    const coverage = step.coverage?.length ? step.coverage.join(", ") : "-";
+    const coverageParts = step.coverage?.length ? [...step.coverage] : [];
+    if (step.coverageRationale) coverageParts.push(`Rationale: ${step.coverageRationale}`);
+    const coverage = coverageParts.length ? coverageParts.join(", ") : "-";
     const evidence = step.evidenceAttachments?.length ? step.evidenceAttachments.join(", ") : "-";
     lines.push(
       `| ${step.order} | ${step.status} | ${coverage.replace(/\|/g, "\\|")} | ${details.replace(/\|/g, "\\|")} | ${evidence} |`

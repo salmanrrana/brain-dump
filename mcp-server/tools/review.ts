@@ -208,7 +208,7 @@ No MCP action uploads evidence or marks verification passed. The verification ru
         )
         .optional()
         .describe(
-          "Demo steps. Use executable automation and covers references (criterion:1, subtask:<id>) so every acceptance criterion is proven, or include a loud coverageRationale."
+          "Demo steps. Use executable automation and covers references (criterion:1, subtask:<id>) so every acceptance criterion is proven. Use coverageRationale only for non-certifiable criteria; it must name criterion ids and keeps the run uncertified."
         ),
       demoScriptId: z.string().optional().describe("Demo script ID"),
       passed: z.boolean().optional().describe("Whether demo passed"),

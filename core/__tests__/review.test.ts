@@ -1167,23 +1167,33 @@ describe("generateDemo", () => {
   it("persists criterion coverage references for verification reports", () => {
     seedProject();
     seedAiReviewTicket();
-    setTicketDescription(
-      "ticket-1",
-      "## Acceptance Criteria\n- API status is checked\n- UI shows the ticket title"
-    );
+    setTicketDescription("ticket-1", "## Acceptance Criteria\n- API status is checked");
 
     const demo = generateDemo(db, {
       ticketId: "ticket-1",
-      steps: [{ ...automatedStep(), covers: ["criterion:1", "criterion:2"] }],
+      steps: [{ ...automatedStep(), covers: ["criterion:1"] }],
     });
 
-    expect(demo.steps[0]!.covers).toEqual(["criterion:1", "criterion:2"]);
+    expect(demo.steps[0]!.covers).toEqual(["criterion:1"]);
     const row = db
       .prepare("SELECT steps FROM demo_scripts WHERE ticket_id = ?")
       .get("ticket-1") as {
       steps: string;
     };
-    expect(JSON.parse(row.steps)[0].covers).toEqual(["criterion:1", "criterion:2"]);
+    expect(JSON.parse(row.steps)[0].covers).toEqual(["criterion:1"]);
+  });
+
+  it("rejects claimed coverage when the step does not reference the criterion", () => {
+    seedProject();
+    seedAiReviewTicket();
+    setTicketDescription("ticket-1", "## Acceptance Criteria\n- UI shows the ticket title");
+
+    expect(() =>
+      generateDemo(db, {
+        ticketId: "ticket-1",
+        steps: [{ ...automatedStep(), covers: ["criterion:1"] }],
+      })
+    ).toThrow(/claims to cover criterion:1/);
   });
 
   it("accepts a loud coverage rationale for non-certifiable criteria", () => {
@@ -1206,6 +1216,40 @@ describe("generateDemo", () => {
     });
 
     expect(demo.steps[0]!.coverageRationale).toContain("criterion:1");
+  });
+
+  it("rejects coverage rationale that does not name the missing criterion", () => {
+    seedProject();
+    seedAiReviewTicket();
+    setTicketDescription(
+      "ticket-1",
+      "## Acceptance Criteria\n- External OAuth provider is enabled"
+    );
+
+    expect(() =>
+      generateDemo(db, {
+        ticketId: "ticket-1",
+        steps: [
+          {
+            ...automatedStep(),
+            coverageRationale: "External provider setup is not certifiable in local automation.",
+          },
+        ],
+      })
+    ).toThrow(/coverageRationale that names each non-certifiable criterion id/);
+  });
+
+  it("enforces coverage for criterion-shaped subtasks", () => {
+    seedProject();
+    seedAiReviewTicket();
+    db.prepare("UPDATE tickets SET subtasks = ? WHERE id = ?").run(
+      JSON.stringify([{ id: "api-status", criterion: "API status is checked", status: "pending" }]),
+      "ticket-1"
+    );
+
+    expect(() => generateDemo(db, { ticketId: "ticket-1", steps: [automatedStep()] })).toThrow(
+      /Missing coverage: subtask:api-status \(API status is checked\)/
+    );
   });
 
   it("rejects unknown criterion coverage references", () => {

@@ -659,7 +659,7 @@ export const COMMAND_REGISTRY: CommandDef[] = [
         type: "string",
         required: true,
         description:
-          "JSON file with visual/automated demo steps, covers references (criterion:1, subtask:<id>), and UI/API/command/file automation specs",
+          "JSON file with visual/automated demo steps, covers references (criterion:1, subtask:<id>), and UI/API/command/file automation specs. coverageRationale must name non-certifiable criterion ids and keeps the run uncertified.",
       },
       prettyFlag,
     ],

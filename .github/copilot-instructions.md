@@ -28,7 +28,7 @@ Self-review the diff, submit every finding through Brain Dump, fix critical/majo
 
 ### Step 3: Demo
 
-Generate 3-7 test steps after review completion, including criterion coverage references plus automation specs for visual/automated UI, API, command, or file checks. This moves the ticket to ai_verification for runner certification.
+Generate 3-7 test steps after review completion, including criterion coverage references plus automation specs for visual/automated UI, API, command, or file checks. Use coverageRationale only for non-certifiable criteria and name each criterion id; rationale keeps the run uncertified. This moves the ticket to ai_verification for runner certification.
 
 - `review({ action: "generate-demo", ticketId, steps }) with covers references and automation specs on visual/automated steps`
 

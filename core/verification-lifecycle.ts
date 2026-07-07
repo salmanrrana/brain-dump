@@ -248,6 +248,7 @@ export function attachRunEvidenceAndReport(
       order: step.order,
       status: step.status,
       coverage: stepsByOrder.get(step.order)?.covers,
+      coverageRationale: stepsByOrder.get(step.order)?.coverageRationale,
       actual: step.message,
       evidenceAttachments: step.evidenceFiles
         .map((file) => attachmentIdsByPath.get(file.path))

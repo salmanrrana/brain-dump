@@ -1325,6 +1325,16 @@ async function buildRun(
           evidenceFiles: [],
         });
       }
+      if (steps.some((step) => step.coverageRationale?.trim())) {
+        verdicts.push({
+          order: 0,
+          status: "skipped",
+          message:
+            "Verification run uncertified because the demo includes a non-certifiable coverage rationale.",
+          durationMs: 0,
+          evidenceFiles: [],
+        });
+      }
       status = summarizeStatus(verdicts);
     }
   } catch (error) {

@@ -648,6 +648,37 @@ describe("verifyTicket", () => {
     expect(comment).toEqual({ author: "unknown ralph", type: "verification_report" });
   });
 
+  it("keeps runs with non-certifiable coverage rationale uncertified", async () => {
+    seedDemo([
+      {
+        ...apiStep(),
+        coverageRationale: "criterion:1 requires an external provider account outside automation.",
+      },
+    ]);
+    const baseUrl = await startFixtureServer();
+
+    const run = await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+
+    expect(run.status).toBe("uncertified");
+    expect(run.certified).toBe(false);
+    expect(run.manifest.stepVerdicts.at(-1)).toMatchObject({
+      order: 0,
+      status: "skipped",
+      message:
+        "Verification run uncertified because the demo includes a non-certifiable coverage rationale.",
+    });
+    const ticket = db
+      .prepare("SELECT status, is_blocked FROM tickets WHERE id = 'ticket-1'")
+      .get() as { status: string; is_blocked: number };
+    expect(ticket).toEqual({ status: "ai_verification", is_blocked: 1 });
+    const comment = db
+      .prepare("SELECT content FROM ticket_comments WHERE ticket_id = 'ticket-1'")
+      .get() as { content: string };
+    expect(comment.content).toContain(
+      "Rationale: criterion:1 requires an external provider account"
+    );
+  });
+
   it("certifies command and file steps with sealed evidence without booting an app", async () => {
     db.prepare("UPDATE projects SET path = ? WHERE id = 'project-1'").run(tempDir);
     writeFileSync(join(tempDir, "fixture.txt"), "file ok\n");
