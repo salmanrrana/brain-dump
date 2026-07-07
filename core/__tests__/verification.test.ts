@@ -1106,9 +1106,9 @@ describe("verifyTicket", () => {
       },
     };
 
-    expect(() => verificationTestInternals.attachRunEvidenceAndReport(db, run, "claude")).toThrow(
-      /evidence file is missing/
-    );
+    expect(() =>
+      verificationTestInternals.attachRunEvidenceAndReport(db, run, [apiStep()], "claude")
+    ).toThrow(/evidence file is missing/);
 
     const comments = db
       .prepare("SELECT COUNT(*) as count FROM ticket_comments WHERE ticket_id = 'ticket-1'")

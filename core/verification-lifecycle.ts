@@ -201,9 +201,11 @@ function evidenceAttachmentType(path: string): AttachmentType {
 export function attachRunEvidenceAndReport(
   db: DbHandle,
   run: VerificationRun,
+  steps: DemoStep[],
   provider: string | undefined
 ): void {
   const reportProvider = provider ?? process.env.BRAIN_DUMP_PROVIDER ?? "unknown";
+  const stepsByOrder = new Map(steps.map((step) => [step.order, step]));
   const evidenceFiles = [
     ...run.manifest.evidenceFiles,
     {
@@ -245,6 +247,7 @@ export function attachRunEvidenceAndReport(
     steps: run.manifest.stepVerdicts.map((step) => ({
       order: step.order,
       status: step.status,
+      coverage: stepsByOrder.get(step.order)?.covers,
       actual: step.message,
       evidenceAttachments: step.evidenceFiles
         .map((file) => attachmentIdsByPath.get(file.path))
@@ -393,7 +396,7 @@ export async function settleVerificationLifecycle(
 
   db.transaction(() => {
     persistRun(db, run);
-    attachRunEvidenceAndReport(db, run, params.provider);
+    attachRunEvidenceAndReport(db, run, steps, params.provider);
 
     if (run.status === "passed" && run.certified) {
       assertTicketStillInVerification(db, run.ticketId, "complete verified ticket");

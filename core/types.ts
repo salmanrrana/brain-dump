@@ -347,6 +347,10 @@ export interface DemoStep {
   expectedOutcome: string;
   type: DemoStepType;
   automation?: DemoStepAutomation | undefined;
+  /** Stable criterion/subtask references this step proves, e.g. criterion:1 or subtask:<id>. */
+  covers?: string[] | undefined;
+  /** Required when a criterion cannot be proven by executable automation. */
+  coverageRationale?: string | undefined;
   status?: "pending" | "passed" | "failed" | "skipped";
   notes?: string;
 }

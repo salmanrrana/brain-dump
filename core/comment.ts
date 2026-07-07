@@ -93,6 +93,7 @@ export interface VerificationReportStep {
   description?: string | undefined;
   expected?: string | undefined;
   actual?: string | undefined;
+  coverage?: string[] | undefined;
   evidenceAttachments?: string[] | undefined;
 }
 
@@ -142,12 +143,17 @@ function formatVerificationReportContent(params: AddVerificationReportParams): s
     lines.push(`- Manifest: ${params.manifestAttachmentId}`);
   }
 
-  lines.push("", "| Step | Status | Result | Evidence |", "| --- | --- | --- | --- |");
+  lines.push(
+    "",
+    "| Step | Status | Coverage | Result | Evidence |",
+    "| --- | --- | --- | --- | --- |"
+  );
   for (const step of params.steps) {
     const details = step.actual ?? step.expected ?? step.description ?? "See evidence";
+    const coverage = step.coverage?.length ? step.coverage.join(", ") : "-";
     const evidence = step.evidenceAttachments?.length ? step.evidenceAttachments.join(", ") : "-";
     lines.push(
-      `| ${step.order} | ${step.status} | ${details.replace(/\|/g, "\\|")} | ${evidence} |`
+      `| ${step.order} | ${step.status} | ${coverage.replace(/\|/g, "\\|")} | ${details.replace(/\|/g, "\\|")} | ${evidence} |`
     );
   }
 

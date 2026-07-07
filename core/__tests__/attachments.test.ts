@@ -130,7 +130,14 @@ describe("verification report comments", () => {
       status: "passed",
       integrityStatus: "valid",
       manifestAttachmentId: "manifest-1",
-      steps: [{ order: 1, status: "passed", actual: "API assertions passed." }],
+      steps: [
+        {
+          order: 1,
+          status: "passed",
+          coverage: ["criterion:1", "subtask:ui-audit"],
+          actual: "API assertions passed.",
+        },
+      ],
     });
     addVerificationReportComment(db, {
       ticketId: "ticket-1",
@@ -138,7 +145,14 @@ describe("verification report comments", () => {
       runId: "run-1",
       status: "failed",
       integrityStatus: "uncertified",
-      steps: [{ order: 1, status: "failed", actual: "expected status 200, got 500" }],
+      steps: [
+        {
+          order: 1,
+          status: "failed",
+          coverage: ["criterion:1", "subtask:ui-audit"],
+          actual: "expected status 200, got 500",
+        },
+      ],
     });
 
     const reports = listComments(db, "ticket-1").filter(
@@ -148,5 +162,7 @@ describe("verification report comments", () => {
     expect(reports[0]!.author).toBe("opencode ralph");
     expect(reports[0]!.content).toContain("<!-- verification-run:run-1 -->");
     expect(reports[0]!.content).toContain("expected status 200, got 500");
+    expect(reports[0]!.content).toContain("criterion:1, subtask:ui-audit");
+    expect(reports[0]!.content).toContain("| Step | Status | Coverage | Result | Evidence |");
   });
 });

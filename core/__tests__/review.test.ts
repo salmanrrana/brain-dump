@@ -47,6 +47,10 @@ function seedAiReviewTicket(id = "ticket-1", projectId = "proj-1") {
   return seedTicket(id, projectId, "ai_review");
 }
 
+function setTicketDescription(id: string, description: string): void {
+  db.prepare("UPDATE tickets SET description = ? WHERE id = ?").run(description, id);
+}
+
 function seedHumanReviewTicket(id = "ticket-1", projectId = "proj-1") {
   return seedTicket(id, projectId, "human_review");
 }
@@ -1120,6 +1124,101 @@ describe("generateDemo", () => {
         ],
       })
     ).toThrow(/must include at least one meaningful assertion/);
+  });
+
+  it("rejects UI text assertions scoped to body so evidence frames the proving element", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    expect(() =>
+      generateDemo(db, {
+        ticketId: "ticket-1",
+        steps: [
+          {
+            order: 1,
+            description: "Open the ticket detail page",
+            expectedOutcome: "The comment text is visible",
+            type: "visual",
+            automation: {
+              kind: "ui",
+              route: "/tickets/ticket-1",
+              assert: [{ type: "text", selector: "body", expected: "Important comment" }],
+              screenshot: true,
+            },
+          },
+        ],
+      })
+    ).toThrow(/must target a scoped selector instead of "body"/);
+  });
+
+  it("rejects demo handoff when acceptance criteria have no step coverage", () => {
+    seedProject();
+    seedAiReviewTicket();
+    setTicketDescription(
+      "ticket-1",
+      "## Acceptance Criteria\n- API status is checked\n- UI shows the ticket title"
+    );
+
+    expect(() => generateDemo(db, { ticketId: "ticket-1", steps: [automatedStep()] })).toThrow(
+      /Missing coverage: criterion:1 \(API status is checked\); criterion:2 \(UI shows the ticket title\)/
+    );
+  });
+
+  it("persists criterion coverage references for verification reports", () => {
+    seedProject();
+    seedAiReviewTicket();
+    setTicketDescription(
+      "ticket-1",
+      "## Acceptance Criteria\n- API status is checked\n- UI shows the ticket title"
+    );
+
+    const demo = generateDemo(db, {
+      ticketId: "ticket-1",
+      steps: [{ ...automatedStep(), covers: ["criterion:1", "criterion:2"] }],
+    });
+
+    expect(demo.steps[0]!.covers).toEqual(["criterion:1", "criterion:2"]);
+    const row = db
+      .prepare("SELECT steps FROM demo_scripts WHERE ticket_id = ?")
+      .get("ticket-1") as {
+      steps: string;
+    };
+    expect(JSON.parse(row.steps)[0].covers).toEqual(["criterion:1", "criterion:2"]);
+  });
+
+  it("accepts a loud coverage rationale for non-certifiable criteria", () => {
+    seedProject();
+    seedAiReviewTicket();
+    setTicketDescription(
+      "ticket-1",
+      "## Acceptance Criteria\n- External OAuth provider is manually enabled"
+    );
+
+    const demo = generateDemo(db, {
+      ticketId: "ticket-1",
+      steps: [
+        {
+          ...automatedStep(),
+          coverageRationale:
+            "criterion:1 requires an external provider account; automation verifies the local fallback only.",
+        },
+      ],
+    });
+
+    expect(demo.steps[0]!.coverageRationale).toContain("criterion:1");
+  });
+
+  it("rejects unknown criterion coverage references", () => {
+    seedProject();
+    seedAiReviewTicket();
+    setTicketDescription("ticket-1", "## Acceptance Criteria\n- API status is checked");
+
+    expect(() =>
+      generateDemo(db, {
+        ticketId: "ticket-1",
+        steps: [{ ...automatedStep(), covers: ["criterion:2"] }],
+      })
+    ).toThrow(/covers unknown criterion reference "criterion:2"/);
   });
 
   it("rejects API automation assertions without a defined expected value", () => {

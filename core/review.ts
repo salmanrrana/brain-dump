@@ -47,6 +47,7 @@ import {
   WorkflowTransitionError,
   type WorkflowTransitionAction,
 } from "./workflow-steps.ts";
+import { safeJsonParse } from "./json.ts";
 
 // ============================================
 // Internal Helpers
@@ -359,8 +360,67 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+interface DemoCoverageCriterion {
+  id: string;
+  text: string;
+}
+
 function getStepLabel(step: DemoStep, index: number): string {
   return `Demo step at index ${index}${typeof step.order === "number" ? ` (order ${step.order})` : ""}`;
+}
+
+function extractAcceptanceCriteria(description: string | null): string[] {
+  if (!description) return [];
+
+  const criteria: string[] = [];
+  let inCriteriaSection = false;
+
+  for (const line of description.split("\n")) {
+    const trimmed = line.trim();
+    if (/^##?\s*acceptance\s*criteria/i.test(trimmed)) {
+      inCriteriaSection = true;
+      continue;
+    }
+    if (inCriteriaSection && /^##/.test(trimmed)) {
+      inCriteriaSection = false;
+      continue;
+    }
+
+    const checkbox = trimmed.match(/^-\s*\[[ x]\]\s*(.+)/i);
+    if (checkbox?.[1]) {
+      criteria.push(checkbox[1].trim());
+      continue;
+    }
+
+    if (inCriteriaSection) {
+      const bullet = trimmed.match(/^[-*]\s+(.+)/);
+      if (bullet?.[1]) criteria.push(bullet[1].trim());
+    }
+  }
+
+  return criteria;
+}
+
+function getDemoCoverageCriteria(ticket: DbTicketRow): DemoCoverageCriterion[] {
+  const descriptionCriteria = extractAcceptanceCriteria(ticket.description).map((text, index) => ({
+    id: `criterion:${index + 1}`,
+    text,
+  }));
+  const subtasks = safeJsonParse<unknown[]>(ticket.subtasks, []);
+  const subtaskCriteria = subtasks.flatMap((subtask, index) => {
+    if (
+      !isRecord(subtask) ||
+      typeof subtask.text !== "string" ||
+      subtask.text.trim().length === 0
+    ) {
+      return [];
+    }
+    const id =
+      typeof subtask.id === "string" && subtask.id.length > 0 ? subtask.id : String(index + 1);
+    return [{ id: `subtask:${id}`, text: subtask.text.trim() }];
+  });
+
+  return [...descriptionCriteria, ...subtaskCriteria];
 }
 
 function validateAppRelativePath(value: string, path: string): void {
@@ -518,6 +578,11 @@ function validateUiAutomation(step: DemoStep, index: number): void {
     ) {
       throw new ValidationError(
         `${label} UI automation ${assertionType} assertion at index ${assertIndex} requires a non-empty expected value.`
+      );
+    }
+    if (assertionType === "text" && assertion.selector?.trim() === "body") {
+      throw new ValidationError(
+        `${label} UI automation text assertion at index ${assertIndex} must target a scoped selector instead of "body" so screenshot evidence frames the proving element.`
       );
     }
   }
@@ -722,6 +787,54 @@ function validateDemoStepAutomation(step: DemoStep, index: number): void {
   throw new ValidationError(`${label} automation kind must be "ui", "api", "command", or "file".`);
 }
 
+function validateDemoStepCoverageMetadata(step: DemoStep, index: number): void {
+  const label = getStepLabel(step, index);
+  if (step.covers !== undefined) {
+    if (!Array.isArray(step.covers)) {
+      throw new ValidationError(`${label} covers must be an array of criterion references.`);
+    }
+    for (const [coverIndex, cover] of step.covers.entries()) {
+      if (typeof cover !== "string" || cover.trim().length === 0) {
+        throw new ValidationError(`${label} covers[${coverIndex}] must be a non-empty string.`);
+      }
+    }
+  }
+  if (step.coverageRationale !== undefined) {
+    if (typeof step.coverageRationale !== "string" || step.coverageRationale.trim().length === 0) {
+      throw new ValidationError(`${label} coverageRationale must be a non-empty string.`);
+    }
+  }
+}
+
+function validateDemoCoverage(ticket: DbTicketRow, steps: DemoStep[]): void {
+  const criteria = getDemoCoverageCriteria(ticket);
+  if (criteria.length === 0) return;
+
+  const validCriteria = new Set(criteria.map((criterion) => criterion.id));
+  const coveredCriteria = new Set<string>();
+  let hasRationale = false;
+
+  for (const [index, step] of steps.entries()) {
+    if (step.coverageRationale?.trim()) hasRationale = true;
+    for (const cover of step.covers ?? []) {
+      const normalized = cover.trim();
+      if (!validCriteria.has(normalized)) {
+        throw new ValidationError(
+          `${getStepLabel(step, index)} covers unknown criterion reference "${normalized}". Valid references: ${criteria.map((criterion) => `${criterion.id} (${criterion.text})`).join("; ")}.`
+        );
+      }
+      coveredCriteria.add(normalized);
+    }
+  }
+
+  const missingCriteria = criteria.filter((criterion) => !coveredCriteria.has(criterion.id));
+  if (missingCriteria.length === 0 || hasRationale) return;
+
+  throw new ValidationError(
+    `Demo steps must cover every acceptance criterion before AI verification. Add covers references or an explicit coverageRationale. Missing coverage: ${missingCriteria.map((criterion) => `${criterion.id} (${criterion.text})`).join("; ")}.`
+  );
+}
+
 function validateDemoSteps(steps: GenerateDemoParams["steps"]): void {
   if (!Array.isArray(steps)) {
     throw new ValidationError("Demo steps must be an array.");
@@ -745,6 +858,7 @@ function validateDemoSteps(steps: GenerateDemoParams["steps"]): void {
     ) {
       throw new ValidationError(`Demo step at index ${index} is invalid.`);
     }
+    validateDemoStepCoverageMetadata(step, index);
     validateDemoStepAutomation(step, index);
   }
 }
@@ -817,10 +931,11 @@ export function repairLegacyHumanReviewHandoff(
   return { ticketId, previousStatus: "human_review", newStatus, reason };
 }
 
-function validateDemoGeneration(db: DbHandle, ticketId: string): void {
+function validateDemoGeneration(db: DbHandle, ticketId: string, steps: DemoStep[]): void {
   const ticket = getTicketRow(db, ticketId);
 
   assertTicketTransition(ticket.status, "ai_verification", "generate-demo", "generate demo script");
+  validateDemoCoverage(ticket, steps);
 
   // Check that all critical/major findings are resolved
   const findings = db
@@ -848,7 +963,7 @@ function validateDemoGeneration(db: DbHandle, ticketId: string): void {
  */
 export function validateGenerateDemo(db: DbHandle, params: GenerateDemoParams): void {
   validateDemoSteps(params.steps);
-  validateDemoGeneration(db, params.ticketId);
+  validateDemoGeneration(db, params.ticketId, params.steps);
 }
 
 /**
@@ -868,7 +983,7 @@ export function generateDemo(db: DbHandle, params: GenerateDemoParams): DemoScri
   const { ticketId, steps } = params;
 
   validateDemoSteps(steps);
-  validateDemoGeneration(db, ticketId);
+  validateDemoGeneration(db, ticketId, steps);
 
   const now = new Date().toISOString();
   const epicReviewRunId = findLatestActiveEpicReviewRunIdForTicket(db, ticketId);

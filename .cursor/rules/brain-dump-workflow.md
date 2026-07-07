@@ -15,7 +15,7 @@ Status flow: `backlog -> ready -> in_progress -> ai_review -> ai_verification ->
 
 - **Implementation**: start-work -> create or reuse a session -> implement -> validate -> commit -> complete-work. Skip this phase only when the selected ticket is already in ai_review.
 - **AI Review**: Self-review the diff, submit every finding through Brain Dump, fix critical/major findings, then check completion.
-- **Demo**: Generate 3-7 test steps after review completion, including automation specs for visual/automated UI, API, command, or file checks. This moves the ticket to ai_verification for runner certification.
+- **Demo**: Generate 3-7 test steps after review completion, including criterion coverage references plus automation specs for visual/automated UI, API, command, or file checks. This moves the ticket to ai_verification for runner certification.
 - **Stop**: Complete the Ralph session and stop. Never run verification or move the ticket to done yourself.
 
 ## Required MCP Actions
@@ -28,7 +28,7 @@ Status flow: `backlog -> ready -> in_progress -> ai_review -> ai_verification ->
 - `review({ action: "submit-finding", ticketId, agent, severity, category, description })`
 - `review({ action: "mark-fixed", findingId, fixStatus: "fixed" })`
 - `review({ action: "check-complete", ticketId })`
-- `review({ action: "generate-demo", ticketId, steps }) with automation specs on visual/automated steps`
+- `review({ action: "generate-demo", ticketId, steps }) with covers references and automation specs on visual/automated steps`
 - `session({ action: "complete", sessionId, outcome: "success" })`
 
 ## Quality Gates

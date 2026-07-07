@@ -202,11 +202,13 @@ No MCP action uploads evidence or marks verification passed. The verification ru
             expectedOutcome: z.string(),
             type: z.enum(DEMO_STEP_TYPES),
             automation: DEMO_STEP_AUTOMATION_SCHEMA.optional(),
+            covers: z.array(z.string()).optional(),
+            coverageRationale: z.string().optional(),
           })
         )
         .optional()
         .describe(
-          "Demo steps. Use automation for visual/automated steps when UI, API, command, or file behavior can be verified."
+          "Demo steps. Use executable automation and covers references (criterion:1, subtask:<id>) so every acceptance criterion is proven, or include a loud coverageRationale."
         ),
       demoScriptId: z.string().optional().describe("Demo script ID"),
       passed: z.boolean().optional().describe("Whether demo passed"),
