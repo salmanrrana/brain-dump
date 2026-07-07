@@ -13,17 +13,15 @@ import type { DbDemoScriptRow, DbTicketRow } from "./db-rows.ts";
 import { ValidationError, InvalidStateError, TicketNotFoundError } from "./errors.ts";
 import { assertTransition, isTicketStatus, WorkflowTransitionError } from "./workflow-steps.ts";
 import { getStateDir } from "./db.ts";
-import { updatePrdForDbTicketIfPresent } from "./prd-sync.ts";
-import { addComment, addVerificationReportComment } from "./comment.ts";
-import { writeAttachmentFromFile } from "./attachments.ts";
 import {
   execFileNoThrow as defaultExecFileNoThrow,
-  handleEpicCompletionAutoPr,
-  handleEpicCompletionLearnings,
   type HandleEpicCompletionAutoPrResult,
 } from "./ship.ts";
-import type { AttachmentType } from "./attachment-types.ts";
-import { settleVerificationJob, settleVerificationJobForTicket } from "./verification-queue.ts";
+import {
+  attachRunEvidenceAndReport,
+  settleVerificationLifecycle,
+  type VerificationJobLease,
+} from "./verification-lifecycle.ts";
 import {
   DEMO_COMMAND_MAX_TIMEOUT_MS,
   validateNonShellArgv,
@@ -104,11 +102,7 @@ export interface VerifyTicketParams {
     options?: { cwd?: string; timeoutMs?: number; maxBuffer?: number }
   ) => Promise<ExecFileNoThrowResult>;
   fetchImpl?: typeof fetch;
-  verificationJobLease?: {
-    jobId: string;
-    workerId: string;
-    attemptCount: number;
-  };
+  verificationJobLease?: VerificationJobLease;
 }
 
 interface BootedApp {
@@ -293,127 +287,6 @@ function parseSteps(row: DbDemoScriptRow): DemoStep[] {
     const message = error instanceof Error ? error.message : String(error);
     throw new ValidationError(`Demo script ${row.id} has corrupted steps: ${message}`);
   }
-}
-
-function stringifyEvidenceRefs(evidenceFiles: VerificationEvidenceFile[]): string {
-  if (evidenceFiles.length === 0) return "none";
-  return evidenceFiles.map((file) => `${file.path} (${file.hash})`).join(", ");
-}
-
-function severityForFailedStep(step: DemoStep | undefined): "critical" | "major" {
-  const assertions = step?.automation?.assert ?? [];
-  return assertions.some((assertion) => {
-    const extra = assertion as Record<string, unknown>;
-    return extra.severity === "critical" || extra.criticality === "critical";
-  })
-    ? "critical"
-    : "major";
-}
-
-function failedStepOrdersFromManifest(manifest: VerificationManifest): Set<number> {
-  return new Set(
-    manifest.stepVerdicts.filter((step) => step.status === "failed").map((step) => step.order)
-  );
-}
-
-function parseVerificationManifest(value: string): VerificationManifest | null {
-  try {
-    const manifest = JSON.parse(value) as Partial<VerificationManifest>;
-    if (!Array.isArray(manifest.stepVerdicts)) return null;
-    return manifest as VerificationManifest;
-  } catch {
-    return null;
-  }
-}
-
-function ensureWorkflowState(db: DbHandle, ticketId: string, phase: string, now: string): void {
-  db.prepare(
-    `INSERT OR IGNORE INTO ticket_workflow_state
-     (id, ticket_id, current_phase, review_iteration, findings_count, findings_fixed, demo_generated, created_at, updated_at)
-     VALUES (?, ?, ?, 0, 0, 0, 0, ?, ?)`
-  ).run(randomUUID(), ticketId, phase, now, now);
-}
-
-function latestThreeFailedRunsShareStep(db: DbHandle, ticketId: string): number | null {
-  const rows = db
-    .prepare(
-      `SELECT status, manifest
-       FROM verification_runs
-       WHERE ticket_id = ?
-       ORDER BY round DESC
-       LIMIT 3`
-    )
-    .all(ticketId) as Array<{ status: string; manifest: string }>;
-  if (rows.length < 3 || rows.some((row) => row.status !== "failed")) return null;
-
-  const manifests = rows.map((row) => parseVerificationManifest(row.manifest));
-  if (manifests.some((manifest) => manifest === null)) return null;
-
-  const failedOrderSets = manifests.map((manifest) => failedStepOrdersFromManifest(manifest!));
-  const [firstSet, ...remainingSets] = failedOrderSets;
-  for (const order of firstSet ?? []) {
-    if (remainingSets.every((set) => set.has(order))) return order;
-  }
-  return null;
-}
-
-function recordVerificationFindings(
-  db: DbHandle,
-  run: VerificationRun,
-  steps: DemoStep[],
-  now: string
-): void {
-  const workflowState = db
-    .prepare("SELECT review_iteration FROM ticket_workflow_state WHERE ticket_id = ?")
-    .get(run.ticketId) as { review_iteration: number } | undefined;
-  ensureWorkflowState(db, run.ticketId, "implementation", now);
-  const iteration = workflowState?.review_iteration ?? 0;
-  const stepsByOrder = new Map(steps.map((step) => [step.order, step]));
-  const failedVerdicts = run.manifest.stepVerdicts.filter((step) => step.status === "failed");
-
-  for (const verdict of failedVerdicts) {
-    const step = stepsByOrder.get(verdict.order);
-    const description = [
-      `Verification run ${run.id} failed step ${verdict.order}.`,
-      step ? `Step: ${step.description}` : null,
-      step ? `Expected: ${step.expectedOutcome}` : null,
-      `Actual: ${verdict.message}`,
-      `Evidence: ${stringifyEvidenceRefs(verdict.evidenceFiles)}`,
-    ]
-      .filter((line): line is string => Boolean(line))
-      .join("\n");
-
-    db.prepare(
-      `INSERT INTO review_findings
-       (id, ticket_id, iteration, agent, severity, category, description, status, created_at)
-       VALUES (?, ?, ?, 'code-reviewer', ?, 'verification', ?, 'open', ?)`
-    ).run(randomUUID(), run.ticketId, iteration, severityForFailedStep(step), description, now);
-  }
-
-  if (failedVerdicts.length > 0) {
-    db.prepare(
-      "UPDATE ticket_workflow_state SET findings_count = findings_count + ?, updated_at = ? WHERE ticket_id = ?"
-    ).run(failedVerdicts.length, now, run.ticketId);
-  }
-}
-
-function updateDemoStepStatusesForRun(db: DbHandle, run: VerificationRun, steps: DemoStep[]): void {
-  const verdictsByOrder = new Map(
-    run.manifest.stepVerdicts.map((verdict) => [verdict.order, verdict])
-  );
-  const updatedSteps = steps.map((step) => {
-    const verdict = verdictsByOrder.get(step.order);
-    if (!verdict) return step;
-    return {
-      ...step,
-      status: verdict.status,
-      notes: verdict.message,
-    };
-  });
-
-  db.prepare(
-    "UPDATE demo_scripts SET steps = ?, completed_at = NULL, passed = NULL WHERE ticket_id = ?"
-  ).run(JSON.stringify(updatedSteps), run.ticketId);
 }
 
 function nextRound(db: DbHandle, ticketId: string): number {
@@ -1328,161 +1201,6 @@ function summarizeStatus(verdicts: VerificationStepVerdict[]): VerificationRunSt
   return "passed";
 }
 
-function persistRun(db: DbHandle, run: VerificationRun): void {
-  db.prepare(
-    `INSERT INTO verification_runs
-     (id, ticket_id, round, status, certified, manifest, git_sha, started_at, finished_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(
-    run.id,
-    run.ticketId,
-    run.round,
-    run.status,
-    run.certified ? 1 : 0,
-    JSON.stringify(run.manifest),
-    run.gitSha,
-    run.startedAt,
-    run.finishedAt
-  );
-}
-
-function evidenceAttachmentType(path: string): AttachmentType {
-  if (path.endsWith("manifest.json")) return "verification-manifest";
-  if (path.endsWith(".png")) return "verification-screenshot";
-  return "api-evidence";
-}
-
-function attachRunEvidenceAndReport(
-  db: DbHandle,
-  run: VerificationRun,
-  provider: string | undefined
-): void {
-  const reportProvider = provider ?? process.env.BRAIN_DUMP_PROVIDER ?? "unknown";
-  const evidenceFiles = [
-    ...run.manifest.evidenceFiles,
-    {
-      path: join(getStateDir(), "verification", run.id, "manifest.json"),
-      hash: run.manifest.manifestHash,
-    },
-  ];
-  const attachmentIdsByPath = new Map<string, string>();
-
-  for (const evidence of evidenceFiles) {
-    if (!existsSync(evidence.path)) {
-      throw new ValidationError(
-        `Verification evidence file is missing and cannot be reported: ${evidence.path}`
-      );
-    }
-    const attachment = writeAttachmentFromFile(db, {
-      ticketId: run.ticketId,
-      filePath: evidence.path,
-      metadata: {
-        type: evidenceAttachmentType(evidence.path),
-        priority: "primary",
-        provider: reportProvider,
-        description: `Verification run ${run.id} evidence (${evidence.hash})`,
-      },
-    });
-    attachmentIdsByPath.set(evidence.path, attachment.id);
-  }
-
-  addVerificationReportComment(db, {
-    ticketId: run.ticketId,
-    provider: reportProvider,
-    runId: run.id,
-    status: run.status,
-    integrityStatus: run.certified ? "valid" : "uncertified",
-    manifestAttachmentId: attachmentIdsByPath.get(
-      join(getStateDir(), "verification", run.id, "manifest.json")
-    ),
-    summary: `Verification run ${run.id} ${run.status}${run.certified ? " with certified evidence" : " without certification"}.`,
-    steps: run.manifest.stepVerdicts.map((step) => ({
-      order: step.order,
-      status: step.status,
-      actual: step.message,
-      evidenceAttachments: step.evidenceFiles
-        .map((file) => attachmentIdsByPath.get(file.path))
-        .filter((id): id is string => typeof id === "string"),
-    })),
-  });
-}
-
-function completeTicketIfCertified(db: DbHandle, ticketId: string, now: string): void {
-  db.prepare(
-    `UPDATE tickets
-     SET status = 'done', completed_at = ?, updated_at = ?, is_blocked = 0, blocked_reason = NULL
-     WHERE id = ?`
-  ).run(now, now, ticketId);
-  db.prepare(
-    "UPDATE ticket_workflow_state SET current_phase = 'done', updated_at = ? WHERE ticket_id = ?"
-  ).run(now, ticketId);
-  db.prepare("UPDATE demo_scripts SET completed_at = ?, passed = 1 WHERE ticket_id = ?").run(
-    now,
-    ticketId
-  );
-  updatePrdForDbTicketIfPresent(db, ticketId, true);
-}
-
-function blockTicket(db: DbHandle, ticketId: string, reason: string, now: string): void {
-  db.prepare(
-    "UPDATE tickets SET is_blocked = 1, blocked_reason = ?, updated_at = ? WHERE id = ?"
-  ).run(reason, now, ticketId);
-}
-
-function blockTicketAfterRepeatedVerificationFailures(
-  db: DbHandle,
-  run: VerificationRun,
-  stepOrder: number,
-  now: string
-): void {
-  ensureWorkflowState(db, run.ticketId, "ai_verification", now);
-  const reason = `Verification failed 3 consecutive times on step ${stepOrder}. Latest run: ${run.id}. Evidence: ${stringifyEvidenceRefs(
-    run.manifest.stepVerdicts.find((step) => step.order === stepOrder)?.evidenceFiles ?? []
-  )}`;
-  blockTicket(db, run.ticketId, reason, now);
-  addComment(db, {
-    ticketId: run.ticketId,
-    author: "brain-dump",
-    type: "comment",
-    content: `## Needs Attention\n\n${reason}\n\nThe ticket remains in AI verification and is blocked to prevent an infinite repair loop.`,
-  });
-}
-
-function returnTicketToImplementationAfterVerificationFailure(
-  db: DbHandle,
-  run: VerificationRun,
-  now: string
-): void {
-  const ticket = getTicketRow(db, run.ticketId);
-  if (!isTicketStatus(ticket.status)) {
-    throw new InvalidStateError("ticket", ticket.status, "known ticket status", "verify-fail");
-  }
-  try {
-    assertTransition(ticket.status, "in_progress", "verify-fail");
-  } catch (error) {
-    if (error instanceof WorkflowTransitionError) {
-      throw new InvalidStateError(
-        "ticket",
-        ticket.status,
-        error.allowedFrom.join("|"),
-        "verify-fail"
-      );
-    }
-    throw error;
-  }
-
-  ensureWorkflowState(db, run.ticketId, "implementation", now);
-  db.prepare(
-    `UPDATE tickets
-     SET status = 'in_progress', completed_at = NULL, is_blocked = 0, blocked_reason = NULL, updated_at = ?
-     WHERE id = ?`
-  ).run(now, run.ticketId);
-  db.prepare(
-    "UPDATE ticket_workflow_state SET current_phase = 'implementation', demo_generated = 0, updated_at = ? WHERE ticket_id = ?"
-  ).run(now, run.ticketId);
-  updatePrdForDbTicketIfPresent(db, run.ticketId, false);
-}
-
 async function buildRun(
   db: DbHandle,
   params: VerifyTicketParams,
@@ -1611,65 +1329,16 @@ export async function verifyTicket(
   const demo = getDemoScriptRow(db, params.ticketId);
   const steps = parseSteps(demo);
   const run = await buildRun(db, params);
-  const now = run.finishedAt;
-  const shouldHandleEpicCompletion = run.status === "passed" && run.certified;
-
-  const settleJob = (
-    status: "succeeded" | "failed" | "blocked",
-    options: { error?: string; now?: string } = {}
-  ): void => {
-    if (params.verificationJobLease) {
-      settleVerificationJob(db, {
-        jobId: params.verificationJobLease.jobId,
-        workerId: params.verificationJobLease.workerId,
-        attemptCount: params.verificationJobLease.attemptCount,
-        status,
-        ...options,
-      });
-      return;
-    }
-    settleVerificationJobForTicket(db, params.ticketId, status, options);
-  };
-
-  db.transaction(() => {
-    persistRun(db, run);
-    attachRunEvidenceAndReport(db, run, params.provider);
-
-    if (run.status === "passed" && run.certified) {
-      completeTicketIfCertified(db, params.ticketId, now);
-      settleJob("succeeded", { now });
-    } else if (run.status === "failed") {
-      recordVerificationFindings(db, run, steps, now);
-      updateDemoStepStatusesForRun(db, run, steps);
-      const blockedStepOrder = latestThreeFailedRunsShareStep(db, params.ticketId);
-      if (blockedStepOrder === null) {
-        returnTicketToImplementationAfterVerificationFailure(db, run, now);
-        settleJob("failed", {
-          now,
-          error: "Verification assertions failed; ticket returned to implementation.",
-        });
-      } else {
-        blockTicketAfterRepeatedVerificationFailures(db, run, blockedStepOrder, now);
-        settleJob("blocked", {
-          now,
-          error: `Repeated verification failure on step ${blockedStepOrder}.`,
-        });
-      }
-    } else if (run.status === "uncertified" || run.status === "infra_error") {
-      const blockedReason = `Verification ${run.status}: ${run.manifest.stepVerdicts[0]?.message ?? "see manifest"}`;
-      blockTicket(db, params.ticketId, blockedReason, now);
-      settleJob("blocked", { now, error: blockedReason });
-    }
-  })();
-  if (shouldHandleEpicCompletion) {
-    handleEpicCompletionLearnings({ completedTicketId: params.ticketId }, { db });
-    const epicAutoPr = await handleEpicCompletionAutoPr(
-      { completedTicketId: params.ticketId },
-      {
-        db,
-        ...(params.execFileNoThrow ? { execFileNoThrow: params.execFileNoThrow } : {}),
-      }
-    );
+  const { epicAutoPr } = await settleVerificationLifecycle(db, {
+    run,
+    steps,
+    ...(params.provider !== undefined ? { provider: params.provider } : {}),
+    ...(params.verificationJobLease !== undefined
+      ? { verificationJobLease: params.verificationJobLease }
+      : {}),
+    ...(params.execFileNoThrow !== undefined ? { execFileNoThrow: params.execFileNoThrow } : {}),
+  });
+  if (epicAutoPr) {
     return { ...run, epicAutoPr };
   }
   return run;

@@ -58,6 +58,51 @@ function seedDemo(steps: DemoStep[]): void {
   ).run(JSON.stringify(steps), new Date().toISOString());
 }
 
+function seedAdditionalTicket(ticketId: string, steps: DemoStep[]): void {
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO tickets (id, title, status, priority, position, project_id, created_at, updated_at)
+     VALUES (?, 'Verify me too', 'ai_verification', 'high', 2, 'project-1', ?, ?)`
+  ).run(ticketId, now, now);
+  db.prepare(
+    `INSERT INTO ticket_workflow_state
+     (id, ticket_id, current_phase, review_iteration, findings_count, findings_fixed, demo_generated, created_at, updated_at)
+     VALUES (?, ?, 'ai_verification', 1, 0, 0, 1, ?, ?)`
+  ).run(`state-${ticketId}`, ticketId, now, now);
+  db.prepare(
+    `INSERT INTO demo_scripts (id, ticket_id, steps, generated_at)
+     VALUES (?, ?, ?, ?)`
+  ).run(`demo-${ticketId}`, ticketId, JSON.stringify(steps), now);
+}
+
+function lifecycleSnapshot(ticketId: string): Record<string, unknown> {
+  const ticket = db
+    .prepare("SELECT status, is_blocked FROM tickets WHERE id = ?")
+    .get(ticketId) as { status: string; is_blocked: number };
+  const run = db
+    .prepare("SELECT status, certified FROM verification_runs WHERE ticket_id = ?")
+    .get(ticketId) as { status: string; certified: number };
+  const reportCount = db
+    .prepare(
+      "SELECT COUNT(*) as count FROM ticket_comments WHERE ticket_id = ? AND type = 'verification_report'"
+    )
+    .get(ticketId) as { count: number };
+  const findingCount = db
+    .prepare(
+      "SELECT COUNT(*) as count FROM review_findings WHERE ticket_id = ? AND category = 'verification'"
+    )
+    .get(ticketId) as { count: number };
+
+  return {
+    ticketStatus: ticket.status,
+    isBlocked: ticket.is_blocked,
+    runStatus: run.status,
+    certified: run.certified,
+    verificationReportCount: reportCount.count,
+    verificationFindingCount: findingCount.count,
+  };
+}
+
 function seedPassedVerificationRun(ticketId: string, gitSha: string): void {
   db.prepare(
     `INSERT INTO verification_runs (
@@ -149,6 +194,24 @@ function fileStep(expected = "file ok"): DemoStep {
       path: "fixture.txt",
       assert: [{ type: "contains", expected }],
     },
+  };
+}
+
+function manualStep(): DemoStep {
+  return {
+    order: 1,
+    description: "Manual inspection",
+    expectedOutcome: "Human can inspect",
+    type: "manual",
+  };
+}
+
+function invalidAutomationStep(): DemoStep {
+  return {
+    order: 1,
+    description: "Broken automation",
+    expectedOutcome: "Runner reports infrastructure error",
+    type: "automated",
   };
 }
 
@@ -1034,6 +1097,33 @@ describe("verification queue", () => {
 });
 
 describe("verification worker", () => {
+  it.each([
+    { name: "pass", steps: [apiStep()], expectedStatus: "passed" },
+    { name: "assertion failure", steps: [apiStep(201)], expectedStatus: "failed" },
+    { name: "uncertified", steps: [manualStep()], expectedStatus: "uncertified" },
+    { name: "infra error", steps: [invalidAutomationStep()], expectedStatus: "infra_error" },
+  ])(
+    "persists the same lifecycle state for direct and worker $name outcomes",
+    async ({ steps, expectedStatus }) => {
+      seedDemo(steps);
+      seedAdditionalTicket("ticket-2", steps);
+      enqueueVerificationJob(db, "ticket-2", { now: "2026-03-08T01:00:00.000Z" });
+      const baseUrl = await startFixtureServer();
+
+      const directRun = await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+      const workerResult = await runNextVerificationJob(db, {
+        workerId: "worker-1",
+        baseUrl,
+        maxInfraAttempts: 1,
+        now: () => new Date("2026-03-08T01:00:01.000Z"),
+      });
+
+      expect(directRun.status).toBe(expectedStatus);
+      expect(workerResult.runStatus).toBe(expectedStatus);
+      expect(lifecycleSnapshot("ticket-2")).toEqual(lifecycleSnapshot("ticket-1"));
+    }
+  );
+
   it("claims a queued job and verifies it without a per-ticket command", async () => {
     seedDemo([apiStep()]);
     enqueueVerificationJob(db, "ticket-1", { now: "2026-03-08T01:00:00.000Z" });
