@@ -601,6 +601,40 @@ describe("generateDemo", () => {
     });
   });
 
+  it("does not execute automation while generating the demo handoff", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    const demo = generateDemo(db, {
+      ticketId: "ticket-1",
+      steps: [
+        {
+          order: 1,
+          description: "Queue verification without running the command yet",
+          expectedOutcome:
+            "The command automation is persisted for the runner instead of executed inline",
+          type: "automated",
+          automation: {
+            kind: "command",
+            command: {
+              argv: ["node", "scripts/nonexistent-verification-step.js"],
+              timeoutMs: 1_000,
+              expectedExitCode: 0,
+            },
+            assert: [{ type: "stdoutContains", expected: "runner-only output" }],
+          },
+        },
+      ],
+    });
+
+    expect(demo.steps[0]!.automation).toMatchObject({ kind: "command" });
+    expect(getVerificationJob(db, "ticket-1")).toMatchObject({
+      demoScriptId: demo.id,
+      status: "queued",
+      attemptCount: 0,
+    });
+  });
+
   it("accepts and persists UI automation specs for visual steps", () => {
     seedProject();
     seedAiReviewTicket();
