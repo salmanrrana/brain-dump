@@ -141,6 +141,13 @@
       "when": 1783345532579,
       "tag": "0019_fluffy_logan",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1783406558930,
+      "tag": "0020_dark_firelord",
+      "breakpoints": true
     }
   ]
 }

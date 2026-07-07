@@ -639,6 +639,12 @@ function initReviewWorkflowTables() {
         certified INTEGER NOT NULL DEFAULT 0,
         manifest TEXT NOT NULL,
         git_sha TEXT,
+        provider TEXT,
+        actor TEXT,
+        provider_source TEXT,
+        execution_surface TEXT,
+        worker_id TEXT,
+        code_git_sha TEXT,
         started_at TEXT NOT NULL,
         finished_at TEXT NOT NULL
       )
@@ -667,6 +673,12 @@ function initReviewWorkflowTables() {
         last_error TEXT,
         leased_by TEXT,
         lease_expires_at TEXT,
+        provider TEXT,
+        actor TEXT,
+        provider_source TEXT,
+        execution_surface TEXT,
+        worker_id TEXT,
+        code_git_sha TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at TEXT NOT NULL DEFAULT (datetime('now')),
         completed_at TEXT
@@ -683,6 +695,14 @@ function initReviewWorkflowTables() {
   sqlite.exec(
     `CREATE INDEX IF NOT EXISTS idx_verification_jobs_demo ON verification_jobs (demo_script_id)`
   );
+  for (const tableName of ["verification_runs", "verification_jobs"]) {
+    ensureColumnExists(tableName, "provider", "TEXT");
+    ensureColumnExists(tableName, "actor", "TEXT");
+    ensureColumnExists(tableName, "provider_source", "TEXT");
+    ensureColumnExists(tableName, "execution_surface", "TEXT");
+    ensureColumnExists(tableName, "worker_id", "TEXT");
+    ensureColumnExists(tableName, "code_git_sha", "TEXT");
+  }
 
   const epicReviewRunsExists = sqlite
     .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='epic_review_runs'")
@@ -967,7 +987,7 @@ function scheduleVerificationWorker(): void {
   if (shouldStartVerificationWorkerFromEnv()) {
     setTimeout(() => {
       try {
-        startVerificationWorker(sqlite, { execFileNoThrow });
+        startVerificationWorker(sqlite, { execFileNoThrow, executionSurface: "resident-poller" });
         console.log("[VerificationWorker] Started resident polling worker (opt-in)");
       } catch (error) {
         console.error("[VerificationWorker] Failed to start:", error);
@@ -982,7 +1002,7 @@ function scheduleVerificationWorker(): void {
   // then nothing runs until an enqueue spawns a one-shot drain. Boot-time
   // in-process execution is safe — the module graph is fresh at boot.
   setTimeout(() => {
-    drainVerificationQueue(sqlite, { execFileNoThrow })
+    drainVerificationQueue(sqlite, { execFileNoThrow, executionSurface: "boot-drain" })
       .then((result) => {
         if (result.processed > 0) {
           console.log(`[VerificationWorker] Boot drain processed ${result.processed} job(s)`);

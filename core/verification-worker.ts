@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { spawn } from "child_process";
+import { spawn, type SpawnOptions } from "child_process";
 import { existsSync } from "fs";
 import { join } from "path";
 import { fileURLToPath } from "url";
@@ -8,6 +8,7 @@ import { addComment } from "./comment.ts";
 import { ValidationError } from "./errors.ts";
 import { getVerificationJob, claimNextVerificationJob } from "./verification-queue.ts";
 import { verifyTicket, type VerificationRun, type VerifyTicketParams } from "./verification.ts";
+import type { VerificationExecutionSurface } from "./verifier-identity.ts";
 
 interface ClaimedJobLease {
   jobId: string;
@@ -19,6 +20,7 @@ interface ClaimedJobLease {
 export interface VerificationWorkerOptions {
   workerId?: string;
   provider?: string;
+  executionSurface?: VerificationExecutionSurface;
   projectPath?: string;
   baseUrl?: string;
   intervalMs?: number;
@@ -212,6 +214,7 @@ export async function runNextVerificationJob(
     const run = await verify(db, {
       ticketId: job.ticketId,
       ...(options.provider !== undefined ? { provider: options.provider } : {}),
+      executionSurface: options.executionSurface ?? "enqueue-drain",
       ...(options.projectPath !== undefined ? { projectPath: options.projectPath } : {}),
       ...(options.baseUrl !== undefined ? { baseUrl: options.baseUrl } : {}),
       ...(options.execFileNoThrow !== undefined
@@ -381,7 +384,11 @@ export function startVerificationWorker(
     lastStartedAt = nowIso(options.now);
     let nextDelayMs = intervalMs;
     try {
-      const result = await runNextVerificationJob(db, { ...options, workerId });
+      const result = await runNextVerificationJob(db, {
+        ...options,
+        workerId,
+        executionSurface: options.executionSurface ?? "resident-poller",
+      });
       if (result.claimed) processedCount += 1;
       if (result.error) lastWorkerError = result.error;
       nextDelayMs = result.claimed ? 0 : intervalMs;
@@ -446,7 +453,11 @@ export async function drainVerificationQueue(
   let lastError: string | null = null;
 
   for (;;) {
-    const result = await runNextVerificationJob(db, { ...options, workerId });
+    const result = await runNextVerificationJob(db, {
+      ...options,
+      workerId,
+      executionSurface: options.executionSurface ?? "boot-drain",
+    });
     if (result.error) lastError = result.error;
     if (result.claimed) {
       processed += 1;
@@ -465,7 +476,9 @@ export async function drainVerificationQueue(
     const nowMs = (options.now?.() ?? new Date()).getTime();
     const waitMs = Math.max(nextMs - nowMs, 250);
     if (nowMs + waitMs - startedAtMs > followRetryBudgetMs) break;
-    await new Promise((resolve) => setTimeout(resolve, Math.min(waitMs, DRAIN_RETRY_WAIT_CHUNK_MS)));
+    await new Promise((resolve) =>
+      setTimeout(resolve, Math.min(waitMs, DRAIN_RETRY_WAIT_CHUNK_MS))
+    );
   }
 
   return { workerId, processed, lastError };
@@ -473,7 +486,7 @@ export async function drainVerificationQueue(
 
 export interface SpawnVerificationDrainOptions {
   brainDumpRoot: string;
-  spawnImpl?: typeof spawn;
+  spawnImpl?: (command: string, args: string[], options: SpawnOptions) => ReturnType<typeof spawn>;
   logError?: (message: string) => void;
 }
 
@@ -484,7 +497,7 @@ export interface SpawnVerificationDrainResult {
 }
 
 /**
- * Launch a detached one-shot `brain-dump verify worker --drain` process.
+ * Launch a detached one-shot verification drain process.
  *
  * The spawned process loads CURRENT on-disk code, so a long-running server
  * that enqueues a job never executes verification with its boot-time module
@@ -497,12 +510,20 @@ export function spawnDetachedVerificationDrain(
 ): SpawnVerificationDrainResult {
   const spawnImpl = options.spawnImpl ?? spawn;
   try {
-    const child = spawnImpl("pnpm", ["brain-dump", "verify", "worker", "--drain"], {
-      cwd: options.brainDumpRoot,
-      detached: process.platform !== "win32",
-      stdio: "ignore",
-      env: { ...process.env, BRAIN_DUMP_DISABLE_DB_STARTUP_TASKS: "1" },
-    });
+    const child = spawnImpl(
+      process.execPath,
+      ["--import", "tsx", "cli/brain-dump.ts", "verify", "worker", "--drain"],
+      {
+        cwd: options.brainDumpRoot,
+        detached: process.platform !== "win32",
+        stdio: "ignore",
+        env: {
+          ...process.env,
+          BRAIN_DUMP_DISABLE_DB_STARTUP_TASKS: "1",
+          BRAIN_DUMP_VERIFICATION_SURFACE: "enqueue-drain",
+        },
+      }
+    );
     child.unref?.();
     return { spawned: true, ...(child.pid !== undefined ? { pid: child.pid } : {}) };
   } catch (error) {

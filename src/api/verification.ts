@@ -7,6 +7,7 @@ import {
   type VerificationManifest,
   type VerificationRunStatus,
 } from "../../core/verification.ts";
+import type { VerifierIdentity } from "../../core/verifier-identity.ts";
 import { verificationJobs, verificationRuns } from "../lib/schema";
 
 export type {
@@ -30,6 +31,7 @@ export interface VerificationRunSummary {
   startedAt: string;
   finishedAt: string;
   durationMs: number;
+  verifier: VerifierIdentity | null;
   manifest: VerificationManifest | null;
 }
 
@@ -75,6 +77,7 @@ export const getVerificationRuns = createServerFn({ method: "GET" })
         startedAt: row.startedAt,
         finishedAt: row.finishedAt,
         durationMs: durationMs(row.startedAt, row.finishedAt),
+        verifier: manifest?.verifier ?? null,
         manifest,
       };
     });

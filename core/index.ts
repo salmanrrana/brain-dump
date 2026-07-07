@@ -383,6 +383,11 @@ export type {
 } from "./verification-worker.ts";
 
 export type { VerificationJob, VerificationJobStatus } from "./verification-queue.ts";
+export type {
+  VerifierIdentity,
+  VerificationExecutionSurface,
+  VerificationProviderSource,
+} from "./verifier-identity.ts";
 
 // Session & event business logic
 export {

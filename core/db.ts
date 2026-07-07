@@ -409,6 +409,12 @@ function ensureBaseSchema(db: DbHandle, logger: Logger): void {
       certified INTEGER NOT NULL DEFAULT 0,
       manifest TEXT NOT NULL,
       git_sha TEXT,
+      provider TEXT,
+      actor TEXT,
+      provider_source TEXT,
+      execution_surface TEXT,
+      worker_id TEXT,
+      code_git_sha TEXT,
       started_at TEXT NOT NULL,
       finished_at TEXT NOT NULL
     );
@@ -775,6 +781,12 @@ export function runMigrations(db: DbHandle, logger: Logger = silentLogger): void
         certified INTEGER NOT NULL DEFAULT 0,
         manifest TEXT NOT NULL,
         git_sha TEXT,
+        provider TEXT,
+        actor TEXT,
+        provider_source TEXT,
+        execution_surface TEXT,
+        worker_id TEXT,
+        code_git_sha TEXT,
         started_at TEXT NOT NULL,
         finished_at TEXT NOT NULL
       )
@@ -788,6 +800,12 @@ export function runMigrations(db: DbHandle, logger: Logger = silentLogger): void
   db.prepare(
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_verification_runs_round ON verification_runs(ticket_id, round)"
   ).run();
+  addColumnIfMissing(db, "verification_runs", "provider", "TEXT", logger);
+  addColumnIfMissing(db, "verification_runs", "actor", "TEXT", logger);
+  addColumnIfMissing(db, "verification_runs", "provider_source", "TEXT", logger);
+  addColumnIfMissing(db, "verification_runs", "execution_surface", "TEXT", logger);
+  addColumnIfMissing(db, "verification_runs", "worker_id", "TEXT", logger);
+  addColumnIfMissing(db, "verification_runs", "code_git_sha", "TEXT", logger);
 
   if (!tableExists(db, "verification_jobs")) {
     db.prepare(
@@ -802,6 +820,12 @@ export function runMigrations(db: DbHandle, logger: Logger = silentLogger): void
         last_error TEXT,
         leased_by TEXT,
         lease_expires_at TEXT,
+        provider TEXT,
+        actor TEXT,
+        provider_source TEXT,
+        execution_surface TEXT,
+        worker_id TEXT,
+        code_git_sha TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at TEXT NOT NULL DEFAULT (datetime('now')),
         completed_at TEXT
@@ -819,6 +843,12 @@ export function runMigrations(db: DbHandle, logger: Logger = silentLogger): void
   db.prepare(
     "CREATE INDEX IF NOT EXISTS idx_verification_jobs_demo ON verification_jobs(demo_script_id)"
   ).run();
+  addColumnIfMissing(db, "verification_jobs", "provider", "TEXT", logger);
+  addColumnIfMissing(db, "verification_jobs", "actor", "TEXT", logger);
+  addColumnIfMissing(db, "verification_jobs", "provider_source", "TEXT", logger);
+  addColumnIfMissing(db, "verification_jobs", "execution_surface", "TEXT", logger);
+  addColumnIfMissing(db, "verification_jobs", "worker_id", "TEXT", logger);
+  addColumnIfMissing(db, "verification_jobs", "code_git_sha", "TEXT", logger);
 
   // Ralph events table
   if (!tableExists(db, "ralph_events")) {

@@ -15,8 +15,21 @@ import {
   runNextVerificationJob,
   verifyTicket,
 } from "../../core/index.ts";
+import type { VerificationExecutionSurface } from "../../core/verifier-identity.ts";
 
 const ACTIONS = ["run", "history", "status", "worker", "worker-status"];
+
+function executionSurfaceFromEnv(
+  fallback: VerificationExecutionSurface
+): VerificationExecutionSurface {
+  const value = process.env.BRAIN_DUMP_VERIFICATION_SURFACE;
+  return value === "boot-drain" ||
+    value === "enqueue-drain" ||
+    value === "resident-poller" ||
+    value === "cli-direct"
+    ? value
+    : fallback;
+}
 
 export async function handle(action: string, args: string[]): Promise<void> {
   const normalizedArgs = action.startsWith("--") ? [action, ...args] : args;
@@ -56,6 +69,7 @@ export async function handle(action: string, args: string[]): Promise<void> {
       if (boolFlag(flags, "drain")) {
         const result = await drainVerificationQueue(db, {
           ...(provider !== undefined ? { provider } : {}),
+          executionSurface: executionSurfaceFromEnv("boot-drain"),
           execFileNoThrow,
         });
         outputResult(result, pretty);
@@ -64,6 +78,7 @@ export async function handle(action: string, args: string[]): Promise<void> {
       }
       const result = await runNextVerificationJob(db, {
         ...(provider !== undefined ? { provider } : {}),
+        executionSurface: executionSurfaceFromEnv("resident-poller"),
         execFileNoThrow,
       });
       outputResult(result, pretty);
@@ -90,6 +105,7 @@ export async function handle(action: string, args: string[]): Promise<void> {
       ticketId,
       ...(provider !== undefined ? { provider } : {}),
       ...(baseUrl !== undefined ? { baseUrl } : {}),
+      executionSurface: "cli-direct",
       execFileNoThrow,
     });
     outputResult(result, pretty);

@@ -29,6 +29,12 @@ import {
   validateProjectRelativePath,
   validateSafeAutomationFilePath,
 } from "./review.ts";
+import {
+  resolveVerifierIdentity,
+  type VerifierIdentity,
+  type VerificationExecutionSurface,
+  type VerificationProviderSource,
+} from "./verifier-identity.ts";
 
 export type VerificationRunStatus = "passed" | "failed" | "uncertified" | "infra_error";
 export type VerificationStepStatus = "passed" | "failed" | "skipped";
@@ -75,6 +81,7 @@ export interface VerificationManifest {
   finishedAt: string;
   stepVerdicts: VerificationStepVerdict[];
   evidenceFiles: VerificationEvidenceFile[];
+  verifier: VerifierIdentity;
   manifestHash: string;
 }
 
@@ -86,6 +93,7 @@ export interface VerificationRun {
   certified: boolean;
   manifest: VerificationManifest;
   gitSha: string | null;
+  identity: VerifierIdentity;
   startedAt: string;
   finishedAt: string;
   epicAutoPr?: HandleEpicCompletionAutoPrResult;
@@ -105,6 +113,7 @@ export interface VerifyTicketParams {
   ) => Promise<ExecFileNoThrowResult>;
   fetchImpl?: typeof fetch;
   verificationJobLease?: VerificationJobLease;
+  executionSurface?: VerificationExecutionSurface;
 }
 
 interface BootedApp {
@@ -360,15 +369,33 @@ function toVerificationRun(row: {
   git_sha: string | null;
   started_at: string;
   finished_at: string;
+  provider?: string | null;
+  actor?: string | null;
+  provider_source?: VerificationProviderSource | null;
+  execution_surface?: VerificationExecutionSurface | null;
+  worker_id?: string | null;
+  code_git_sha?: string | null;
 }): VerificationRun {
+  const manifest = JSON.parse(row.manifest) as VerificationManifest;
+  const identity =
+    manifest.verifier ??
+    ({
+      provider: row.provider ?? "unknown",
+      actor: (row.actor ?? "unknown ralph") as `${string} ralph`,
+      providerSource: row.provider_source ?? "unknown",
+      executionSurface: row.execution_surface ?? "cli-direct",
+      workerId: row.worker_id ?? null,
+      codeGitSha: row.code_git_sha ?? row.git_sha,
+    } satisfies VerifierIdentity);
   return {
     id: row.id,
     ticketId: row.ticket_id,
     round: row.round,
     status: row.status as VerificationRunStatus,
     certified: row.certified === 1,
-    manifest: JSON.parse(row.manifest) as VerificationManifest,
+    manifest,
     gitSha: row.git_sha,
+    identity,
     startedAt: row.started_at,
     finishedAt: row.finished_at,
   };
@@ -1336,6 +1363,14 @@ async function buildRun(
   const timeoutMs = params.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const execFileNoThrow = params.execFileNoThrow ?? defaultExecFileNoThrow;
   const gitInfo = await getGitInfo(actualProjectPath, execFileNoThrow);
+  const identity = resolveVerifierIdentity(db, {
+    ticketId: params.ticketId,
+    provider: params.provider,
+    executionSurface:
+      params.executionSurface ?? (params.verificationJobLease ? "enqueue-drain" : "cli-direct"),
+    workerId: params.verificationJobLease?.workerId,
+    codeGitSha: gitInfo.sha,
+  });
   let boot: BootedApp | null = null;
   let failedBootInfo: FailedBootInfo | null = null;
   let verdicts: VerificationStepVerdict[] = [];
@@ -1420,6 +1455,7 @@ async function buildRun(
     finishedAt,
     stepVerdicts: safeVerdicts,
     evidenceFiles,
+    verifier: identity,
   };
   const manifestHash = manifestHashFor(manifestBase, runId);
   const manifest = { ...manifestBase, manifestHash };
@@ -1433,6 +1469,7 @@ async function buildRun(
     certified,
     manifest,
     gitSha: gitInfo.sha,
+    identity,
     startedAt,
     finishedAt,
   };
@@ -1448,7 +1485,7 @@ export async function verifyTicket(
   const { epicAutoPr } = await settleVerificationLifecycle(db, {
     run,
     steps,
-    ...(params.provider !== undefined ? { provider: params.provider } : {}),
+    identity: run.identity,
     ...(params.verificationJobLease !== undefined
       ? { verificationJobLease: params.verificationJobLease }
       : {}),
@@ -1474,6 +1511,12 @@ export function listVerificationRuns(db: DbHandle, ticketId: string): Verificati
     git_sha: string | null;
     started_at: string;
     finished_at: string;
+    provider?: string | null;
+    actor?: string | null;
+    provider_source?: VerificationProviderSource | null;
+    execution_surface?: VerificationExecutionSurface | null;
+    worker_id?: string | null;
+    code_git_sha?: string | null;
   }>;
   return rows.map(toVerificationRun);
 }

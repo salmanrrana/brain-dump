@@ -34,6 +34,20 @@ let db: Database.Database;
 let server: Server | null = null;
 let tempDir: string;
 let previousXdgDataHome: string | undefined;
+let previousProviderEnv: Record<string, string | undefined> = {};
+
+const PROVIDER_ENV_KEYS = [
+  "BRAIN_DUMP_RALPH_PROVIDER",
+  "BRAIN_DUMP_PROVIDER",
+  "OPENCODE",
+  "CURSOR_AGENT",
+  "COPILOT_CLI",
+  "CODEX",
+  "CURSOR",
+  "PI",
+  "CLAUDE_CODE",
+  "CLAUDE_CODE_ENTRYPOINT",
+];
 
 function seedProject(): void {
   db.prepare("INSERT INTO projects (id, name, path, created_at) VALUES (?, ?, ?, ?)").run(
@@ -257,6 +271,8 @@ async function startFixtureServer(status = 200): Promise<string> {
 
 beforeEach(() => {
   previousXdgDataHome = process.env.XDG_DATA_HOME;
+  previousProviderEnv = Object.fromEntries(PROVIDER_ENV_KEYS.map((key) => [key, process.env[key]]));
+  for (const key of PROVIDER_ENV_KEYS) delete process.env[key];
   tempDir = mkdtempSync(join(tmpdir(), "brain-dump-verification-"));
   process.env.XDG_DATA_HOME = tempDir;
   db = createTestDatabase().db;
@@ -278,6 +294,14 @@ afterEach(async () => {
     delete process.env.XDG_DATA_HOME;
   } else {
     process.env.XDG_DATA_HOME = previousXdgDataHome;
+  }
+  for (const key of PROVIDER_ENV_KEYS) {
+    const value = previousProviderEnv[key];
+    if (value === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = value;
+    }
   }
   rmSync(tempDir, { recursive: true, force: true });
 });
@@ -644,6 +668,14 @@ describe("verifyTicket", () => {
       .prepare("SELECT author, type FROM ticket_comments WHERE ticket_id = 'ticket-1'")
       .get() as { author: string; type: string };
     expect(comment).toEqual({ author: "unknown ralph", type: "verification_report" });
+    expect(run.identity).toMatchObject({
+      provider: "unknown",
+      actor: "unknown ralph",
+      providerSource: "unknown",
+      executionSurface: "cli-direct",
+      workerId: null,
+    });
+    expect(run.manifest.verifier).toEqual(run.identity);
   });
 
   it("keeps runs with non-certifiable coverage rationale uncertified", async () => {
@@ -1239,6 +1271,14 @@ describe("verifyTicket", () => {
       status: "passed",
       certified: true,
       gitSha: "abc123",
+      identity: {
+        provider: "claude",
+        actor: "claude ralph",
+        providerSource: "explicit",
+        executionSurface: "cli-direct",
+        workerId: null,
+        codeGitSha: "abc123",
+      },
       startedAt: now,
       finishedAt: now,
       manifest: {
@@ -1264,12 +1304,20 @@ describe("verifyTicket", () => {
           },
         ],
         evidenceFiles: [{ path: missingPath, hash: "missing-hash" }],
+        verifier: {
+          provider: "claude",
+          actor: "claude ralph",
+          providerSource: "explicit",
+          executionSurface: "cli-direct",
+          workerId: null,
+          codeGitSha: "abc123",
+        },
         manifestHash: "manifest-hash",
       },
     };
 
     expect(() =>
-      verificationTestInternals.attachRunEvidenceAndReport(db, run, [apiStep()], "claude")
+      verificationTestInternals.attachRunEvidenceAndReport(db, run, [apiStep()])
     ).toThrow(/evidence file is missing/);
 
     const comments = db
@@ -1518,11 +1566,16 @@ describe("verification worker", () => {
 
   it("claims a queued job and verifies it without a per-ticket command", async () => {
     seedDemo([apiStep()]);
-    enqueueVerificationJob(db, "ticket-1", { now: "2026-03-08T01:00:00.000Z" });
+    enqueueVerificationJob(db, "ticket-1", {
+      now: "2026-03-08T01:00:00.000Z",
+      provider: "opencode",
+    });
     const baseUrl = await startFixtureServer();
 
     const result = await runNextVerificationJob(db, {
       workerId: "worker-1",
+      provider: "opencode",
+      executionSurface: "enqueue-drain",
       baseUrl,
       now: () => new Date("2026-03-08T01:00:01.000Z"),
     });
@@ -1536,9 +1589,51 @@ describe("verification worker", () => {
     expect(getVerificationJob(db, "ticket-1")).toMatchObject({
       status: "succeeded",
       leasedBy: null,
+      provider: "opencode",
+      actor: "opencode ralph",
+      providerSource: "explicit",
+      executionSurface: "enqueue-drain",
+      workerId: "worker-1",
     });
+    const run = listVerificationRuns(db, "ticket-1")[0]!;
+    expect(run.identity).toMatchObject({
+      provider: "opencode",
+      actor: "opencode ralph",
+      providerSource: "explicit",
+      executionSurface: "enqueue-drain",
+      workerId: "worker-1",
+    });
+    expect(run.manifest.verifier).toEqual(run.identity);
+    const evidenceUploaders = db
+      .prepare("SELECT attachments FROM tickets WHERE id = 'ticket-1'")
+      .get() as { attachments: string };
+    expect(JSON.parse(evidenceUploaders.attachments)).toEqual(
+      expect.arrayContaining([expect.objectContaining({ uploadedBy: "opencode ralph" })])
+    );
+    expect(
+      db.prepare("SELECT author FROM ticket_comments WHERE ticket_id = 'ticket-1'").get()
+    ).toMatchObject({ author: "opencode ralph" });
     expect(db.prepare("SELECT status FROM tickets WHERE id = 'ticket-1'").get()).toMatchObject({
       status: "done",
+    });
+  });
+
+  it("infers queued job attribution from session metadata before falling back to unknown", () => {
+    seedDemo([apiStep()]);
+    db.prepare(
+      `INSERT INTO ralph_sessions (id, ticket_id, project_id, current_state, state_history, started_at)
+       VALUES ('session-provider', 'ticket-1', 'project-1', 'reviewing', ?, '2026-03-08T00:59:00.000Z')`
+    ).run(JSON.stringify([{ state: "reviewing", metadata: { provider: "cursor-agent" } }]));
+
+    const job = enqueueVerificationJob(db, "ticket-1", { now: "2026-03-08T01:00:00.000Z" });
+
+    expect(job).toMatchObject({
+      provider: "cursor-agent",
+      actor: "cursor-agent ralph",
+      providerSource: "session",
+      executionSurface: "enqueue-drain",
+      workerId: null,
+      codeGitSha: null,
     });
   });
 
@@ -1746,12 +1841,13 @@ describe("verification drain (one-shot worker)", () => {
 
     expect(result).toEqual({ spawned: true, pid: 4242 });
     expect(spawnImpl).toHaveBeenCalledWith(
-      "pnpm",
-      ["brain-dump", "verify", "worker", "--drain"],
+      process.execPath,
+      ["--import", "tsx", "cli/brain-dump.ts", "verify", "worker", "--drain"],
       expect.objectContaining({
         cwd: "/repo",
         stdio: "ignore",
         detached: process.platform !== "win32",
+        env: expect.objectContaining({ BRAIN_DUMP_VERIFICATION_SURFACE: "enqueue-drain" }),
       })
     );
     expect(child.unref).toHaveBeenCalled();

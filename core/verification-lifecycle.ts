@@ -16,6 +16,7 @@ import {
 } from "./ship.ts";
 import type { DbHandle, DemoStep, ExecFileNoThrowResult } from "./types.ts";
 import { settleVerificationJob, settleVerificationJobForTicket } from "./verification-queue.ts";
+import type { VerifierIdentity } from "./verifier-identity.ts";
 import type {
   VerificationEvidenceFile,
   VerificationManifest,
@@ -32,7 +33,7 @@ export interface VerificationJobLease {
 export interface SettleVerificationLifecycleParams {
   run: VerificationRun;
   steps: DemoStep[];
-  provider?: string | undefined;
+  identity: VerifierIdentity;
   verificationJobLease?: VerificationJobLease | undefined;
   execFileNoThrow?: (
     command: string,
@@ -177,8 +178,9 @@ function updateDemoStepStatusesForRun(db: DbHandle, run: VerificationRun, steps:
 function persistRun(db: DbHandle, run: VerificationRun): void {
   db.prepare(
     `INSERT INTO verification_runs
-     (id, ticket_id, round, status, certified, manifest, git_sha, started_at, finished_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+     (id, ticket_id, round, status, certified, manifest, git_sha, provider, actor,
+      provider_source, execution_surface, worker_id, code_git_sha, started_at, finished_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     run.id,
     run.ticketId,
@@ -187,6 +189,12 @@ function persistRun(db: DbHandle, run: VerificationRun): void {
     run.certified ? 1 : 0,
     JSON.stringify(run.manifest),
     run.gitSha,
+    run.identity.provider,
+    run.identity.actor,
+    run.identity.providerSource,
+    run.identity.executionSurface,
+    run.identity.workerId,
+    run.identity.codeGitSha,
     run.startedAt,
     run.finishedAt
   );
@@ -201,10 +209,9 @@ function evidenceAttachmentType(path: string): AttachmentType {
 export function attachRunEvidenceAndReport(
   db: DbHandle,
   run: VerificationRun,
-  steps: DemoStep[],
-  provider: string | undefined
+  steps: DemoStep[]
 ): void {
-  const reportProvider = provider ?? process.env.BRAIN_DUMP_PROVIDER ?? "unknown";
+  const reportProvider = run.identity.provider;
   const stepsByOrder = new Map(steps.map((step) => [step.order, step]));
   const evidenceFiles = [
     ...run.manifest.evidenceFiles,
@@ -367,6 +374,7 @@ function settleJob(
     status: "succeeded" | "failed" | "blocked";
     error?: string | undefined;
     now: string;
+    identity: VerifierIdentity;
   }
 ): void {
   if (params.verificationJobLease) {
@@ -377,6 +385,11 @@ function settleJob(
       status: params.status,
       now: params.now,
       ...(params.error !== undefined ? { error: params.error } : {}),
+      provider: params.identity.provider,
+      actor: params.identity.actor,
+      providerSource: params.identity.providerSource,
+      executionSurface: params.identity.executionSurface,
+      codeGitSha: params.identity.codeGitSha,
     });
     return;
   }
@@ -384,6 +397,12 @@ function settleJob(
   settleVerificationJobForTicket(db, params.ticketId, params.status, {
     now: params.now,
     ...(params.error !== undefined ? { error: params.error } : {}),
+    provider: params.identity.provider,
+    actor: params.identity.actor,
+    providerSource: params.identity.providerSource,
+    executionSurface: params.identity.executionSurface,
+    codeGitSha: params.identity.codeGitSha,
+    ...(params.identity.workerId !== null ? { workerId: params.identity.workerId } : {}),
   });
 }
 
@@ -392,12 +411,13 @@ export async function settleVerificationLifecycle(
   params: SettleVerificationLifecycleParams
 ): Promise<SettleVerificationLifecycleResult> {
   const { run, steps } = params;
+  const identity = params.identity;
   const now = run.finishedAt;
   const shouldHandleEpicCompletion = run.status === "passed" && run.certified;
 
   db.transaction(() => {
     persistRun(db, run);
-    attachRunEvidenceAndReport(db, run, steps, params.provider);
+    attachRunEvidenceAndReport(db, run, steps);
 
     if (run.status === "passed" && run.certified) {
       assertTicketStillInVerification(db, run.ticketId, "complete verified ticket");
@@ -407,6 +427,7 @@ export async function settleVerificationLifecycle(
         verificationJobLease: params.verificationJobLease,
         status: "succeeded",
         now,
+        identity,
       });
     } else if (run.status === "failed") {
       recordVerificationFindings(db, run, steps, now);
@@ -419,6 +440,7 @@ export async function settleVerificationLifecycle(
           verificationJobLease: params.verificationJobLease,
           status: "failed",
           now,
+          identity,
           error: "Verification assertions failed; ticket returned to implementation.",
         });
       } else {
@@ -428,6 +450,7 @@ export async function settleVerificationLifecycle(
           verificationJobLease: params.verificationJobLease,
           status: "blocked",
           now,
+          identity,
           error: `Repeated verification failure on step ${blockedStepOrder}.`,
         });
       }
@@ -439,6 +462,7 @@ export async function settleVerificationLifecycle(
         verificationJobLease: params.verificationJobLease,
         status: "blocked",
         now,
+        identity,
         error: blockedReason,
       });
     }
