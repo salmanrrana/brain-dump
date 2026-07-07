@@ -192,6 +192,56 @@ function addEpicAutoPrComment(
   });
 }
 
+function addEpicAutoPrNeedsAttentionComment(
+  db: DbHandle,
+  ticketId: string,
+  message: string,
+  branchName?: string
+): void {
+  const branchSuffix = branchName ? `\n\nBranch: \`${branchName}\`` : "";
+  addEpicAutoPrComment(
+    db,
+    ticketId,
+    `## Epic Auto-PR Needs Attention\n\n${message}${branchSuffix}`
+  );
+}
+
+function recordEpicPrSuccess(
+  db: DbHandle,
+  params: {
+    epicId: string;
+    branchName: string;
+    branchCount: number;
+    tickets: EpicCompletionTicketRow[];
+    commentTicketId: string;
+    action: "created" | "readied" | "updated";
+    prNumber: number;
+    prUrl: string;
+    prStatus: "open" | "closed";
+    comment: string;
+    message: string;
+  }
+): EpicAutoPrBranchResult {
+  updatePrLinksForTickets(db, {
+    epicId: params.epicId,
+    branchCount: params.branchCount,
+    tickets: params.tickets,
+    prNumber: params.prNumber,
+    prUrl: params.prUrl,
+    prStatus: params.prStatus,
+  });
+  addEpicAutoPrComment(db, params.commentTicketId, params.comment, "progress");
+  return {
+    branchName: params.branchName,
+    ticketIds: params.tickets.map((ticket) => ticket.id),
+    success: true,
+    action: params.action,
+    prNumber: params.prNumber,
+    prUrl: params.prUrl,
+    message: params.message,
+  };
+}
+
 function normalizePrStatus(state: string | undefined): "open" | "closed" {
   if (state?.toUpperCase() === "CLOSED") return "closed";
   return "open";
@@ -371,11 +421,7 @@ async function shipEpicBranch(
   const ticketIds = params.tickets.map((ticket) => ticket.id);
   const commentTicketId = getNewestTicketId(params.tickets);
   const fail = (message: string): EpicAutoPrBranchResult => {
-    addEpicAutoPrComment(
-      db,
-      commentTicketId,
-      `## Epic Auto-PR Needs Attention\n\n${message}\n\nBranch: \`${params.branchName}\``
-    );
+    addEpicAutoPrNeedsAttentionComment(db, commentTicketId, message, params.branchName);
     return {
       branchName: params.branchName,
       ticketIds,
@@ -469,55 +515,34 @@ async function shipEpicBranch(
           )
         );
       }
-      updatePrLinksForTickets(db, {
+      return recordEpicPrSuccess(db, {
         epicId: params.epic.id,
+        branchName: params.branchName,
         branchCount: params.branchCount,
         tickets: params.tickets,
-        prNumber: existingPr.number,
-        prUrl: existingPr.url,
-        prStatus: "open",
-      });
-      addEpicAutoPrComment(
-        db,
         commentTicketId,
-        `Epic completed. Draft PR #${existingPr.number} was marked ready for review: ${existingPr.url}`,
-        "progress"
-      );
-      return {
-        branchName: params.branchName,
-        ticketIds,
-        success: true,
         action: "readied",
         prNumber: existingPr.number,
         prUrl: existingPr.url,
+        prStatus: "open",
+        comment: `Epic completed. Draft PR #${existingPr.number} was marked ready for review: ${existingPr.url}`,
         message: `Draft PR #${existingPr.number} marked ready for review.`,
-      };
+      });
     }
 
-    const prStatus = normalizePrStatus(existingPr.state);
-    updatePrLinksForTickets(db, {
+    return recordEpicPrSuccess(db, {
       epicId: params.epic.id,
+      branchName: params.branchName,
       branchCount: params.branchCount,
       tickets: params.tickets,
-      prNumber: existingPr.number,
-      prUrl: existingPr.url,
-      prStatus,
-    });
-    addEpicAutoPrComment(
-      db,
       commentTicketId,
-      `Epic completed. Existing PR #${existingPr.number} was updated: ${existingPr.url}`,
-      "progress"
-    );
-    return {
-      branchName: params.branchName,
-      ticketIds,
-      success: true,
       action: "updated",
       prNumber: existingPr.number,
       prUrl: existingPr.url,
+      prStatus: normalizePrStatus(existingPr.state),
+      comment: `Epic completed. Existing PR #${existingPr.number} was updated: ${existingPr.url}`,
       message: `Existing PR #${existingPr.number} updated.`,
-    };
+    });
   }
 
   const pushResult = await params.execFileNoThrow(
@@ -560,29 +585,19 @@ async function shipEpicBranch(
     );
   }
 
-  updatePrLinksForTickets(db, {
+  return recordEpicPrSuccess(db, {
     epicId: params.epic.id,
+    branchName: params.branchName,
     branchCount: params.branchCount,
     tickets: params.tickets,
-    prNumber: prRef.number,
-    prUrl: prRef.url,
-    prStatus: "open",
-  });
-  addEpicAutoPrComment(
-    db,
     commentTicketId,
-    `Epic completed. Ready PR #${prRef.number} was created automatically: ${prRef.url}`,
-    "progress"
-  );
-  return {
-    branchName: params.branchName,
-    ticketIds,
-    success: true,
     action: "created",
     prNumber: prRef.number,
     prUrl: prRef.url,
+    prStatus: "open",
+    comment: `Epic completed. Ready PR #${prRef.number} was created automatically: ${prRef.url}`,
     message: `Ready PR #${prRef.number} created automatically.`,
-  };
+  });
 }
 
 export async function handleEpicCompletionAutoPr(
@@ -626,11 +641,7 @@ export async function handleEpicCompletionAutoPr(
   const invalidEvidence = validateLatestVerificationEvidence(deps.db, tickets);
   if (invalidEvidence) {
     const message = `Epic completed but Brain Dump will not create or ready an epic PR until every ticket has certified passing verification evidence. ${invalidEvidence}`;
-    addEpicAutoPrComment(
-      deps.db,
-      getNewestTicketId(tickets),
-      `## Epic Auto-PR Needs Attention\n\n${message}`
-    );
+    addEpicAutoPrNeedsAttentionComment(deps.db, getNewestTicketId(tickets), message);
     return {
       epicId,
       completed: true,
@@ -676,7 +687,7 @@ export async function handleEpicCompletionAutoPr(
   if (!deps.execFileNoThrow) {
     const message =
       "Epic completed but no command executor was provided, so Brain Dump could not create or ready a PR.";
-    addEpicAutoPrComment(deps.db, commentTicketId, `## Epic Auto-PR Needs Attention\n\n${message}`);
+    addEpicAutoPrNeedsAttentionComment(deps.db, commentTicketId, message);
     return { epicId, completed: true, skipped: true, message, branchResults: [] };
   }
 
@@ -686,7 +697,7 @@ export async function handleEpicCompletionAutoPr(
   );
   if (unresolvableTickets.length > 0) {
     const message = `Epic completed but ${unresolvableTickets.length} ticket(s) have no branch metadata; Brain Dump will not guess a PR source branch.`;
-    addEpicAutoPrComment(deps.db, commentTicketId, `## Epic Auto-PR Needs Attention\n\n${message}`);
+    addEpicAutoPrNeedsAttentionComment(deps.db, commentTicketId, message);
     return {
       epicId,
       completed: true,

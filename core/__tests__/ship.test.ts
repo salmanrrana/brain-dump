@@ -544,6 +544,147 @@ describe("handleEpicCompletionAutoPr", () => {
     expect(calls).toEqual([]);
   });
 
+  it("skips tickets that are not part of an epic without running any commands", async () => {
+    seedProject(db, { id: "proj-1", path: "/tmp/ship-project" });
+    seedTicket(db, { id: "ticket-solo", projectId: "proj-1", status: "done" });
+    const calls: string[] = [];
+
+    const result = await handleEpicCompletionAutoPr(
+      { completedTicketId: "ticket-solo" },
+      {
+        db,
+        execFileNoThrow: async (command, args) => {
+          calls.push([command, ...args].join(" "));
+          return createExecResult();
+        },
+      }
+    );
+
+    expect(result).toMatchObject({
+      epicId: null,
+      completed: false,
+      skipped: true,
+      branchResults: [],
+    });
+    expect(calls).toEqual([]);
+    expect(db.prepare("SELECT COUNT(*) AS count FROM ticket_comments").get()).toEqual({
+      count: 0,
+    });
+  });
+
+  it("creates one PR per branch for multi-branch epics and links each ticket to its own PR", async () => {
+    seedProject(db, { id: "proj-1", path: "/tmp/ship-project" });
+    seedEpic(db, { id: "epic-1", projectId: "proj-1", title: "Ship Epic" });
+    seedTicket(db, {
+      id: "ticket-1",
+      projectId: "proj-1",
+      epicId: "epic-1",
+      status: "done",
+      branchName: "feature/branch-a",
+    });
+    seedTicket(db, {
+      id: "ticket-2",
+      projectId: "proj-1",
+      epicId: "epic-1",
+      status: "done",
+      branchName: "feature/branch-b",
+    });
+    seedVerificationRun("ticket-1", { gitSha: "sha111" });
+    seedVerificationRun("ticket-2", { gitSha: "sha222" });
+
+    let nextPrNumber = 90;
+    const createdHeads: string[] = [];
+    const result = await handleEpicCompletionAutoPr(
+      { completedTicketId: "ticket-2" },
+      {
+        db,
+        execFileNoThrow: async (command, args) => {
+          if (command === "gh" && args[0] === "pr" && args[1] === "list") {
+            return createExecResult({ stdout: "[]" });
+          }
+          if (command === "gh" && args[0] === "pr" && args[1] === "create") {
+            const head = args[args.indexOf("--head") + 1];
+            if (!head) throw new Error("Expected gh pr create to include --head.");
+            createdHeads.push(head);
+            return createExecResult({
+              stdout: `https://github.com/org/repo/pull/${nextPrNumber++}\n`,
+            });
+          }
+          return createExecResult();
+        },
+      }
+    );
+
+    expect(result.completed).toBe(true);
+    expect(result.branchResults).toEqual([
+      expect.objectContaining({
+        branchName: "feature/branch-a",
+        success: true,
+        action: "created",
+        prNumber: 90,
+        ticketIds: ["ticket-1"],
+      }),
+      expect.objectContaining({
+        branchName: "feature/branch-b",
+        success: true,
+        action: "created",
+        prNumber: 91,
+        ticketIds: ["ticket-2"],
+      }),
+    ]);
+    expect(createdHeads).toEqual(["feature/branch-a", "feature/branch-b"]);
+    const ticketLinks = db.prepare("SELECT id, pr_number FROM tickets ORDER BY id").all() as Array<{
+      id: string;
+      pr_number: number | null;
+    }>;
+    expect(ticketLinks).toEqual([
+      { id: "ticket-1", pr_number: 90 },
+      { id: "ticket-2", pr_number: 91 },
+    ]);
+    // Multi-branch epics have no single epic-level PR, so epic_workflow_state stays untouched.
+    expect(
+      db.prepare("SELECT COUNT(*) AS count FROM epic_workflow_state WHERE epic_id = 'epic-1'").get()
+    ).toEqual({ count: 0 });
+  });
+
+  it("refuses to guess a source branch when tickets lack branch metadata", async () => {
+    seedProject(db, { id: "proj-1", path: "/tmp/ship-project" });
+    seedEpic(db, { id: "epic-1", projectId: "proj-1", title: "Ship Epic" });
+    seedTicket(db, {
+      id: "ticket-1",
+      projectId: "proj-1",
+      epicId: "epic-1",
+      status: "done",
+    });
+    seedVerificationRun("ticket-1");
+    const calls: string[] = [];
+
+    const result = await handleEpicCompletionAutoPr(
+      { completedTicketId: "ticket-1" },
+      {
+        db,
+        execFileNoThrow: async (command, args) => {
+          calls.push([command, ...args].join(" "));
+          return createExecResult();
+        },
+      }
+    );
+
+    expect(result.branchResults).toEqual([
+      expect.objectContaining({
+        branchName: "unknown",
+        success: false,
+        action: "failed",
+        ticketIds: ["ticket-1"],
+      }),
+    ]);
+    expect(result.message).toContain("no branch metadata");
+    expect(calls).toEqual([]);
+    const comment = db.prepare("SELECT content FROM ticket_comments").get() as { content: string };
+    expect(comment.content).toContain("Epic Auto-PR Needs Attention");
+    expect(comment.content).toContain("will not guess a PR source branch");
+  });
+
   it("posts a visible comment when GitHub CLI operations fail", async () => {
     seedCompletedEpic();
 
