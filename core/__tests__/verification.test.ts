@@ -432,6 +432,52 @@ describe("verifyTicket", () => {
     expect(close).toHaveBeenCalled();
   });
 
+  it("scrolls the asserted text into view before capturing the screenshot", async () => {
+    seedDemo([uiTextStep()]);
+    // The app shell scrolls inside nested overflow containers, so without an
+    // explicit scroll the screenshot shows the top of the page while text
+    // asserted further down passes invisibly.
+    const order: string[] = [];
+    const scrollIntoViewIfNeeded = vi.fn(async () => {
+      order.push("scroll");
+    });
+    const getByText = vi.fn(() => ({ first: () => ({ scrollIntoViewIfNeeded }) }));
+    const toContainText = vi.fn(async () => {});
+    const screenshot = vi.fn(async ({ path }: { path: string }) => {
+      order.push("screenshot");
+      writeFileSync(path, "fake image");
+    });
+    const locator = vi.fn(() => ({
+      first: () => ({ isVisible: vi.fn(async () => true) }),
+      waitFor: vi.fn(async () => {}),
+    }));
+    vi.doMock("@playwright/test", () => ({
+      chromium: {
+        launch: vi.fn(async () => ({
+          newPage: vi.fn(async () => ({
+            addInitScript: vi.fn(async () => {}),
+            goto: vi.fn(async () => {}),
+            evaluate: vi.fn(async () => ({ ok: true })),
+            keyboard: { press: vi.fn(async () => {}) },
+            locator,
+            getByText,
+            screenshot,
+            url: () => "http://127.0.0.1:4242/",
+          })),
+          close: vi.fn(async () => {}),
+        })),
+      },
+      expect: () => ({ toContainText }),
+    }));
+    const baseUrl = await startFixtureServer();
+
+    const run = await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+
+    expect(run.status).toBe("passed");
+    expect(getByText).toHaveBeenCalledWith("Projects");
+    expect(order).toEqual(["scroll", "screenshot"]);
+  });
+
   it("fails UI steps when the splash overlay never dismisses", async () => {
     seedDemo([uiTextStep()]);
     const toContainText = vi.fn(async () => {});

@@ -157,6 +157,7 @@ const SPLASH_SKIP_RESULT_KEY = "__brainDumpVerificationSplashSkip";
 // captured before this overlay detaches shows only a spinner.
 const SPLASH_OVERLAY_SELECTOR = '[data-testid="app-splash"]';
 const SPLASH_DISMISS_TIMEOUT_MS = 15_000;
+const SCROLL_INTO_VIEW_TIMEOUT_MS = 3_000;
 
 function truncate(value: string, limit = BODY_LIMIT): string {
   if (value.length <= limit) return value;
@@ -964,6 +965,28 @@ async function runUiStep(
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         failures.push(`UI assertion failed: ${message}`);
+      }
+    }
+
+    // Bring the asserted content into frame before capturing evidence. The
+    // app shell scrolls inside nested overflow containers (body is h-screen
+    // overflow-hidden), so fullPage screenshots only ever capture the
+    // viewport: text asserted deep in a scroll container passes while the
+    // screenshot shows just the top of the page.
+    const textAssertion = step.automation.assert.find(
+      (assertion) => assertion.type === "text" && (assertion.expected ?? "").length > 0
+    );
+    if (textAssertion) {
+      try {
+        const selector = textAssertion.selector ?? "body";
+        const target =
+          selector === "body"
+            ? page.getByText(textAssertion.expected ?? "").first()
+            : page.locator(selector).first();
+        await target.scrollIntoViewIfNeeded({ timeout: SCROLL_INTO_VIEW_TIMEOUT_MS });
+      } catch {
+        // Best-effort framing: the assertions above already proved the content
+        // exists in the DOM; the screenshot still captures the page as-is.
       }
     }
 
