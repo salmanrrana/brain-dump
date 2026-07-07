@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import type { DbHandle } from "./types.ts";
+import { claimDurableJobLease, settleDurableJobLease } from "./durable-job-lease.ts";
 import { TicketNotFoundError, ValidationError } from "./errors.ts";
 
 export type VerificationJobStatus =
@@ -178,51 +179,37 @@ export function claimNextVerificationJob(
     new Date(now).getTime() + (options.leaseMs ?? DEFAULT_LEASE_MS)
   ).toISOString();
 
-  return db.transaction(() => {
-    const row = db
-      .prepare(
-        `SELECT verification_jobs.* FROM verification_jobs
-         JOIN tickets ON tickets.id = verification_jobs.ticket_id
-         WHERE tickets.status = 'ai_verification'
-           AND (
-             (verification_jobs.status IN ('queued', 'failed') AND verification_jobs.next_run_at <= ?)
-             OR (
-               verification_jobs.status = 'running'
-               AND verification_jobs.lease_expires_at IS NOT NULL
-               AND verification_jobs.lease_expires_at <= ?
-             )
-           )
-         ORDER BY verification_jobs.next_run_at ASC, verification_jobs.created_at ASC
-         LIMIT 1`
-      )
-      .get(now, now) as DbVerificationJobRow | undefined;
-
-    if (!row) return null;
-
-    db.prepare(
-      `UPDATE verification_jobs
-       SET status = 'running', attempt_count = attempt_count + 1, leased_by = ?,
-           lease_expires_at = ?, updated_at = ?
-        WHERE id = ?
-          AND EXISTS (
-            SELECT 1 FROM tickets
-            WHERE tickets.id = verification_jobs.ticket_id
-              AND tickets.status = 'ai_verification'
+  return claimDurableJobLease<DbVerificationJobRow, VerificationJob>(db, {
+    tableName: "verification_jobs",
+    selectReadySql: `SELECT verification_jobs.* FROM verification_jobs
+      JOIN tickets ON tickets.id = verification_jobs.ticket_id
+      WHERE tickets.status = 'ai_verification'
+        AND (
+          (verification_jobs.status IN ('queued', 'failed') AND verification_jobs.next_run_at <= ?)
+          OR (
+            verification_jobs.status = 'running'
+            AND verification_jobs.lease_expires_at IS NOT NULL
+            AND verification_jobs.lease_expires_at <= ?
           )
-          AND (
-            (status IN ('queued', 'failed') AND next_run_at <= ?)
-            OR (status = 'running' AND lease_expires_at IS NOT NULL AND lease_expires_at <= ?)
-          )`
-    ).run(options.workerId, leaseExpiresAt, now, row.id, now, now);
-
-    const result = db.prepare("SELECT changes() as changes").get() as { changes: number };
-    if (result.changes !== 1) return null;
-
-    const claimed = db
-      .prepare("SELECT * FROM verification_jobs WHERE id = ?")
-      .get(row.id) as DbVerificationJobRow;
-    return toVerificationJob(claimed);
-  })();
+        )
+      ORDER BY verification_jobs.next_run_at ASC, verification_jobs.created_at ASC
+      LIMIT 1`,
+    selectReadyArgs: [now, now],
+    claimWhereSql: `EXISTS (
+        SELECT 1 FROM tickets
+        WHERE tickets.id = verification_jobs.ticket_id
+          AND tickets.status = 'ai_verification'
+      )
+      AND (
+        (status IN ('queued', 'failed') AND next_run_at <= ?)
+        OR (status = 'running' AND lease_expires_at IS NOT NULL AND lease_expires_at <= ?)
+      )`,
+    claimWhereArgs: () => [now, now],
+    workerId: options.workerId,
+    leaseExpiresAt,
+    now,
+    toJob: toVerificationJob,
+  });
 }
 
 export function settleVerificationJob(
@@ -233,34 +220,19 @@ export function settleVerificationJob(
   const completedAt = options.status === "failed" && options.nextRunAt ? null : now;
   const nextRunAt = options.nextRunAt ?? now;
 
-  db.prepare(
-    `UPDATE verification_jobs
-     SET status = ?, next_run_at = ?, last_error = ?, leased_by = NULL,
-         lease_expires_at = NULL, completed_at = ?, updated_at = ?
-      WHERE id = ? AND status = 'running' AND leased_by = ? AND attempt_count = ?`
-  ).run(
-    options.status,
+  return settleDurableJobLease<DbVerificationJobRow, VerificationJob>(db, {
+    tableName: "verification_jobs",
+    jobId: options.jobId,
+    workerId: options.workerId,
+    attemptCount: options.attemptCount,
+    status: options.status,
     nextRunAt,
-    options.error ?? null,
+    error: options.error ?? null,
     completedAt,
     now,
-    options.jobId,
-    options.workerId,
-    options.attemptCount
-  );
-
-  const result = db.prepare("SELECT changes() as changes").get() as { changes: number };
-  if (result.changes !== 1) {
-    throw new ValidationError(
-      `Verification job ${options.jobId} is not leased by ${options.workerId} for attempt ${options.attemptCount}.`
-    );
-  }
-
-  const row = db.prepare("SELECT * FROM verification_jobs WHERE id = ?").get(options.jobId) as
-    | DbVerificationJobRow
-    | undefined;
-  if (!row) throw new ValidationError(`Verification job ${options.jobId} was not found.`);
-  return toVerificationJob(row);
+    notLeasedMessage: `Verification job ${options.jobId} is not leased by ${options.workerId} for attempt ${options.attemptCount}.`,
+    toJob: toVerificationJob,
+  });
 }
 
 export function settleVerificationJobForTicket(

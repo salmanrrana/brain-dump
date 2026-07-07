@@ -1095,6 +1095,23 @@ describe("verification queue", () => {
     expect(listVerificationJobs(db)).toHaveLength(1);
   });
 
+  it("keeps duplicate enqueue cheap by not claiming or incrementing attempts", () => {
+    seedDemo([apiStep()]);
+
+    enqueueVerificationJob(db, "ticket-1", { now: "2026-03-08T01:00:00.000Z" });
+    const refreshed = enqueueVerificationJob(db, "ticket-1", {
+      now: "2026-03-08T01:00:01.000Z",
+    });
+
+    expect(refreshed).toMatchObject({
+      status: "queued",
+      attemptCount: 0,
+      leasedBy: null,
+      leaseExpiresAt: null,
+    });
+    expect(listVerificationJobs(db)).toHaveLength(1);
+  });
+
   it("leases one queued job to one worker", () => {
     seedDemo([apiStep()]);
     enqueueVerificationJob(db, "ticket-1", { now: "2026-03-08T01:00:00.000Z" });
@@ -1174,6 +1191,40 @@ describe("verification queue", () => {
       })
     ).toMatchObject({ status: "running", leasedBy: "worker-2", attemptCount: 2 });
     expect(getVerificationJob(db, "ticket-1")?.lastError).toBe("boot failed");
+  });
+
+  it("dead-letters exhausted jobs through the durable settlement path", () => {
+    seedDemo([apiStep()]);
+    const job = enqueueVerificationJob(db, "ticket-1", { now: "2026-03-08T01:00:00.000Z" });
+    const claimed = claimNextVerificationJob(db, {
+      workerId: "worker-1",
+      now: "2026-03-08T01:00:01.000Z",
+      leaseMs: 60_000,
+    });
+
+    const dead = settleVerificationJob(db, {
+      jobId: job.id,
+      workerId: "worker-1",
+      attemptCount: claimed!.attemptCount,
+      status: "dead",
+      error: "retry budget exhausted",
+      now: "2026-03-08T01:00:02.000Z",
+    });
+
+    expect(dead).toMatchObject({
+      status: "dead",
+      leasedBy: null,
+      leaseExpiresAt: null,
+      completedAt: "2026-03-08T01:00:02.000Z",
+      lastError: "retry budget exhausted",
+    });
+    expect(
+      claimNextVerificationJob(db, {
+        workerId: "worker-2",
+        now: "2026-03-08T01:00:03.000Z",
+        leaseMs: 60_000,
+      })
+    ).toBeNull();
   });
 
   it("rejects stale workers settling leases they no longer own", () => {
