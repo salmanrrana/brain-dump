@@ -298,12 +298,17 @@ describe("getCodeChangeSummary", () => {
         repoPath
       )]: createExecResult({ stdout: epicBranchStatus }),
     };
-    const { execFileNoThrow } = createRecordingExec(results);
+    const { execFileNoThrow, calls } = createRecordingExec(results);
 
     const summary = await getCodeChangeSummary(
       { type: "epic", id: "epic-1" },
       { db, execFileNoThrow }
     );
+
+    const epicBranchDiffCalls = calls.filter((call) =>
+      call.args.includes("main...feature/epic-epic-1")
+    );
+    expect(epicBranchDiffCalls).toHaveLength(2);
 
     expect(summary.totals).toEqual({ files: 2, additions: 150, deletions: 30 });
     expect(summary.groups[0]?.totals).toEqual({ files: 1, additions: 5, deletions: 1 });

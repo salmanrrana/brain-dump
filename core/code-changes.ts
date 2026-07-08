@@ -654,6 +654,7 @@ async function buildTicketGroup(
   projectPath: string,
   options: {
     epicBranchName?: string | null;
+    sharedEpicBranch?: SourceWithFiles | null;
     epicPr?: Pick<EpicCodeChangeRow, "pr_number" | "pr_url" | "pr_status">;
   }
 ): Promise<TicketCodeChangeGroup> {
@@ -674,7 +675,19 @@ async function buildTicketGroup(
   }
 
   let epicBranchResult: SourceWithFiles | null = null;
-  if (options.epicBranchName) {
+  if (options.sharedEpicBranch && options.epicBranchName) {
+    const epicBranchSourceId = `ticket:${ticket.id}:branch:${options.epicBranchName}`;
+    epicBranchResult = {
+      source: {
+        ...options.sharedEpicBranch.source,
+        id: epicBranchSourceId,
+      },
+      files: options.sharedEpicBranch.files.map((file) => ({
+        ...file,
+        sourceIds: [epicBranchSourceId],
+      })),
+    };
+  } else if (options.epicBranchName) {
     epicBranchResult = await readBranchSource(deps, {
       ticketId: ticket.id,
       projectPath,
@@ -781,8 +794,20 @@ export async function getCodeChangeSummary(
     };
   }
 
+  const firstTicket = tickets[0];
+  const sharedEpicBranch =
+    epic?.epic_branch_name && firstTicket
+      ? await readBranchSource(deps, {
+          ticketId: firstTicket.id,
+          projectPath: project.path,
+          branchName: epic.epic_branch_name,
+          kind: "epic_branch",
+        })
+      : null;
+
   const groupOptions = {
     ...(epic?.epic_branch_name ? { epicBranchName: epic.epic_branch_name } : {}),
+    ...(sharedEpicBranch ? { sharedEpicBranch } : {}),
     ...(epic
       ? {
           epicPr: {
@@ -797,17 +822,9 @@ export async function getCodeChangeSummary(
     tickets.map((ticket) => buildTicketGroup(deps, ticket, project.path, groupOptions))
   );
 
-  let scopeTotals = createTotals(mergeFileSummaries(groups.flatMap((group) => group.files)));
-  const firstTicket = tickets[0];
-  if (epic?.epic_branch_name && firstTicket) {
-    const epicBranchResult = await readBranchSource(deps, {
-      ticketId: firstTicket.id,
-      projectPath: project.path,
-      branchName: epic.epic_branch_name,
-      kind: "epic_branch",
-    });
-    scopeTotals = createTotals(epicBranchResult.files);
-  }
+  const scopeTotals = sharedEpicBranch
+    ? createTotals(sharedEpicBranch.files)
+    : createTotals(mergeFileSummaries(groups.flatMap((group) => group.files)));
 
   return {
     scope,
