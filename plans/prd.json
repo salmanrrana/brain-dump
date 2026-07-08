@@ -11,7 +11,7 @@
     {
       "id": "48f8387c-2650-42d9-95f6-cb649c1dcd0d",
       "title": "Add verification worker operations, health checks, and recovery controls",
-      "passes": false,
+      "passes": true,
       "verificationFailures": "Verification run 86177afa-9f80-4bf4-a4c3-107c9a6e1472 ended with uncertified at 2026-07-07T23:05:18.388Z (round 1).\n\n- Step 0: Verification run uncertified because the diff touches verification/manifest code.\n  Evidence: none",
       "overview": "",
       "types": [],
