@@ -574,15 +574,27 @@ function buildPrSource(
   };
 }
 
-function mergeFileSummaries(files: CodeChangeFileSummary[]): CodeChangeFileSummary[] {
+function fileSummaryKey(file: CodeChangeFileSummary): string {
+  return `${file.path}\0${file.previousPath ?? ""}`;
+}
+
+function mergeFileSummaries(
+  files: CodeChangeFileSummary[],
+  options: { dedupeOverlapping?: boolean } = {}
+): CodeChangeFileSummary[] {
   const merged = new Map<string, CodeChangeFileSummary>();
 
   for (const file of files) {
-    const key = `${file.path}\0${file.previousPath ?? ""}`;
+    const key = fileSummaryKey(file);
     const existing = merged.get(key);
 
     if (!existing) {
       merged.set(key, { ...file, sourceIds: [...file.sourceIds] });
+      continue;
+    }
+
+    if (options.dedupeOverlapping) {
+      existing.sourceIds = [...new Set([...existing.sourceIds, ...file.sourceIds])];
       continue;
     }
 
@@ -661,18 +673,20 @@ async function buildTicketGroup(
     );
   }
 
+  let epicBranchResult: SourceWithFiles | null = null;
   if (options.epicBranchName) {
-    sourceResults.push(
-      await readBranchSource(deps, {
-        ticketId: ticket.id,
-        projectPath,
-        branchName: options.epicBranchName,
-        kind: "epic_branch",
-      })
-    );
+    epicBranchResult = await readBranchSource(deps, {
+      ticketId: ticket.id,
+      projectPath,
+      branchName: options.epicBranchName,
+      kind: "epic_branch",
+    });
   }
 
   const sources = sourceResults.map((result) => result.source);
+  if (epicBranchResult) {
+    sources.push(epicBranchResult.source);
+  }
   const prSource = buildPrSource(ticket.id, ticket, "ticket_pr");
   if (prSource) {
     sources.push(prSource);
@@ -695,7 +709,11 @@ async function buildTicketGroup(
     });
   }
 
-  const files = mergeFileSummaries(sourceResults.flatMap((result) => result.files));
+  const ticketScopedFiles = sourceResults.flatMap((result) => result.files);
+  const files =
+    ticketScopedFiles.length > 0
+      ? mergeFileSummaries(ticketScopedFiles, { dedupeOverlapping: true })
+      : mergeFileSummaries(epicBranchResult?.files ?? [], { dedupeOverlapping: true });
 
   return {
     ticketId: ticket.id,
@@ -779,11 +797,23 @@ export async function getCodeChangeSummary(
     tickets.map((ticket) => buildTicketGroup(deps, ticket, project.path, groupOptions))
   );
 
+  let scopeTotals = createTotals(mergeFileSummaries(groups.flatMap((group) => group.files)));
+  const firstTicket = tickets[0];
+  if (epic?.epic_branch_name && firstTicket) {
+    const epicBranchResult = await readBranchSource(deps, {
+      ticketId: firstTicket.id,
+      projectPath: project.path,
+      branchName: epic.epic_branch_name,
+      kind: "epic_branch",
+    });
+    scopeTotals = createTotals(epicBranchResult.files);
+  }
+
   return {
     scope,
     project: { id: project.id, name: project.name },
     groups,
-    totals: createTotals(mergeFileSummaries(groups.flatMap((group) => group.files))),
+    totals: scopeTotals,
     state: getSummaryState(groups),
   };
 }
