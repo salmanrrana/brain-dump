@@ -207,9 +207,33 @@ function getTicketRowsForScope(
       throw new TicketNotFoundError(scope.id);
     }
 
+    // Resolve the parent epic so the shared epic branch is recognized and not
+    // attributed to this ticket as a ticket-specific branch.
+    const parentEpic = ticket.epic_id
+      ? (db
+          .prepare(
+            `SELECT
+               e.id,
+               e.title,
+               e.project_id,
+               p.name AS project_name,
+               p.path AS project_path,
+               ews.epic_branch_name,
+               ews.pr_number,
+               ews.pr_url,
+               ews.pr_status
+             FROM epics e
+             JOIN projects p ON p.id = e.project_id
+             LEFT JOIN epic_workflow_state ews ON ews.epic_id = e.id
+             WHERE e.id = ?`
+          )
+          .get(ticket.epic_id) as EpicCodeChangeRow | undefined)
+      : undefined;
+
     return {
       project: { id: ticket.project_id, name: ticket.project_name, path: ticket.project_path },
       tickets: [ticket],
+      ...(parentEpic ? { epic: parentEpic } : {}),
     };
   }
 
@@ -623,6 +647,16 @@ function getGroupState(
     return unavailableSource.state;
   }
 
+  if (
+    sources.some(
+      (source) => source.kind === "epic_branch" && source.state.kind === "available"
+    )
+  ) {
+    return metadataOnlyState(
+      "No commits are linked to this ticket; epic branch changes are viewable but not attributed to it."
+    );
+  }
+
   if (sources.some((source) => source.state.kind === "metadata_only")) {
     return metadataOnlyState("Only metadata sources are available for this ticket.");
   }
@@ -663,7 +697,11 @@ async function buildTicketGroup(
     linkedCommits.map((commit) => readCommitSource(deps, ticket.id, projectPath, commit))
   );
 
-  if (ticket.branch_name) {
+  // A ticket working on the shared epic branch records that branch as its
+  // branch_name. That diff belongs to the whole epic, not this ticket, so it
+  // must never enter the ticket-scoped file totals — only a branch unique to
+  // this ticket does.
+  if (ticket.branch_name && ticket.branch_name !== options.epicBranchName) {
     sourceResults.push(
       await readBranchSource(deps, {
         ticketId: ticket.id,
@@ -722,11 +760,13 @@ async function buildTicketGroup(
     });
   }
 
-  const ticketScopedFiles = sourceResults.flatMap((result) => result.files);
-  const files =
-    ticketScopedFiles.length > 0
-      ? mergeFileSummaries(ticketScopedFiles, { dedupeOverlapping: true })
-      : mergeFileSummaries(epicBranchResult?.files ?? [], { dedupeOverlapping: true });
+  // Ticket totals come only from ticket-scoped sources. The epic branch stays
+  // available in `sources` for patch viewing, but a ticket without linked
+  // commits reports zero files instead of inheriting the whole epic diff.
+  const files = mergeFileSummaries(
+    sourceResults.flatMap((result) => result.files),
+    { dedupeOverlapping: true }
+  );
 
   return {
     ticketId: ticket.id,
@@ -822,9 +862,12 @@ export async function getCodeChangeSummary(
     tickets.map((ticket) => buildTicketGroup(deps, ticket, project.path, groupOptions))
   );
 
-  const scopeTotals = sharedEpicBranch
-    ? createTotals(sharedEpicBranch.files)
-    : createTotals(mergeFileSummaries(groups.flatMap((group) => group.files)));
+  // The epic branch diff is the ground truth for the whole-epic aggregate.
+  // A single-ticket scope keeps its own commit-derived totals.
+  const scopeTotals =
+    scope.type === "epic" && sharedEpicBranch
+      ? createTotals(sharedEpicBranch.files)
+      : createTotals(mergeFileSummaries(groups.flatMap((group) => group.files)));
 
   return {
     scope,

@@ -215,8 +215,20 @@ describe("getCodeChangeSummary", () => {
       "2026-07-08T00:00:00.000Z",
       "2026-07-08T00:00:00.000Z"
     );
-    seedTicket(db, { id: "ticket-1", projectId: "proj-1", epicId: "epic-1" });
-    seedTicket(db, { id: "ticket-2", projectId: "proj-1", epicId: "epic-1" });
+    // The workflow records the shared epic branch as every ticket's
+    // branch_name — the ledger must not attribute that diff to each ticket.
+    seedTicket(db, {
+      id: "ticket-1",
+      projectId: "proj-1",
+      epicId: "epic-1",
+      branchName: "feature/epic-epic-1",
+    });
+    seedTicket(db, {
+      id: "ticket-2",
+      projectId: "proj-1",
+      epicId: "epic-1",
+      branchName: "feature/epic-epic-1",
+    });
     linkCommits("ticket-1", ["aaaaaaaaaaaaaaaa"]);
     linkCommits("ticket-2", ["bbbbbbbbbbbbbbbb"]);
 
@@ -335,7 +347,12 @@ describe("getCodeChangeSummary", () => {
       "2026-07-08T00:00:00.000Z",
       "2026-07-08T00:00:00.000Z"
     );
-    seedTicket(db, { id: "ticket-1", projectId: "proj-1", epicId: "epic-1" });
+    seedTicket(db, {
+      id: "ticket-1",
+      projectId: "proj-1",
+      epicId: "epic-1",
+      branchName: "feature/epic-epic-1",
+    });
 
     const epicBranchDiff = "12\t3\tsrc/fallback.ts\n";
     const { execFileNoThrow } = createRecordingExec({
@@ -365,8 +382,10 @@ describe("getCodeChangeSummary", () => {
       { db, execFileNoThrow }
     );
 
-    expect(summary.groups[0]?.totals).toEqual({ files: 1, additions: 12, deletions: 3 });
+    expect(summary.groups[0]?.totals).toEqual({ files: 0, additions: 0, deletions: 0 });
+    expect(summary.groups[0]?.files).toEqual([]);
     expect(summary.groups[0]?.sources.map((source) => source.kind)).toEqual(["epic_branch"]);
+    expect(summary.groups[0]?.state.kind).toBe("metadata_only");
     expect(summary.totals).toEqual({ files: 1, additions: 12, deletions: 3 });
   });
 
