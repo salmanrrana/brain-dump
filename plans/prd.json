@@ -9,27 +9,49 @@
   ],
   "userStories": [
     {
-      "id": "48f8387c-2650-42d9-95f6-cb649c1dcd0d",
-      "title": "Add verification worker operations, health checks, and recovery controls",
+      "id": "7753e791-b699-4b4a-b163-d869af2f0e0e",
+      "title": "Epic work ledger massively over-counts changed files and +/- totals",
       "passes": true,
-      "verificationFailures": "Verification run 86177afa-9f80-4bf4-a4c3-107c9a6e1472 ended with uncertified at 2026-07-07T23:05:18.388Z (round 1).\n\n- Step 0: Verification run uncertified because the diff touches verification/manifest code.\n  Evidence: none",
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "A user can diagnose why ai_verification tickets are not moving without running a per-ticket verification command.",
-        "Pausing/resuming and requeue/dead-letter controls are audited and cannot certify tickets by themselves.",
-        "Doctor reports stale worker/queue conditions with concrete remediation.",
-        "Tests cover healthy, paused, stale, retrying, dead-letter, and schema-drift states."
+        "Each ticket row in the epic work ledger shows only that ticket's own linked-commit/ticket-branch diffs, not the full epic branch diff",
+        "The All tickets aggregate equals the epic branch diff (base...epic branch) when an epic branch exists — never a multiple of it",
+        "A ticket with no linked commits still exposes the epic-branch source for patch viewing without inflating file totals",
+        "Regression test: an epic where N tickets share one epic branch reports aggregate == branch diff and per-ticket totals == that ticket's commits"
       ],
       "references": [],
-      "description": "## Scope update (2026-07-07, after c74cd5a3 one-shot drains landed)\nThe resident poller is gone: default deployments drain once at boot and per enqueue via detached one-shot `brain-dump verify worker --drain` processes; resident polling is opt-in (BRAIN_DUMP_VERIFICATION_WORKER_POLL=1). Ops/health work should target the new model:\n- Health check: \"queued jobs exist but no drain has run in N minutes\" (stranded queue detection, e.g. spawn failures with no server reboot since).\n- Doctor: report queue depth, last drain time/worker id, and whether a resident poller is running where one is not expected.\n- Lease-aware run-round allocation: a direct `verify run` racing a leased drain hit UNIQUE(ticket_id, round) on 2026-07-07; direct runs should respect/queue behind an active lease.\n- Recovery: command to requeue blocked jobs after a fix lands (today this is manual SQL/status surgery).\n\n## Why\nOnce verification is automatic, a stalled worker becomes the new hidden human gate. Operators need a small, reliable control surface to see queue health, pause noisy execution, requeue recoverable jobs, and diagnose why tickets are not moving without editing database rows by hand.\n\n## Scope\n1. Extend brain-dump doctor/admin checks with verification worker health: worker enabled, queue depth by state, oldest queued age, stale running leases, last error, Playwright availability, app boot capability, and schema/version drift.\n2. Add CLI read/control commands for verification jobs: list/status, pause/resume worker, requeue a dead/stale job, and mark an unrecoverable job dead with an audit comment.\n3. Keep controls operator-only CLI/core surfaces; do not expose evidence writes or pass/fail mutation to MCP tools available to implementing agents.\n4. Emit structured logs/telemetry for worker start/stop, claim, retry, stale lease recovery, dead-letter, and pause/resume without high-cardinality aggregate labels.\n5. Add UI read-only visibility where useful by reusing the queue read model from the UI status ticket.\n6. Add tests for doctor output, pause/resume behavior, requeue, dead-letter audit comments, and stale lease recovery.\n\n## Acceptance criteria\n- A user can diagnose why ai_verification tickets are not moving without running a per-ticket verification command.\n- Pausing/resuming and requeue/dead-letter controls are audited and cannot certify tickets by themselves.\n- Doctor reports stale worker/queue conditions with concrete remediation.\n- Tests cover healthy, paused, stale, retrying, dead-letter, and schema-drift states.\n\n## Diagnostic note (2026-07-07)\nThe confusing part is the blocked reason said `Verification uncertified: Command assertions passed.` That is bad diagnostics. I added a note to ticket 48f8387c so the ops/recovery ticket fixes this by surfacing the actual tripwire reason and adding requeue/rerun controls.",
+      "description": "## Bug\nOn the epic detail page, every ticket in the Tickets and changes work ledger shows the identical file count (e.g. 257 files) and near-identical +/- totals (~+63k/-11k), and the All tickets aggregate shows absurd totals (+1,741,652 / -310,358 across 257 files) — roughly 28x the real branch diff. Observed on epic bc99b396 (AI Verification Gate) on 2026-07-07.\n\n## Root cause (diagnosed)\ncore/code-changes.ts:\n1. buildTicketGroup (line ~664) unconditionally appends the FULL epic-branch diff (readBranchSource, main...epicBranch) to EVERY ticket group, on top of the ticket's linked commit diffs. So each ticket's files/totals = its own commits + the entire epic diff, and its commits are counted twice (they are inside the branch diff too).\n2. mergeFileSummaries (line ~577) SUMS additions/deletions per path across sources instead of deduping overlapping sources. Commit diffs are subsets of the ticket branch which is a subset of the epic branch — summing them per path multiplies the numbers.\n3. getCodeChangeSummary (line ~786) aggregates by merging all 28 ticket groups, so the identical epic-branch diff is summed ~28 times (28 x ~62k = ~1.74M).\n\n## Fix direction\n- Include the epic-branch source in a ticket group's FILE TOTALS only as a fallback when the ticket has no commit/ticket-branch file sources (keep it as a patch-viewing source regardless).\n- For the scope aggregate, compute totals from a deduplicated source set (when an epic branch diff is available it IS the ground-truth aggregate) — never sum the same path across sources that contain each other.\n- Add a regression test: epic with N tickets sharing one epic branch must report aggregate == branch diff, and per-ticket totals == that ticket's commit diffs.\n\n## Where\n- core/code-changes.ts buildTicketGroup, mergeFileSummaries, getCodeChangeSummary\n- UI consumer: src/components/code-changes/CodeChangeReviewSurface.tsx\n\n## Acceptance criteria\n- Each ticket row in the epic work ledger shows only that ticket's own linked-commit/ticket-branch diffs, not the full epic branch diff\n- The All tickets aggregate equals the epic branch diff (base...epic branch) when an epic branch exists — never a multiple of it\n- A ticket with no linked commits still exposes the epic-branch source for patch viewing without inflating file totals\n- Regression test: an epic where N tickets share one epic branch reports aggregate == branch diff and per-ticket totals == that ticket's commits",
       "priority": "high",
       "tags": [
-        "verification",
-        "worker",
-        "ops"
+        "code-changes",
+        "ui",
+        "correctness"
+      ]
+    },
+    {
+      "id": "7e1f00ae-0782-434e-a5c0-c9543693b7ec",
+      "title": "Epic progress bar shows >100% (stale epic_workflow_state.tickets_total)",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "The epic detail progress percentage can never exceed 100%",
+        "The progress overview and the header completion badge derive from the same live ticket counts",
+        "epic_workflow_state.tickets_total no longer drifts: it is refreshed wherever tickets_done is refreshed, or the progress UI stops preferring the snapshot",
+        "Regression test: adding tickets to an epic after launch keeps the reported progress at or below 100%"
+      ],
+      "references": [],
+      "description": "## Bug\nEpic detail PROGRESS section showed 193% (now 200%) on epic bc99b396 while the header badge correctly showed 96%/28 tickets.\n\n## Root cause (diagnosed)\n- src/routes/epic.$id.tsx (~line 354) prefers epic_workflow_state.ticketsTotal over the live sum of ticketsByStatus, but ticketsDone comes from live ticketsByStatus. The stored tickets_total is a snapshot written by startEpicWorkflow (core/workflow.ts:547-551) at launch time and is never refreshed when tickets are added to the epic afterwards. Stored value was 14; live done count 27 -> 193%.\n- core/learnings.ts (~204-213) refreshes tickets_done but not tickets_total, so the pair drifts apart.\n\n## Fix direction\n- In the epic route, derive BOTH ticketsTotal and ticketsDone from live ticketsByStatus (drop the workflowState preference for the progress bar), OR\n- Refresh tickets_total wherever tickets_done is refreshed and when tickets are added/moved between epics.\n- Regression test: adding tickets to an epic after launch must never push the progress percentage above 100.\n\n## Acceptance criteria\n- The epic detail progress percentage can never exceed 100%\n- The progress overview and the header completion badge derive from the same live ticket counts\n- epic_workflow_state.tickets_total no longer drifts: it is refreshed wherever tickets_done is refreshed, or the progress UI stops preferring the snapshot\n- Regression test: adding tickets to an epic after launch keeps the reported progress at or below 100%",
+      "priority": "medium",
+      "tags": [
+        "epics",
+        "ui",
+        "correctness"
       ]
     }
   ],
@@ -180,7 +202,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-07-07T23:43:41.217Z",
+  "generatedAt": "2026-07-08T02:34:19.259Z",
   "epicTitle": "AI Verification Gate (Evidence-Based Review)",
   "epicDescription": "Replace human review entirely with an evidence-based AI verification gate. New flow: backlog → ready → in_progress → ai_review → ai_verification → done. A deterministic runner executes machine-executable demo steps against a fresh boot of the current code, capturing tamper-evident evidence (Playwright screenshots for UI steps, real HTTP request/response captures for API steps) attributed to \"{provider} ralph\" (claude ralph, pi ralph, cursor ralph, ...). Verification pass → Brain Dump itself sets the ticket to done (no human approval step). Fail → verification findings are filed and the ticket loops back to implementation with failed steps + evidence injected into the next Ralph iteration, repeating until clean. Re-verification always re-runs the full step suite so fixes cannot regress previously passing steps.\n\nEpic auto-PR: when the last ticket in an epic reaches done, Brain Dump detects epic completion and creates/readies the PR itself (via gh) with an evidence-linked body — no human prompting.\n\nAnti-fabrication guarantees: the implementing agent only authors step specs — it cannot mark steps passed, upload evidence, or set done (no MCP action exists for any of these; only the runner transitions ai_verification → done). The runner boots the app itself on an ephemeral port, records git HEAD SHA + dirty flag + boot log in an HMAC-SHA256-sealed provenance manifest, and refuses to certify runs whose diff touches the runner itself. Exception state instead of human gate: uncertified/tripwire runs and 3 consecutive failed repair loops leave the ticket in ai_verification flagged blocked/needs-attention — nothing self-certifies past a broken runner.\n\nFoundation-first: tickets 1-2 centralize the status/workflow-step definitions (currently duplicated across ~30 code sites) and generate provider skill/prompt files from that single source, so this step — and every future step — is cheap to add for all providers.\n\nFull plan document: see the \"AI Verification Gate\" artifact (published 2026-07-04)."
 }

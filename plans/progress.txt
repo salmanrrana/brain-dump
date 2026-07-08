@@ -104,6 +104,18 @@
 [2026-07-07T08:26:44-05:00] STALLED: No new ticket completed for 3 iterations. 9/10 incomplete. Likely a repeating blocker; needs human attention.
 [2026-07-07T11:59:40-05:00] MANUAL VERIFICATION RECOVERY: Investigated Claude session `epic-debug-ai-verification` after user reported 1af0de42/7b615ca2 errors. Both tickets' latest blocked runs had all step assertions passing but were marked `uncertified` by the verification self-change tripwire because the then-current HEAD/diff touched `core/verification*` / manifest code. Re-ran verification after HEAD advanced to 0117ddbd (non-verification diff): `brain-dump verify run --ticket 1af0de42-6cc0-47b4-9448-1ea250198849 --provider pi --pretty` -> passed/certified run 77754db5; `brain-dump verify run --ticket 7b615ca2-cb4f-4200-bc9c-9accd4787428 --provider pi --pretty` -> passed/certified run f1d51147. Both tickets now done; ai_verification queue depth 0. Root cause was expected tripwire behavior plus confusing blockedReason text, not failed implementation tests. Recommended next anti-recurrence work: finish active c1619c4b, then prioritize 48f8387c for requeue/doctor controls and better blocked diagnostics.
 
+### 2026-07-07 ~21:41 - Ralph: Ticket 7753e791 (Epic work ledger double-counting) → ai_verification
+- **Picked** in_progress high-priority PRD ticket (7e1f00ae deferred — ready/medium).
+- **Root cause fixed** in `core/code-changes.ts`: epic-branch diff was appended to every ticket group's file totals and summed across groups (~28× inflation on epic bc99b396).
+- **Delivered (commits a22540d + 73091ac):**
+  1. `buildTicketGroup`: epic-branch source always available for patch viewing; file totals use commits/ticket-branch only, epic branch as fallback when no linked changes.
+  2. `mergeFileSummaries`: `dedupeOverlapping` prevents summing the same path across hierarchical sources within a ticket.
+  3. `getCodeChangeSummary`: All-tickets aggregate uses a single epic-branch diff (`sharedEpicBranch`) as ground truth.
+  4. Regression tests for shared epic branch + no-commit fallback + single epic diff git fetch.
+- **Gates:** `pnpm check` PASS (1408 tests). Review: 1 major (N+1 git calls) fixed in follow-up commit.
+- Demo: 4 automated steps (2 command regressions, 2 file asserts) covering all 4 acceptance criteria. Ticket ai_verification, drain spawned. Session 62334ede completed success. STOP.
+- **PRD remaining:** 7e1f00ae (ready) epic progress bar >100%.
+
 ### 2026-07-07 ~13:21 - Ralph: Ticket c1619c4b (Evidence viewer UI) resumed → ai_verification (certifiable handoff)
 - **Cause of loop-back:** the stored demo script (2026-07-06, stale MCP build) had 4 "automated" steps with NO automation specs — non-certifiable. Implementation itself was complete (e4573d7 + 8566eea + 0871484; all 7 review findings fixed).
 - **This iteration:** re-validated gates at HEAD aa153e3 — pnpm check PASS (97 files/1398 tests + 2 verification-loop), pnpm test:ui DemoPanel+Comment PASS (15), pnpm perf:check PASS (main 791.64kB/870 ceiling, initial 1006.55kB/1075 ceiling). test_report posted; complete-work → ai_review; check-complete 7/7 fixed, canProceedToVerification=true.
@@ -129,3 +141,10 @@
 [2026-07-07T15:36:12-05:00] ABORTED: 5 consecutive failures
 [2026-07-07T18:08:13-05:00] STALLED: No new ticket completed for 3 iterations. 1/5 incomplete. Likely a repeating blocker; needs human attention.
 [2026-07-07T18:47:24-05:00] STALLED: No new ticket completed for 3 iterations. 1/1 incomplete. Likely a repeating blocker; needs human attention.
+
+### 2026-07-07 ~21:50 - Ralph: PRD complete (7e1f00ae runner-certified)
+- **Iteration start:** PRD had 7e1f00ae passes:false / ai_verification (7753e791 already passes:true).
+- **No new implementation:** prior iteration (session 51c87578) already delivered bdc1da0 — epic progress capped at 100%, live ticketsByStatus counts in epic route, refreshEpicWorkflowTicketCounts syncs tickets_total, regression tests in core/__tests__/epic-progress.test.ts.
+- **Verification:** round 1 infra_error (boot exited before readiness); round 2 passed/certified (run 24c7d4ab, 108s, all 5 demo steps). Runner set ticket done; PRD passes flipped true.
+- **Gates re-confirmed:** pnpm check PASS (1413 unit + 4 verification-loop).
+- **PRD status:** Both scoped tickets passes:true and done. PRD_COMPLETE.
