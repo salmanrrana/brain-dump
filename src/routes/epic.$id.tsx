@@ -9,6 +9,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, useCallback, useMemo } from "react";
 import { ArrowLeft, AlertCircle } from "lucide-react";
+import { computeEpicTicketCounts } from "../../core/epic-progress.ts";
 import { pushBranchServerFn } from "../api/ship-server-fns";
 import { useEpicDetail } from "../lib/hooks";
 import { getEpicDetail } from "../api/epics";
@@ -351,10 +352,7 @@ function EpicDetailPage() {
     );
   }
 
-  const ticketsTotal =
-    epicDetail.workflowState?.ticketsTotal ??
-    Object.values(epicDetail.ticketsByStatus).reduce((a, b) => a + b, 0);
-  const ticketsDone = epicDetail.ticketsByStatus["done"] ?? 0;
+  const { ticketsTotal, ticketsDone } = computeEpicTicketCounts(epicDetail.ticketsByStatus);
 
   return (
     <DetailPageLayout>

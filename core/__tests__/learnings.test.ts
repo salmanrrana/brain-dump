@@ -67,7 +67,7 @@ describe("reconcileLearnings", () => {
     expect(() => reconcileLearnings(db, "t1", sampleLearnings)).toThrow(InvalidStateError);
   });
 
-  it("updates tickets_done count in epic workflow state", () => {
+  it("updates tickets_total and tickets_done in epic workflow state", () => {
     seedProject(db);
     seedEpic(db);
     seedTicket(db, { id: "t1", epicId: "epic-1", status: "done" });
@@ -76,8 +76,9 @@ describe("reconcileLearnings", () => {
     reconcileLearnings(db, "t1", sampleLearnings);
 
     const state = db
-      .prepare("SELECT tickets_done FROM epic_workflow_state WHERE epic_id = ?")
-      .get("epic-1") as { tickets_done: number };
+      .prepare("SELECT tickets_total, tickets_done FROM epic_workflow_state WHERE epic_id = ?")
+      .get("epic-1") as { tickets_total: number; tickets_done: number };
+    expect(state.tickets_total).toBe(2);
     expect(state.tickets_done).toBe(1);
   });
 });

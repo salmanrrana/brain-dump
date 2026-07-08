@@ -13,6 +13,7 @@ import {
   Search,
   MoreHorizontal,
 } from "lucide-react";
+import { computeEpicTicketCounts } from "../../../core/epic-progress.ts";
 import { useToast } from "../Toast";
 import { Modal } from "../ui/Modal";
 import { LaunchProviderMenu } from "../LaunchProviderMenu";
@@ -89,9 +90,8 @@ export function EpicDetailHeader({
   const queryClient = useQueryClient();
   const launchRalphMutation = useLaunchRalphForEpic();
 
-  const ticketsTotal = Object.values(ticketsByStatus).reduce((a, b) => a + b, 0);
-  const ticketsDone = ticketsByStatus["done"] ?? 0;
-  const completionPercent = ticketsTotal > 0 ? Math.round((ticketsDone / ticketsTotal) * 100) : 0;
+  const { ticketsTotal, progressPercent: completionPercent } =
+    computeEpicTicketCounts(ticketsByStatus);
   const hasFindings = findingsSummary.total > 0;
   const openFindings = findingsSummary.total - findingsSummary.fixed;
   const reviewableTickets = tickets
