@@ -24,6 +24,11 @@ import {
   settleVerificationLifecycle,
   type VerificationJobLease,
 } from "./verification-lifecycle.ts";
+import {
+  MANUAL_STEP_SKIP_MESSAGE,
+  UNCERTIFIED_COVERAGE_RATIONALE_MESSAGE,
+  UNCERTIFIED_TRIPWIRE_MESSAGE,
+} from "./verification-messages.ts";
 import { getActiveVerificationLease } from "./verification-queue.ts";
 import {
   DEMO_COMMAND_MAX_TIMEOUT_MS,
@@ -1316,7 +1321,7 @@ async function runStep(
     return {
       order: step.order,
       status: "skipped",
-      message: "Manual steps cannot be certified by the verification runner.",
+      message: MANUAL_STEP_SKIP_MESSAGE,
       durationMs: 0,
       evidenceFiles: [],
     };
@@ -1413,8 +1418,7 @@ async function buildRun(
         verdicts.push({
           order: 0,
           status: "skipped",
-          message:
-            "Verification run uncertified because the diff touches verification/manifest code.",
+          message: UNCERTIFIED_TRIPWIRE_MESSAGE,
           durationMs: 0,
           evidenceFiles: [],
         });
@@ -1423,8 +1427,7 @@ async function buildRun(
         verdicts.push({
           order: 0,
           status: "skipped",
-          message:
-            "Verification run uncertified because the demo includes a non-certifiable coverage rationale.",
+          message: UNCERTIFIED_COVERAGE_RATIONALE_MESSAGE,
           durationMs: 0,
           evidenceFiles: [],
         });

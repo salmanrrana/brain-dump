@@ -759,7 +759,7 @@ describe("verifyTicket", () => {
     expect(run.manifest.verifier.codeGitSha).toBe("verifier-sha");
   });
 
-  it("keeps runs with non-certifiable coverage rationale uncertified", async () => {
+  it("returns first-time coverage-rationale runs to implementation with an actionable finding", async () => {
     seedDemo([
       {
         ...apiStep(),
@@ -781,13 +781,59 @@ describe("verifyTicket", () => {
     const ticket = db
       .prepare("SELECT status, is_blocked FROM tickets WHERE id = 'ticket-1'")
       .get() as { status: string; is_blocked: number };
-    expect(ticket).toEqual({ status: "ai_verification", is_blocked: 1 });
-    const comment = db
-      .prepare("SELECT content FROM ticket_comments WHERE ticket_id = 'ticket-1'")
+    expect(ticket).toEqual({ status: "in_progress", is_blocked: 0 });
+    const finding = db
+      .prepare(
+        "SELECT severity, category, description, status FROM review_findings WHERE ticket_id = 'ticket-1'"
+      )
+      .get() as { severity: string; category: string; description: string; status: string };
+    expect(finding).toMatchObject({ severity: "major", category: "verification", status: "open" });
+    expect(finding.description).toContain("passed every executed step but could not be certified");
+    expect(finding.description).toContain("criterion:1 requires an external provider account");
+    const report = db
+      .prepare(
+        "SELECT content FROM ticket_comments WHERE ticket_id = 'ticket-1' AND type = 'verification_report'"
+      )
       .get() as { content: string };
-    expect(comment.content).toContain(
+    expect(report.content).toContain(
       "Rationale: criterion:1 requires an external provider account"
     );
+    const healComment = db
+      .prepare(
+        "SELECT content FROM ticket_comments WHERE ticket_id = 'ticket-1' AND type = 'comment'"
+      )
+      .get() as { content: string };
+    expect(healComment.content).toContain("returned to implementation");
+    expect(healComment.content).toContain("What to do next");
+  });
+
+  it("blocks the second consecutive uncertified run for human attention", async () => {
+    seedDemo([
+      {
+        ...apiStep(),
+        coverageRationale: "criterion:1 requires an external provider account outside automation.",
+      },
+    ]);
+    const baseUrl = await startFixtureServer();
+
+    await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+    moveTicketBackToVerification();
+    const secondRun = await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+
+    expect(secondRun.status).toBe("uncertified");
+    const ticket = db
+      .prepare("SELECT status, is_blocked, blocked_reason FROM tickets WHERE id = 'ticket-1'")
+      .get() as { status: string; is_blocked: number; blocked_reason: string | null };
+    expect(ticket.status).toBe("ai_verification");
+    expect(ticket.is_blocked).toBe(1);
+    expect(ticket.blocked_reason).toContain("non-certifiable coverage rationale");
+    const comments = db
+      .prepare(
+        "SELECT content FROM ticket_comments WHERE ticket_id = 'ticket-1' AND type = 'comment' ORDER BY created_at"
+      )
+      .all() as Array<{ content: string }>;
+    expect(comments.at(-1)?.content).toContain("Needs Attention — verification blocked");
+    expect(comments.at(-1)?.content).toContain("still not certifiable");
   });
 
   it("certifies command and file steps with sealed evidence without booting an app", async () => {
@@ -1242,7 +1288,7 @@ describe("verifyTicket", () => {
     expect(ticket.is_blocked).toBe(0);
   });
 
-  it("leaves manual-only demos uncertified and visibly blocked", async () => {
+  it("returns manual-only demos to implementation once, then blocks visibly on repeat", async () => {
     seedDemo([
       {
         order: 1,
@@ -1253,15 +1299,25 @@ describe("verifyTicket", () => {
     ]);
     const baseUrl = await startFixtureServer();
 
-    const run = await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+    const firstRun = await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
 
-    expect(run.status).toBe("uncertified");
+    expect(firstRun.status).toBe("uncertified");
+    const healedTicket = db
+      .prepare("SELECT status, is_blocked FROM tickets WHERE id = 'ticket-1'")
+      .get() as { status: string; is_blocked: number };
+    expect(healedTicket).toEqual({ status: "in_progress", is_blocked: 0 });
+
+    moveTicketBackToVerification();
+    const secondRun = await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+
+    expect(secondRun.status).toBe("uncertified");
     const ticket = db
       .prepare("SELECT status, is_blocked, blocked_reason FROM tickets WHERE id = 'ticket-1'")
       .get() as { status: string; is_blocked: number; blocked_reason: string | null };
     expect(ticket.status).toBe("ai_verification");
     expect(ticket.is_blocked).toBe(1);
     expect(ticket.blocked_reason).toContain("uncertified");
+    expect(ticket.blocked_reason).toContain("Manual steps cannot be certified");
   });
 
   it("marks runs uncertified when verification code changed", async () => {
@@ -1287,10 +1343,11 @@ describe("verifyTicket", () => {
     expect(run.status).toBe("uncertified");
     expect(run.manifest.stepVerdicts.at(-1)?.message).toContain("verification/manifest code");
     const ticket = db
-      .prepare("SELECT status, is_blocked FROM tickets WHERE id = 'ticket-1'")
-      .get() as { status: string; is_blocked: number };
+      .prepare("SELECT status, is_blocked, blocked_reason FROM tickets WHERE id = 'ticket-1'")
+      .get() as { status: string; is_blocked: number; blocked_reason: string | null };
     expect(ticket.status).toBe("ai_verification");
     expect(ticket.is_blocked).toBe(1);
+    expect(ticket.blocked_reason).toContain("verification/manifest code");
   });
 
   it("marks runs uncertified when committed verification code changed", async () => {

@@ -7,6 +7,10 @@ import type { DbHandle, ExecFileNoThrowResult } from "./types.ts";
 import { addComment } from "./comment.ts";
 import { ValidationError } from "./errors.ts";
 import {
+  addInfraErrorAttentionComment,
+  infraErrorBlockedReason,
+} from "./verification-lifecycle.ts";
+import {
   claimNextVerificationJob,
   getVerificationJob,
   isVerificationWorkerPaused,
@@ -248,6 +252,22 @@ export async function runNextVerificationJob(
         requireActiveLease: false,
       });
     }
+    let attentionCommentError: string | undefined;
+    if (run.status === "infra_error") {
+      // Retries exhausted: the lifecycle already blocked the ticket; post the
+      // loud notice it skipped for leased runs. The run is already settled, so
+      // a comment failure must not fall into the outer catch — that path would
+      // misreport it as a lost lease.
+      try {
+        addInfraErrorAttentionComment(db, {
+          ticketId: job.ticketId,
+          runId: run.id,
+          reason: infraErrorBlockedReason(run),
+        });
+      } catch (error) {
+        attentionCommentError = `Verification settled as blocked, but posting the infra-error attention comment failed: ${errorMessage(error)}`;
+      }
+    }
 
     const updatedJob = getVerificationJob(db, job.ticketId);
     const result: VerificationWorkerRunResult = {
@@ -259,6 +279,7 @@ export async function runNextVerificationJob(
       runStatus: run.status,
     };
     if (updatedJob) result.jobStatus = updatedJob.status;
+    if (attentionCommentError) result.error = attentionCommentError;
     return result;
   } catch (error) {
     const message = errorMessage(error);

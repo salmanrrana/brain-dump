@@ -15,6 +15,7 @@ import {
   type HandleEpicCompletionAutoPrResult,
 } from "./ship.ts";
 import type { DbHandle, DemoStep, ExecFileNoThrowResult } from "./types.ts";
+import { MANUAL_STEP_SKIP_MESSAGE, UNCERTIFIED_TRIPWIRE_MESSAGE } from "./verification-messages.ts";
 import { settleVerificationJob, settleVerificationJobForTicket } from "./verification-queue.ts";
 import type { VerifierIdentity } from "./verifier-identity.ts";
 import type {
@@ -331,6 +332,154 @@ function blockTicketAfterRepeatedVerificationFailures(
   });
 }
 
+/**
+ * Human-readable causes for why a run was left uncertified. Skipped verdicts
+ * are the only source of uncertification (manual steps, the verification-code
+ * tripwire, and coverage rationales all record a skipped verdict), so their
+ * messages are the reason — not stepVerdicts[0], which for an uncertified run
+ * is usually a *passing* step's message.
+ */
+function uncertificationCauses(run: VerificationRun): string[] {
+  const messages = run.manifest.stepVerdicts
+    .filter((verdict) => verdict.status === "skipped")
+    .map((verdict) => verdict.message);
+  return [...new Set(messages)];
+}
+
+function previousRunWasUncertified(db: DbHandle, ticketId: string, currentRound: number): boolean {
+  const row = db
+    .prepare(
+      `SELECT status FROM verification_runs
+       WHERE ticket_id = ? AND round < ?
+       ORDER BY round DESC
+       LIMIT 1`
+    )
+    .get(ticketId, currentRound) as { status: string } | undefined;
+  return row?.status === "uncertified";
+}
+
+function describeNonCertifiableSteps(steps: DemoStep[]): string[] {
+  const lines: string[] = [];
+  for (const step of steps) {
+    if (step.type === "manual") {
+      lines.push(
+        `- Step ${step.order} ("${step.description}") is manual. ${MANUAL_STEP_SKIP_MESSAGE}`
+      );
+    }
+    if (step.coverageRationale?.trim()) {
+      const covers = step.covers?.length ? step.covers.join(", ") : "no listed criteria";
+      lines.push(
+        `- Step ${step.order} claims coverage of ${covers} with a rationale instead of executable proof: "${step.coverageRationale.trim()}"`
+      );
+    }
+  }
+  return lines;
+}
+
+/**
+ * Self-heal an uncertified run whose executed steps all behaved: instead of
+ * blocking the ticket in ai_verification (stalling its epic), file an
+ * actionable finding and send the ticket back to implementation so the agent
+ * can regenerate a fully certifiable demo. Applies only once — a second
+ * consecutive uncertified run blocks for human attention to avoid a
+ * regenerate-forever loop.
+ */
+function returnUncertifiedRunToImplementation(
+  db: DbHandle,
+  run: VerificationRun,
+  steps: DemoStep[],
+  causes: string[],
+  now: string
+): void {
+  const workflowState = db
+    .prepare("SELECT review_iteration FROM ticket_workflow_state WHERE ticket_id = ?")
+    .get(run.ticketId) as { review_iteration: number } | undefined;
+  ensureWorkflowState(db, run.ticketId, "implementation", now);
+  const nonCertifiableSteps = describeNonCertifiableSteps(steps);
+  const causeBullets = causes.map((cause) => `- ${cause}`);
+  const findingDescription = [
+    `Verification run ${run.id} passed every executed step but could not be certified:`,
+    ...causeBullets,
+    ...(nonCertifiableSteps.length > 0
+      ? ["Non-certifiable demo steps:", ...nonCertifiableSteps]
+      : []),
+    "Fix: regenerate the demo so every acceptance criterion is proven by executable automation (ui, api, command, or file steps). If a criterion genuinely cannot be automated, reword the criterion to match what automation can prove, or hand the ticket to a human verifier.",
+  ].join("\n");
+
+  db.prepare(
+    `INSERT INTO review_findings
+     (id, ticket_id, iteration, agent, severity, category, description, status, created_at)
+     VALUES (?, ?, ?, 'code-reviewer', 'major', 'verification', ?, 'open', ?)`
+  ).run(randomUUID(), run.ticketId, workflowState?.review_iteration ?? 0, findingDescription, now);
+  db.prepare(
+    "UPDATE ticket_workflow_state SET findings_count = findings_count + 1, updated_at = ? WHERE ticket_id = ?"
+  ).run(now, run.ticketId);
+
+  returnTicketToImplementationAfterVerificationFailure(db, run, now);
+
+  addComment(db, {
+    ticketId: run.ticketId,
+    author: "brain-dump",
+    type: "comment",
+    content: [
+      "## Verification could not certify — returned to implementation",
+      "",
+      `Every executed step in verification run ${run.id} **passed**. The run was left uncertified because the demo contains work the runner cannot prove on its own:`,
+      "",
+      ...causeBullets,
+      ...(nonCertifiableSteps.length > 0 ? ["", ...nonCertifiableSteps] : []),
+      "",
+      "### What to do next",
+      '1. Regenerate the demo (`review` tool, `action: "generate-demo"`) so every acceptance criterion is covered by executable automation — ui, api, command, or file steps. Do not use `coverageRationale` or manual steps.',
+      "2. If a criterion genuinely cannot be automated, reword the acceptance criterion to match what automation can prove, or ask a human to verify and complete the ticket.",
+      "3. Continue the normal workflow (complete-work → review → generate-demo) to re-enter verification.",
+      "",
+      "The ticket was automatically returned to `in_progress` so work can continue instead of stalling in verification. If the next run is also uncertified, the ticket will be blocked for human attention.",
+    ].join("\n"),
+  });
+}
+
+function addVerificationAttentionComment(
+  db: DbHandle,
+  params: { ticketId: string; runId: string; reason: string; guidance: string }
+): void {
+  addComment(db, {
+    ticketId: params.ticketId,
+    author: "brain-dump",
+    type: "comment",
+    content: `## Needs Attention — verification blocked\n\n${params.reason}\n\n${params.guidance}\n\nRun: ${params.runId}. The ticket remains in AI verification and is blocked until a human intervenes.`,
+  });
+}
+
+/**
+ * Blocked reason for an infra_error run. Safe to read stepVerdicts[0]: the
+ * runner's catch path replaces the verdict list with a single entry holding
+ * the real error. Shared with the worker so the two never drift.
+ */
+export function infraErrorBlockedReason(run: VerificationRun): string {
+  return `Verification infra_error: ${run.manifest.stepVerdicts[0]?.message ?? "see manifest"}`;
+}
+
+export const INFRA_ERROR_GUIDANCE =
+  "The verification runner could not execute the demo (app boot, environment, or step-spec problem) — this is not a product test failure. Check the boot log in the run manifest, fix the environment or the demo spec, and re-queue verification.";
+
+/**
+ * Loud final notice for an infra_error run that will not be retried. Called
+ * from the lifecycle for direct (unleased) runs and from the worker when its
+ * infra retries are exhausted, so retried attempts stay quiet.
+ */
+export function addInfraErrorAttentionComment(
+  db: DbHandle,
+  params: { ticketId: string; runId: string; reason: string }
+): void {
+  addVerificationAttentionComment(db, {
+    ticketId: params.ticketId,
+    runId: params.runId,
+    reason: params.reason,
+    guidance: INFRA_ERROR_GUIDANCE,
+  });
+}
+
 function returnTicketToImplementationAfterVerificationFailure(
   db: DbHandle,
   run: VerificationRun,
@@ -454,9 +603,54 @@ export async function settleVerificationLifecycle(
           error: `Repeated verification failure on step ${blockedStepOrder}.`,
         });
       }
-    } else if (run.status === "uncertified" || run.status === "infra_error") {
-      const blockedReason = `Verification ${run.status}: ${run.manifest.stepVerdicts[0]?.message ?? "see manifest"}`;
+    } else if (run.status === "uncertified") {
+      updateDemoStepStatusesForRun(db, run, steps);
+      const causes = uncertificationCauses(run);
+      const blockedReason = `Verification uncertified: ${causes.join(" ") || "see manifest"}`;
+      const tripwire = causes.includes(UNCERTIFIED_TRIPWIRE_MESSAGE);
+      if (!tripwire && !previousRunWasUncertified(db, run.ticketId, run.round)) {
+        returnUncertifiedRunToImplementation(db, run, steps, causes, now);
+        settleJob(db, {
+          ticketId: run.ticketId,
+          verificationJobLease: params.verificationJobLease,
+          status: "failed",
+          now,
+          identity,
+          error:
+            "Verification uncertified; ticket returned to implementation to produce a fully certifiable demo.",
+        });
+      } else {
+        const guidance = tripwire
+          ? "The diff touches verification/manifest code, so automated certification is disabled as a safety tripwire. A human must review the verification-code changes and complete the ticket manually."
+          : "The regenerated demo is still not certifiable. A human should decide: make every demo step executable, reword the acceptance criteria to match what automation can prove, or verify the work manually and complete the ticket.";
+        blockTicket(db, run.ticketId, blockedReason, now);
+        addVerificationAttentionComment(db, {
+          ticketId: run.ticketId,
+          runId: run.id,
+          reason: blockedReason,
+          guidance,
+        });
+        settleJob(db, {
+          ticketId: run.ticketId,
+          verificationJobLease: params.verificationJobLease,
+          status: "blocked",
+          now,
+          identity,
+          error: blockedReason,
+        });
+      }
+    } else if (run.status === "infra_error") {
+      const blockedReason = infraErrorBlockedReason(run);
       blockTicket(db, run.ticketId, blockedReason, now);
+      if (!params.verificationJobLease) {
+        // Leased (worker) runs may still be retried; the worker posts the
+        // loud notice itself once its infra retries are exhausted.
+        addInfraErrorAttentionComment(db, {
+          ticketId: run.ticketId,
+          runId: run.id,
+          reason: blockedReason,
+        });
+      }
       settleJob(db, {
         ticketId: run.ticketId,
         verificationJobLease: params.verificationJobLease,
