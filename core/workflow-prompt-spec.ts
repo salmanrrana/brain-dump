@@ -91,17 +91,36 @@ export function getStatusFlowText(): string {
   return TICKET_STATUSES.join(" -> ");
 }
 
+/**
+ * Shared doctrine for how agents reach Brain Dump workflow actions. Prompts
+ * write actions in `brain-dump` CLI form because the CLI works in every
+ * provider; MCP tools are an equivalent alternative wherever they are
+ * configured. Without the explicit "missing MCP is not an error" rule,
+ * CLI-only providers (e.g. Pi) can read MCP-flavored instructions literally
+ * and bail out with "MCP tools unavailable" instead of using the CLI.
+ */
+export function renderWorkflowToolAccess(): string {
+  return `## Workflow Tool Access
+
+Brain Dump workflow actions are written as \`brain-dump\` CLI commands (run them with your shell tool). If the Brain Dump MCP tools (\`workflow\`, \`ticket\`, \`session\`, \`review\`, \`comment\`) are available in your environment, each command has an identical MCP action you may use instead — CLI and MCP are interchangeable.
+
+- Missing MCP tools are NOT an error: use the \`brain-dump\` CLI and keep working. Do not stop because MCP tools are unavailable.
+- If a \`brain-dump\` command fails, treat it like a failed MCP action: read the error output, fix the inputs, and retry. Do not silently skip the workflow step.
+- If \`brain-dump\` cannot run at all (not on PATH, no working install) and no MCP tools are available, record the blocker in \`plans/progress.txt\`, output the exact token \`WORKFLOW_TOOLS_UNAVAILABLE\`, and stop. Do not move on to other tickets; every ticket needs the same tools.
+- Never substitute raw git commands, direct file edits, or status guesses for these workflow actions.`;
+}
+
 export function renderScopeConstraints(): string {
   return `## Scope: plans/prd.json is the ONLY ticket source
 
 Before anything else, read \`plans/prd.json\` from the project root. That file contains the tickets this Ralph run is scoped to (one epic, or a single ticket). It is the authoritative task list.
 
 1. FIRST action every iteration: read \`plans/prd.json\` and find entries where \`passes: false\`.
-2. For each \`passes: false\` candidate, call \`ticket({ action: "get", ticketId: "<id>" })\` to check \`status\`. The PRD's \`passes\` flag can lag behind real ticket status between iterations.
-3. If any candidate is already \`ai_review\`, pick ONE of those first and resume at the AI Review phase. Do NOT call \`start-work\` or \`complete-work\` for it; use \`review({ action: "get-findings", ... })\`, fix open critical/major findings, \`review({ action: "check-complete", ... })\`, then \`review({ action: "generate-demo", ... })\`.
+2. For each \`passes: false\` candidate, run \`brain-dump ticket get --ticket <id> --pretty\` to check \`status\`. The PRD's \`passes\` flag can lag behind real ticket status between iterations.
+3. If any candidate is already \`ai_review\`, pick ONE of those first and resume at the AI Review phase. Do NOT call \`start-work\` or \`complete-work\` for it; use \`brain-dump review get-findings --ticket <id> --status open --pretty\`, fix open critical/major findings, \`brain-dump review check-complete --ticket <id> --pretty\`, then \`brain-dump review generate-demo --ticket <id> --steps-file <steps.json> --pretty\`.
 4. Otherwise pick ONE candidate whose status is \`backlog\`, \`ready\`, or \`in_progress\` and work only on that ticket through the full implementation workflow.
 5. Skip candidates whose status is \`done\`; those are already complete. Tickets in \`ai_verification\` are incomplete but waiting on the verification runner, not implementation.
-6. Do NOT call \`ticket\` with \`action: "list"\` across the whole project to discover work. The PRD is scoped; the project backlog is not.
+6. Do NOT run \`brain-dump ticket list\` (or the \`ticket\` list action) across the whole project to discover work. The PRD is scoped; the project backlog is not.
 7. Do NOT pick tickets whose IDs do not appear in \`plans/prd.json\`, even if they look related or higher-priority.
 8. If every PRD entry is either \`passes: true\` or has ticket status \`done\`, output the exact token \`PRD_COMPLETE\` and stop. Do not look for more work outside the PRD. A ticket in \`ai_review\` or \`ai_verification\` is NOT complete; resume/retry only when the workflow instructions say to.
 9. If \`plans/prd.json\` is missing or empty, output \`PRD_COMPLETE\` and stop. Do not fall back to project-wide ticket discovery.`;
@@ -110,7 +129,7 @@ Before anything else, read \`plans/prd.json\` from the project root. That file c
 export function renderRalphWorkflowPhases(): string {
   return `## 4-Phase Workflow
 
-Use Brain Dump MCP tools literally. No local substitutes for branching, review, or status updates.
+Use Brain Dump workflow actions literally — \`brain-dump\` CLI commands or their MCP tool equivalents. No local substitutes for branching, review, or status updates.
 
 ${WORKFLOW_PHASES.map((phase, index) => `${index + 1}. **${phase.title}** - ${phase.summary}`).join("\n")}
 
@@ -134,15 +153,15 @@ ${VALIDATION_GATE_RULES.map((rule) => `- ${rule}`).join("\n")}`;
 export function renderSessionStateTracking(ticketId = "<ticketId>"): string {
   return `## Session State Tracking
 
-Use \`session\` to keep progress and UI state accurate.
+Use \`brain-dump session\` to keep progress and UI state accurate.
 
 1. Create once after starting ticket work, or when resuming an \`ai_review\` ticket that has no active session:
-   \`session({ action: "create", ticketId: "${ticketId}" })\`
-   If an active session already exists, reuse it with \`session({ action: "get", ticketId: "${ticketId}" })\` instead of creating another.
+   \`brain-dump session create --ticket ${ticketId} --pretty\`
+   If an active session already exists, reuse it with \`brain-dump session get --ticket ${ticketId} --pretty\` instead of creating another.
 2. Update state at each phase transition:
-   \`session({ action: "update-state", sessionId: "<sessionId>", state: "${SESSION_STATES.join("|")}", metadata: { message: "..." } })\`
+   \`brain-dump session update-state --session <sessionId> --state ${SESSION_STATES.join("|")} --message "..."\`
 3. Complete after demo generation, then STOP:
-   \`session({ action: "complete", sessionId: "<sessionId>", outcome: "success" })\``;
+   \`brain-dump session complete --session <sessionId> --outcome success --pretty\``;
 }
 
 export function renderHardGuards(): string {

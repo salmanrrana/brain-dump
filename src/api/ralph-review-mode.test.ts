@@ -234,10 +234,10 @@ describe("review-mode prompt builders", () => {
     expect(prompt).toContain("Review launch contract");
     expect(prompt).toContain("ticket-review");
     expect(prompt).toContain("Focus on auth edge cases and silent failures.");
-    expect(prompt).toContain('review({ action: "submit-finding", ticketId: "ticket-review"');
-    expect(prompt).toContain('review({ action: "check-complete", ticketId: "ticket-review" })');
-    expect(prompt).toContain('session({ action: "create", ticketId: "ticket-review" })');
-    expect(prompt).not.toContain('workflow({ action: "complete-work"');
+    expect(prompt).toContain("brain-dump review submit-finding --ticket ticket-review");
+    expect(prompt).toContain("brain-dump review check-complete --ticket ticket-review --pretty");
+    expect(prompt).toContain("brain-dump session create --ticket ticket-review --pretty");
+    expect(prompt).not.toContain("workflow complete-work");
   });
 
   it("builds a focused review context that excludes unrelated tickets", () => {
@@ -311,12 +311,12 @@ describe("review-mode prompt builders", () => {
       steeringPrompt: "Stay focused on the selected ticket.",
     });
 
-    expect(context).toContain('review({ action: "check-complete", ticketId: "ticket-review" })');
+    expect(context).toContain("brain-dump review check-complete --ticket ticket-review --pretty");
     expect(context).toContain(
       "Generate 3-7 verification steps with automation specs for visual/automated UI, API, command, or file checks, then STOP."
     );
     expect(context).toContain("- Review mode is separate from implementation launch mode");
     expect(context).toContain("- Steering text is preserved verbatim");
-    expect(context).not.toContain('workflow({ action: "complete-work"');
+    expect(context).not.toContain("workflow complete-work");
   });
 });

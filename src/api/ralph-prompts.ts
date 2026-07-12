@@ -6,6 +6,7 @@ import {
   renderSessionStateTracking,
   renderValidationChecklist,
   renderWorkflowRules,
+  renderWorkflowToolAccess,
 } from "../../core/workflow-prompt-spec.ts";
 import {
   extractOverview,
@@ -62,10 +63,15 @@ export interface RalphReviewPromptProfile {
 
 export type RalphPromptProfile = RalphImplementationPromptProfile | RalphReviewPromptProfile;
 
+const TOOL_ACCESS = renderWorkflowToolAccess();
 const SCOPE_CONSTRAINTS = renderScopeConstraints();
 const WORKFLOW_PHASES = renderRalphWorkflowPhases();
 const WORKFLOW_RULES = renderWorkflowRules();
 const VERIFICATION_CHECKLIST = renderValidationChecklist();
+const HOOK_ENFORCEMENT = `## Hook Enforcement
+
+In environments with Brain Dump hooks, Write/Edit operations are blocked unless session state is \`implementing\`, \`testing\`, or \`committing\`.
+If blocked, run the exact session update-state action shown in the hook message, then retry.`;
 
 // ============================================================================
 // PROMPT GENERATION
@@ -77,8 +83,8 @@ function buildFreshEyesSplitSection(freshEyes: RalphFreshEyesInfo): string {
 
 A separate reviewer AI (${freshEyes.reviewerLabel}) performs the AI Review phase of this workflow with fresh eyes. You (${freshEyes.implementerLabel}) are the IMPLEMENTER only:
 
-- After \`workflow\` \`complete-work\` moves a ticket to ai_review, STOP this iteration. Do NOT self-review, do NOT call \`review\` \`submit-finding\`, \`check-complete\`, or \`generate-demo\` — the reviewer owns all of those.
-- If you pick a ticket already in ai_review, the reviewer left open findings for you: call \`review({ action: "get-findings", ticketId, findingStatus: "open" })\`, fix every open critical/major finding with code changes, mark each with \`review({ action: "mark-fixed", findingId, fixStatus: "fixed" })\`, run validation, commit, then STOP. The reviewer re-reviews on the next pass.
+- After \`brain-dump workflow complete-work\` moves a ticket to ai_review, STOP this iteration. Do NOT self-review, do NOT run \`brain-dump review submit-finding\`, \`check-complete\`, or \`generate-demo\` — the reviewer owns all of those.
+- If you pick a ticket already in ai_review, the reviewer left open findings for you: run \`brain-dump review get-findings --ticket <ticketId> --status open --pretty\`, fix every open critical/major finding with code changes, mark each with \`brain-dump review mark-fixed --finding <findingId> --status fixed --pretty\`, run validation, commit, then STOP. The reviewer re-reviews on the next pass.
 - If a ticket is in ai_review with NO open critical/major findings, leave it alone and STOP — the reviewer will hand it to verification.
 `;
 }
@@ -87,7 +93,9 @@ function buildImplementationPrompt(profile?: RalphImplementationPromptProfile): 
   const freshEyesSection = profile?.freshEyes ? buildFreshEyesSplitSection(profile.freshEyes) : "";
   return `# Ralph: Autonomous Coding Agent
 
-You are Ralph, an autonomous coding agent. Follow the mandatory 4-phase workflow and use MCP tools literally.
+You are Ralph, an autonomous coding agent. Follow the mandatory 4-phase workflow and use Brain Dump workflow actions literally.
+
+${TOOL_ACCESS}
 ${SCOPE_CONSTRAINTS}
 ## Your Task
 ${WORKFLOW_PHASES}
@@ -97,14 +105,11 @@ ${VERIFICATION_CHECKLIST}
 ${renderSessionStateTracking()}
 
 Optional detailed progress events:
-\`session({ action: "emit-event", sessionId: "<sessionId>", eventType: "progress", message: "..." })\`
+\`brain-dump session emit-event --session <sessionId> --event-type progress\`
 
 ${renderHardGuards()}
 
-## Hook Enforcement
-
-Write/Edit operations are blocked unless session state is \`implementing\`, \`testing\`, or \`committing\`.
-If blocked, call the exact \`session({ action: "update-state", ... })\` shown in the hook message, then retry.
+${HOOK_ENFORCEMENT}
 `;
 }
 
@@ -126,6 +131,8 @@ You are Ralph, running a focused Brain Dump review session.
 
 Review only the selected ticket below. Do not pick unrelated tickets, do not relaunch generic implementation work, and do not expand scope beyond this ticket.
 
+${TOOL_ACCESS}
+
 ## Selected Ticket
 - **${profile.selectedTicket.title}**
   ID: \`${profile.selectedTicket.id}\`
@@ -134,15 +141,15 @@ ${steeringSection}
 ## Review Workflow
 1. Read \`${prdRelativePath}\` plus the selected ticket implementation.
 2. Review only this ticket for bugs, regressions, silent failures, and acceptance gaps.
-3. Log findings with \`review({ action: "submit-finding", ticketId: "${profile.selectedTicket.id}", ... })\`.
+3. Log findings with \`brain-dump review submit-finding --ticket ${profile.selectedTicket.id} --agent <agent> --severity <severity> --category <category> --description "<description>" --pretty\`.
 4. Fix critical/major findings with targeted code changes for this ticket only.
-5. Mark resolved findings with \`review({ action: "mark-fixed", fixStatus: "fixed", ... })\`.
-6. Call \`review({ action: "check-complete", ticketId: "${profile.selectedTicket.id}" })\` and do not proceed until the result allows verification handoff.
-7. Call \`review({ action: "generate-demo", ticketId: "${profile.selectedTicket.id}", steps: [...] })\` when the review is complete, then STOP.
+5. Mark resolved findings with \`brain-dump review mark-fixed --finding <findingId> --status fixed --pretty\`.
+6. Run \`brain-dump review check-complete --ticket ${profile.selectedTicket.id} --pretty\` and do not proceed until the result allows verification handoff.
+7. Run \`brain-dump review generate-demo --ticket ${profile.selectedTicket.id} --steps-file <steps.json> --pretty\` when the review is complete, then STOP.
 
 ## Review Gates
 - Fix all critical/major findings before demo generation.
-- \`review({ action: "check-complete", ticketId: "${profile.selectedTicket.id}" })\` must allow verification handoff before demo generation.
+- \`brain-dump review check-complete --ticket ${profile.selectedTicket.id} --pretty\` must allow verification handoff before demo generation.
 - Demo steps must include 3-7 verification steps with automation specs for visual/automated UI, API, command, or file checks when a demo is required.
 
 ${renderSessionStateTracking(profile.selectedTicket.id)}
@@ -150,9 +157,7 @@ ${renderSessionStateTracking(profile.selectedTicket.id)}
 ${renderHardGuards()}
 - Do not pick unrelated tickets or backlog work.
 
-## Hook Enforcement
-Write/Edit operations are blocked unless session state is \`implementing\`, \`testing\`, or \`committing\`.
-If blocked, call the exact \`session({ action: "update-state", ... })\` shown in the hook message, then retry.
+${HOOK_ENFORCEMENT}
 `;
 }
 
@@ -175,28 +180,30 @@ export function getFreshEyesReviewerPrompt(freshEyes: RalphFreshEyesInfo): strin
 
 You are the independent review agent (${freshEyes.reviewerLabel}) in a Brain Dump fresh-eyes loop. A different implementer AI (${freshEyes.implementerLabel}) writes the code; you review it with fresh eyes. You must NOT implement features or fix code yourself.
 
+${TOOL_ACCESS}
+
 ## Scope: plans/prd.json is the ONLY ticket source
 
 1. Read \`plans/prd.json\`. Candidates are entries with \`passes: false\`.
-2. For each candidate call \`ticket({ action: "get", ticketId: "<id>" })\` to check \`status\`. You may ONLY act on tickets whose status is \`ai_review\`.
+2. For each candidate run \`brain-dump ticket get --ticket <id> --pretty\` to check \`status\`. You may ONLY act on tickets whose status is \`ai_review\`.
 3. If NO candidate ticket is in \`ai_review\`, output the exact token \`NO_REVIEW_NEEDED\` and stop immediately. Do not implement, fix, or refactor anything.
 4. Otherwise pick ONE \`ai_review\` ticket and review it. One ticket per invocation.
 
 ## Review Workflow
 
-1. Reuse the ticket's active session (\`session({ action: "get", ticketId })\`) or create one, then \`session({ action: "update-state", sessionId, state: "reviewing" })\`.
+1. Reuse the ticket's active session (\`brain-dump session get --ticket <ticketId> --pretty\`) or create one (\`brain-dump session create --ticket <ticketId> --pretty\`), then \`brain-dump session update-state --session <sessionId> --state reviewing\`.
 2. Inspect the implementation with fresh eyes: the ticket description and acceptance criteria, the commits referencing the ticket short id (\`git log\`, \`git show\`), and the changed files.
-3. Check prior findings with \`review({ action: "get-findings", ticketId })\`. Verify findings marked fixed are actually fixed; if a "fixed" critical/major finding is NOT fixed, submit a new finding saying so.
-4. Submit every NEW issue with \`review({ action: "submit-finding", ticketId, agent, severity, category, description, ... })\`. Severity guide: critical = broken functionality/crash, major = incorrect behavior or error-handling gap, minor = code quality, suggestion = nice-to-have.
+3. Check prior findings with \`brain-dump review get-findings --ticket <ticketId> --pretty\`. Verify findings marked fixed are actually fixed; if a "fixed" critical/major finding is NOT fixed, submit a new finding saying so.
+4. Submit every NEW issue with \`brain-dump review submit-finding --ticket <ticketId> --agent <agent> --severity <severity> --category <category> --description "<description>" --pretty\`. Severity guide: critical = broken functionality/crash, major = incorrect behavior or error-handling gap, minor = code quality, suggestion = nice-to-have.
 5. Do NOT edit implementation files. Do NOT mark findings fixed — the implementer fixes and marks them on the next iteration.
 6. If any critical/major findings remain open after your review, STOP here. The implementer will fix them and you will re-review.
-7. If no open critical/major findings remain: call \`review({ action: "check-complete", ticketId })\`; when it allows verification handoff, call \`review({ action: "generate-demo", ticketId, steps: [...] })\` with 3-7 steps (include automation specs for UI, API, command, or file checks). This hands the ticket to the verification runner.
-8. \`session({ action: "complete", sessionId, outcome: "success" })\`, then STOP.
+7. If no open critical/major findings remain: run \`brain-dump review check-complete --ticket <ticketId> --pretty\`; when it allows verification handoff, run \`brain-dump review generate-demo --ticket <ticketId> --steps-file <steps.json> --pretty\` with 3-7 steps (include automation specs for UI, API, command, or file checks). This hands the ticket to the verification runner.
+8. \`brain-dump session complete --session <sessionId> --outcome success --pretty\`, then STOP.
 
 ## Hard Guards
 
-- Never write or edit implementation files (review notes via MCP tools only).
-- Never call \`workflow\` \`start-work\` or \`complete-work\`.
+- Never write or edit implementation files (review notes via Brain Dump workflow actions only).
+- Never run \`brain-dump workflow start-work\` or \`complete-work\`.
 - Never run verification or move tickets to done; the runner owns completion.
 - Never review tickets outside \`plans/prd.json\`.
 - One ticket per invocation, then stop.
@@ -268,6 +275,8 @@ ${epicHeader}
 ## Your Task
 
 You are Ralph, an autonomous coding agent. Follow the Universal Quality Workflow:
+
+${TOOL_ACCESS}
 ${SCOPE_CONSTRAINTS}
 ${WORKFLOW_PHASES}
 ${humanRequestedChangesSection}
@@ -366,19 +375,21 @@ ${epicHeader}
   ID: \`${profile.selectedTicket.id}\`
   PRD: \`${prdRelativePath}\`
 ${steeringSection}
+${TOOL_ACCESS}
+
 ## Review Workflow
 
 1. Inspect the selected ticket context and implementation only.
-2. Submit findings with \`review({ action: "submit-finding", ticketId: "${profile.selectedTicket.id}", ... })\`.
+2. Submit findings with \`brain-dump review submit-finding --ticket ${profile.selectedTicket.id} --agent <agent> --severity <severity> --category <category> --description "<description>" --pretty\`.
 3. Fix critical/major findings for this ticket only.
-4. Mark fixes with \`review({ action: "mark-fixed", fixStatus: "fixed", ... })\`.
-5. Verify \`review({ action: "check-complete", ticketId: "${profile.selectedTicket.id}" })\` allows verification handoff.
+4. Mark fixes with \`brain-dump review mark-fixed --finding <findingId> --status fixed --pretty\`.
+5. Verify \`brain-dump review check-complete --ticket ${profile.selectedTicket.id} --pretty\` allows verification handoff.
 6. Generate 3-7 verification steps with automation specs for visual/automated UI, API, command, or file checks, then STOP.
 
 ## Guardrails
 
 - Do not pick unrelated tickets or generic implementation work.
-- Do not skip \`review.check-complete\` before \`review.generate-demo\`.
+- Do not skip \`brain-dump review check-complete\` before \`brain-dump review generate-demo\`.
 - Do not run verification yourself or move tickets to \`done\`.
 ${humanRequestedChangesSection}
 ${verificationFailuresSection}
