@@ -381,6 +381,68 @@ describe("verifyTicket", () => {
     ]);
   });
 
+  it("honors a project-declared start command from .brain-dump/verify.json for any stack", () => {
+    mkdirSync(join(tempDir, ".brain-dump"), { recursive: true });
+    writeFileSync(
+      join(tempDir, ".brain-dump", "verify.json"),
+      JSON.stringify({ start: ["uvicorn", "app:app", "--port", "{port}", "--host", "{host}"] })
+    );
+
+    expect(verificationTestInternals.discoverBootCommand(tempDir, 51234)).toEqual([
+      "uvicorn",
+      "app:app",
+      "--port",
+      "51234",
+      "--host",
+      "127.0.0.1",
+    ]);
+  });
+
+  it("honors a package.json brainDump.verify.start declaration", () => {
+    writeFileSync(
+      join(tempDir, "package.json"),
+      JSON.stringify({ brainDump: { verify: { start: "npm run serve -- --port {port}" } } })
+    );
+
+    expect(verificationTestInternals.discoverBootCommand(tempDir, 44001)).toEqual([
+      "npm",
+      "run",
+      "serve",
+      "--",
+      "--port",
+      "44001",
+    ]);
+  });
+
+  it("falls back to a serve script when no dev/start script exists", () => {
+    writeFileSync(
+      join(tempDir, "package.json"),
+      JSON.stringify({ scripts: { serve: "http-server ." } })
+    );
+
+    expect(verificationTestInternals.discoverBootCommand(tempDir, 45000)).toEqual([
+      "npm",
+      "run",
+      "serve",
+      "--",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "45000",
+    ]);
+  });
+
+  it("gives an actionable error listing scripts when the project has no bootable command", () => {
+    writeFileSync(
+      join(tempDir, "package.json"),
+      JSON.stringify({ scripts: { lint: "eslint .", test: "vitest" } })
+    );
+
+    expect(() => verificationTestInternals.discoverBootCommand(tempDir, 46000)).toThrow(
+      /Available scripts: lint, test.*\.brain-dump\/verify\.json/s
+    );
+  });
+
   it("boots an isolated verification app with the selected port and devtools env disabled", async () => {
     seedDemo([apiStep()]);
     const script = `

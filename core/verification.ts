@@ -520,32 +520,145 @@ function directViteCommand(projectPath: string, port: number): string[] {
   return ["npx", ...args];
 }
 
-function discoverBootCommand(projectPath: string, port: number): string[] {
-  const packagePath = join(projectPath, "package.json");
-  try {
-    const pkg = JSON.parse(readFileSync(packagePath, "utf-8")) as {
-      scripts?: Record<string, string>;
-      dependencies?: Record<string, string>;
-      devDependencies?: Record<string, string>;
-    };
-    if (
-      pkg.dependencies?.vite ||
-      pkg.devDependencies?.vite ||
-      pkg.dependencies?.["@tanstack/react-start"]
-    ) {
-      return directViteCommand(projectPath, port);
-    }
-    const script = pkg.scripts?.dev ? "dev" : pkg.scripts?.start ? "start" : null;
-    if (!script) {
-      throw new ValidationError(`No dev/start script found in ${packagePath}.`);
-    }
-    const args = ["--host", "127.0.0.1", "--port", String(port)];
-    return packageManagerCommand(projectPath, [script, "--", ...args]);
-  } catch (error) {
-    if (error instanceof ValidationError) throw error;
-    const message = error instanceof Error ? error.message : String(error);
-    throw new ValidationError(`Unable to discover boot command from ${packagePath}: ${message}`);
+// Project-declared boot config. A project tells Brain Dump how it starts
+// instead of Brain Dump guessing that every project is an npm dev server. The
+// file form (.brain-dump/verify.json) works for any stack — Python, Go, Rust,
+// Lakebed — not just projects with a package.json.
+const VERIFY_CONFIG_RELATIVE_PATH = join(".brain-dump", "verify.json");
+
+// Host the runner waits on. The chosen free port is injected via the PORT env
+// var (see bootApp) and is also substitutable as a {port} token so a declared
+// command can place it wherever its CLI expects it.
+const VERIFY_BOOT_HOST = "127.0.0.1";
+
+/**
+ * Substitute `{port}` / `{host}` tokens in a declared start command so the
+ * project can bind the runner-selected free port. Commands that instead read
+ * the injected PORT/HOST env vars can omit the tokens entirely.
+ */
+function applyPortTokens(args: readonly string[], port: number): string[] {
+  return args.map((arg) =>
+    arg.replaceAll("{port}", String(port)).replaceAll("{host}", VERIFY_BOOT_HOST)
+  );
+}
+
+/**
+ * Normalize a declared `start` command into an argv array. Accepts an argv
+ * array (preferred, spawn-safe, no shell) or a plain string that is split on
+ * whitespace. Never runs through a shell, so there is no interpolation risk.
+ */
+function normalizeDeclaredStart(start: unknown, source: string): string[] {
+  const argv = Array.isArray(start)
+    ? start
+    : typeof start === "string"
+      ? start.trim().split(/\s+/).filter(Boolean)
+      : null;
+  if (!argv || argv.length === 0 || !argv.every((part) => typeof part === "string")) {
+    throw new ValidationError(
+      `Invalid "start" command in ${source}. Provide a non-empty string or array of strings, e.g. ["npm","run","dev"] or "uvicorn app:app --port {port}".`
+    );
   }
+  return argv as string[];
+}
+
+/**
+ * Read an explicit start command the project declares for verification, in
+ * priority order: a portable .brain-dump/verify.json file, then a package.json
+ * `brainDump.verify.start` field. Returns null when the project declares
+ * nothing (auto-discovery then applies). A malformed declaration throws so a
+ * broken opt-in surfaces instead of silently falling back.
+ */
+function readDeclaredBootCommand(projectPath: string, port: number): string[] | null {
+  const configPath = join(projectPath, VERIFY_CONFIG_RELATIVE_PATH);
+  if (existsSync(configPath)) {
+    let config: { start?: unknown };
+    try {
+      config = JSON.parse(readFileSync(configPath, "utf-8")) as { start?: unknown };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new ValidationError(`Could not parse ${configPath}: ${message}`);
+    }
+    if (config.start !== undefined) {
+      return applyPortTokens(normalizeDeclaredStart(config.start, configPath), port);
+    }
+  }
+
+  const packagePath = join(projectPath, "package.json");
+  if (existsSync(packagePath)) {
+    try {
+      const pkg = JSON.parse(readFileSync(packagePath, "utf-8")) as {
+        brainDump?: { verify?: { start?: unknown } };
+      };
+      const declared = pkg.brainDump?.verify?.start;
+      if (declared !== undefined) {
+        return applyPortTokens(
+          normalizeDeclaredStart(declared, `${packagePath} (brainDump.verify.start)`),
+          port
+        );
+      }
+    } catch (error) {
+      if (error instanceof ValidationError) throw error;
+      // A package.json that is unreadable/invalid is reported by auto-discovery
+      // below with fuller context; do not mask it here.
+    }
+  }
+
+  return null;
+}
+
+function discoverBootCommand(projectPath: string, port: number): string[] {
+  // 1. Honor an explicit project declaration first (any stack).
+  const declared = readDeclaredBootCommand(projectPath, port);
+  if (declared) return declared;
+
+  // 2. Fall back to npm/package.json auto-discovery for JS web apps.
+  const packagePath = join(projectPath, "package.json");
+  if (!existsSync(packagePath)) {
+    throw new ValidationError(
+      `Cannot determine how to start the app for verification: no package.json at ${packagePath} ` +
+        `and no ${VERIFY_CONFIG_RELATIVE_PATH}. Declare a start command in ${VERIFY_CONFIG_RELATIVE_PATH}, ` +
+        `e.g. {"start":["<cmd>","--port","{port}"]}, or use only file/command demo steps that don't boot the app.`
+    );
+  }
+
+  let pkg: {
+    scripts?: Record<string, string>;
+    dependencies?: Record<string, string>;
+    devDependencies?: Record<string, string>;
+  };
+  try {
+    pkg = JSON.parse(readFileSync(packagePath, "utf-8"));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new ValidationError(`Unable to read boot command from ${packagePath}: ${message}`);
+  }
+
+  if (
+    pkg.dependencies?.vite ||
+    pkg.devDependencies?.vite ||
+    pkg.dependencies?.["@tanstack/react-start"]
+  ) {
+    return directViteCommand(projectPath, port);
+  }
+
+  const scripts = pkg.scripts ?? {};
+  const script = scripts.dev ? "dev" : scripts.start ? "start" : scripts.serve ? "serve" : null;
+  if (!script) {
+    const available = Object.keys(scripts);
+    const availableHint =
+      available.length > 0
+        ? `Available scripts: ${available.join(", ")}.`
+        : "package.json declares no scripts.";
+    throw new ValidationError(
+      `No dev/start/serve script found in ${packagePath}. ${availableHint} ` +
+        `This project may not run as a local dev server. Declare how it starts in ` +
+        `${VERIFY_CONFIG_RELATIVE_PATH}, e.g. {"start":["npm","run","<script>","--","--port","{port}"]}, ` +
+        `or author file/command/API demo steps that don't require booting the app.`
+    );
+  }
+
+  const args = ["--host", VERIFY_BOOT_HOST, "--port", String(port)];
+  return packageManagerCommand(projectPath, [script, "--", ...args]);
 }
 
 async function chooseFreePort(): Promise<number> {
