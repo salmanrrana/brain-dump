@@ -12,7 +12,7 @@ You are running the AI review workflow for a ticket in `ai_review` status. This 
 
 - Ticket must be in `ai_review` status (set by `workflow` tool `complete-work`)
 - Implementation work must be complete
-- Validation must pass (`pnpm check`)
+- Project-specific validation must pass. Discover commands from the target project's docs/config; do not assume pnpm, npm, TypeScript, lint, or test scripts exist.
 
 ## Steps
 
@@ -84,7 +84,7 @@ review tool, action: "get-findings", ticketId: "<ticket-id>"
 For each critical/major finding:
 
 1. Make the fix
-2. Run validation: `pnpm check`
+2. Run the narrowest relevant project-specific validation command, then the repo's authoritative validation gate if the fix changes shared behavior
 3. Mark as fixed:
    ```
    review tool, action: "mark-fixed",

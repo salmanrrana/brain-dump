@@ -42,9 +42,7 @@ You are starting work on the next available task from the Brain Dump kanban boar
 
 6. **Run validation before completing:**
 
-   ```bash
-   pnpm type-check && pnpm lint && pnpm test
-   ```
+   Discover validation commands from the target project's docs/config before running checks. Use the project's own commands (for example package scripts, Makefile/Justfile targets, Go/Python/PHP/Rust test commands, or CI-documented gates); do not assume pnpm, npm, TypeScript, lint, or test scripts exist. If no automated validation command is discoverable, perform a targeted manual smoke check and record that no project validation command was found.
 
 7. **Complete implementation:**
    ```
@@ -56,7 +54,7 @@ You are starting work on the next available task from the Brain Dump kanban boar
 - The MCP tool enforces preconditions - trust its guidance
 - If blocked (e.g., previous ticket waiting in ai_verification), follow the instructions to unblock
 - Always write a plan before coding
-- Always validate before completing
+- Always run discovered project-specific validation before completing
 - After completing, ticket moves to `ai_review` - run `/review-ticket` next
 
 ## Status Flow

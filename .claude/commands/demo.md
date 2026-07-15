@@ -135,11 +135,11 @@ After generating the demo:
 
 ### Step Types
 
-| Type      | When to Use                      | Example                              |
-| --------- | -------------------------------- | ------------------------------------ |
-| manual    | User performs an action          | "Click the submit button"            |
-| visual    | User visually confirms something | "Verify the success message appears" |
-| automated | System runs a command/test       | "Run `pnpm test` - all tests pass"   |
+| Type      | When to Use                      | Example                                               |
+| --------- | -------------------------------- | ----------------------------------------------------- |
+| manual    | User performs an action          | "Click the submit button"                             |
+| visual    | User visually confirms something | "Verify the success message appears"                  |
+| automated | System runs a command/test       | "Run the repo-standard test command - all tests pass" |
 
 ## Important
 

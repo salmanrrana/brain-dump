@@ -37,8 +37,8 @@ Task 3: pr-review-toolkit:code-simplifier
 5. If there are critical issues, offer to fix them. When the user wants fixes applied:
    - Work through findings by severity: CRITICAL first, then HIGH, MEDIUM, LOW
    - For large fix sets, suggest committing after each severity level to prevent context loss
-   - After each fix, verify that `pnpm type-check` still passes
-   - Run `pnpm check` after all fixes are applied
+   - After each fix, run the narrowest relevant project-specific validation command for the changed area
+   - After all fixes are applied, run the repo's authoritative validation gate discovered from docs/config
 
 6. After completing the review, mark it as done by running:
    ```bash

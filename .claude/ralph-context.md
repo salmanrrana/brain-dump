@@ -83,7 +83,7 @@ If all tickets are `done`, output: `PRD_COMPLETE`. Tickets in `ai_verification` 
 
 - Follow all 4 phases in strict order: Implementation → AI Review → Demo → STOP
 - ONE ticket per iteration
-- All quality checks must pass: `pnpm type-check && pnpm lint && pnpm test`
+- Project-specific validation must pass: discover commands from docs/config and run the repo's own gates; do not assume pnpm/npm/TypeScript commands exist.
 - Keep changes minimal and focused
 - Phase gates are enforced - cannot skip phases or proceed without required responses
 - Do not run verification yourself
@@ -98,9 +98,10 @@ If all tickets are `done`, output: `PRD_COMPLETE`. Tickets in `ai_verification` 
 
 Run these checks before calling `workflow({ action: "complete-work" })`:
 
-- `pnpm type-check` - must pass with no errors
-- `pnpm lint` - must pass with no errors
-- `pnpm test` - all tests must pass
+- Discover validation commands from project docs/config (AGENTS.md, CLAUDE.md, README, CONTRIBUTING, package scripts, pyproject.toml, go.mod, composer.json, Makefile/Justfile, CI files).
+- Run the project's own validation gates; do not assume pnpm, npm, TypeScript, lint, or test scripts exist.
+- If no automated validation command is discoverable, perform a targeted manual smoke check and record that no project validation command was found.
+- Add a Brain Dump `test_report` comment with exact pass/fail/skipped command results.
 - All acceptance criteria from ticket implemented
 - Changes committed with format: `feat(<ticket-id>): <description>`
 
