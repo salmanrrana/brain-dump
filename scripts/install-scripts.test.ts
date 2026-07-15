@@ -55,6 +55,11 @@ describe("install.sh (root)", () => {
     expect(script).toContain("Pi");
   });
 
+  it("delegates claude setup to scripts/setup-claude-code.sh", () => {
+    expect(script).toContain("setup-claude-code.sh");
+    expect(script).toContain("setup_claude_code || true");
+  });
+
   it("delegates copilot setup to scripts/setup-copilot-cli.sh", () => {
     expect(script).toContain("setup-copilot-cli.sh");
   });
