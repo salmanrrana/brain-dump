@@ -166,6 +166,13 @@ describe("setup-claude-code.sh hook merge behavior", () => {
     );
     expect(script).toContain("config.hooks = {");
   });
+
+  it("reconfigures the MCP server across scopes before adding a user-scoped entry", () => {
+    const script = readScript("scripts/setup-claude-code.sh");
+    expect(script).toContain("for scope in local user project");
+    expect(script).toContain('claude mcp remove brain-dump --scope "$scope"');
+    expect(script).toContain("claude mcp add --scope user --transport stdio brain-dump");
+  });
 });
 
 describe("Linux/sudo install hardening", () => {

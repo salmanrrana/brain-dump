@@ -63,13 +63,16 @@ echo -e "${BLUE}Step 1: Configure MCP Server${NC}"
 echo "─────────────────────────────"
 
 if command -v claude &> /dev/null; then
-    # Check if brain-dump MCP is already configured
+    # Remove every possible scope before re-adding. `claude mcp add` defaults to
+    # local scope, and mixed old installs can leave duplicate user/local entries.
     if claude mcp get brain-dump &>/dev/null; then
         echo -e "${YELLOW}Existing brain-dump MCP server found. Removing to reconfigure...${NC}"
-        claude mcp remove brain-dump 2>/dev/null || true
+        for scope in local user project; do
+            claude mcp remove brain-dump --scope "$scope" >/dev/null 2>&1 || true
+        done
     fi
     echo "Adding brain-dump MCP server via CLI..."
-    claude mcp add --transport stdio brain-dump -- node "$BRAIN_DUMP_DIR/mcp-server/dist/index.js"
+    claude mcp add --scope user --transport stdio brain-dump -- node "$BRAIN_DUMP_DIR/mcp-server/dist/index.js"
     echo -e "${GREEN}✓ Brain Dump MCP server configured${NC}"
 else
     echo -e "${YELLOW}Claude CLI not found. Please add MCP server manually:${NC}"
