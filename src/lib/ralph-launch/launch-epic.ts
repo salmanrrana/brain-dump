@@ -11,6 +11,7 @@ import {
   GitError,
   isTicketStatus,
   RALPH_PRD_TICKET_STATUSES,
+  saveAutonomousEpicLaunch,
   startWork,
   updateEpicReviewRun,
   updateEpicReviewRunTicketLink,
@@ -76,6 +77,10 @@ export function applyEpicLaunchStatusChanges(
     id: ticket.id,
     status: ticket.status,
   }));
+
+  if (epicTickets.some((ticket) => ticket.status === "in_progress")) {
+    return { firstTicketId: null, rollback: () => {} };
+  }
 
   const firstTicket = epicTickets.find(
     (ticket) =>
@@ -661,6 +666,34 @@ export async function launchRalphForEpicCore(
   const scriptPath = join(scriptDir, `ralph-epic-${useSandbox ? "docker-" : ""}${randomUUID()}.sh`);
   writeFileSync(scriptPath, ralphScript, { mode: 0o700 });
   chmodSync(scriptPath, 0o700);
+  const persistAutonomousLaunch = () =>
+    saveAutonomousEpicLaunch(sqlite, {
+      epicId: epic.id,
+      projectPath: project.path,
+      scriptPath,
+      scriptContent: ralphScript,
+      maxIterations: effectiveMaxIterations,
+      expiresAt: new Date(
+        Date.now() + effectiveMaxIterations * timeoutSeconds * 1000 + 60 * 60 * 1000
+      ).toISOString(),
+      provider: aiBackend,
+      ...(modelSelection
+        ? { modelProvider: modelSelection.provider, modelName: modelSelection.modelName }
+        : {}),
+      ...(reviewer
+        ? {
+            reviewerProvider: reviewer.aiBackend,
+            ...(reviewer.modelSelection
+              ? {
+                  reviewerModelProvider: reviewer.modelSelection.provider,
+                  reviewerModelName: reviewer.modelSelection.modelName,
+                }
+              : {}),
+          }
+        : {}),
+      useSandbox,
+      originalWorkingMethod: workingMethod,
+    });
 
   // Promote ONLY the first runnable ticket to in_progress (via startWork). All
   // other epic tickets keep their existing status — previously a loop here set
@@ -716,6 +749,7 @@ export async function launchRalphForEpicCore(
     }
 
     if (workingMethod === "copilot-cli") {
+      persistAutonomousLaunch();
       const terminalUsed = "terminal" in launchResult ? String(launchResult.terminal) : undefined;
       const terminalLabel = terminalUsed ?? "your terminal";
       return {
@@ -729,6 +763,7 @@ export async function launchRalphForEpicCore(
       };
     }
 
+    persistAutonomousLaunch();
     return {
       success: true,
       message: `Opened ${methodLabel} with Ralph context for ${launchedTicketCount} ticket${launchedTicketCount === 1 ? "" : "s"}. Check .claude/ralph-context.md for instructions.`,
@@ -745,6 +780,8 @@ export async function launchRalphForEpicCore(
     rollbackEpicLaunchStatuses();
     return launchResult;
   }
+
+  persistAutonomousLaunch();
 
   return {
     success: true,

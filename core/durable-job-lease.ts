@@ -5,6 +5,7 @@ export interface DurableJobLeaseOptions<Row, Job> {
   tableName: string;
   selectReadySql: string;
   selectReadyArgs: unknown[];
+  selectClaimedSql?: string;
   claimWhereSql: string;
   claimWhereArgs: (row: Row) => unknown[];
   workerId: string;
@@ -24,6 +25,7 @@ export interface SettleDurableJobLeaseOptions<Row, Job> {
   completedAt: string | null;
   now: string;
   notLeasedMessage: string;
+  selectSettledSql?: string;
   toJob: (row: Row) => Job;
 }
 
@@ -65,7 +67,7 @@ export function claimDurableJobLease<Row extends { id: string }, Job>(
     if (getChanges(db) !== 1) return null;
 
     const claimed = db
-      .prepare(`SELECT * FROM ${options.tableName} WHERE id = ?`)
+      .prepare(options.selectClaimedSql ?? `SELECT * FROM ${options.tableName} WHERE id = ?`)
       .get(row.id) as Row;
     return options.toJob(claimed);
   });
@@ -100,9 +102,9 @@ export function settleDurableJobLease<Row, Job>(
       throw new ValidationError(options.notLeasedMessage);
     }
 
-    const row = db.prepare(`SELECT * FROM ${options.tableName} WHERE id = ?`).get(options.jobId) as
-      | Row
-      | undefined;
+    const row = db
+      .prepare(options.selectSettledSql ?? `SELECT * FROM ${options.tableName} WHERE id = ?`)
+      .get(options.jobId) as Row | undefined;
     if (!row) throw new ValidationError(`Durable job ${options.jobId} was not found.`);
     return options.toJob(row);
   });

@@ -42,6 +42,7 @@ export interface VerificationWorkerOptions {
   ) => Promise<ExecFileNoThrowResult>;
   verifyTicketFn?: (db: DbHandle, params: VerifyTicketParams) => Promise<VerificationRun>;
   now?: () => Date;
+  afterJob?: () => Promise<void>;
 }
 
 export interface VerificationWorkerRunResult {
@@ -419,6 +420,7 @@ export function startVerificationWorker(
         executionSurface: options.executionSurface ?? "resident-poller",
       });
       if (result.claimed) processedCount += 1;
+      if (result.claimed) await options.afterJob?.();
       if (result.error) lastWorkerError = result.error;
       nextDelayMs = result.claimed ? 0 : intervalMs;
     } catch (error) {
@@ -490,6 +492,7 @@ export async function drainVerificationQueue(
     if (result.error) lastError = result.error;
     if (result.claimed) {
       processed += 1;
+      await options.afterJob?.();
       continue;
     }
 

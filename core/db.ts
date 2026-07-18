@@ -851,6 +851,42 @@ export function runMigrations(db: DbHandle, logger: Logger = silentLogger): void
   addColumnIfMissing(db, "verification_jobs", "worker_id", "TEXT", logger);
   addColumnIfMissing(db, "verification_jobs", "code_git_sha", "TEXT", logger);
 
+  if (!tableExists(db, "autonomous_epic_launches")) {
+    db.prepare(
+      `CREATE TABLE autonomous_epic_launches (
+        epic_id TEXT PRIMARY KEY REFERENCES epics(id) ON DELETE CASCADE,
+        profile_json TEXT NOT NULL,
+        active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`
+    ).run();
+  }
+  if (!tableExists(db, "epic_continuation_jobs")) {
+    db.prepare(
+      `CREATE TABLE epic_continuation_jobs (
+        id TEXT PRIMARY KEY,
+        epic_id TEXT NOT NULL UNIQUE REFERENCES epics(id) ON DELETE CASCADE,
+        ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+        status TEXT NOT NULL DEFAULT 'queued',
+        attempt_count INTEGER NOT NULL DEFAULT 0,
+        next_run_at TEXT NOT NULL,
+        last_error TEXT,
+        leased_by TEXT,
+        lease_expires_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        completed_at TEXT
+      )`
+    ).run();
+  }
+  db.prepare(
+    "CREATE INDEX IF NOT EXISTS idx_epic_continuation_jobs_ready ON epic_continuation_jobs(status, next_run_at)"
+  ).run();
+  db.prepare(
+    "CREATE INDEX IF NOT EXISTS idx_epic_continuation_jobs_lease ON epic_continuation_jobs(status, lease_expires_at)"
+  ).run();
+
   // Ralph events table
   if (!tableExists(db, "ralph_events")) {
     db.prepare(

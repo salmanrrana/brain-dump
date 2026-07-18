@@ -154,9 +154,10 @@ function getReviewerAuthorOverride(): CommentAuthor | undefined {
 function syncPrdPassMarker(
   db: Database.Database,
   ticketId: string,
-  passes: boolean
+  passes: boolean,
+  status?: string
 ): PrdSyncResult {
-  const result = updatePrdForDbTicketIfPresent(db, ticketId, passes);
+  const result = updatePrdForDbTicketIfPresent(db, ticketId, passes, status);
   if (result.required && !result.success) {
     log.warn(`PRD sync failed for ticket ${ticketId}`, new Error(result.message));
   }
@@ -367,7 +368,7 @@ No MCP action uploads evidence or marks verification passed. The verification ru
 
             const demoParams = { ticketId, steps };
             validateGenerateDemo(db, demoParams);
-            const prdSync = syncPrdPassMarker(db, ticketId, false);
+            const prdSync = syncPrdPassMarker(db, ticketId, false, "ai_verification");
             if (prdSync.required && !prdSync.success) {
               throw new Error(`Cannot generate demo because PRD sync failed: ${prdSync.message}`);
             }

@@ -127,7 +127,7 @@ export function handle(action: string, args: string[]): void {
         }
         const demoParams = { ticketId, steps };
         validateGenerateDemo(db, demoParams);
-        const prdSync = updatePrdForDbTicketIfPresent(db, ticketId, false);
+        const prdSync = updatePrdForDbTicketIfPresent(db, ticketId, false, "ai_verification");
         if (prdSync.required && !prdSync.success) {
           throw new ValidationError(
             `Cannot generate demo because PRD sync failed: ${prdSync.message}`

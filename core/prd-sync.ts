@@ -6,6 +6,7 @@ interface UserStory {
   id: string;
   title: string;
   passes?: boolean;
+  status?: string;
   [key: string]: unknown;
 }
 
@@ -34,7 +35,8 @@ export interface OptionalUpdatePrdResult extends UpdatePrdResult {
 export function updatePrdForTicket(
   projectPath: string,
   ticketId: string,
-  passes: boolean = true
+  passes: boolean = true,
+  status?: string
 ): UpdatePrdResult {
   const prdPath = join(projectPath, "plans", "prd.json");
 
@@ -59,6 +61,7 @@ export function updatePrdForTicket(
     }
 
     story.passes = passes;
+    if (status !== undefined) story.status = status;
     writeFileSync(prdPath, JSON.stringify(prd, null, 2) + "\n");
     return {
       success: true,
@@ -80,7 +83,8 @@ export function updatePrdForTicket(
 export function updatePrdForTicketIfPresent(
   projectPath: string,
   ticketId: string,
-  passes: boolean = true
+  passes: boolean = true,
+  status?: string
 ): OptionalUpdatePrdResult {
   const prdPath = join(projectPath, "plans", "prd.json");
 
@@ -128,6 +132,7 @@ export function updatePrdForTicketIfPresent(
 
   try {
     story.passes = passes;
+    if (status !== undefined) story.status = status;
     writeFileSync(prdPath, JSON.stringify(prd, null, 2) + "\n");
     return {
       success: true,
@@ -149,13 +154,14 @@ export function updatePrdForTicketIfPresent(
 export function updatePrdForDbTicketIfPresent(
   db: DbHandle,
   ticketId: string,
-  passes: boolean = true
+  passes: boolean = true,
+  status?: string
 ): OptionalUpdatePrdResult {
   const ticketRow = db
     .prepare(
-      "SELECT p.path as project_path FROM tickets t JOIN projects p ON t.project_id = p.id WHERE t.id = ?"
+      "SELECT p.path as project_path, t.status FROM tickets t JOIN projects p ON t.project_id = p.id WHERE t.id = ?"
     )
-    .get(ticketId) as { project_path: string } | undefined;
+    .get(ticketId) as { project_path: string; status: string } | undefined;
 
   if (!ticketRow) {
     return {
@@ -166,5 +172,10 @@ export function updatePrdForDbTicketIfPresent(
     };
   }
 
-  return updatePrdForTicketIfPresent(ticketRow.project_path, ticketId, passes);
+  return updatePrdForTicketIfPresent(
+    ticketRow.project_path,
+    ticketId,
+    passes,
+    status ?? ticketRow.status
+  );
 }

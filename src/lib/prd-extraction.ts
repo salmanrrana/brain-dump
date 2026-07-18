@@ -57,6 +57,7 @@ export interface EnhancedPRDItem {
   id: string;
   title: string;
   passes: boolean;
+  status?: string;
 
   /** Latest unresolved human review rejection details that AI should fix first */
   humanRequestedChanges?: string;

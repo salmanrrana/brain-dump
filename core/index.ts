@@ -197,6 +197,16 @@ export {
 
 export type { InitDatabaseOptions, Logger } from "./db.ts";
 
+export {
+  claimNextEpicContinuation,
+  drainEpicContinuations,
+  enqueueEpicContinuationForTicket,
+  runNextEpicContinuation,
+  saveAutonomousEpicLaunch,
+  setAutonomousEpicLaunchActive,
+} from "./epic-continuation.ts";
+export type { AutonomousEpicLaunchProfile, EpicContinuationJob } from "./epic-continuation.ts";
+
 // Ticket business logic
 export {
   createTicket,

@@ -738,7 +738,8 @@ trap cleanup_on_exit EXIT
 set -e
 
 MAX_ITERATIONS=\${1:-${maxIterations}}
-PROJECT_PATH="${projectPath}"
+RESUME_TICKET_ID=\${2:-}
+PROJECT_PATH="${escapeForBashDoubleQuote(projectPath)}"
 PRD_FILE="$PROJECT_PATH/plans/prd.json"
 PROGRESS_FILE="$PROJECT_PATH/plans/progress.txt"
 SESSION_ID="$(date +%s)-$$"
@@ -825,6 +826,15 @@ echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━
 echo ""
 
 for i in $(seq 1 $MAX_ITERATIONS); do
+  while [ -f "$PRD_FILE" ]; do
+    WAITING_FOR_VERIFICATION=$(node -e 'const p=require(process.argv[1]); const x=p.userStories.filter(s=>s.passes===false); process.stdout.write(x.length>0&&x.every(s=>s.status==="ai_verification")?"1":"0")' "$PRD_FILE" 2>/dev/null || echo 0)
+    if [ "$WAITING_FOR_VERIFICATION" != "1" ]; then
+      break
+    fi
+    echo -e "\\033[0;36m⏳ All incomplete tickets are awaiting AI verification; Ralph is waiting without spending an iteration.\\033[0m"
+    sleep 5
+  done
+
   echo ""
   echo -e "\\033[0;35m═══════════════════════════════════════════════════════════\\033[0m"
   echo -e "\\033[0;35m  Ralph Iteration $i of $MAX_ITERATIONS ${iterationLabel}\\033[0m"
@@ -837,6 +847,12 @@ for i in $(seq 1 $MAX_ITERATIONS); do
   cat > "$PROMPT_FILE" << 'RALPH_PROMPT_EOF'
 ${getRalphPrompt(effectivePromptProfile)}
 RALPH_PROMPT_EOF
+  if [ -n "$RESUME_TICKET_ID" ]; then
+    cat >> "$PROMPT_FILE" << RALPH_RESUME_EOF
+
+Continuation target: resume ticket $RESUME_TICKET_ID. Work this existing in_progress ticket before considering any other epic ticket. Do not call start-work for another ticket while this continuation target remains in_progress.
+RALPH_RESUME_EOF
+  fi
 
   # Validate prompt file is non-empty before passing to Claude
   if [ ! -s "$PROMPT_FILE" ]; then
@@ -955,6 +971,7 @@ ${reviewerBlock}
     TOTAL=$(grep -c '"passes":' "$PRD_FILE" 2>/dev/null) || true
     TOTAL=\${TOTAL:-0}
     COMPLETE=$((TOTAL - INCOMPLETE))
+    WAITING_FOR_VERIFICATION=$(node -e 'const p=require(process.argv[1]); const x=p.userStories.filter(s=>s.passes===false); process.stdout.write(x.length>0&&x.every(s=>s.status==="ai_verification")?"1":"0")' "$PRD_FILE" 2>/dev/null || echo 0)
 
     echo ""
     echo -e "\\033[0;36m📊 Progress: $COMPLETE/$TOTAL tasks complete\\033[0m"
@@ -979,6 +996,8 @@ ${reviewerBlock}
     elif [ "$INCOMPLETE" -lt "$BEST_INCOMPLETE_COUNT" ]; then
       BEST_INCOMPLETE_COUNT="$INCOMPLETE"
       NO_PROGRESS_COUNT=0
+    elif [ "$WAITING_FOR_VERIFICATION" = "1" ]; then
+      echo -e "\\033[0;36m⏳ All incomplete tickets are awaiting AI verification; no-progress tracking paused.\\033[0m"
     elif [ $AI_EXIT_CODE -eq 0 ]; then
       NO_PROGRESS_COUNT=$((NO_PROGRESS_COUNT + 1))
       if [ $NO_PROGRESS_COUNT -ge $MAX_NO_PROGRESS ]; then
@@ -995,6 +1014,14 @@ ${reviewerBlock}
     fi
   fi
 
+  if [ "\${BRAIN_DUMP_EPIC_CONTINUATION:-0}" = "1" ] && [ -n "$RESUME_TICKET_ID" ]; then
+    RESUME_COMPLETE=$(node -e 'const p=require(process.argv[1]); const s=p.userStories.find(x=>x.id===process.argv[2]); process.stdout.write(!s||s.passes===true||s.status==="ai_verification"||s.status==="done"?"1":"0")' "$PRD_FILE" "$RESUME_TICKET_ID" 2>/dev/null || echo 0)
+    if [ "$RESUME_COMPLETE" = "1" ]; then
+      echo -e "\\033[0;32m✅ Continuation target handed off; leaving sibling tickets for the owning epic launch.\\033[0m"
+      exit 0
+    fi
+  fi
+
   echo ""
   echo -e "\\033[0;33m🔄 Moving to next iteration...\\033[0m"
   sleep 2
@@ -1006,6 +1033,9 @@ echo -e "\\033[0;33m⚠️  Max iterations reached. Some tasks may remain.\\033[
 echo -e "\\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
 echo ""
 ${endMessage}
+if [ "\${BRAIN_DUMP_EPIC_CONTINUATION:-0}" = "1" ]; then
+  exit 0
+fi
 exec bash
 `;
 }

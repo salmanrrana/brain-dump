@@ -14,6 +14,8 @@ import {
   shouldStartVerificationWorkerFromEnv,
   startVerificationWorker,
 } from "../../core/verification-worker.ts";
+import { drainEpicContinuations } from "../../core/epic-continuation.ts";
+import { launchEpicContinuationHeadless } from "./ralph-launch/epic-continuation-adapter";
 import { execFileNoThrow } from "../utils/execFileNoThrow";
 
 const disableStartupTasks = process.env.BRAIN_DUMP_DISABLE_DB_STARTUP_TASKS === "1";
@@ -709,6 +711,34 @@ function initReviewWorkflowTables() {
     ensureColumnExists(tableName, "code_git_sha", "TEXT");
   }
 
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS autonomous_epic_launches (
+      epic_id TEXT PRIMARY KEY REFERENCES epics(id) ON DELETE CASCADE,
+      profile_json TEXT NOT NULL,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS epic_continuation_jobs (
+      id TEXT PRIMARY KEY,
+      epic_id TEXT NOT NULL UNIQUE REFERENCES epics(id) ON DELETE CASCADE,
+      ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'queued',
+      attempt_count INTEGER NOT NULL DEFAULT 0,
+      next_run_at TEXT NOT NULL,
+      last_error TEXT,
+      leased_by TEXT,
+      lease_expires_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      completed_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_epic_continuation_jobs_ready
+      ON epic_continuation_jobs (status, next_run_at);
+    CREATE INDEX IF NOT EXISTS idx_epic_continuation_jobs_lease
+      ON epic_continuation_jobs (status, lease_expires_at);
+  `);
+
   const epicReviewRunsExists = sqlite
     .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='epic_review_runs'")
     .get();
@@ -938,7 +968,7 @@ function runSchemaMigrations(): void {
  * Bump this whenever a new table/column migration is added to
  * `runSchemaMigrations()` so existing DBs re-run the checks once and re-stamp.
  */
-const CURRENT_SCHEMA_VERSION = 5;
+const CURRENT_SCHEMA_VERSION = 6;
 
 // Gate the migration checks behind PRAGMA user_version (standard SQLite
 // pattern). When the DB is already at the current version we skip all ~25
@@ -992,7 +1022,13 @@ function scheduleVerificationWorker(): void {
   if (shouldStartVerificationWorkerFromEnv()) {
     setTimeout(() => {
       try {
-        startVerificationWorker(sqlite, { execFileNoThrow, executionSurface: "resident-poller" });
+        startVerificationWorker(sqlite, {
+          execFileNoThrow,
+          executionSurface: "resident-poller",
+          afterJob: async () => {
+            await drainEpicContinuations(sqlite, { launch: launchEpicContinuationHeadless });
+          },
+        });
         console.log("[VerificationWorker] Started resident polling worker (opt-in)");
       } catch (error) {
         console.error("[VerificationWorker] Failed to start:", error);
@@ -1008,12 +1044,20 @@ function scheduleVerificationWorker(): void {
   // in-process execution is safe — the module graph is fresh at boot.
   setTimeout(() => {
     drainVerificationQueue(sqlite, { execFileNoThrow, executionSurface: "boot-drain" })
-      .then((result) => {
+      .then(async (result) => {
         if (result.processed > 0) {
           console.log(`[VerificationWorker] Boot drain processed ${result.processed} job(s)`);
         }
         if (result.lastError) {
           console.error(`[VerificationWorker] Boot drain last error: ${result.lastError}`);
+        }
+        const continuations = await drainEpicContinuations(sqlite, {
+          launch: launchEpicContinuationHeadless,
+        });
+        if (continuations.lastError) {
+          console.error(
+            `[EpicContinuationWorker] Boot drain last error: ${continuations.lastError}`
+          );
         }
       })
       .catch((error) => {

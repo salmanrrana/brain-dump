@@ -504,6 +504,7 @@ export function generateEnhancedPRD(
       id: ticket.id,
       title: ticket.title,
       passes: ticket.status === "done",
+      status: ticket.status,
       ...(humanRequestedChanges ? { humanRequestedChanges } : {}),
       ...(verificationFailures ? { verificationFailures } : {}),
       overview,

@@ -52,6 +52,7 @@ import {
 } from "../core/verification-worker.ts";
 import { getVerificationFailuresByTicketId } from "../src/lib/ralph-launch/change-request-context.ts";
 import type { DemoStep, GitCommandResult, GitOperations } from "../core/types.ts";
+import { saveAutonomousEpicLaunch } from "../core/epic-continuation.ts";
 
 const LIVE_TICKET = "ticket-live";
 const DONE_TICKET = "ticket-done";
@@ -286,6 +287,12 @@ describe("verification loop end-to-end", () => {
       steps: [apiStep(1, 201), apiStep(2, 200)],
     });
     expect(ticketRow(LIVE_TICKET).status).toBe("ai_verification");
+    saveAutonomousEpicLaunch(db, {
+      epicId: EPIC_ID,
+      projectPath: tempDir,
+      scriptPath: join(tempDir, "ralph.sh"),
+      maxIterations: 10,
+    });
 
     // ---- Verification round 1: forced failure → loop-back ----------------
     const round1Exec = createExecStub();
@@ -302,6 +309,9 @@ describe("verification loop end-to-end", () => {
     expect(after1.status).toBe("in_progress");
     expect(after1.is_blocked).toBe(0);
     expect(after1.completed_at).toBeNull();
+    expect(
+      db.prepare("SELECT epic_id, ticket_id, status FROM epic_continuation_jobs").get()
+    ).toEqual({ epic_id: EPIC_ID, ticket_id: LIVE_TICKET, status: "queued" });
 
     // Finding filed with the verification category, open, from the runner.
     const verificationFindings = db
@@ -526,9 +536,16 @@ function seedPrdFile(): string {
 
 function prdPasses(prdPath: string): boolean {
   const prd = JSON.parse(readFileSync(prdPath, "utf-8")) as {
-    userStories: Array<{ id: string; passes: boolean }>;
+    userStories: Array<{ id: string; passes: boolean; status?: string }>;
   };
   return prd.userStories.find((story) => story.id === LIVE_TICKET)!.passes;
+}
+
+function prdStatus(prdPath: string): string | undefined {
+  const prd = JSON.parse(readFileSync(prdPath, "utf-8")) as {
+    userStories: Array<{ id: string; status?: string }>;
+  };
+  return prd.userStories.find((story) => story.id === LIVE_TICKET)!.status;
 }
 
 function verificationJobRowCount(): number {
@@ -594,6 +611,7 @@ describe("automatic verification worker (queue-driven)", () => {
     expect(failedJob!.lastError).toContain("returned to implementation");
     expect(getVerificationFailuresByTicketId(db, [LIVE_TICKET])[LIVE_TICKET]).toContain("Step 1");
     expect(prdPasses(prdPath)).toBe(false);
+    expect(prdStatus(prdPath)).toBe("in_progress");
 
     // A second drain right now claims nothing and exits immediately — the
     // settled loop-back job is not a pending retry, so a one-shot drain never

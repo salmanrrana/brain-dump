@@ -955,6 +955,43 @@ export const verificationJobs = sqliteTable(
 export type VerificationJob = typeof verificationJobs.$inferSelect;
 export type NewVerificationJob = typeof verificationJobs.$inferInsert;
 
+export const autonomousEpicLaunches = sqliteTable("autonomous_epic_launches", {
+  epicId: text("epic_id")
+    .primaryKey()
+    .references(() => epics.id, { onDelete: "cascade" }),
+  profileJson: text("profile_json").notNull(),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const epicContinuationJobs = sqliteTable(
+  "epic_continuation_jobs",
+  {
+    id: text("id").primaryKey(),
+    epicId: text("epic_id")
+      .notNull()
+      .unique()
+      .references(() => epics.id, { onDelete: "cascade" }),
+    ticketId: text("ticket_id")
+      .notNull()
+      .references(() => tickets.id, { onDelete: "cascade" }),
+    status: text("status").notNull().default("queued"),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    nextRunAt: text("next_run_at").notNull(),
+    lastError: text("last_error"),
+    leasedBy: text("leased_by"),
+    leaseExpiresAt: text("lease_expires_at"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+    completedAt: text("completed_at"),
+  },
+  (table) => [
+    index("idx_epic_continuation_jobs_ready").on(table.status, table.nextRunAt),
+    index("idx_epic_continuation_jobs_lease").on(table.status, table.leaseExpiresAt),
+  ]
+);
+
 // Learning interface for epic workflow
 export interface WorkflowLearning {
   type: "pattern" | "anti-pattern" | "tool-usage" | "workflow"; // Type of learning

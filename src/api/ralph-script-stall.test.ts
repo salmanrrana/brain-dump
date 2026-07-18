@@ -31,6 +31,18 @@ describe("generateRalphScript no-progress circuit breaker", () => {
     // never latch the floor at 0 and poison every later iteration.
     expect(script).toContain('if [ "$TOTAL" = "0" ]; then');
     expect(script).toContain("progress tracking skipped");
+    expect(script).toContain('x.every(s=>s.status==="ai_verification")');
+    expect(script).toContain('elif [ "$WAITING_FOR_VERIFICATION" = "1" ]; then');
+    expect(script).toContain("no-progress tracking paused");
+  });
+
+  it("pins durable continuation launches to the failed ticket", () => {
+    const script = generateRalphScript("/tmp/project", 3);
+    expect(script).toContain("RESUME_TICKET_ID=${2:-}");
+    expect(script).toContain("Continuation target: resume ticket $RESUME_TICKET_ID");
+    expect(script).toContain("Ralph is waiting without spending an iteration");
+    expect(script).toContain("Do not call start-work for another ticket");
+    expect(script).toContain('if [ "${BRAIN_DUMP_EPIC_CONTINUATION:-0}" = "1" ]; then');
   });
 
   it("generates a script that passes a bash syntax check", () => {

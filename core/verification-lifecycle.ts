@@ -17,6 +17,10 @@ import {
 import type { DbHandle, DemoStep, ExecFileNoThrowResult } from "./types.ts";
 import { MANUAL_STEP_SKIP_MESSAGE, UNCERTIFIED_TRIPWIRE_MESSAGE } from "./verification-messages.ts";
 import { settleVerificationJob, settleVerificationJobForTicket } from "./verification-queue.ts";
+import {
+  enqueueEpicContinuationForTicket,
+  setAutonomousEpicLaunchActive,
+} from "./epic-continuation.ts";
 import type { VerifierIdentity } from "./verifier-identity.ts";
 import type {
   VerificationEvidenceFile,
@@ -279,6 +283,16 @@ function completeTicketIfCertified(db: DbHandle, ticketId: string, now: string):
     ticketId
   );
   updatePrdForDbTicketIfPresent(db, ticketId, true);
+  db.prepare(
+    `UPDATE autonomous_epic_launches
+     SET active = 0, updated_at = ?
+     WHERE epic_id = (SELECT epic_id FROM tickets WHERE id = ?)
+       AND NOT EXISTS (
+         SELECT 1 FROM tickets sibling
+         WHERE sibling.epic_id = autonomous_epic_launches.epic_id
+           AND sibling.status != 'done'
+       )`
+  ).run(now, ticketId);
 }
 
 function blockTicket(db: DbHandle, ticketId: string, reason: string, now: string): void {
@@ -512,7 +526,8 @@ function returnTicketToImplementationAfterVerificationFailure(
   db.prepare(
     "UPDATE ticket_workflow_state SET current_phase = 'implementation', demo_generated = 0, updated_at = ? WHERE ticket_id = ?"
   ).run(now, run.ticketId);
-  updatePrdForDbTicketIfPresent(db, run.ticketId, false);
+  updatePrdForDbTicketIfPresent(db, run.ticketId, false, "in_progress");
+  enqueueEpicContinuationForTicket(db, run.ticketId, now);
 }
 
 function settleJob(
@@ -663,6 +678,18 @@ export async function settleVerificationLifecycle(
   })();
 
   if (!shouldHandleEpicCompletion) return {};
+
+  const epic = db.prepare("SELECT epic_id FROM tickets WHERE id = ?").get(run.ticketId) as
+    | { epic_id: string | null }
+    | undefined;
+  if (epic?.epic_id) {
+    const remaining = db
+      .prepare("SELECT COUNT(*) AS count FROM tickets WHERE epic_id = ? AND status != 'done'")
+      .get(epic.epic_id) as { count: number };
+    if (remaining.count === 0) {
+      setAutonomousEpicLaunchActive(db, epic.epic_id, false, run.finishedAt);
+    }
+  }
 
   handleEpicCompletionLearnings({ completedTicketId: run.ticketId }, { db });
   const epicAutoPr = await handleEpicCompletionAutoPr(

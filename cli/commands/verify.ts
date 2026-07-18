@@ -6,6 +6,7 @@ import { boolFlag, optionalFlag, parseFlags, requireFlag } from "../lib/args.ts"
 import { getDb } from "../lib/db.ts";
 import { outputError, outputResult, showResourceHelp } from "../lib/output.ts";
 import {
+  drainEpicContinuations,
   drainVerificationQueue,
   execFileNoThrow,
   getVerificationOperationsStatus,
@@ -19,6 +20,7 @@ import {
   summarizeVerificationJobsForOps,
   verifyTicket,
 } from "../../core/index.ts";
+import { launchEpicContinuationHeadless } from "../../src/lib/ralph-launch/epic-continuation-adapter.ts";
 import type { VerificationExecutionSurface } from "../../core/verifier-identity.ts";
 
 const ACTIONS = [
@@ -125,8 +127,11 @@ export async function handle(action: string, args: string[]): Promise<void> {
           executionSurface: executionSurfaceFromEnv("boot-drain"),
           execFileNoThrow,
         });
-        outputResult(result, pretty);
-        if (result.lastError) process.exitCode = 1;
+        const continuations = await drainEpicContinuations(db, {
+          launch: launchEpicContinuationHeadless,
+        });
+        outputResult({ ...result, continuations }, pretty);
+        if (result.lastError || continuations.lastError) process.exitCode = 1;
         return;
       }
       const result = await runNextVerificationJob(db, {
@@ -134,8 +139,11 @@ export async function handle(action: string, args: string[]): Promise<void> {
         executionSurface: executionSurfaceFromEnv("resident-poller"),
         execFileNoThrow,
       });
-      outputResult(result, pretty);
-      if (result.error) process.exitCode = 1;
+      const continuation = await drainEpicContinuations(db, {
+        launch: launchEpicContinuationHeadless,
+      });
+      outputResult({ ...result, continuation }, pretty);
+      if (result.error || continuation.lastError) process.exitCode = 1;
       return;
     }
 
@@ -161,9 +169,13 @@ export async function handle(action: string, args: string[]): Promise<void> {
       executionSurface: "cli-direct",
       execFileNoThrow,
     });
-    outputResult(result, pretty);
+    const continuation = await drainEpicContinuations(db, {
+      launch: launchEpicContinuationHeadless,
+    });
+    outputResult({ ...result, continuation }, pretty);
     if (
       result.status !== "passed" ||
+      continuation.lastError !== null ||
       result.epicAutoPr?.branchResults.some((branch) => !branch.success)
     ) {
       process.exitCode = 1;
