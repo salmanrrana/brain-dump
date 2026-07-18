@@ -54,6 +54,7 @@ export type {
   DemoStepType,
   DemoStepAutomation,
   DemoStepAutomationValue,
+  DemoAppBoot,
   DemoStepUiAutomation,
   DemoStepApiAutomation,
   DemoStepCommandAutomation,

@@ -6,6 +6,8 @@
  */
 
 import { randomUUID } from "crypto";
+import { existsSync, readFileSync } from "fs";
+import { join } from "path";
 import type {
   DbHandle,
   ReviewFinding,
@@ -605,7 +607,11 @@ function validateStepAppearsToCoverCriterion(
   }
 }
 
-export function validateNonShellArgv(argv: unknown, path: string): string[] {
+function validateSpawnSafeArgv(
+  argv: unknown,
+  path: string,
+  allowedBinaries?: ReadonlySet<string>
+): string[] {
   if (!Array.isArray(argv) || argv.length === 0) {
     throw new ValidationError(`${path} must be a non-empty argv array.`);
   }
@@ -640,7 +646,7 @@ export function validateNonShellArgv(argv: unknown, path: string): string[] {
     }
   }
 
-  if (!DEMO_COMMAND_ALLOWED_BINARIES.has(executable)) {
+  if (allowedBinaries && !allowedBinaries.has(executable)) {
     throw new ValidationError(`${path}[0] uses unsupported command "${executable}".`);
   }
   if (DEMO_COMMAND_INTERPRETERS.has(executable)) {
@@ -659,6 +665,29 @@ export function validateNonShellArgv(argv: unknown, path: string): string[] {
   }
 
   return argv;
+}
+
+export function validateNonShellArgv(argv: unknown, path: string): string[] {
+  return validateSpawnSafeArgv(argv, path, DEMO_COMMAND_ALLOWED_BINARIES);
+}
+
+export function validateDemoAppBootArgv(argv: unknown, path: string): string[] {
+  return validateSpawnSafeArgv(argv, path);
+}
+
+function validateDemoAppBoot(step: DemoStep, index: number): void {
+  if (step.app === undefined) return;
+  const label = getStepLabel(step, index);
+  if (!isRecord(step.app)) {
+    throw new ValidationError(`${label} app boot must be an object.`);
+  }
+  validateDemoAppBootArgv(step.app.start, `${label} app.start`);
+  if (step.app.cwd !== undefined) {
+    if (typeof step.app.cwd !== "string") {
+      throw new ValidationError(`${label} app.cwd must be a string.`);
+    }
+    validateProjectRelativePath(step.app.cwd, `${label} app.cwd`);
+  }
 }
 
 export function validateSafeAutomationFilePath(value: string, path: string): void {
@@ -1059,7 +1088,16 @@ function validateDemoSteps(steps: GenerateDemoParams["steps"]): void {
       throw new ValidationError(`Demo step at index ${index} is invalid.`);
     }
     validateDemoStepCoverageMetadata(step, index);
+    validateDemoAppBoot(step, index);
     validateDemoStepAutomation(step, index);
+  }
+
+  const appBoots = steps.flatMap((step) => (step.app ? [step.app] : []));
+  const uniqueAppBoots = new Set(appBoots.map((boot) => JSON.stringify(boot)));
+  if (uniqueAppBoots.size > 1) {
+    throw new ValidationError(
+      "Demo steps declare conflicting app boot commands. Declare one project-specific app command and reuse it unchanged."
+    );
   }
 }
 
@@ -1131,11 +1169,72 @@ export function repairLegacyHumanReviewHandoff(
   return { ticketId, previousStatus: "human_review", newStatus, reason };
 }
 
+function hasUsableLegacyBoot(projectPath: string): boolean {
+  const verifyConfigPath = join(projectPath, ".brain-dump", "verify.json");
+  if (existsSync(verifyConfigPath)) {
+    try {
+      const config = JSON.parse(readFileSync(verifyConfigPath, "utf-8")) as { start?: unknown };
+      if (
+        (typeof config.start === "string" && config.start.trim().length > 0) ||
+        (Array.isArray(config.start) &&
+          config.start.length > 0 &&
+          config.start.every((part) => typeof part === "string" && part.length > 0))
+      ) {
+        return true;
+      }
+    } catch {
+      return false;
+    }
+  }
+
+  const packagePath = join(projectPath, "package.json");
+  if (!existsSync(packagePath)) return false;
+  try {
+    const pkg = JSON.parse(readFileSync(packagePath, "utf-8")) as {
+      brainDump?: { verify?: { start?: unknown } };
+      scripts?: Record<string, unknown>;
+      dependencies?: Record<string, unknown>;
+      devDependencies?: Record<string, unknown>;
+    };
+    const declared = pkg.brainDump?.verify?.start;
+    if (
+      (typeof declared === "string" && declared.trim().length > 0) ||
+      (Array.isArray(declared) &&
+        declared.length > 0 &&
+        declared.every((part) => typeof part === "string" && part.length > 0))
+    ) {
+      return true;
+    }
+    if (pkg.scripts?.dev || pkg.scripts?.start || pkg.scripts?.serve) return true;
+    return Boolean(
+      pkg.dependencies?.vite ||
+      pkg.devDependencies?.vite ||
+      pkg.dependencies?.["@tanstack/react-start"]
+    );
+  } catch {
+    return false;
+  }
+}
+
 function validateDemoGeneration(db: DbHandle, ticketId: string, steps: DemoStep[]): void {
   const ticket = getTicketRow(db, ticketId);
 
   assertTicketTransition(ticket.status, "ai_verification", "generate-demo", "generate demo script");
   validateDemoCoverage(ticket, steps);
+
+  const needsApp = steps.some(
+    (step) => step.automation?.kind === "api" || step.automation?.kind === "ui"
+  );
+  if (needsApp && !steps.some((step) => step.app !== undefined) && ticket.project_id) {
+    const project = db.prepare("SELECT path FROM projects WHERE id = ?").get(ticket.project_id) as
+      | { path: string }
+      | undefined;
+    if (project && existsSync(project.path) && !hasUsableLegacyBoot(project.path)) {
+      throw new ValidationError(
+        'API/UI demo steps for this project must declare app: { start: ["<command>", "...", "{port}"], cwd?: "<project-relative-dir>" }. Inspect the project\'s README, build files, and native runtime configuration; do not assume npm or pnpm.'
+      );
+    }
+  }
 
   // Check that all critical/major findings are resolved
   const findings = db

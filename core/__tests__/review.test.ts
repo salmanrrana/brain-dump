@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import type Database from "better-sqlite3";
+import { mkdtempSync, rmSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
 import { createTestDatabase } from "../db.ts";
 import {
   submitFinding,
@@ -28,7 +31,7 @@ function seedProject(id = "proj-1") {
   db.prepare("INSERT INTO projects (id, name, path, created_at) VALUES (?, ?, ?, ?)").run(
     id,
     "Test Project",
-    "/tmp/test-project",
+    process.cwd(),
     new Date().toISOString()
   );
   return id;
@@ -505,6 +508,51 @@ describe("checkComplete", () => {
 // ============================================
 
 describe("generateDemo", () => {
+  it("requires an AI-authored app command for API handoffs in non-legacy projects", () => {
+    const projectPath = mkdtempSync(join(tmpdir(), "brain-dump-native-demo-"));
+    try {
+      db.prepare("INSERT INTO projects (id, name, path, created_at) VALUES (?, ?, ?, ?)").run(
+        "native-proj",
+        "Native Project",
+        projectPath,
+        new Date().toISOString()
+      );
+      seedAiReviewTicket("ticket-1", "native-proj");
+
+      expect(() => generateDemo(db, { ticketId: "ticket-1", steps: [automatedStep()] })).toThrow(
+        /must declare app.*Inspect the project's README/s
+      );
+
+      writeFileSync(
+        join(projectPath, "package.json"),
+        JSON.stringify({ scripts: { lint: "eslint ." } })
+      );
+      expect(() => generateDemo(db, { ticketId: "ticket-1", steps: [automatedStep()] })).toThrow(
+        /must declare app/
+      );
+
+      const step = {
+        ...automatedStep(),
+        app: { start: ["go", "run", "./cmd/server", "--port", "{port}"] },
+      } satisfies DemoStep;
+      const demo = generateDemo(db, { ticketId: "ticket-1", steps: [step] });
+      expect(demo.steps[0]?.app).toEqual(step.app);
+    } finally {
+      rmSync(projectPath, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects conflicting app commands across demo steps", () => {
+    seedProject();
+    seedAiReviewTicket();
+    const first = { ...automatedStep(1), app: { start: ["go", "run", "./cmd/server"] } };
+    const second = { ...automatedStep(2), app: { start: ["make", "web"] } };
+
+    expect(() => generateDemo(db, { ticketId: "ticket-1", steps: [first, second] })).toThrow(
+      /conflicting app boot commands/
+    );
+  });
+
   it("creates a demo script and transitions ticket to ai_verification", () => {
     seedProject();
     seedAiReviewTicket();

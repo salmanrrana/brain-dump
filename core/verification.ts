@@ -6,6 +6,7 @@ import { fileURLToPath } from "url";
 import { createServer } from "net";
 import type {
   DbHandle,
+  DemoAppBoot,
   DemoStep,
   DemoStepAutomationValue,
   ExecFileNoThrowOptions,
@@ -32,6 +33,7 @@ import {
 import { getActiveVerificationLease } from "./verification-queue.ts";
 import {
   DEMO_COMMAND_MAX_TIMEOUT_MS,
+  validateDemoAppBootArgv,
   validateNonShellArgv,
   validateProjectRelativePath,
   validateSafeAutomationFilePath,
@@ -86,6 +88,7 @@ export interface VerificationManifest {
   dirty: boolean;
   port: number;
   bootCommand: string[];
+  bootCwd?: string;
   bootLog: string;
   startedAt: string;
   finishedAt: string;
@@ -115,6 +118,7 @@ export interface VerifyTicketParams {
   projectPath?: string;
   baseUrl?: string;
   bootCommand?: string[];
+  bootCwd?: string;
   timeoutMs?: number;
   execFileNoThrow?: (
     command: string,
@@ -130,6 +134,7 @@ interface BootedApp {
   baseUrl: string;
   port: number;
   command: string[];
+  cwd: string;
   log: () => string;
   stop: () => Promise<void>;
 }
@@ -137,6 +142,7 @@ interface BootedApp {
 interface FailedBootInfo {
   port: number;
   command: string[];
+  cwd: string;
   bootLog: string;
 }
 
@@ -183,6 +189,21 @@ const SCROLL_INTO_VIEW_TIMEOUT_MS = 3_000;
 const REDACTED_SECRET = "[redacted]";
 const SECRET_ENV_KEY_PATTERN = /(SECRET|TOKEN|PASSWORD|PASS|KEY|AUTH|CREDENTIAL|COOKIE|SESSION)/i;
 const COMMAND_ENV_ALLOWLIST = ["PATH", "SystemRoot", "WINDIR", "COMSPEC", "PATHEXT"];
+const BOOT_ENV_ALLOWLIST = [
+  ...COMMAND_ENV_ALLOWLIST,
+  "HOME",
+  "USER",
+  "LOGNAME",
+  "TMPDIR",
+  "TMP",
+  "TEMP",
+  "LANG",
+  "LC_ALL",
+  "XDG_CACHE_HOME",
+  "XDG_CONFIG_HOME",
+  "XDG_DATA_HOME",
+  "XDG_STATE_HOME",
+];
 const NON_SECRET_ENV_VALUES = new Set(["false", "none", "null", "true", "undefined"]);
 
 function collectSecretEnvValues(env: NodeJS.ProcessEnv = process.env): string[] {
@@ -220,6 +241,15 @@ function redactVerificationValue(value: unknown): unknown {
 function commandAutomationEnv(): NodeJS.ProcessEnv {
   return Object.fromEntries(
     COMMAND_ENV_ALLOWLIST.flatMap((key) => {
+      const value = process.env[key];
+      return typeof value === "string" ? [[key, value]] : [];
+    })
+  );
+}
+
+function bootAutomationEnv(): NodeJS.ProcessEnv {
+  return Object.fromEntries(
+    BOOT_ENV_ALLOWLIST.flatMap((key) => {
       const value = process.env[key];
       return typeof value === "string" ? [[key, value]] : [];
     })
@@ -484,6 +514,18 @@ function stepNeedsApp(step: DemoStep): boolean {
   return step.automation?.kind === "api" || step.automation?.kind === "ui";
 }
 
+function readDemoAppBoot(steps: DemoStep[]): DemoAppBoot | null {
+  const boots = steps.flatMap((step) => (step.app ? [step.app] : []));
+  if (boots.length === 0) return null;
+  const first = boots[0]!;
+  validateDemoAppBootArgv(first.start, "Demo app.start");
+  if (first.cwd !== undefined) validateProjectRelativePath(first.cwd, "Demo app.cwd");
+  if (boots.some((boot) => JSON.stringify(boot) !== JSON.stringify(first))) {
+    throw new ValidationError("Demo steps declare conflicting app boot commands.");
+  }
+  return first;
+}
+
 function stableJson(value: unknown): string {
   return JSON.stringify(value, null, 2);
 }
@@ -711,6 +753,7 @@ async function bootApp(params: {
   projectPath: string;
   baseUrl?: string;
   bootCommand?: string[];
+  bootCwd?: string;
   fetchImpl: typeof fetch;
   timeoutMs: number;
 }): Promise<BootedApp> {
@@ -723,21 +766,28 @@ async function bootApp(params: {
       baseUrl,
       port,
       command: [],
+      cwd: params.projectPath,
       log: () => "external baseUrl supplied",
       stop: async () => {},
     };
   }
 
-  const command = params.bootCommand ?? discoverBootCommand(params.projectPath, port);
+  const command = params.bootCommand
+    ? applyPortTokens(params.bootCommand, port)
+    : discoverBootCommand(params.projectPath, port);
+  const cwd = params.bootCwd
+    ? resolveProjectPath(params.projectPath, params.bootCwd, "Demo app.cwd")
+    : params.projectPath;
+  assertRealPathInsideProject(params.projectPath, cwd, "Demo app.cwd");
   // detached puts the boot in its own process group so stop() can kill the
   // whole tree: killing only the spawned wrapper (e.g. `pnpm exec vite dev`)
   // orphans the underlying dev server, which keeps serving AND keeps running
   // an embedded verification worker that leases queued jobs with stale code.
   const supportsProcessGroups = process.platform !== "win32";
   const child = spawn(command[0]!, command.slice(1), {
-    cwd: params.projectPath,
+    cwd,
     env: {
-      ...process.env,
+      ...bootAutomationEnv(),
       PORT: String(port),
       HOST: "127.0.0.1",
       PLAYWRIGHT_E2E: "1",
@@ -777,6 +827,7 @@ async function bootApp(params: {
   const failedBootInfo = (details = ""): FailedBootInfo => ({
     port,
     command,
+    cwd,
     bootLog: truncate([output, details].filter(Boolean).join("\n"), BOOT_LOG_LIMIT),
   });
   let ready = false;
@@ -811,6 +862,7 @@ async function bootApp(params: {
     baseUrl,
     port,
     command,
+    cwd,
     log: () => output,
     stop: async () => {
       if (child.exitCode !== null || child.killed) return;
@@ -867,6 +919,7 @@ async function runExecutableSteps(params: {
   projectPath: string;
   baseUrl?: string;
   bootCommand?: string[];
+  bootCwd?: string;
   execFileNoThrow: NonNullable<VerifyTicketParams["execFileNoThrow"]>;
   fetchImpl: typeof fetch;
   timeoutMs: number;
@@ -891,6 +944,10 @@ async function runExecutableSteps(params: {
     return { boot: null, verdicts };
   }
 
+  const demoBoot = readDemoAppBoot(params.steps);
+  const bootCommand = params.bootCommand ?? demoBoot?.start;
+  const bootCwd = params.bootCwd ?? demoBoot?.cwd;
+
   let lastError: unknown;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     let boot: BootedApp | null = null;
@@ -898,7 +955,8 @@ async function runExecutableSteps(params: {
       boot = await bootApp({
         projectPath: params.projectPath,
         ...(params.baseUrl !== undefined ? { baseUrl: params.baseUrl } : {}),
-        ...(params.bootCommand !== undefined ? { bootCommand: params.bootCommand } : {}),
+        ...(bootCommand !== undefined ? { bootCommand } : {}),
+        ...(bootCwd !== undefined ? { bootCwd } : {}),
         fetchImpl: params.fetchImpl,
         timeoutMs: params.timeoutMs,
       });
@@ -926,6 +984,7 @@ async function runExecutableSteps(params: {
         lastError = new VerificationBootError(message, {
           port: boot.port,
           command: boot.command,
+          cwd: boot.cwd,
           bootLog: boot.log(),
         });
       } else {
@@ -1519,6 +1578,7 @@ async function buildRun(
         projectPath: actualProjectPath,
         ...(params.baseUrl !== undefined ? { baseUrl: params.baseUrl } : {}),
         ...(params.bootCommand !== undefined ? { bootCommand: params.bootCommand } : {}),
+        ...(params.bootCwd !== undefined ? { bootCwd: params.bootCwd } : {}),
         execFileNoThrow,
         fetchImpl,
         timeoutMs,
@@ -1575,6 +1635,8 @@ async function buildRun(
       failedBootInfo?.port ??
       (params.baseUrl ? Number(new URL(params.baseUrl).port || 80) : 0),
     bootCommand: boot?.command ?? failedBootInfo?.command ?? params.bootCommand ?? [],
+    bootCwd:
+      relative(actualProjectPath, boot?.cwd ?? failedBootInfo?.cwd ?? actualProjectPath) || ".",
     bootLog: redactSecrets(boot?.log() ?? failedBootInfo?.bootLog ?? ""),
     startedAt,
     finishedAt,

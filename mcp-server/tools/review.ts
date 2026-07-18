@@ -65,6 +65,10 @@ const DEMO_STEP_TYPES = ["manual", "visual", "automated"] as const;
 const DEFINED_UNKNOWN_SCHEMA = z.unknown().refine((value) => value !== undefined, {
   message: "Expected value is required.",
 });
+const DEMO_APP_BOOT_SCHEMA = z.object({
+  start: z.array(z.string()),
+  cwd: z.string().optional(),
+});
 
 const DEMO_STEP_AUTOMATION_SCHEMA = z.union([
   z.object({
@@ -206,13 +210,14 @@ No MCP action uploads evidence or marks verification passed. The verification ru
             expectedOutcome: z.string(),
             type: z.enum(DEMO_STEP_TYPES),
             automation: DEMO_STEP_AUTOMATION_SCHEMA.optional(),
+            app: DEMO_APP_BOOT_SCHEMA.optional(),
             covers: z.array(z.string()).optional(),
             coverageRationale: z.string().optional(),
           })
         )
         .optional()
         .describe(
-          "Demo steps. Use executable automation and covers references (criterion:1, subtask:<id>) so every acceptance criterion is proven. Use coverageRationale only for non-certifiable criteria; it must name criterion ids and keeps the run uncertified."
+          "Demo steps. Use executable automation and covers references (criterion:1, subtask:<id>) so every acceptance criterion is proven. API/UI steps for non-legacy projects require app.start argv selected from that project's docs/config, with {port}/{host} tokens and optional project-relative cwd. Use coverageRationale only for non-certifiable criteria; it must name criterion ids and keeps the run uncertified."
         ),
       demoScriptId: z.string().optional().describe("Demo script ID"),
       passed: z.boolean().optional().describe("Whether demo passed"),

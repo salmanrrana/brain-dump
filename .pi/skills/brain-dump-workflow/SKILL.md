@@ -31,6 +31,7 @@ Status flow: `backlog -> ready -> in_progress -> ai_review -> ai_verification ->
 - If no automated validation command is discoverable, perform a targeted manual smoke check and record that no project validation command was found.
 - Before complete-work, add a test_report comment with exact pass/fail/skipped command results and omit author so Brain Dump auto-detects the provider.
 - Before demo, all critical/major findings must be fixed and check-complete must allow verification handoff.
+- For API/UI demo steps, inspect README/AGENTS/CLAUDE docs plus native build files and declare one app.start argv that actually boots this project on {port}; do not infer every app is Node-based.
 - Before session completion, generate-demo must have been called and the ticket must be in ai_verification.
 
 <!-- END GENERATED: workflow-sequence -->

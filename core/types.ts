@@ -276,6 +276,13 @@ export type DemoStepAutomationValue =
   | { [key: string]: DemoStepAutomationValue }
   | DemoStepAutomationValue[];
 
+export interface DemoAppBoot {
+  /** Spawn-safe command selected after inspecting the target project. */
+  start: string[];
+  /** Optional project-relative working directory. */
+  cwd?: string | undefined;
+}
+
 export interface DemoStepUiAutomation {
   kind: "ui";
   route: string;
@@ -347,6 +354,8 @@ export interface DemoStep {
   expectedOutcome: string;
   type: DemoStepType;
   automation?: DemoStepAutomation | undefined;
+  /** Required for new non-legacy API/UI handoffs so the runner does not guess the stack. */
+  app?: DemoAppBoot | undefined;
   /** Stable criterion/subtask references this step proves, e.g. criterion:1 or subtask:<id>. */
   covers?: string[] | undefined;
   /** Required when a criterion cannot be proven by executable automation. */

@@ -398,6 +398,47 @@ describe("verifyTicket", () => {
     ]);
   });
 
+  it("boots a non-Node project with the AI-authored demo app command", async () => {
+    mkdirSync(join(tempDir, "server"));
+    writeFileSync(
+      join(tempDir, "server", "verification-server.mjs"),
+      `import { createServer } from "node:http";
+if (process.env.BRAIN_DUMP_TEST_SECRET_TOKEN) process.exit(42);
+const host = process.argv[2];
+const port = Number(process.argv[3]);
+createServer((request, response) => {
+  response.writeHead(200, { "content-type": "application/json" });
+  response.end(JSON.stringify({ ok: true }));
+}).listen(port, host);`
+    );
+    seedDemo([
+      {
+        ...apiStep(),
+        app: {
+          start: ["node", "verification-server.mjs", "{host}", "{port}"],
+          cwd: "server",
+        },
+      },
+    ]);
+
+    process.env.BRAIN_DUMP_TEST_SECRET_TOKEN = "must-not-reach-project-app";
+    let run: VerificationRun;
+    try {
+      run = await verifyTicket(db, { ticketId: "ticket-1", timeoutMs: 5_000 });
+    } finally {
+      delete process.env.BRAIN_DUMP_TEST_SECRET_TOKEN;
+    }
+
+    expect(run.status).toBe("passed");
+    expect(run.manifest.bootCommand).toEqual([
+      "node",
+      "verification-server.mjs",
+      "127.0.0.1",
+      String(run.manifest.port),
+    ]);
+    expect(run.manifest.bootCwd).toBe("server");
+  });
+
   it("honors a package.json brainDump.verify.start declaration", () => {
     writeFileSync(
       join(tempDir, "package.json"),

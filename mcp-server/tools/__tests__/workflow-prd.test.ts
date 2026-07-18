@@ -102,6 +102,9 @@ describe("workflow complete-work PRD sync", () => {
     )) as { content: Array<{ text: string }> };
 
     expect(result.content[0]?.text).toContain("Status:** ai_review");
+    expect(result.content[0]?.text).toContain('type: "automated"');
+    expect(result.content[0]?.text).toContain("app: { start:");
+    expect(result.content[0]?.text).not.toContain('type: "manual"');
     expect(readPrdPasses(tempDir)).toBe(false);
   });
 });

@@ -151,6 +151,7 @@ ${steeringSection}
 - Fix all critical/major findings before demo generation.
 - \`brain-dump review check-complete --ticket ${profile.selectedTicket.id} --pretty\` must allow verification handoff before demo generation.
 - Demo steps must include 3-7 verification steps with automation specs for visual/automated UI, API, command, or file checks when a demo is required.
+- API/UI demos must declare \`app.start\` argv after inspecting this project's actual docs and runtime config; use \`{port}\`/\`{host}\` tokens and never assume npm or pnpm.
 
 ${renderSessionStateTracking(profile.selectedTicket.id)}
 
@@ -197,7 +198,7 @@ ${TOOL_ACCESS}
 4. Submit every NEW issue with \`brain-dump review submit-finding --ticket <ticketId> --agent <agent> --severity <severity> --category <category> --description "<description>" --pretty\`. Severity guide: critical = broken functionality/crash, major = incorrect behavior or error-handling gap, minor = code quality, suggestion = nice-to-have.
 5. Do NOT edit implementation files. Do NOT mark findings fixed — the implementer fixes and marks them on the next iteration.
 6. If any critical/major findings remain open after your review, STOP here. The implementer will fix them and you will re-review.
-7. If no open critical/major findings remain: run \`brain-dump review check-complete --ticket <ticketId> --pretty\`; when it allows verification handoff, run \`brain-dump review generate-demo --ticket <ticketId> --steps-file <steps.json> --pretty\` with 3-7 steps (include automation specs for UI, API, command, or file checks). This hands the ticket to the verification runner.
+7. If no open critical/major findings remain: run \`brain-dump review check-complete --ticket <ticketId> --pretty\`. Before authoring API/UI steps, inspect README, AGENTS.md/CLAUDE.md, Makefile/Justfile, package.json, pyproject.toml, go.mod, Cargo.toml, and relevant runtime config. Declare one \`app: { "start": ["<runtime>", "...", "{port}"], "cwd": "<optional-project-relative-dir>" }\` on the demo steps using the project's real startup command; never assume npm or pnpm. Then run \`brain-dump review generate-demo --ticket <ticketId> --steps-file <steps.json> --pretty\` with 3-7 steps (include automation specs for UI, API, command, or file checks). This hands the ticket to the verification runner.
 8. \`brain-dump session complete --session <sessionId> --outcome success --pretty\`, then STOP.
 
 ## Hard Guards

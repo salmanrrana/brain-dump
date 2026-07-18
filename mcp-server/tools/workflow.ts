@@ -546,10 +546,11 @@ review({
   action: "generate-demo",
   ticketId: "${ticketId}",
   steps: [
-    { order: 1, description: "What to test", expectedOutcome: "What should happen", type: "manual" }
+    { order: 1, description: "Inspect the changed behavior", expectedOutcome: "The expected implementation is present", type: "automated", automation: { kind: "file", path: "path/to/changed-file", assert: [{ type: "contains", expected: "expected implementation" }] } }
   ]
 })
 \`\`\`
+For API/UI steps, inspect this project's docs and runtime config and add \`app: { start: ["<runtime>", "...", "{port}"], cwd?: "<project-relative-dir>" }\`; never assume npm or pnpm.
 This moves ticket to **ai_verification**.
 
 ### Step 6: STOP

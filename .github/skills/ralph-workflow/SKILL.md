@@ -40,7 +40,7 @@ Self-review the diff, submit every finding through Brain Dump, fix critical/majo
 
 ### Step 3: Demo
 
-Generate 3-7 test steps after review completion, including criterion coverage references plus automation specs for visual/automated UI, API, command, or file checks. Use coverageRationale only for non-certifiable criteria and name each criterion id; rationale keeps the run uncertified. This moves the ticket to ai_verification for runner certification.
+Generate 3-7 test steps after review completion, including criterion coverage references plus automation specs for visual/automated UI, API, command, or file checks. Before API/UI steps, inspect the target project's docs and build/runtime config and declare app.start as spawn-safe argv (with {port}/{host} tokens and optional project-relative cwd); never assume npm or pnpm. Use coverageRationale only for non-certifiable criteria and name each criterion id; rationale keeps the run uncertified. This moves the ticket to ai_verification for runner certification.
 
 - `review({ action: "generate-demo", ticketId, steps }) with covers references and automation specs on visual/automated steps`
 
@@ -58,6 +58,7 @@ Complete the Ralph session and stop. Never run verification or move the ticket t
 - If no automated validation command is discoverable, perform a targeted manual smoke check and record that no project validation command was found.
 - Before complete-work, add a test_report comment with exact pass/fail/skipped command results and omit author so Brain Dump auto-detects the provider.
 - Before demo, all critical/major findings must be fixed and check-complete must allow verification handoff.
+- For API/UI demo steps, inspect README/AGENTS/CLAUDE docs plus native build files and declare one app.start argv that actually boots this project on {port}; do not infer every app is Node-based.
 - Before session completion, generate-demo must have been called and the ticket must be in ai_verification.
 
 ### Hard Guards

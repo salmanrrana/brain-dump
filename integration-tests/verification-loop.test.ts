@@ -175,6 +175,7 @@ function apiStep(order: number, expectedStatus: number): DemoStep {
     description: `Call fixture endpoint ${order}`,
     expectedOutcome: `Endpoint responds with ${expectedStatus}`,
     type: "automated",
+    app: { start: ["node", "verification-server.mjs", "{port}"] },
     automation: {
       kind: "api",
       request: { method: "GET", path: "/health" },

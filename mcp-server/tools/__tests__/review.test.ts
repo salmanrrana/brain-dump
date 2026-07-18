@@ -135,6 +135,7 @@ function automatedStep(order = 1) {
     description: "Check the status API",
     expectedOutcome: "The status endpoint returns OK.",
     type: "automated" as const,
+    app: { start: ["node", "server.js", "--port", "{port}"] },
     automation: {
       kind: "api" as const,
       request: { method: "GET", path: "/api/status" },
