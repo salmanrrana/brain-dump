@@ -202,10 +202,12 @@ What happens:
 
 Nobody runs a per-ticket verification command in the normal flow. Verification is queue-driven:
 
-1. `generate-demo` moves the ticket to `ai_verification` and enqueues exactly one durable verification job (duplicate handoffs refresh the same job row).
+1. `generate-demo` moves the ticket to `ai_verification`, clears superseded `verificationFailures` prompt text from the scoped PRD, and enqueues exactly one durable verification job (duplicate handoffs refresh the same job row). Durable run/finding history remains in SQLite.
 2. The enqueue surface (MCP tool or CLI) spawns a detached **one-shot drain** process (`brain-dump verify worker --drain`), and every Brain Dump server boot drains the queue once at startup. One-shot processes always load the **current on-disk code**, so a long-running server never verifies with its stale boot-time module graph.
-3. The drain leases the job (one active runner per ticket), runs the full step suite, and settles the outcome: certified pass → `done` (plus epic auto-PR when the last epic ticket completes), assertion failure → findings filed and loop-back to `in_progress`, `uncertified`/`infra_error` → blocked in `ai_verification` with the reason on the ticket.
-4. If a drain dies mid-run, its lease expires and the next drain re-leases the same job — queued work survives restarts and is never duplicated.
+3. The running Brain Dump app also acts as a lightweight supervisor. Every 10 seconds it checks for claimable queued work or expired leases and launches a fresh current-code drain. It does not execute verification from the app's older module graph.
+4. The drain leases the job (one active runner per ticket), heartbeats that lease during long test/build steps, runs the full step suite, and settles the outcome: certified pass → `done` (plus epic auto-PR when the last epic ticket completes), assertion failure → findings filed and loop-back to `in_progress`, `uncertified`/`infra_error` → blocked in `ai_verification` with the reason on the ticket.
+5. If a provider, MCP process, or drain dies mid-run, its lease expires and the app supervisor re-leases the same job. Queued work survives process exits and restarts without two healthy workers owning the same attempt.
+6. Command assertions use the complete captured stdout/stderr (up to the execution buffer); only persisted evidence is truncated. A required string after the evidence limit cannot false-fail, and a forbidden string after that limit cannot false-pass.
 
 **Operator controls (debugging and tests, not the normal path):**
 
@@ -220,7 +222,11 @@ Nobody runs a per-ticket verification command in the normal flow. Verification i
 
 Verification execution is automatically disabled inside test runs (`NODE_ENV=test`/Vitest), verifier-booted app instances (`BRAIN_DUMP_VERIFY_BOOT=1`), and Playwright E2E boots — a verification boot must never recurse into the queue or keep executing frozen code.
 
-**If tickets sit in `ai_verification`:** check `brain-dump verify worker-status` for queue depth and last error, then `brain-dump doctor` for runner capability (Playwright, attachments dir, `gh` auth). A queued job with no recent drain usually means the enqueue-time spawn failed — the next server boot or handoff drains it, or run `brain-dump verify worker --drain` once yourself.
+**If tickets sit in `ai_verification`:** check `brain-dump verify worker-status` for queue depth, stale leases, and the last error, then `brain-dump doctor` for runner capability (Playwright, attachments dir, `gh` auth). While the Brain Dump app is running, queued jobs and expired leases are recovered automatically. In a headless/CLI-only environment with no app supervisor, run `brain-dump verify worker --drain --pretty` once to reclaim them.
+
+Ralph's no-progress guard tracks two high-water marks: the lowest incomplete-ticket count and the highest workflow phase each ticket has reached during the run. A first `ai_review → ai_verification` handoff resets the guard even though `passes` remains false; cycling the same ticket back through a phase it already reached does not reset it indefinitely.
+
+The shared core `start-work` and `complete-work` transitions synchronize `in_progress` and `ai_review` into the current scoped PRD for every adapter (CLI, MCP, and UI). That keeps phase tracking provider-independent instead of relying on one launch surface to patch the PRD.
 
 ## Cross-Provider Workflow Parity
 

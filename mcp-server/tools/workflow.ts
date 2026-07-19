@@ -41,7 +41,6 @@ import type { LaunchEpicInput, LaunchTicketInput } from "../../src/lib/ralph-lau
 // MCP-layer presentation imports
 import { loadTicketAttachments, buildAttachmentContextSection } from "../lib/attachment-loader.js";
 import { fetchTicketComments, buildCommentsSection } from "../lib/comment-utils.js";
-import { updatePrdForTicket } from "../lib/prd-utils.js";
 import { createConversationSession, endConversationSessions } from "../lib/conversation-session.js";
 import { detectAuthor } from "../lib/environment.js";
 import { WORKFLOW_SCHEMA_VERSION } from "../../core/workflow-schema.ts";
@@ -438,37 +437,12 @@ function handleCompleteWork(
   const commentAuthor = detectAuthor() as CommentAuthor;
   const result = completeWork(db, ticketId, git, params.summary, commentAuthor);
 
-  // Get project path for PRD update
+  // Re-fetch display fields after the core transition and PRD synchronization.
   const ticketRow = db
     .prepare(
-      "SELECT t.*, p.path as project_path, p.name as project_name FROM tickets t JOIN projects p ON t.project_id = p.id WHERE t.id = ?"
+      "SELECT t.*, p.name as project_name FROM tickets t JOIN projects p ON t.project_id = p.id WHERE t.id = ?"
     )
-    .get(ticketId) as { project_path: string; project_name: string; title: string } | undefined;
-
-  // Keep PRD incomplete until the verification runner certifies the ticket done.
-  // Otherwise Ralph sees passes:true after implementation and skips the required
-  // AI review/demo handoff in the next loop iteration.
-  let prdWarning = "";
-  if (ticketRow) {
-    const prdResult = updatePrdForTicket(ticketRow.project_path, ticketId, false);
-    if (!prdResult.success) {
-      log.error(`PRD sync failed for ticket ${ticketId}: ${prdResult.message}`);
-      prdWarning = `## WARNING: PRD Sync Failed
-
-**The PRD file was NOT synchronized.** This can cause Ralph's iteration loop to skip or repeat the wrong phase.
-
-**Problem:** \`${prdResult.message}\`
-
-**Action Required:** Manually update \`plans/prd.json\`:
-1. Find the ticket with ID containing \`${ticketId.substring(0, 8)}\`
-2. Keep \`"passes": false\` for that ticket while it is not \`done\`
-3. Save the file
-
----
-
-`;
-    }
-  }
+    .get(ticketId) as { project_name: string; title: string } | undefined;
 
   // End conversation sessions
   const sessionEndResult = endConversationSessions(db, ticketId);
@@ -483,8 +457,7 @@ function handleCompleteWork(
 
   // Build response sections
   const sections: string[] = [
-    prdWarning +
-      `## Implementation Complete - Now in AI Review
+    `## Implementation Complete - Now in AI Review
 
 **Ticket:** ${ticketRow?.title || ticketId}
 **Status:** ai_review

@@ -185,6 +185,8 @@ ready → in_progress → ai_review → ai_verification → done
 4. Review agents run (code reviewer + silent failure hunter + code simplifier) and fix loop repeats until critical/major findings are closed.
 5. Generate demo to hand off to AI verification; the runner certifies evidence and moves the ticket to `done`.
 
+Verification jobs are durable. Active runners heartbeat their leases, and the running Brain Dump app automatically relaunches a current-code drain for queued work or an expired lease if a provider/Ralph process exits during verification. Ralph also treats a ticket reaching a new workflow phase as progress, so a successful `ai_review → ai_verification` handoff does not trip the no-progress circuit breaker.
+
 [Detailed workflow guide →](docs/universal-workflow.md)
 
 ### MCP Tools (Action-Dispatched)

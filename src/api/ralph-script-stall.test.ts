@@ -23,6 +23,10 @@ describe("generateRalphScript no-progress circuit breaker", () => {
 
     expect(script).toContain("BEST_INCOMPLETE_COUNT=999999");
     expect(script).toContain('[ "$INCOMPLETE" -lt "$BEST_INCOMPLETE_COUNT" ]');
+    expect(script).toContain("PRD_STATUS_HIGH_WATER=");
+    expect(script).toContain('elif [ "$WORKFLOW_ADVANCED" = "1" ]; then');
+    expect(script).toContain("A ticket reached a new workflow phase");
+    expect(script).toContain("current>(high[s.id]??-1)");
     // The oscillation-vulnerable last-value comparison must be gone.
     expect(script).not.toContain("LAST_INCOMPLETE_COUNT");
     // The stall log line still carries the STALLED: marker operators grep for.

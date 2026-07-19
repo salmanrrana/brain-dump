@@ -17,8 +17,10 @@ import {
   claimNextVerificationJob,
   enqueueVerificationJob,
   getVerificationJob,
+  hasClaimableVerificationJob,
   isVerificationWorkerPaused,
   listVerificationJobs,
+  renewVerificationJobLease,
   settleVerificationJob,
 } from "../verification-queue.ts";
 import {
@@ -35,6 +37,7 @@ import {
   runNextVerificationJob,
   shouldStartVerificationWorkerFromEnv,
   spawnDetachedVerificationDrain,
+  spawnDetachedVerificationDrainIfNeeded,
   type VerificationWorkerOptions,
 } from "../verification-worker.ts";
 import type { DemoStep, ExecFileNoThrowOptions } from "../types.ts";
@@ -983,9 +986,16 @@ createServer((request, response) => {
     );
   });
 
-  it("allows noisy command output while keeping evidence output capped", async () => {
+  it("asserts against complete noisy command output while keeping evidence capped", async () => {
     db.prepare("UPDATE projects SET path = ? WHERE id = 'project-1'").run(tempDir);
-    seedDemo([commandStep()]);
+    const beyondEvidenceLimit = "appears after the evidence limit";
+    const step = commandStep();
+    if (step.automation?.kind !== "command") throw new Error("Expected command automation");
+    step.automation.assert = [
+      { type: "stdoutContains", expected: beyondEvidenceLimit },
+      { type: "stderrContains", expected: beyondEvidenceLimit },
+    ];
+    seedDemo([step]);
     let commandMaxBuffer = 0;
 
     const run = await verifyTicket(db, {
@@ -996,8 +1006,8 @@ createServer((request, response) => {
         commandMaxBuffer = options?.maxBuffer ?? 0;
         return {
           success: true,
-          stdout: "command ok\n",
-          stderr: "warning\n".repeat(20_000),
+          stdout: `${"command output\n".repeat(20_000)}${beyondEvidenceLimit}\n`,
+          stderr: `${"warning\n".repeat(20_000)}${beyondEvidenceLimit}\n`,
           exitCode: 0,
         };
       },
@@ -1006,12 +1016,15 @@ createServer((request, response) => {
     const evidencePath = run.manifest.stepVerdicts[0]?.evidenceFiles[0]?.path;
     if (!evidencePath) throw new Error("Expected command evidence");
     const evidence = JSON.parse(readFileSync(evidencePath, "utf8")) as {
-      result: { stderr: string };
+      result: { stdout: string; stderr: string };
     };
 
     expect(run.status).toBe("passed");
     expect(commandMaxBuffer).toBe(16 * 1024 * 1024);
+    expect(evidence.result.stdout).not.toContain(beyondEvidenceLimit);
+    expect(evidence.result.stdout).toContain("[truncated");
     expect(evidence.result.stderr.length).toBeLessThan(20_000 * "warning\n".length);
+    expect(evidence.result.stderr).not.toContain(beyondEvidenceLimit);
     expect(evidence.result.stderr).toContain("[truncated");
   });
 
@@ -1648,6 +1661,50 @@ describe("verification queue", () => {
     });
   });
 
+  it("reports queued and expired jobs as claimable for a recovery supervisor", () => {
+    seedDemo([apiStep()]);
+    enqueueVerificationJob(db, "ticket-1", { now: "2026-03-08T01:00:00.000Z" });
+
+    expect(hasClaimableVerificationJob(db, { now: "2026-03-08T01:00:01.000Z" })).toBe(true);
+    claimNextVerificationJob(db, {
+      workerId: "worker-1",
+      now: "2026-03-08T01:00:01.000Z",
+      leaseMs: 1_000,
+    });
+    expect(hasClaimableVerificationJob(db, { now: "2026-03-08T01:00:01.500Z" })).toBe(false);
+    expect(hasClaimableVerificationJob(db, { now: "2026-03-08T01:00:03.000Z" })).toBe(true);
+  });
+
+  it("renews an owned running lease so another worker cannot reclaim it", () => {
+    seedDemo([apiStep()]);
+    const job = enqueueVerificationJob(db, "ticket-1", {
+      now: "2026-03-08T01:00:00.000Z",
+    });
+    const claimed = claimNextVerificationJob(db, {
+      workerId: "worker-1",
+      now: "2026-03-08T01:00:01.000Z",
+      leaseMs: 1_000,
+    });
+
+    expect(
+      renewVerificationJobLease(db, {
+        jobId: job.id,
+        workerId: "worker-1",
+        attemptCount: claimed!.attemptCount,
+        now: "2026-03-08T01:00:01.500Z",
+        leaseMs: 60_000,
+      })
+    ).toBe(true);
+    expect(
+      claimNextVerificationJob(db, {
+        workerId: "worker-2",
+        now: "2026-03-08T01:00:03.000Z",
+        leaseMs: 60_000,
+      })
+    ).toBeNull();
+    expect(getVerificationJob(db, "ticket-1")?.leaseExpiresAt).toBe("2026-03-08T01:01:01.500Z");
+  });
+
   it("supports retry scheduling without making failed jobs immediately runnable", () => {
     seedDemo([apiStep()]);
     const job = enqueueVerificationJob(db, "ticket-1", { now: "2026-03-08T01:00:00.000Z" });
@@ -1947,6 +2004,33 @@ describe("verification worker", () => {
 
     expect(first).toMatchObject({ leasedBy: "worker-1" });
     expect(result).toEqual({ claimed: false, workerId: "worker-2" });
+  });
+
+  it("heartbeats its lease while a slow verification is running", async () => {
+    seedDemo([apiStep()]);
+    enqueueVerificationJob(db, "ticket-1", { now: new Date().toISOString() });
+    let initialExpiry = "";
+    let renewedExpiry = "";
+
+    const result = await runNextVerificationJob(db, {
+      workerId: "heartbeat-worker",
+      leaseMs: 250,
+      verifyTicketFn: async (_db, params) => {
+        initialExpiry = getVerificationJob(db, "ticket-1")?.leaseExpiresAt ?? "";
+        await new Promise((resolvePromise) => setTimeout(resolvePromise, 180));
+        renewedExpiry = getVerificationJob(db, "ticket-1")?.leaseExpiresAt ?? "";
+        settleVerificationJob(db, {
+          jobId: params.verificationJobLease!.jobId,
+          workerId: params.verificationJobLease!.workerId,
+          attemptCount: params.verificationJobLease!.attemptCount,
+          status: "succeeded",
+        });
+        return fakeWorkerRun(params);
+      },
+    });
+
+    expect(result).toMatchObject({ claimed: true, jobStatus: "succeeded" });
+    expect(Date.parse(renewedExpiry)).toBeGreaterThan(Date.parse(initialExpiry));
   });
 
   it("rejects verification settlement from a worker that lost its lease", async () => {
@@ -2318,6 +2402,33 @@ describe("verification drain (one-shot worker)", () => {
       })
     );
     expect(child.unref).toHaveBeenCalled();
+  });
+
+  it("spawns a recovery drain only when a job is claimable", () => {
+    seedDemo([apiStep()]);
+    enqueueVerificationJob(db, "ticket-1", { now: "2026-03-08T01:00:00.000Z" });
+    claimNextVerificationJob(db, {
+      workerId: "dead-worker",
+      now: "2026-03-08T01:00:01.000Z",
+      leaseMs: 1_000,
+    });
+    const child = { pid: 4343, unref: vi.fn() };
+    const spawnImpl = vi.fn(() => child);
+
+    const active = spawnDetachedVerificationDrainIfNeeded(db, {
+      brainDumpRoot: "/repo",
+      now: "2026-03-08T01:00:01.500Z",
+      spawnImpl: spawnImpl as unknown as typeof import("child_process").spawn,
+    });
+    const expired = spawnDetachedVerificationDrainIfNeeded(db, {
+      brainDumpRoot: "/repo",
+      now: "2026-03-08T01:00:03.000Z",
+      spawnImpl: spawnImpl as unknown as typeof import("child_process").spawn,
+    });
+
+    expect(active).toEqual({ needed: false, spawned: false });
+    expect(expired).toEqual({ needed: true, spawned: true, pid: 4343 });
+    expect(spawnImpl).toHaveBeenCalledTimes(1);
   });
 
   it("reports spawn failures instead of throwing so the job stays queued", () => {

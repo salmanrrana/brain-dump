@@ -25,6 +25,16 @@ export interface OptionalUpdatePrdResult extends UpdatePrdResult {
   required: boolean;
 }
 
+function applyStoryState(story: UserStory, passes: boolean, status?: string): void {
+  story.passes = passes;
+  if (status !== undefined) story.status = status;
+  // Failure details remain useful through implementation and review, but a
+  // newly generated demo supersedes them. Durable run/finding history remains
+  // in SQLite; keeping the old prompt payload in PRD makes the next Ralph pass
+  // look like the fresh verification already failed.
+  if (passes || status === "ai_verification") delete story.verificationFailures;
+}
+
 /**
  * Update a ticket's Ralph PRD pass marker.
  *
@@ -60,8 +70,7 @@ export function updatePrdForTicket(
       };
     }
 
-    story.passes = passes;
-    if (status !== undefined) story.status = status;
+    applyStoryState(story, passes, status);
     writeFileSync(prdPath, JSON.stringify(prd, null, 2) + "\n");
     return {
       success: true,
@@ -131,8 +140,7 @@ export function updatePrdForTicketIfPresent(
   }
 
   try {
-    story.passes = passes;
-    if (status !== undefined) story.status = status;
+    applyStoryState(story, passes, status);
     writeFileSync(prdPath, JSON.stringify(prd, null, 2) + "\n");
     return {
       success: true,

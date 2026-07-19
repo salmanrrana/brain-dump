@@ -49,6 +49,14 @@ export interface ClaimVerificationJobOptions {
   leaseMs?: number;
 }
 
+export interface RenewVerificationJobLeaseOptions {
+  jobId: string;
+  workerId: string;
+  attemptCount: number;
+  now?: string;
+  leaseMs?: number;
+}
+
 export interface SettleVerificationJobOptions {
   jobId: string;
   workerId: string;
@@ -228,7 +236,6 @@ export function getVerificationJob(db: DbHandle, ticketId: string): Verification
 
 export function isVerificationWorkerPaused(db: DbHandle): boolean {
   try {
-    db.prepare("INSERT OR IGNORE INTO settings (id) VALUES (?)").run(SETTINGS_ID);
     const row = db
       .prepare("SELECT verification_worker_paused FROM settings WHERE id = ?")
       .get(SETTINGS_ID) as { verification_worker_paused: number | null } | undefined;
@@ -260,6 +267,30 @@ export function listVerificationJobs(db: DbHandle): VerificationJob[] {
     .prepare("SELECT * FROM verification_jobs ORDER BY next_run_at ASC, created_at ASC")
     .all() as DbVerificationJobRow[];
   return rows.map(toVerificationJob);
+}
+
+export function hasClaimableVerificationJob(db: DbHandle, options: { now?: string } = {}): boolean {
+  if (isVerificationWorkerPaused(db)) return false;
+
+  const now = nowIso(options.now);
+  const row = db
+    .prepare(
+      `SELECT 1
+       FROM verification_jobs
+       JOIN tickets ON tickets.id = verification_jobs.ticket_id
+       WHERE tickets.status = 'ai_verification'
+         AND (
+           (verification_jobs.status IN ('queued', 'failed') AND verification_jobs.next_run_at <= ?)
+           OR (
+             verification_jobs.status = 'running'
+             AND verification_jobs.lease_expires_at IS NOT NULL
+             AND verification_jobs.lease_expires_at <= ?
+           )
+         )
+       LIMIT 1`
+    )
+    .get(now, now);
+  return row !== undefined;
 }
 
 export function claimNextVerificationJob(
@@ -304,6 +335,24 @@ export function claimNextVerificationJob(
     now,
     toJob: toVerificationJob,
   });
+}
+
+export function renewVerificationJobLease(
+  db: DbHandle,
+  options: RenewVerificationJobLeaseOptions
+): boolean {
+  const now = nowIso(options.now);
+  const leaseExpiresAt = new Date(
+    new Date(now).getTime() + (options.leaseMs ?? DEFAULT_LEASE_MS)
+  ).toISOString();
+  const result = db
+    .prepare(
+      `UPDATE verification_jobs
+       SET lease_expires_at = ?, updated_at = ?
+       WHERE id = ? AND status = 'running' AND leased_by = ? AND attempt_count = ?`
+    )
+    .run(leaseExpiresAt, now, options.jobId, options.workerId, options.attemptCount);
+  return result.changes === 1;
 }
 
 export function settleVerificationJob(

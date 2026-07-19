@@ -40,6 +40,7 @@ import {
   type WorkflowTransitionAction,
 } from "./workflow-steps.ts";
 import { normalizeAttachments } from "./attachment-types.ts";
+import { updatePrdForDbTicketIfPresent } from "./prd-sync.ts";
 
 // ============================================
 // Internal row types (raw SQL results)
@@ -123,12 +124,15 @@ export function startWork(
 
   // 2. If already in_progress with a branch, return early (idempotent)
   if (ticket.status === "in_progress" && ticket.branch_name) {
+    const warnings = ["Ticket is already in progress."];
+    const prdResult = updatePrdForDbTicketIfPresent(db, ticketId, false, "in_progress");
+    if (!prdResult.success) warnings.push(`PRD sync failed: ${prdResult.message}`);
     return {
       branch: ticket.branch_name,
       branchCreated: false,
       usingEpicBranch: false,
       ticket: toTicketWithProject(ticket),
-      warnings: ["Ticket is already in progress."],
+      warnings,
     };
   }
 
@@ -203,6 +207,8 @@ export function startWork(
   db.prepare(
     "UPDATE tickets SET status = 'in_progress', branch_name = ?, updated_at = ? WHERE id = ?"
   ).run(branchName, now, ticketId);
+  const prdResult = updatePrdForDbTicketIfPresent(db, ticketId, false, "in_progress");
+  if (!prdResult.success) warnings.push(`PRD sync failed: ${prdResult.message}`);
 
   // 7. Create or reset workflow state
   try {
@@ -334,6 +340,8 @@ export function completeWork(
 
   // 4. Update workflow state (increment review_iteration)
   const warnings: string[] = [];
+  const prdResult = updatePrdForDbTicketIfPresent(db, ticketId, false, "ai_review");
+  if (!prdResult.success) warnings.push(`PRD sync failed: ${prdResult.message}`);
   try {
     const workflowState = db
       .prepare("SELECT * FROM ticket_workflow_state WHERE ticket_id = ?")

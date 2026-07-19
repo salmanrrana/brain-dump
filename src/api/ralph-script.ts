@@ -751,6 +751,10 @@ MAX_CONSECUTIVE_FAILURES=5
 BEST_INCOMPLETE_COUNT=999999
 NO_PROGRESS_COUNT=0
 MAX_NO_PROGRESS=3
+# Track each ticket's best workflow phase for this run. A genuine forward
+# handoff (for example ai_review -> ai_verification) is progress even though
+# passes remains false, while replaying the same failure loop is not.
+PRD_STATUS_HIGH_WATER=$(node -e 'const p=require(process.argv[1]); const rank={backlog:0,ready:1,in_progress:2,ai_review:3,ai_verification:4,done:5}; process.stdout.write(JSON.stringify(Object.fromEntries(p.userStories.map(s=>[s.id,rank[s.status]??0]))))' "$PRD_FILE" 2>/dev/null) || PRD_STATUS_HIGH_WATER="{}"
 PER_ITERATION_TIMEOUT=${perIterationTimeoutValue}
 
 cd "$PROJECT_PATH"
@@ -972,6 +976,9 @@ ${reviewerBlock}
     TOTAL=\${TOTAL:-0}
     COMPLETE=$((TOTAL - INCOMPLETE))
     WAITING_FOR_VERIFICATION=$(node -e 'const p=require(process.argv[1]); const x=p.userStories.filter(s=>s.passes===false); process.stdout.write(x.length>0&&x.every(s=>s.status==="ai_verification")?"1":"0")' "$PRD_FILE" 2>/dev/null || echo 0)
+    WORKFLOW_PROGRESS=$(node -e 'const high=JSON.parse(process.argv[1]); const p=require(process.argv[2]); const rank={backlog:0,ready:1,in_progress:2,ai_review:3,ai_verification:4,done:5}; let advanced=false; for(const s of p.userStories){const current=rank[s.status]??0; if(current>(high[s.id]??-1)){high[s.id]=current; advanced=true}} process.stdout.write((advanced?"1":"0")+" "+JSON.stringify(high))' "$PRD_STATUS_HIGH_WATER" "$PRD_FILE" 2>/dev/null) || WORKFLOW_PROGRESS="0 $PRD_STATUS_HIGH_WATER"
+    WORKFLOW_ADVANCED=\${WORKFLOW_PROGRESS%% *}
+    PRD_STATUS_HIGH_WATER=\${WORKFLOW_PROGRESS#* }
 
     echo ""
     echo -e "\\033[0;36m📊 Progress: $COMPLETE/$TOTAL tasks complete\\033[0m"
@@ -996,6 +1003,9 @@ ${reviewerBlock}
     elif [ "$INCOMPLETE" -lt "$BEST_INCOMPLETE_COUNT" ]; then
       BEST_INCOMPLETE_COUNT="$INCOMPLETE"
       NO_PROGRESS_COUNT=0
+    elif [ "$WORKFLOW_ADVANCED" = "1" ]; then
+      NO_PROGRESS_COUNT=0
+      echo -e "\\033[0;36m⏩ A ticket reached a new workflow phase; no-progress tracking reset.\\033[0m"
     elif [ "$WAITING_FOR_VERIFICATION" = "1" ]; then
       echo -e "\\033[0;36m⏳ All incomplete tickets are awaiting AI verification; no-progress tracking paused.\\033[0m"
     elif [ $AI_EXIT_CODE -eq 0 ]; then

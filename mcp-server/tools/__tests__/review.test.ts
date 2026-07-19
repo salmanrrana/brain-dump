@@ -93,7 +93,12 @@ function installFakeGh(initialBody: string): { editedBodyPath: string } {
   return { editedBodyPath };
 }
 
-function writePrd(projectPath: string, ticketId: string, passes: boolean): void {
+function writePrd(
+  projectPath: string,
+  ticketId: string,
+  passes: boolean,
+  verificationFailures?: string
+): void {
   mkdirSync(join(projectPath, "plans"), { recursive: true });
   writeFileSync(
     join(projectPath, "plans", "prd.json"),
@@ -104,6 +109,7 @@ function writePrd(projectPath: string, ticketId: string, passes: boolean): void 
             id: ticketId,
             title: "Ticket ready for demo",
             passes,
+            ...(verificationFailures ? { verificationFailures } : {}),
           },
         ],
       },
@@ -111,6 +117,23 @@ function writePrd(projectPath: string, ticketId: string, passes: boolean): void 
       2
     )
   );
+}
+
+function readPrdStory(projectPath: string): {
+  passes: boolean;
+  status?: string;
+  verificationFailures?: string;
+} {
+  const prd = JSON.parse(readFileSync(join(projectPath, "plans", "prd.json"), "utf8")) as {
+    userStories: Array<{
+      passes: boolean;
+      status?: string;
+      verificationFailures?: string;
+    }>;
+  };
+  const story = prd.userStories[0];
+  if (!story) throw new Error("Expected PRD story");
+  return story;
 }
 
 function writeMalformedPrd(projectPath: string): void {
@@ -214,7 +237,7 @@ describe("review tool generate-demo PR sync", () => {
       )
     );
     seedAiReviewTicketWithPr("ticket-1");
-    writePrd(tempDir, "ticket-1", false);
+    writePrd(tempDir, "ticket-1", false, "Old verification failure from a superseded demo");
 
     const server = new McpServer({ name: "test", version: "1.0.0" });
     registerReviewTool(server, db);
@@ -251,6 +274,13 @@ describe("review tool generate-demo PR sync", () => {
     );
     expect(result.content[0]?.text).toContain("Updated PR #42 with 2 demo steps.");
     expect(readPrdPasses(tempDir)).toBe(false);
+    expect(readPrdStory(tempDir)).toEqual(
+      expect.objectContaining({
+        passes: false,
+        status: "ai_verification",
+      })
+    );
+    expect(readPrdStory(tempDir).verificationFailures).toBeUndefined();
     const editedBody = readFileSync(editedBodyPath, "utf8");
     expect(editedBody).toContain("1. Check the status API");
     expect(editedBody).toContain("Expected: The status endpoint returns OK.");

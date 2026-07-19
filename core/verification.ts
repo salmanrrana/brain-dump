@@ -1318,13 +1318,19 @@ async function runCommandStep(
     );
   }
   for (const assertion of automation.assert) {
-    if (assertion.type === "stdoutContains" && !stdout.includes(assertion.expected)) {
+    if (assertion.type === "stdoutContains" && !result.stdout.includes(assertion.expected)) {
       failures.push(`expected stdout to contain ${JSON.stringify(assertion.expected)}`);
-    } else if (assertion.type === "stdoutNotContains" && stdout.includes(assertion.expected)) {
+    } else if (
+      assertion.type === "stdoutNotContains" &&
+      result.stdout.includes(assertion.expected)
+    ) {
       failures.push(`expected stdout not to contain ${JSON.stringify(assertion.expected)}`);
-    } else if (assertion.type === "stderrContains" && !stderr.includes(assertion.expected)) {
+    } else if (assertion.type === "stderrContains" && !result.stderr.includes(assertion.expected)) {
       failures.push(`expected stderr to contain ${JSON.stringify(assertion.expected)}`);
-    } else if (assertion.type === "stderrNotContains" && stderr.includes(assertion.expected)) {
+    } else if (
+      assertion.type === "stderrNotContains" &&
+      result.stderr.includes(assertion.expected)
+    ) {
       failures.push(`expected stderr not to contain ${JSON.stringify(assertion.expected)}`);
     }
   }

@@ -44,18 +44,20 @@ Here's exactly what happens when you click "Start Ralph" and walk away:
 │      ✓ Run project validation → Required checks pass                        │
 │      ✓ session "update-state" → committing                                  │
 │      ✓ git commit -m "feat(abc): add login form with validation"            │
-│      ✓ workflow "complete-work" → PRD updated (1/3 passes: true)            │
-│      ✓ session "complete" → state file deleted                              │
+│      ✓ workflow "complete-work" → ticket enters ai_review                   │
+│      ✓ fresh-eyes review fixes major findings                               │
+│      ✓ review "generate-demo" → ticket enters ai_verification               │
+│      ✓ verification runner certifies evidence → passes: true                 │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  T2: 6:25 PM — Iteration 2: "Add logout button" (medium priority)           │
 │                                                                              │
 │      ✓ Same workflow as above                                               │
-│      ✓ PRD updated (2/3 passes: true)                                       │
+│      ✓ Review + verification complete (2/3 passes: true)                    │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  T3: 6:45 PM — Iteration 3: "Session timeout handling" (low priority)       │
 │                                                                              │
 │      ✓ Same workflow as above                                               │
-│      ✓ PRD updated (3/3 passes: true)                                       │
+│      ✓ Review + verification complete (3/3 passes: true)                    │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  T4: 6:50 PM — All tickets complete                                         │
 │                                                                              │
@@ -67,7 +69,7 @@ Here's exactly what happens when you click "Start Ralph" and walk away:
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**You come back from dinner to find:** 3 tickets implemented, tested, and committed.
+**You come back from dinner to find:** 3 tickets implemented, reviewed, verified, and committed.
 
 ---
 
@@ -79,8 +81,9 @@ Ralph is Brain Dump's autonomous agent mode. Instead of working interactively wi
 2. **Create branches** and write code
 3. **Run tests** and fix failures
 4. **Commit changes** with proper messages
-5. **Move to the next ticket** automatically
-6. **Continue until done** or timeout
+5. **Hand off to fresh-eyes review and AI verification**
+6. **Move to the next actionable ticket** while verification runs independently
+7. **Continue until done** or timeout
 
 ---
 
@@ -103,9 +106,11 @@ flowchart TB
         I --> J["session create<br/>→ Track state"]
         J --> K["Implement & test"]
         K --> L["Commit changes"]
-        L --> M["workflow complete-work<br/>→ Update PRD"]
-        M --> N["session complete"]
-        N --> E
+        L --> M["workflow complete-work<br/>→ ai_review"]
+        M --> N["Fresh-eyes review<br/>→ fix major findings"]
+        N --> P["generate-demo<br/>→ ai_verification"]
+        P --> Q["Verification runner<br/>→ done or rework"]
+        Q --> E
     end
 
     D --> E
@@ -316,8 +321,8 @@ Ralph uses `plans/prd.json` as its single source of truth:
 
 **Key Field: `passes`**
 
-- `false` = Ticket needs work (Ralph will pick it)
-- `true` = Ticket is done (Ralph skips it)
+- `false` = Ticket is not certified yet; it may need work/review or be waiting in `ai_verification`
+- `true` = Verification certified the ticket as done (Ralph skips it)
 - Ralph iterates until all are `true`
 
 ---
@@ -377,9 +382,9 @@ workflow({
   ticketId: "uuid",
   summary: "Implemented login form with validation",
 });
-// Sets status: review
-// Updates PRD: passes = true
-// Suggests next ticket
+// Sets status: ai_review
+// Keeps PRD passes = false until verification certifies the ticket
+// Review/check-complete/generate-demo hands the ticket to ai_verification
 ```
 
 ---
@@ -517,13 +522,16 @@ This spawns a fresh terminal for each ticket, avoiding context pollution.
 
 ### Ralph keeps working on the same ticket
 
-**Cause:** The PRD isn't being updated (passes: true not set)
+**Cause:** The ticket is not advancing through implementation, review, or verification, or the PRD cannot be synchronized.
 
 **Fix:**
 
 1. Check if `workflow "complete-work"` was called: `cat plans/prd.json | grep passes`
-2. If not, manually update: Edit `plans/prd.json` and set `passes: true`
-3. Restart Ralph
+2. Do not manually set `passes: true`; only a certified verification run completes it.
+3. Inspect `brain-dump verify worker-status --pretty`. The app automatically recovers queued jobs and expired leases; in a headless environment run `brain-dump verify worker --drain --pretty`.
+4. Restart Ralph.
+
+Ralph's stall guard records each ticket's highest phase during the current run. A new handoff such as `ai_review → ai_verification` counts as progress once, while repeatedly cycling through phases already reached still trips the circuit breaker.
 
 ### State enforcement keeps blocking me
 
@@ -550,13 +558,13 @@ rm .claude/ralph-state.json
 
 ### PRD shows all passes: true but tickets aren't done
 
-**Cause:** PRD was updated but ticket status wasn't
+**Cause:** PRD/database state drifted. Normal workflow only writes `passes: true` when verification also marks the ticket `done`.
 
 **Fix:**
 
-1. Check ticket status in Brain Dump UI
-2. Manually move tickets to "Review" or "Done" status
-3. Or run `workflow "complete-work"` for each ticket
+1. Check ticket status and `brain-dump verify history --ticket <id> --pretty`.
+2. Run `brain-dump doctor` and inspect PRD sync errors in Brain Dump logs.
+3. Do not manually mark the ticket done; repair/requeue verification so the lifecycle can reconcile both stores.
 
 ### Docker container won't start
 

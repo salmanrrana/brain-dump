@@ -13,7 +13,9 @@ import {
 import {
   claimNextVerificationJob,
   getVerificationJob,
+  hasClaimableVerificationJob,
   isVerificationWorkerPaused,
+  renewVerificationJobLease,
 } from "./verification-queue.ts";
 import { verifyTicket, type VerificationRun, type VerifyTicketParams } from "./verification.ts";
 import type { VerificationExecutionSurface } from "./verifier-identity.ts";
@@ -206,10 +208,11 @@ export async function runNextVerificationJob(
 ): Promise<VerificationWorkerRunResult> {
   const workerId = options.workerId ?? `verification-worker-${randomUUID()}`;
   const now = nowIso(options.now);
+  const leaseMs = options.leaseMs ?? DEFAULT_LEASE_MS;
   const job = claimNextVerificationJob(db, {
     workerId,
     now,
-    leaseMs: options.leaseMs ?? DEFAULT_LEASE_MS,
+    leaseMs,
   });
   if (!job) return { claimed: false, workerId };
   const lease: ClaimedJobLease = {
@@ -220,6 +223,23 @@ export async function runNextVerificationJob(
   };
 
   const verify = options.verifyTicketFn ?? verifyTicket;
+  const heartbeatIntervalMs = Math.max(25, Math.min(30_000, Math.floor(leaseMs / 3)));
+  const leaseClockStartedAt = Date.now();
+  const leaseClockBase = new Date(now).getTime();
+  const heartbeat = setInterval(() => {
+    try {
+      const renewed = renewVerificationJobLease(db, {
+        ...lease,
+        now: new Date(leaseClockBase + (Date.now() - leaseClockStartedAt)).toISOString(),
+        leaseMs,
+      });
+      if (!renewed) clearInterval(heartbeat);
+    } catch (error) {
+      console.error("[VerificationWorker] Lease heartbeat failed:", error);
+    }
+  }, heartbeatIntervalMs);
+  heartbeat.unref?.();
+
   try {
     const run = await verify(db, {
       ticketId: job.ticketId,
@@ -313,6 +333,8 @@ export async function runNextVerificationJob(
       jobStatus: "blocked",
       error: message,
     };
+  } finally {
+    clearInterval(heartbeat);
   }
 }
 
@@ -543,6 +565,10 @@ export interface SpawnVerificationDrainResult {
   error?: string;
 }
 
+export interface SpawnVerificationRecoveryDrainResult extends SpawnVerificationDrainResult {
+  needed: boolean;
+}
+
 /**
  * Launch a detached one-shot verification drain process.
  *
@@ -578,6 +604,16 @@ export function spawnDetachedVerificationDrain(
     options.logError?.(`Failed to spawn verification drain: ${message}`);
     return { spawned: false, error: message };
   }
+}
+
+export function spawnDetachedVerificationDrainIfNeeded(
+  db: DbHandle,
+  options: SpawnVerificationDrainOptions & { now?: string }
+): SpawnVerificationRecoveryDrainResult {
+  if (!hasClaimableVerificationJob(db, options.now !== undefined ? { now: options.now } : {})) {
+    return { needed: false, spawned: false };
+  }
+  return { needed: true, ...spawnDetachedVerificationDrain(options) };
 }
 
 /**

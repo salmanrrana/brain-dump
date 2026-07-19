@@ -11,6 +11,9 @@ Adapters must not write verification run rows, evidence attachments, verificatio
 - Three consecutive assertion failures on the same step keep the ticket in `ai_verification`, block it loudly, and settle the job as `blocked`.
 - `infra_error` and `uncertified` outcomes write the audit trail, leave the ticket in `ai_verification`, block it with a visible reason, and settle the job as `blocked`.
 - Worker lease settlement goes through the lifecycle using the trusted `verificationJobLease`; manual/debug runs settle the current ticket job through the same path.
+- A running worker heartbeats its owned lease. The long-lived app supervisor only launches a recovery drain for queued work that is ready or a running lease that has expired.
+- Command assertions evaluate complete captured output. Evidence storage remains capped and redacted independently of assertion evaluation.
+- A fresh demo supersedes the scoped PRD's prior `verificationFailures` prompt payload; durable historical runs, findings, comments, and attachments are retained.
 
 ## Allowed Crossings
 

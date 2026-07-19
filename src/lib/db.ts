@@ -11,7 +11,9 @@ import { ensureTelemetryTables, ensureTicketWorkflowColumns } from "./db-bootstr
 import {
   drainVerificationQueue,
   isVerificationExecutionAllowedFromEnv,
+  resolveBrainDumpRootFrom,
   shouldStartVerificationWorkerFromEnv,
+  spawnDetachedVerificationDrainIfNeeded,
   startVerificationWorker,
 } from "../../core/verification-worker.ts";
 import { drainEpicContinuations } from "../../core/epic-continuation.ts";
@@ -1039,9 +1041,32 @@ function scheduleVerificationWorker(): void {
 
   if (!isVerificationExecutionAllowedFromEnv()) return;
 
+  const brainDumpRoot = resolveBrainDumpRootFrom(import.meta.url);
+  if (brainDumpRoot) {
+    // Enqueue drains are normally launched by the MCP/CLI caller. That caller
+    // may belong to a short-lived provider process tree, so a lightweight
+    // supervisor in the long-lived app recovers queued jobs and expired
+    // leases with a fresh current-code drain.
+    setInterval(() => {
+      try {
+        const recovery = spawnDetachedVerificationDrainIfNeeded(sqlite, { brainDumpRoot });
+        if (recovery.needed && !recovery.spawned) {
+          console.error(
+            `[VerificationWorker] Recovery drain failed to spawn: ${recovery.error ?? "unknown error"}`
+          );
+        }
+      } catch (error) {
+        console.error("[VerificationWorker] Recovery supervisor check failed:", error);
+      }
+    }, 10_000).unref?.();
+  } else {
+    console.error("[VerificationWorker] Recovery supervisor could not resolve Brain Dump root");
+  }
+
   // Default mode: one drain pass for jobs left over from previous sessions,
-  // then nothing runs until an enqueue spawns a one-shot drain. Boot-time
-  // in-process execution is safe — the module graph is fresh at boot.
+  // then the recovery supervisor only intervenes when an enqueue drain never
+  // claims its job or leaves an expired lease. Boot-time in-process execution
+  // is safe — the module graph is fresh at boot.
   setTimeout(() => {
     drainVerificationQueue(sqlite, { execFileNoThrow, executionSurface: "boot-drain" })
       .then(async (result) => {
