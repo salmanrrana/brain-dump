@@ -299,8 +299,10 @@ function buildNativeAiInvocation(
   if (aiBackend === "claude") {
     const claudeNativeModelArgument = modelSelection ? ` --model "$BRAIN_DUMP_LAUNCH_MODEL"` : "";
     return `  # Run Claude in print mode (-p) so it exits after completion
-  # This allows the bash loop to continue to the next iteration
-  $ITER_TIMEOUT_CMD claude --dangerously-skip-permissions${claudeNativeModelArgument} --output-format text -p "$(cat "$PROMPT_FILE")"`;
+  # This allows the bash loop to continue to the next iteration.
+  # Output is teed so the loop can distinguish provider usage-limit
+  # rejections (never worth retrying) from real failures.
+  $ITER_TIMEOUT_CMD claude --dangerously-skip-permissions${claudeNativeModelArgument} --output-format text -p "$(cat "$PROMPT_FILE")" 2>&1 | tee "$AI_OUTPUT_FILE"`;
   }
 
   return AI_BACKEND_CONFIGS[aiBackend].invocation;
@@ -621,9 +623,12 @@ RALPH_REVIEW_PROMPT_EOF
         export BRAIN_DUMP_REVIEWER_MODEL_PROVIDER="${reviewer.modelSelection ? escapeForBashDoubleQuote(reviewer.modelSelection.provider) : ""}"
         export BRAIN_DUMP_REVIEWER_MODEL="${reviewer.modelSelection ? escapeForBashDoubleQuote(reviewer.modelSelection.modelName) : ""}"
         ${reviewerModelEnvAssignments}
+        : > "$AI_OUTPUT_FILE" 2>/dev/null || true
         set +e
+        set -o pipefail
 ${reviewerAiInvocation}
         REVIEW_EXIT_CODE=$?
+        set +o pipefail
         set -e
         unset BRAIN_DUMP_REVIEWER_AUTHOR
         unset BRAIN_DUMP_REVIEWER_MODEL_PROVIDER
@@ -635,6 +640,9 @@ ${reviewerAiInvocation}
           echo "[$(date -Iseconds)] REVIEW FAILURE: ${reviewerAiName} exited with code $REVIEW_EXIT_CODE on iteration $i" >> "$PROGRESS_FILE"
           AI_EXIT_CODE=$REVIEW_EXIT_CODE
           AI_REVIEW_FAILED=true
+          if detect_provider_limit "$AI_OUTPUT_FILE"; then
+            AI_PROVIDER_LIMIT=true
+          fi
         fi
       fi
       rm -f "$REVIEW_PROMPT_FILE"
@@ -789,6 +797,17 @@ fi
 # the parent can settle their durable job; interactive runs keep the terminal
 # open — a spawned window that closes on exit destroys the only explanation of
 # why Ralph stopped.
+# Provider usage/session-limit rejections are printed by the AI CLI as a
+# single message and fail every retry identically (observed: five byte-identical
+# transcripts of "You've hit your session limit"). Detect them so the loop can
+# stop honestly instead of burning quota-charged retries on a hard rejection.
+AI_PROVIDER_LIMIT_MSG=""
+detect_provider_limit() {
+  [ -n "$1" ] && [ -s "$1" ] || return 1
+  AI_PROVIDER_LIMIT_MSG=$(grep -m1 -iE "(hit|reached) your (session|usage|weekly|5-hour) limit|(session|usage|weekly) limit (reached|exceeded)|out of extra usage" "$1" || true)
+  [ -n "$AI_PROVIDER_LIMIT_MSG" ]
+}
+
 finish_ralph() {
   FINISH_CODE=\${1:-0}
   if [ "\${BRAIN_DUMP_EPIC_CONTINUATION:-0}" = "1" ]; then
@@ -927,10 +946,15 @@ RALPH_RESUME_EOF
   AI_INTERRUPTED=false
   AI_ITER_TIMEOUT=false
   AI_REVIEW_FAILED=false
+  AI_PROVIDER_LIMIT=false
+  AI_OUTPUT_FILE=$(mktemp "\${TMPDIR:-/tmp}/ralph-ai-output.XXXXXX" 2>/dev/null || echo "/dev/null")
   for RETRY in $(seq 1 $MAX_RETRIES); do
+    : > "$AI_OUTPUT_FILE" 2>/dev/null || true
     set +e
+    set -o pipefail
 ${aiInvocation}
     AI_EXIT_CODE=$?
+    set +o pipefail
     set -e
 
     # Per-iteration timeout fired: coreutils 'timeout' exits 124 (TERM) or 137
@@ -950,6 +974,13 @@ ${aiInvocation}
       echo -e "\\033[0;33m⏹️  ${aiName} interrupted by user. Skipping retries for this iteration.\\033[0m"
       echo "[$(date -Iseconds)] INTERRUPTED: ${aiName} exited with code $AI_EXIT_CODE" >> "$PROGRESS_FILE"
       AI_INTERRUPTED=true
+      break
+    fi
+
+    # A usage-limit rejection is terminal for this launch: every retry returns
+    # the same one-liner and each attempt still counts against the quota.
+    if [ $AI_EXIT_CODE -ne 0 ] && detect_provider_limit "$AI_OUTPUT_FILE"; then
+      AI_PROVIDER_LIMIT=true
       break
     fi
 
@@ -973,6 +1004,7 @@ ${reviewerBlock}
   done
 
   rm -f "$PROMPT_FILE"
+  [ "$AI_OUTPUT_FILE" != "/dev/null" ] && rm -f "$AI_OUTPUT_FILE"
 
   echo ""
   echo -e "\\033[0;36m───────────────────────────────────────────────────────────\\033[0m"
@@ -985,6 +1017,18 @@ ${reviewerBlock}
     echo -e "\\033[0;33m⏭️  Continuing to next iteration after user interrupt.\\033[0m"
     sleep 1
     continue
+  fi
+
+  if [ "$AI_PROVIDER_LIMIT" = "true" ]; then
+    echo ""
+    echo -e "\\033[0;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+    echo -e "\\033[0;31m⛔ ${aiName} usage limit reached — Ralph is stopping without retries.\\033[0m"
+    echo -e "\\033[0;33m   Provider message: $AI_PROVIDER_LIMIT_MSG\\033[0m"
+    echo -e "\\033[0;33m   This is NOT a code or workflow failure. Resume this launch after\\033[0m"
+    echo -e "\\033[0;33m   the limit resets, or relaunch with a different provider.\\033[0m"
+    echo -e "\\033[0;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+    echo "[$(date -Iseconds)] PROVIDER LIMIT: ${aiName} usage limit reached; stopped without retries. Provider message: $AI_PROVIDER_LIMIT_MSG" >> "$PROGRESS_FILE"
+    finish_ralph 1
   fi
 
   # Track consecutive failures to detect persistent issues

@@ -591,7 +591,13 @@ createServer((request, response) => {
       writeFileSync(path, "fake image")
     );
     const locator = vi.fn(() => ({
-      first: () => ({ isVisible, textContent }),
+      first: () => ({
+        isVisible,
+        textContent,
+        waitFor,
+        click: vi.fn(async () => {}),
+        fill: vi.fn(async () => {}),
+      }),
       waitFor,
     }));
     const close = vi.fn(async () => {});
@@ -631,6 +637,61 @@ createServer((request, response) => {
     expect(close).toHaveBeenCalled();
   });
 
+  it("passes UI steps whose action selectors match many rendered elements", async () => {
+    const step = uiTextStep();
+    if (step.automation?.kind !== "ui") throw new Error("Expected ui step");
+    step.automation.actions = [
+      { act: "waitFor", selector: "[data-testid^='portfolio-row-']" },
+      { act: "click", selector: "button[aria-label='Refresh dashboard data']" },
+    ];
+    seedDemo([step]);
+    const firstWaitFor = vi.fn(async () => {});
+    const firstClick = vi.fn(async () => {});
+    // Strict (multi-match) waitFor throws exactly like Playwright does when a
+    // prefix selector resolves to many populated rows; only the splash
+    // dismissal passes options and is allowed through.
+    const strictWaitFor = vi.fn(async (options?: unknown) => {
+      if (!options) throw new Error("strict mode violation: resolved to 26 elements");
+    });
+    const toContainText = vi.fn(async () => {});
+    const screenshot = vi.fn(async ({ path }: { path: string }) =>
+      writeFileSync(path, "fake image")
+    );
+    const locator = vi.fn(() => ({
+      first: () => ({
+        isVisible: vi.fn(async () => true),
+        waitFor: firstWaitFor,
+        click: firstClick,
+        fill: vi.fn(async () => {}),
+      }),
+      waitFor: strictWaitFor,
+    }));
+    vi.doMock("@playwright/test", () => ({
+      chromium: {
+        launch: vi.fn(async () => ({
+          newPage: vi.fn(async () => ({
+            addInitScript: vi.fn(async () => {}),
+            goto: vi.fn(async () => {}),
+            evaluate: vi.fn(async () => ({ ok: true })),
+            keyboard: { press: vi.fn(async () => {}) },
+            locator,
+            screenshot,
+            url: () => "http://127.0.0.1:4242/",
+          })),
+          close: vi.fn(async () => {}),
+        })),
+      },
+      expect: () => ({ toContainText }),
+    }));
+    const baseUrl = await startFixtureServer();
+
+    const run = await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+
+    expect(run.status).toBe("passed");
+    expect(firstWaitFor).toHaveBeenCalled();
+    expect(firstClick).toHaveBeenCalled();
+  });
+
   it("scrolls the asserted text into view before capturing the screenshot", async () => {
     seedDemo([uiTextStep()]);
     // The app shell scrolls inside nested overflow containers, so without an
@@ -647,7 +708,12 @@ createServer((request, response) => {
       writeFileSync(path, "fake image");
     });
     const locator = vi.fn(() => ({
-      first: () => ({ isVisible: vi.fn(async () => true) }),
+      first: () => ({
+        isVisible: vi.fn(async () => true),
+        waitFor: vi.fn(async () => {}),
+        click: vi.fn(async () => {}),
+        fill: vi.fn(async () => {}),
+      }),
       waitFor: vi.fn(async () => {}),
     }));
     vi.doMock("@playwright/test", () => ({
@@ -686,7 +752,12 @@ createServer((request, response) => {
     // Text assertions pass against the SSR DOM under the overlay, so without
     // the dismissal gate this run would certify a splash-only screenshot.
     const locator = vi.fn((selector: string) => ({
-      first: () => ({ isVisible: vi.fn(async () => true) }),
+      first: () => ({
+        isVisible: vi.fn(async () => true),
+        waitFor: vi.fn(async () => {}),
+        click: vi.fn(async () => {}),
+        fill: vi.fn(async () => {}),
+      }),
       waitFor: vi.fn(async (options?: { state?: string }) => {
         if (selector === '[data-testid="app-splash"]' && options?.state === "detached") {
           throw new Error("Timeout 15000ms exceeded");
@@ -732,7 +803,12 @@ createServer((request, response) => {
       writeFileSync(path, "fake image")
     );
     const locator = vi.fn(() => ({
-      first: () => ({ isVisible: vi.fn(async () => true) }),
+      first: () => ({
+        isVisible: vi.fn(async () => true),
+        waitFor: vi.fn(async () => {}),
+        click: vi.fn(async () => {}),
+        fill: vi.fn(async () => {}),
+      }),
       waitFor: vi.fn(async () => {}),
     }));
     vi.doMock("@playwright/test", () => ({
@@ -784,7 +860,12 @@ createServer((request, response) => {
       writeFileSync(path, "fake image")
     );
     const locator = vi.fn(() => ({
-      first: () => ({ isVisible }),
+      first: () => ({
+        isVisible,
+        waitFor: vi.fn(async () => {}),
+        click: vi.fn(async () => {}),
+        fill: vi.fn(async () => {}),
+      }),
       waitFor,
     }));
     vi.doMock("@playwright/test", () => ({

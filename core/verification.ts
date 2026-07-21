@@ -1461,12 +1461,28 @@ async function runUiStep(
         );
         nonAssertionFailureKeys.push(uiFailureKey("splash-overlay-timeout"));
       }
+      // Actions resolve multi-match selectors to the first element, mirroring
+      // the assertion semantics below. A strict locator would fail a waitFor
+      // on a prefix selector like [data-testid^='row-'] precisely when the
+      // page rendered MORE data than required (observed: 26 populated
+      // portfolio rows failing "wait for a portfolio row").
       for (const action of step.automation.actions ?? []) {
-        if (action.act === "click") await page.locator(action.selector ?? "").click();
+        if (action.act === "click")
+          await page
+            .locator(action.selector ?? "")
+            .first()
+            .click();
         if (action.act === "fill")
-          await page.locator(action.selector ?? "").fill(action.value ?? "");
+          await page
+            .locator(action.selector ?? "")
+            .first()
+            .fill(action.value ?? "");
         if (action.act === "press") await page.keyboard.press(action.value ?? "Enter");
-        if (action.act === "waitFor") await page.locator(action.selector ?? "body").waitFor();
+        if (action.act === "waitFor")
+          await page
+            .locator(action.selector ?? "body")
+            .first()
+            .waitFor();
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
