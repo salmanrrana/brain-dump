@@ -27,6 +27,7 @@ import type {
   VerificationEvidenceFile,
   VerificationManifest,
   VerificationRun,
+  VerificationStepVerdict,
 } from "./verification.ts";
 import { assertTransition, isTicketStatus, WorkflowTransitionError } from "./workflow-steps.ts";
 
@@ -75,10 +76,36 @@ function severityForFailedStep(step: DemoStep | undefined): "critical" | "major"
     : "major";
 }
 
-function failedStepOrdersFromManifest(manifest: VerificationManifest): Set<number> {
-  return new Set(
-    manifest.stepVerdicts.filter((step) => step.status === "failed").map((step) => step.order)
-  );
+/**
+ * Regenerated demos renumber and reshape their steps, so the same broken
+ * assertion rarely keeps one step order across rounds. Normalize a failed
+ * verdict's message (ids and numbers stripped) so "the same failure keeps
+ * happening" survives demo rewrites.
+ */
+function failureFingerprints(verdict: VerificationStepVerdict): string[] {
+  if (verdict.failureKeys && verdict.failureKeys.length > 0) {
+    return verdict.failureKeys.map((key) => `assertion:${key}`);
+  }
+  const normalizedMessage = verdict.message
+    .toLowerCase()
+    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, "<id>")
+    .replace(/\d+/g, "#")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 200);
+  return [`${verdict.automationKey ?? `legacy-step:${verdict.order}`}:${normalizedMessage}`];
+}
+
+function failedFingerprintsFromManifest(manifest: VerificationManifest): Map<string, number> {
+  const fingerprints = new Map<string, number>();
+  for (const step of manifest.stepVerdicts) {
+    if (step.status === "failed") {
+      for (const fingerprint of failureFingerprints(step)) {
+        fingerprints.set(fingerprint, step.order);
+      }
+    }
+  }
+  return fingerprints;
 }
 
 function parseVerificationManifest(value: string): VerificationManifest | null {
@@ -99,27 +126,131 @@ function ensureWorkflowState(db: DbHandle, ticketId: string, phase: string, now:
   ).run(randomUUID(), ticketId, phase, now, now);
 }
 
-function latestThreeFailedRunsShareStep(db: DbHandle, ticketId: string): number | null {
+interface RepeatedVerificationFailure {
+  stepOrder: number;
+}
+
+function latestVerificationResolutionAt(db: DbHandle, ticketId: string): string | null {
+  const row = db
+    .prepare(
+      `SELECT verification_streak_reset_at
+       FROM ticket_workflow_state
+       WHERE ticket_id = ?`
+    )
+    .get(ticketId) as { verification_streak_reset_at: string | null } | undefined;
+  return row?.verification_streak_reset_at ?? null;
+}
+
+function latestThreeFailedRunsShareFailure(
+  db: DbHandle,
+  ticketId: string
+): RepeatedVerificationFailure | null {
+  const resolutionAt = latestVerificationResolutionAt(db, ticketId);
   const rows = db
     .prepare(
       `SELECT status, manifest
        FROM verification_runs
-       WHERE ticket_id = ?
+       WHERE ticket_id = ? AND (? IS NULL OR finished_at > ?)
        ORDER BY round DESC
        LIMIT 3`
     )
-    .all(ticketId) as Array<{ status: string; manifest: string }>;
+    .all(ticketId, resolutionAt, resolutionAt) as Array<{ status: string; manifest: string }>;
   if (rows.length < 3 || rows.some((row) => row.status !== "failed")) return null;
 
   const manifests = rows.map((row) => parseVerificationManifest(row.manifest));
   if (manifests.some((manifest) => manifest === null)) return null;
 
-  const failedOrderSets = manifests.map((manifest) => failedStepOrdersFromManifest(manifest!));
-  const [firstSet, ...remainingSets] = failedOrderSets;
-  for (const order of firstSet ?? []) {
-    if (remainingSets.every((set) => set.has(order))) return order;
+  const [latest, ...older] = manifests.map((manifest) => failedFingerprintsFromManifest(manifest!));
+  for (const [fingerprint, order] of latest ?? []) {
+    if (older.every((fingerprints) => fingerprints.has(fingerprint))) return { stepOrder: order };
   }
   return null;
+}
+
+/**
+ * Alternating failed/uncertified rounds never trip the same-failure guard or
+ * the consecutive-uncertified guard, so a ticket can bounce between
+ * implementation and verification indefinitely. Infra errors are excluded:
+ * the worker owns their retry budget and blocks them itself.
+ */
+const NON_CONVERGENCE_RUN_LIMIT = 5;
+
+function countConsecutiveNonPassingRuns(db: DbHandle, ticketId: string): number {
+  const resolutionAt = latestVerificationResolutionAt(db, ticketId);
+  const rows = db
+    .prepare(
+      `SELECT status FROM verification_runs
+       WHERE ticket_id = ? AND (? IS NULL OR finished_at > ?)
+       ORDER BY round DESC
+       LIMIT ?`
+    )
+    .all(ticketId, resolutionAt, resolutionAt, NON_CONVERGENCE_RUN_LIMIT) as Array<{
+    status: string;
+  }>;
+  let count = 0;
+  for (const row of rows) {
+    if (row.status !== "failed" && row.status !== "uncertified") break;
+    count += 1;
+  }
+  return count;
+}
+
+export type VerificationFailureKind = "connectivity" | "assertion";
+
+export interface VerificationFailureClassification {
+  kind: VerificationFailureKind;
+  detail: string;
+}
+
+const CONNECTIVITY_ERROR_PATTERN =
+  /err_connection_refused|econnrefused|econnreset|net::err_|cors|access-control-allow|connection refused|failed to fetch|networkerror|socket hang up/i;
+
+export const CONNECTIVITY_FAILURE_GUIDANCE =
+  "Verify the environment before changing product code: boot the app exactly as the runner does (random loopback {port}/{host}), confirm CORS allows any loopback origin, and read this run's boot log and screenshot evidence.";
+
+/**
+ * A run where every widget-level assertion fails at once is almost never one
+ * broken feature — it is the app unreachable from the runner's randomized
+ * loopback origin (port, CORS, boot readiness). Say so in the failure record,
+ * so agents check the environment before "fixing" working product code.
+ */
+export function classifyVerificationRunFailure(
+  run: VerificationRun
+): VerificationFailureClassification | null {
+  const failed = run.manifest.stepVerdicts.filter((verdict) => verdict.status === "failed");
+  if (failed.length === 0) return null;
+  if (failed.some((verdict) => CONNECTIVITY_ERROR_PATTERN.test(verdict.message))) {
+    return {
+      kind: "connectivity",
+      detail:
+        "A network-layer error (connection refused, CORS, failed fetch) appears in the failure output.",
+    };
+  }
+  const wideUiFailure = failed.some(
+    (verdict) =>
+      verdict.automationKind === "ui" &&
+      verdict.message
+        .split("; ")
+        .filter((part) => part.includes("expected") || part.includes("assertion failed")).length >=
+        3
+  );
+  if (wideUiFailure) {
+    return {
+      kind: "connectivity",
+      detail:
+        "Several independent UI assertions failed in one step — typically the app was unreachable and every widget rendered its empty/error state.",
+    };
+  }
+  return { kind: "assertion", detail: "A specific assertion failed while sibling checks passed." };
+}
+
+function classificationLines(run: VerificationRun): string[] {
+  const classification = classifyVerificationRunFailure(run);
+  if (!classification || classification.kind !== "connectivity") return [];
+  return [
+    `Likely cause: environment/connectivity — ${classification.detail}`,
+    CONNECTIVITY_FAILURE_GUIDANCE,
+  ];
 }
 
 function recordVerificationFindings(
@@ -135,6 +266,7 @@ function recordVerificationFindings(
   const iteration = workflowState?.review_iteration ?? 0;
   const stepsByOrder = new Map(steps.map((step) => [step.order, step]));
   const failedVerdicts = run.manifest.stepVerdicts.filter((step) => step.status === "failed");
+  const failureClassificationLines = classificationLines(run);
 
   for (const verdict of failedVerdicts) {
     const step = stepsByOrder.get(verdict.order);
@@ -143,6 +275,7 @@ function recordVerificationFindings(
       step ? `Step: ${step.description}` : null,
       step ? `Expected: ${step.expectedOutcome}` : null,
       `Actual: ${verdict.message}`,
+      ...failureClassificationLines,
       `Evidence: ${stringifyEvidenceRefs(verdict.evidenceFiles)}`,
     ]
       .filter((line): line is string => Boolean(line))
@@ -368,19 +501,33 @@ function assertNoActiveExternalLease(db: DbHandle, ticketId: string): void {
 function blockTicketAfterRepeatedVerificationFailures(
   db: DbHandle,
   run: VerificationRun,
-  stepOrder: number,
+  repeatedFailure: RepeatedVerificationFailure | null,
   now: string
 ): void {
   ensureWorkflowState(db, run.ticketId, "ai_verification", now);
-  const reason = `Verification failed 3 consecutive times on step ${stepOrder}. Latest run: ${run.id}. Evidence: ${stringifyEvidenceRefs(
-    run.manifest.stepVerdicts.find((step) => step.order === stepOrder)?.evidenceFiles ?? []
-  )}`;
+  const evidenceStepOrder =
+    repeatedFailure?.stepOrder ??
+    run.manifest.stepVerdicts.find((step) => step.status === "failed")?.order;
+  const evidence = stringifyEvidenceRefs(
+    run.manifest.stepVerdicts.find((step) => step.order === evidenceStepOrder)?.evidenceFiles ?? []
+  );
+  const reason = repeatedFailure
+    ? `Verification failed 3 consecutive times on step ${repeatedFailure.stepOrder} (same failure signature each round). Latest run: ${run.id}. Evidence: ${evidence}`
+    : `Verification has produced ${NON_CONVERGENCE_RUN_LIMIT} consecutive non-passing runs without converging on one failure. Latest run: ${run.id}. Evidence: ${evidence}`;
   returnVerificationTicketForHumanAction(db, run.ticketId, reason, now);
   addComment(db, {
     ticketId: run.ticketId,
     author: "brain-dump",
     type: "comment",
-    content: `## Needs Attention\n\n${reason}\n\nAutomatic verification has stopped. The ticket was returned to \`in_progress\` and blocked so a person can resolve it.`,
+    content: [
+      "## Needs Attention",
+      "",
+      reason,
+      ...classificationLines(run).flatMap((line) => ["", line]),
+      "",
+      "Automatic verification has stopped. The ticket was returned to `in_progress` and blocked so a person can resolve it.",
+      'After the cause is fixed and validated, resolve the blocker with the `review` tool, `action: "resolve-verification-failure"` (root cause, classification, fix commits, validation), then regenerate the demo to re-enter verification.',
+    ].join("\n"),
   });
 }
 
@@ -399,14 +546,15 @@ function uncertificationCauses(run: VerificationRun): string[] {
 }
 
 function previousRunWasUncertified(db: DbHandle, ticketId: string, currentRound: number): boolean {
+  const resolutionAt = latestVerificationResolutionAt(db, ticketId);
   const row = db
     .prepare(
       `SELECT status FROM verification_runs
-       WHERE ticket_id = ? AND round < ?
+       WHERE ticket_id = ? AND round < ? AND (? IS NULL OR finished_at > ?)
        ORDER BY round DESC
        LIMIT 1`
     )
-    .get(ticketId, currentRound) as { status: string } | undefined;
+    .get(ticketId, currentRound, resolutionAt, resolutionAt) as { status: string } | undefined;
   return row?.status === "uncertified";
 }
 
@@ -678,8 +826,11 @@ export async function settleVerificationLifecycle(
     } else if (run.status === "failed") {
       recordVerificationFindings(db, run, steps, now);
       updateDemoStepStatusesForRun(db, run, steps);
-      const blockedStepOrder = latestThreeFailedRunsShareStep(db, run.ticketId);
-      if (blockedStepOrder === null) {
+      const repeatedFailure = latestThreeFailedRunsShareFailure(db, run.ticketId);
+      const nonConvergent =
+        repeatedFailure === null &&
+        countConsecutiveNonPassingRuns(db, run.ticketId) >= NON_CONVERGENCE_RUN_LIMIT;
+      if (repeatedFailure === null && !nonConvergent) {
         returnTicketToImplementationAfterVerificationFailure(db, run, now);
         settleJob(db, {
           ticketId: run.ticketId,
@@ -690,14 +841,16 @@ export async function settleVerificationLifecycle(
           error: "Verification assertions failed; ticket returned to implementation.",
         });
       } else {
-        blockTicketAfterRepeatedVerificationFailures(db, run, blockedStepOrder, now);
+        blockTicketAfterRepeatedVerificationFailures(db, run, repeatedFailure, now);
         settleJob(db, {
           ticketId: run.ticketId,
           verificationJobLease: params.verificationJobLease,
           status: "blocked",
           now,
           identity,
-          error: `Repeated verification failure on step ${blockedStepOrder}.`,
+          error: repeatedFailure
+            ? `Repeated verification failure on step ${repeatedFailure.stepOrder}.`
+            : `Verification did not converge after ${NON_CONVERGENCE_RUN_LIMIT} consecutive non-passing runs.`,
         });
       }
     } else if (run.status === "uncertified") {
@@ -705,7 +858,13 @@ export async function settleVerificationLifecycle(
       const causes = uncertificationCauses(run);
       const blockedReason = `Verification uncertified: ${causes.join(" ") || "see manifest"}`;
       const tripwire = causes.includes(UNCERTIFIED_TRIPWIRE_MESSAGE);
-      if (!tripwire && !previousRunWasUncertified(db, run.ticketId, run.round)) {
+      const nonConvergentUncertified =
+        countConsecutiveNonPassingRuns(db, run.ticketId) >= NON_CONVERGENCE_RUN_LIMIT;
+      if (
+        !tripwire &&
+        !previousRunWasUncertified(db, run.ticketId, run.round) &&
+        !nonConvergentUncertified
+      ) {
         returnUncertifiedRunToImplementation(db, run, steps, causes, now);
         settleJob(db, {
           ticketId: run.ticketId,
@@ -719,7 +878,9 @@ export async function settleVerificationLifecycle(
       } else {
         const guidance = tripwire
           ? "The diff touches verification/manifest code, so automated certification is disabled as a safety tripwire. A human must review the verification-code changes and complete the ticket manually."
-          : "The regenerated demo is still not certifiable. A human should decide: make every demo step executable, reword the acceptance criteria to match what automation can prove, or verify the work manually and complete the ticket.";
+          : previousRunWasUncertified(db, run.ticketId, run.round)
+            ? "The regenerated demo is still not certifiable. A human should decide: make every demo step executable, reword the acceptance criteria to match what automation can prove, or verify the work manually and complete the ticket."
+            : `Verification has alternated between failing and uncertified rounds for ${NON_CONVERGENCE_RUN_LIMIT} consecutive runs without converging. A human should review the run history and decide how to prove this ticket's criteria.`;
         returnVerificationTicketForHumanAction(db, run.ticketId, blockedReason, now);
         addVerificationAttentionComment(db, {
           ticketId: run.ticketId,

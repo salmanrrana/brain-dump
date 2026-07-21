@@ -7,7 +7,7 @@
 
 import { randomUUID } from "crypto";
 import { existsSync, readFileSync } from "fs";
-import { join } from "path";
+import { join, resolve } from "path";
 import type {
   DbHandle,
   ReviewFinding,
@@ -165,13 +165,107 @@ export interface SubmitFindingParams {
  * @throws TicketNotFoundError if the ticket doesn't exist
  * @throws InvalidStateError if the ticket is not in ai_review status
  */
-export function submitFinding(db: DbHandle, params: SubmitFindingParams): ReviewFinding {
+const FINDING_DEDUP_LINE_NEIGHBORHOOD = 10;
+const FINDING_SEVERITY_RANK: Record<FindingSeverity, number> = {
+  suggestion: 0,
+  minor: 1,
+  major: 2,
+  critical: 3,
+};
+
+function moreSevereFindingSeverity(
+  existing: FindingSeverity,
+  incoming: FindingSeverity
+): FindingSeverity {
+  return FINDING_SEVERITY_RANK[incoming] > FINDING_SEVERITY_RANK[existing] ? incoming : existing;
+}
+
+function normalizeFindingDescription(value: string): string {
+  const canonicalDescription = value.split("\n\n[duplicate report merged ", 1)[0] ?? value;
+  return canonicalDescription
+    .toLowerCase()
+    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, "<id>")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Reviewers re-report the same defect across passes (observed: duplicate
+ * majors filed 30 seconds apart describing one refresh-state bug), and every
+ * duplicate open major blocks check-complete again. Match on category + file +
+ * line neighborhood + canonical description identity; merge instead of
+ * inserting. Exact identity is deliberately conservative so similar but
+ * independently resolvable defects never disappear behind one finding.
+ */
+function findDuplicateOpenFinding(
+  db: DbHandle,
+  params: {
+    ticketId: string;
+    category: string;
+    description: string;
+    filePath?: string | undefined;
+    lineNumber?: number | undefined;
+  }
+): DbReviewFindingRow | null {
+  const rows = db
+    .prepare(
+      "SELECT * FROM review_findings WHERE ticket_id = ? AND status = 'open' AND category = ?"
+    )
+    .all(params.ticketId, params.category) as DbReviewFindingRow[];
+  const normalizedDescription = normalizeFindingDescription(params.description);
+  for (const row of rows) {
+    if ((row.file_path ?? null) !== (params.filePath ?? null)) continue;
+    const bothLinesMissing = row.line_number == null && params.lineNumber == null;
+    const bothLinesClose =
+      row.line_number != null &&
+      params.lineNumber != null &&
+      Math.abs(row.line_number - params.lineNumber) <= FINDING_DEDUP_LINE_NEIGHBORHOOD;
+    const lineClose = bothLinesMissing || bothLinesClose;
+    if (!lineClose) continue;
+    if (normalizeFindingDescription(row.description) === normalizedDescription) {
+      return row;
+    }
+  }
+  return null;
+}
+
+function submitFindingInTransaction(db: DbHandle, params: SubmitFindingParams): ReviewFinding {
   const { ticketId, agent, severity, category, description, filePath, lineNumber, suggestedFix } =
     params;
 
   const ticket = getTicketRow(db, ticketId);
 
   assertTicketTransition(ticket.status, "ai_review", "submit-finding", "submit review finding");
+
+  const duplicate = findDuplicateOpenFinding(db, {
+    ticketId,
+    category,
+    description,
+    filePath,
+    lineNumber,
+  });
+  if (duplicate) {
+    const now = new Date().toISOString();
+    const mergedSeverity = moreSevereFindingSeverity(
+      duplicate.severity as FindingSeverity,
+      severity
+    );
+    db.prepare(
+      `UPDATE review_findings
+       SET description = description || ?, severity = ?,
+           suggested_fix = COALESCE(suggested_fix, ?)
+       WHERE id = ?`
+    ).run(
+      `\n\n[duplicate report merged ${now} from ${agent}] ${description.slice(0, 300)}`,
+      mergedSeverity,
+      suggestedFix ?? null,
+      duplicate.id
+    );
+    const merged = db
+      .prepare("SELECT * FROM review_findings WHERE id = ?")
+      .get(duplicate.id) as DbReviewFindingRow;
+    return { ...toReviewFinding(merged), deduplicated: true };
+  }
 
   const workflowState = getOrCreateWorkflowState(db, ticketId);
   const epicReviewRunId = findLatestActiveEpicReviewRunIdForTicket(db, ticketId);
@@ -206,6 +300,13 @@ export function submitFinding(db: DbHandle, params: SubmitFindingParams): Review
     .prepare("SELECT * FROM review_findings WHERE id = ?")
     .get(findingId) as DbReviewFindingRow;
   return toReviewFinding(row);
+}
+
+export function submitFinding(db: DbHandle, params: SubmitFindingParams): ReviewFinding {
+  const submit = db.transaction(() => submitFindingInTransaction(db, params));
+  // Finding identity is derived from existing open rows. Reserve the write
+  // lock before that lookup so concurrent reviewers cannot both insert it.
+  return submit.immediate();
 }
 
 export type MarkFixedStatus = "fixed" | "wont_fix" | "duplicate";
@@ -764,18 +865,224 @@ export function validateDemoAppBootArgv(argv: unknown, path: string): string[] {
   return validateSpawnSafeArgv(argv, path);
 }
 
-function validateDemoAppBoot(step: DemoStep, index: number): void {
+const HARDCODED_LOOPBACK_ORIGIN_PATTERN =
+  /(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|\[::\]):\d{1,5}/i;
+const APP_BIND_ORIGIN_FLAG_PATTERN =
+  /^--?(?:[a-z0-9]+-)*(?:bind|host|hostname|listen|origin)(?:-[a-z0-9]+)*$/i;
+const PORT_FLAG_WITH_VALUE_PATTERN =
+  /^(?:(?:-p|-l)=?\d{1,5}|--?(?:[a-z0-9]+-)*(?:bind|listen|port)(?:-[a-z0-9]+)*=\d{1,5})$/i;
+const PORT_VALUE_FLAG_PATTERN =
+  /^(?:-p|-l|--?(?:bind|listen)|--?(?:[a-z0-9]+-)*port(?:-[a-z0-9]+)*)$/i;
+const POSITIONAL_PORT_COMMAND_PATTERN = /^(?:serve|server|.*[-_.]server)$/i;
+const POSITIONAL_BIND_COMMAND_PATTERN =
+  /^(?:runserver|serve|server|server\.[a-z0-9]+|.*[-_.]server(?:\.[a-z0-9]+)?)$/i;
+const POSITIONAL_PORT_INTERPRETER_PATTERN = /^(?:bun|deno|node|php|python\d*|ruby)$/i;
+const PORT_ENV_ASSIGNMENT_PATTERN = /^(?:[A-Z0-9]+_)*PORT=\d{1,5}$/i;
+
+/**
+ * The runner boots the app on a random free loopback port and asserts against
+ * that origin, so a start command pinned to a fixed port produces
+ * ERR_CONNECTION_REFUSED rounds that look like product failures. Reject the
+ * pin at authoring time; {port}/{host} tokens (and the exported PORT/HOST env
+ * vars) are the supported contract.
+ */
+function validateAppStartUsesPortTokens(argv: string[], label: string): void {
+  const executable = getPathBasename(argv[0] ?? "");
+  for (const [index, part] of argv.entries()) {
+    const previous = argv[index - 1] ?? "";
+    const partFlag = part.includes("=") ? (part.split("=", 1)[0] ?? "") : "";
+    const positionalBindAddress =
+      index === argv.length - 1 &&
+      !part.includes("://") &&
+      argv
+        .slice(0, index)
+        .some((token) => POSITIONAL_BIND_COMMAND_PATTERN.test(getPathBasename(token)));
+    const hardcodedLoopback =
+      HARDCODED_LOOPBACK_ORIGIN_PATTERN.test(part) &&
+      (APP_BIND_ORIGIN_FLAG_PATTERN.test(previous.replace(/=$/, "")) ||
+        APP_BIND_ORIGIN_FLAG_PATTERN.test(partFlag) ||
+        positionalBindAddress);
+    const hardcoded =
+      hardcodedLoopback ||
+      PORT_FLAG_WITH_VALUE_PATTERN.test(part) ||
+      PORT_ENV_ASSIGNMENT_PATTERN.test(part) ||
+      (/^\d{1,5}$/.test(part) &&
+        (PORT_VALUE_FLAG_PATTERN.test(previous.replace(/=$/, "")) ||
+          previous.toLowerCase() === "http.server" ||
+          previous === "--" ||
+          (index === argv.length - 1 &&
+            (POSITIONAL_PORT_COMMAND_PATTERN.test(executable) ||
+              (POSITIONAL_PORT_INTERPRETER_PATTERN.test(executable) &&
+                !previous.startsWith("-"))))));
+    if (hardcoded) {
+      throw new ValidationError(
+        `${label} hardcodes a port or loopback origin ("${part}"). The verification runner boots the app on a random free port — use the {port} and {host} tokens instead (e.g. ["./start.sh", "--port", "{port}"]); the runner also exports PORT/HOST env vars.`
+      );
+    }
+  }
+}
+
+interface DelegatedPackageScript {
+  scriptName: string;
+  packageDirectory: string | null;
+}
+
+function delegatedPackageScript(argv: string[], label: string): DelegatedPackageScript | null {
+  const executable = getPathBasename(argv[0] ?? "").toLowerCase();
+  if (!["bun", "npm", "pnpm", "yarn"].includes(executable)) return null;
+  let index = 1;
+  let packageDirectory: string | null = null;
+  while (argv[index]?.startsWith("-")) {
+    const option = argv[index] ?? "";
+    const pathOption = /^(?:--prefix|--dir|--cwd)=(.+)$/.exec(option);
+    if (pathOption?.[1]) {
+      packageDirectory = pathOption[1];
+      index += 1;
+      continue;
+    }
+    if (["--prefix", "--dir", "--cwd", "-C"].includes(option)) {
+      const value = argv[index + 1];
+      if (!value) throw new ValidationError(`${label} ${option} requires a directory value.`);
+      packageDirectory = value;
+      index += 2;
+      continue;
+    }
+    if (["--silent", "--if-present"].includes(option)) {
+      index += 1;
+      continue;
+    }
+    throw new ValidationError(
+      `${label} uses package-manager option "${option}" that Brain Dump cannot safely resolve for fixed-port validation. Declare the app command directly with {port}, or use --prefix/--dir/--cwd with a project-relative directory.`
+    );
+  }
+  const first = argv[index];
+  if (!first) return null;
+  const scriptName = first === "run" || first === "run-script" ? (argv[index + 1] ?? null) : first;
+  if (!scriptName) return null;
+  if (
+    executable === "npm" &&
+    !["run", "run-script", "start", "stop", "restart", "test"].includes(first)
+  ) {
+    return null;
+  }
+  return { scriptName, packageDirectory };
+}
+
+function tokenizePackageScript(script: string, label: string): string[] {
+  const tokens: string[] = [];
+  let token = "";
+  let quote: "'" | '"' | null = null;
+  let escaped = false;
+  for (const character of script.trim()) {
+    if (escaped) {
+      token += character;
+      escaped = false;
+      continue;
+    }
+    if (character === "\\" && quote !== "'") {
+      escaped = true;
+      continue;
+    }
+    if (quote) {
+      if (character === quote) quote = null;
+      else token += character;
+      continue;
+    }
+    if (character === "'" || character === '"') {
+      quote = character;
+      continue;
+    }
+    if (character === "&" || character === "|" || character === ";") break;
+    if (/\s/.test(character)) {
+      if (token) tokens.push(token);
+      token = "";
+      continue;
+    }
+    token += character;
+  }
+  if (quote || escaped) {
+    throw new ValidationError(`${label} contains an unterminated quoted or escaped command.`);
+  }
+  if (token) tokens.push(token);
+  return tokens;
+}
+
+function validateDelegatedPackageScriptUsesPortTokens(
+  argv: string[],
+  label: string,
+  projectPath: string,
+  cwd: string | undefined,
+  visited = new Set<string>()
+): void {
+  const delegated = delegatedPackageScript(argv, label);
+  if (!delegated) return;
+  if (delegated.packageDirectory) {
+    validateProjectRelativePath(delegated.packageDirectory, `${label} package directory`);
+  }
+  const packagePath = join(
+    resolve(projectPath, cwd ?? ".", delegated.packageDirectory ?? "."),
+    "package.json"
+  );
+  if (!existsSync(packagePath)) return;
+  let pkg: { scripts?: Record<string, unknown> };
+  try {
+    pkg = JSON.parse(readFileSync(packagePath, "utf-8")) as {
+      scripts?: Record<string, unknown>;
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new ValidationError(
+      `Could not parse ${packagePath} while resolving ${label}: ${message}`
+    );
+  }
+  const script = pkg.scripts?.[delegated.scriptName];
+  if (typeof script !== "string" || script.trim().length === 0) return;
+  const scriptKey = `${packagePath}:${delegated.scriptName}`;
+  if (visited.has(scriptKey)) {
+    throw new ValidationError(
+      `${label} contains a cyclic package-script delegation at ${scriptKey}.`
+    );
+  }
+  visited.add(scriptKey);
+  const scriptArgv = tokenizePackageScript(
+    script,
+    `${packagePath} scripts.${delegated.scriptName}`
+  );
+  validateAppStartUsesPortTokens(scriptArgv, `${packagePath} scripts.${delegated.scriptName}`);
+  validateDelegatedPackageScriptUsesPortTokens(
+    scriptArgv,
+    `${packagePath} scripts.${delegated.scriptName}`,
+    resolve(projectPath, cwd ?? ".", delegated.packageDirectory ?? "."),
+    undefined,
+    visited
+  );
+}
+
+function validateDemoAppBoot(
+  step: DemoStep,
+  index: number,
+  projectPath?: string | undefined
+): void {
   if (step.app === undefined) return;
   const label = getStepLabel(step, index);
   if (!isRecord(step.app)) {
     throw new ValidationError(`${label} app boot must be an object.`);
   }
-  validateDemoAppBootArgv(step.app.start, `${label} app.start`);
+  const startArgv = validateDemoAppBootArgv(step.app.start, `${label} app.start`);
+  validateAppStartUsesPortTokens(startArgv, `${label} app.start`);
   if (step.app.cwd !== undefined) {
     if (typeof step.app.cwd !== "string") {
       throw new ValidationError(`${label} app.cwd must be a string.`);
     }
     validateProjectRelativePath(step.app.cwd, `${label} app.cwd`);
+  }
+  if (projectPath) {
+    validateDelegatedPackageScriptUsesPortTokens(
+      startArgv,
+      `${label} app.start`,
+      projectPath,
+      step.app.cwd
+    );
   }
 }
 
@@ -1166,7 +1473,8 @@ function validateDemoCoverage(ticket: DbTicketRow, steps: DemoStep[]): void {
 
 function validateDemoSteps(
   steps: GenerateDemoParams["steps"],
-  projectCommandTemplates?: ReadonlyArray<readonly string[]>
+  projectCommandTemplates?: ReadonlyArray<readonly string[]>,
+  projectPath?: string | undefined
 ): void {
   if (!Array.isArray(steps)) {
     throw new ValidationError("Demo steps must be an array.");
@@ -1191,7 +1499,7 @@ function validateDemoSteps(
       throw new ValidationError(`Demo step at index ${index} is invalid.`);
     }
     validateDemoStepCoverageMetadata(step, index);
-    validateDemoAppBoot(step, index);
+    validateDemoAppBoot(step, index, projectPath);
     validateDemoStepAutomation(step, index, projectCommandTemplates);
   }
 
@@ -1239,7 +1547,12 @@ export function repairLegacyHumanReviewHandoff(
   if (demo) {
     try {
       const steps = JSON.parse(demo.steps) as GenerateDemoParams["steps"];
-      validateDemoSteps(steps);
+      const projectPath = getTicketProjectPath(db, ticketId);
+      validateDemoSteps(
+        steps,
+        projectPath ? readProjectVerifyCommandTemplates(projectPath) : [],
+        projectPath ?? undefined
+      );
       newStatus = "ai_verification";
       reason =
         "Legacy human_review ticket has a valid executable demo script; moved to AI verification for runner certification.";
@@ -1272,51 +1585,96 @@ export function repairLegacyHumanReviewHandoff(
   return { ticketId, previousStatus: "human_review", newStatus, reason };
 }
 
+function validateDeclaredLegacyBoot(start: unknown, source: string, projectPath: string): boolean {
+  const argv = Array.isArray(start)
+    ? start
+    : typeof start === "string"
+      ? start.trim().split(/\s+/).filter(Boolean)
+      : null;
+  if (
+    !argv ||
+    argv.length === 0 ||
+    !argv.every((part) => typeof part === "string" && part.length > 0)
+  ) {
+    return false;
+  }
+  const validated = validateDemoAppBootArgv(argv, `${source} start`);
+  validateAppStartUsesPortTokens(validated, `${source} start`);
+  validateDelegatedPackageScriptUsesPortTokens(
+    validated,
+    `${source} start`,
+    projectPath,
+    undefined
+  );
+  return true;
+}
+
 function hasUsableLegacyBoot(projectPath: string): boolean {
   const verifyConfigPath = join(projectPath, ".brain-dump", "verify.json");
   if (existsSync(verifyConfigPath)) {
+    let config: { start?: unknown };
     try {
-      const config = JSON.parse(readFileSync(verifyConfigPath, "utf-8")) as { start?: unknown };
-      if (
-        (typeof config.start === "string" && config.start.trim().length > 0) ||
-        (Array.isArray(config.start) &&
-          config.start.length > 0 &&
-          config.start.every((part) => typeof part === "string" && part.length > 0))
-      ) {
-        return true;
-      }
+      config = JSON.parse(readFileSync(verifyConfigPath, "utf-8")) as { start?: unknown };
     } catch {
       return false;
+    }
+    if (config.start !== undefined) {
+      return validateDeclaredLegacyBoot(config.start, verifyConfigPath, projectPath);
     }
   }
 
   const packagePath = join(projectPath, "package.json");
   if (!existsSync(packagePath)) return false;
+  let pkg: {
+    brainDump?: { verify?: { start?: unknown } };
+    scripts?: Record<string, unknown>;
+    dependencies?: Record<string, unknown>;
+    devDependencies?: Record<string, unknown>;
+  };
   try {
-    const pkg = JSON.parse(readFileSync(packagePath, "utf-8")) as {
+    pkg = JSON.parse(readFileSync(packagePath, "utf-8")) as {
       brainDump?: { verify?: { start?: unknown } };
       scripts?: Record<string, unknown>;
       dependencies?: Record<string, unknown>;
       devDependencies?: Record<string, unknown>;
     };
-    const declared = pkg.brainDump?.verify?.start;
-    if (
-      (typeof declared === "string" && declared.trim().length > 0) ||
-      (Array.isArray(declared) &&
-        declared.length > 0 &&
-        declared.every((part) => typeof part === "string" && part.length > 0))
-    ) {
-      return true;
-    }
-    if (pkg.scripts?.dev || pkg.scripts?.start || pkg.scripts?.serve) return true;
-    return Boolean(
-      pkg.dependencies?.vite ||
-      pkg.devDependencies?.vite ||
-      pkg.dependencies?.["@tanstack/react-start"]
-    );
   } catch {
     return false;
   }
+  const declared = pkg.brainDump?.verify?.start;
+  if (declared !== undefined) {
+    return validateDeclaredLegacyBoot(
+      declared,
+      `${packagePath} brainDump.verify.start`,
+      projectPath
+    );
+  }
+  if (
+    pkg.dependencies?.vite ||
+    pkg.devDependencies?.vite ||
+    pkg.dependencies?.["@tanstack/react-start"]
+  ) {
+    // The verifier bypasses package scripts for these stacks and launches the
+    // framework directly with its selected host/port.
+    return true;
+  }
+  const scriptName = pkg.scripts?.dev
+    ? "dev"
+    : pkg.scripts?.start
+      ? "start"
+      : pkg.scripts?.serve
+        ? "serve"
+        : null;
+  if (scriptName) {
+    const script = pkg.scripts?.[scriptName];
+    if (typeof script !== "string" || script.trim().length === 0) return false;
+    validateAppStartUsesPortTokens(
+      script.trim().split(/\s+/),
+      `${packagePath} scripts.${scriptName}`
+    );
+    return true;
+  }
+  return false;
 }
 
 function validateDemoGeneration(db: DbHandle, ticketId: string, steps: DemoStep[]): void {
@@ -1325,14 +1683,18 @@ function validateDemoGeneration(db: DbHandle, ticketId: string, steps: DemoStep[
   assertTicketTransition(ticket.status, "ai_verification", "generate-demo", "generate demo script");
   validateDemoCoverage(ticket, steps);
 
+  const project = ticket.project_id
+    ? (db.prepare("SELECT path FROM projects WHERE id = ?").get(ticket.project_id) as
+        | { path: string }
+        | undefined)
+    : undefined;
+  const projectPath = project && existsSync(project.path) ? project.path : null;
+
   const needsApp = steps.some(
     (step) => step.automation?.kind === "api" || step.automation?.kind === "ui"
   );
-  if (needsApp && !steps.some((step) => step.app !== undefined) && ticket.project_id) {
-    const project = db.prepare("SELECT path FROM projects WHERE id = ?").get(ticket.project_id) as
-      | { path: string }
-      | undefined;
-    if (project && existsSync(project.path) && !hasUsableLegacyBoot(project.path)) {
+  if (needsApp && !steps.some((step) => step.app !== undefined) && projectPath) {
+    if (!hasUsableLegacyBoot(projectPath)) {
       throw new ValidationError(
         'API/UI demo steps for this project must declare app: { start: ["<command>", "...", "{port}"], cwd?: "<project-relative-dir>" }. Inspect the project\'s README, build files, and native runtime configuration; do not assume npm or pnpm.'
       );
@@ -1366,20 +1728,30 @@ function validateDemoGeneration(db: DbHandle, ticketId: string, steps: DemoStep[
  * is declared.
  */
 function getTicketProjectCommandTemplates(db: DbHandle, ticketId: string): string[][] {
+  const projectPath = getTicketProjectPath(db, ticketId);
+  return projectPath ? readProjectVerifyCommandTemplates(projectPath) : [];
+}
+
+function getTicketProjectPath(db: DbHandle, ticketId: string): string | null {
   const ticket = getTicketRow(db, ticketId);
-  if (!ticket.project_id) return [];
+  if (!ticket.project_id) return null;
   const project = db.prepare("SELECT path FROM projects WHERE id = ?").get(ticket.project_id) as
     | { path: string }
     | undefined;
-  if (!project || !existsSync(project.path)) return [];
-  return readProjectVerifyCommandTemplates(project.path);
+  if (!project || !existsSync(project.path)) return null;
+  return project.path;
 }
 
 /**
  * Validate demo generation without mutating database state.
  */
 export function validateGenerateDemo(db: DbHandle, params: GenerateDemoParams): void {
-  validateDemoSteps(params.steps, getTicketProjectCommandTemplates(db, params.ticketId));
+  const projectPath = getTicketProjectPath(db, params.ticketId);
+  validateDemoSteps(
+    params.steps,
+    getTicketProjectCommandTemplates(db, params.ticketId),
+    projectPath ?? undefined
+  );
   validateDemoGeneration(db, params.ticketId, params.steps);
 }
 
@@ -1399,7 +1771,12 @@ export function validateGenerateDemo(db: DbHandle, params: GenerateDemoParams): 
 export function generateDemo(db: DbHandle, params: GenerateDemoParams): DemoScript {
   const { ticketId, steps } = params;
 
-  validateDemoSteps(steps, getTicketProjectCommandTemplates(db, ticketId));
+  const projectPath = getTicketProjectPath(db, ticketId);
+  validateDemoSteps(
+    steps,
+    getTicketProjectCommandTemplates(db, ticketId),
+    projectPath ?? undefined
+  );
   validateDemoGeneration(db, ticketId, steps);
 
   const now = new Date().toISOString();

@@ -1,5 +1,13 @@
 import { createServer, type Server } from "http";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  truncateSync,
+  writeFileSync,
+} from "fs";
 import { join, resolve } from "path";
 import { pathToFileURL } from "url";
 import { tmpdir } from "os";
@@ -28,8 +36,10 @@ import {
   markVerificationJobDead,
   reconcileVerificationTicketStates,
   requeueVerificationJob,
+  resolveVerificationFailure,
   setVerificationWorkerPaused,
 } from "../verification-ops.ts";
+import { classifyVerificationRunFailure } from "../verification-lifecycle.ts";
 import {
   drainVerificationQueue,
   getVerificationWorkerQueueStatus,
@@ -256,7 +266,7 @@ function createCleanExecFileNoThrow(
     if (command === "git" && args.join(" ") === "rev-parse HEAD") {
       return { success: true, stdout: "abc123\n", stderr: "", exitCode: 0 };
     }
-    if (command === "git" && args.join(" ") === "status --short") {
+    if (command === "git" && args.join(" ") === "status --short --untracked-files=all") {
       return { success: true, stdout: "", stderr: "", exitCode: 0 };
     }
     if (command === "git" && args.join(" ") === "diff --name-only HEAD~1 HEAD") {
@@ -311,7 +321,7 @@ function fakeWorkerRun(params: VerifyTicketParams): VerificationRun {
 
 async function startFixtureServer(status = 200): Promise<string> {
   server = createServer((request, response) => {
-    if (request.url === "/health") {
+    if (request.url?.startsWith("/health")) {
       response.writeHead(status, { "content-type": "application/json" });
       response.end(JSON.stringify({ ok: true }));
       return;
@@ -852,7 +862,7 @@ createServer((request, response) => {
             exitCode: 0,
           };
         }
-        if (command === "git" && args.join(" ") === "status --short") {
+        if (command === "git" && args.join(" ") === "status --short --untracked-files=all") {
           return { success: true, stdout: "", stderr: "", exitCode: 0 };
         }
         if (command === "git" && args.join(" ") === "diff --name-only HEAD~1 HEAD") {
@@ -1081,6 +1091,60 @@ createServer((request, response) => {
         expect.stringContaining("step-2-file.json"),
       ])
     );
+  });
+
+  it("certifies a newly generated artifact when a file step explicitly verifies it", async () => {
+    const artifactPath = join(tempDir, "generated", "report.json");
+    const generatedFileStep = fileStep('"ok":true');
+    if (generatedFileStep.automation?.kind !== "file") throw new Error("Expected file step");
+    generatedFileStep.automation.path = "generated/report.json";
+    seedDemo([commandStep("generated"), generatedFileStep]);
+    let generated = false;
+
+    const run = await verifyTicket(db, {
+      ticketId: "ticket-1",
+      projectPath: tempDir,
+      execFileNoThrow: async (command, args, options) => {
+        const joined = args.join(" ");
+        if (command === "git" && joined === "rev-parse HEAD") {
+          return { success: true, stdout: "artifact-sha\n", stderr: "", exitCode: 0 };
+        }
+        if (command === "git" && joined === "status --short --untracked-files=all") {
+          return {
+            success: true,
+            stdout: generated && options?.cwd === tempDir ? "?? generated/report.json\n" : "",
+            stderr: "",
+            exitCode: 0,
+          };
+        }
+        if (command === "git" && joined === "diff --name-only HEAD~1 HEAD") {
+          return { success: true, stdout: "", stderr: "", exitCode: 0 };
+        }
+        if (command === "git" && args[0] === "diff") {
+          return { success: true, stdout: "", stderr: "", exitCode: 0 };
+        }
+        if (command === "git" && args[0] === "ls-files") {
+          return {
+            success: true,
+            stdout: generated && options?.cwd === tempDir ? "generated/report.json\0" : "",
+            stderr: "",
+            exitCode: 0,
+          };
+        }
+        if (command === "node") {
+          mkdirSync(join(tempDir, "generated"));
+          writeFileSync(artifactPath, '{"ok":true}\n');
+          generated = true;
+          return { success: true, stdout: "generated\n", stderr: "", exitCode: 0 };
+        }
+        return { success: true, stdout: "", stderr: "", exitCode: 0 };
+      },
+    });
+
+    expect(run.status).toBe("passed");
+    expect(run.certified).toBe(true);
+    expect(run.manifest.dirty).toBe(true);
+    expect(run.manifest.dirtyDiffHash).toMatch(/^[0-9a-f]{64}$/);
   });
 
   it("asserts against complete noisy command output while keeping evidence capped", async () => {
@@ -1390,7 +1454,7 @@ createServer((request, response) => {
         if (command === "git" && args.join(" ") === "rev-parse HEAD") {
           return { success: true, stdout: "sha111\n", stderr: "", exitCode: 0 };
         }
-        if (command === "git" && args.join(" ") === "status --short") {
+        if (command === "git" && args.join(" ") === "status --short --untracked-files=all") {
           return { success: true, stdout: "", stderr: "", exitCode: 0 };
         }
         if (command === "gh" && args[0] === "pr" && args[1] === "list") {
@@ -1416,7 +1480,11 @@ createServer((request, response) => {
     });
     expect(calls).toContainEqual(["git", "push", "-u", "origin", "feature/verification-epic"]);
     expect(
-      db.prepare("SELECT tickets_total, tickets_done FROM epic_workflow_state WHERE epic_id = 'epic-1'").get()
+      db
+        .prepare(
+          "SELECT tickets_total, tickets_done FROM epic_workflow_state WHERE epic_id = 'epic-1'"
+        )
+        .get()
     ).toEqual({ tickets_total: 2, tickets_done: 2 });
   });
 
@@ -1489,6 +1557,621 @@ createServer((request, response) => {
     expect(comment.content).toContain("Needs Attention");
   });
 
+  it("blocks after three consecutive failures on the same assertion even when the demo renumbers its steps", async () => {
+    seedDemo([apiStep(201)]);
+    const baseUrl = await startFixtureServer();
+
+    await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+    moveTicketBackToVerification();
+    db.prepare("UPDATE demo_scripts SET steps = ? WHERE ticket_id = 'ticket-1'").run(
+      JSON.stringify([{ ...apiStep(201), order: 2 }])
+    );
+    await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+    moveTicketBackToVerification();
+    db.prepare("UPDATE demo_scripts SET steps = ? WHERE ticket_id = 'ticket-1'").run(
+      JSON.stringify([{ ...apiStep(201), order: 3 }])
+    );
+    const thirdRun = await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+
+    expect(thirdRun.status).toBe("failed");
+    const ticket = db
+      .prepare("SELECT status, is_blocked, blocked_reason FROM tickets WHERE id = 'ticket-1'")
+      .get() as { status: string; is_blocked: number; blocked_reason: string | null };
+    expect(ticket.status).toBe("in_progress");
+    expect(ticket.is_blocked).toBe(1);
+    expect(ticket.blocked_reason).toContain("3 consecutive times");
+  });
+
+  it("blocks a recurring failed assertion when unrelated passing assertions change", async () => {
+    const stepWithAssertions = (
+      order: number,
+      assertions: NonNullable<DemoStep["automation"]>["assert"]
+    ): DemoStep => ({
+      ...apiStep(201),
+      order,
+      automation: {
+        kind: "api",
+        request: { method: "GET", path: "/health" },
+        assert: assertions as never,
+      },
+    });
+    seedDemo([stepWithAssertions(1, [{ type: "status", expected: 201 }])]);
+    const baseUrl = await startFixtureServer();
+
+    await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+    moveTicketBackToVerification();
+    db.prepare("UPDATE demo_scripts SET steps = ? WHERE ticket_id = 'ticket-1'").run(
+      JSON.stringify([
+        stepWithAssertions(2, [
+          { type: "bodyContains", expected: "ok" },
+          { type: "status", expected: 201 },
+        ]),
+      ])
+    );
+    await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+    moveTicketBackToVerification();
+    db.prepare("UPDATE demo_scripts SET steps = ? WHERE ticket_id = 'ticket-1'").run(
+      JSON.stringify([
+        stepWithAssertions(3, [
+          { type: "status", expected: 201 },
+          { type: "bodyContains", expected: "ok" },
+          { type: "bodyContains", expected: "status" },
+        ]),
+      ])
+    );
+    await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+
+    const ticket = db
+      .prepare("SELECT status, is_blocked FROM tickets WHERE id = 'ticket-1'")
+      .get() as { status: string; is_blocked: number };
+    expect(ticket).toEqual({ status: "in_progress", is_blocked: 1 });
+  });
+
+  it("does not conflate identical messages from different assertion targets", async () => {
+    const stepForPath = (path: string, order: number): DemoStep => ({
+      ...apiStep(201),
+      order,
+      automation: {
+        kind: "api",
+        request: { method: "GET", path },
+        assert: [{ type: "status", expected: 201 }],
+      },
+    });
+    seedDemo([stepForPath("/health?target=users", 1)]);
+    const baseUrl = await startFixtureServer();
+
+    await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+    moveTicketBackToVerification();
+    db.prepare("UPDATE demo_scripts SET steps = ? WHERE ticket_id = 'ticket-1'").run(
+      JSON.stringify([stepForPath("/health?target=orders", 2)])
+    );
+    await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+    moveTicketBackToVerification();
+    db.prepare("UPDATE demo_scripts SET steps = ? WHERE ticket_id = 'ticket-1'").run(
+      JSON.stringify([stepForPath("/health?target=payments", 3)])
+    );
+    await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+
+    const ticket = db
+      .prepare("SELECT status, is_blocked FROM tickets WHERE id = 'ticket-1'")
+      .get() as { status: string; is_blocked: number };
+    expect(ticket).toEqual({ status: "in_progress", is_blocked: 0 });
+  });
+
+  it("does not conflate failures after an assertion's expected value changes", async () => {
+    const stepForStatus = (expected: number, order: number): DemoStep => ({
+      ...apiStep(expected),
+      order,
+    });
+    seedDemo([stepForStatus(201, 1)]);
+    const baseUrl = await startFixtureServer();
+
+    await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+    moveTicketBackToVerification();
+    db.prepare("UPDATE demo_scripts SET steps = ? WHERE ticket_id = 'ticket-1'").run(
+      JSON.stringify([stepForStatus(202, 2)])
+    );
+    await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+    moveTicketBackToVerification();
+    db.prepare("UPDATE demo_scripts SET steps = ? WHERE ticket_id = 'ticket-1'").run(
+      JSON.stringify([stepForStatus(203, 3)])
+    );
+    await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+
+    const ticket = db
+      .prepare("SELECT status, is_blocked FROM tickets WHERE id = 'ticket-1'")
+      .get() as { status: string; is_blocked: number };
+    expect(ticket).toEqual({ status: "in_progress", is_blocked: 0 });
+  });
+
+  it("blocks after five consecutive non-passing runs even without a shared failure", async () => {
+    const setSteps = (steps: DemoStep[]): void => {
+      db.prepare("UPDATE demo_scripts SET steps = ? WHERE ticket_id = 'ticket-1'").run(
+        JSON.stringify(steps)
+      );
+    };
+    seedDemo([apiStep(201)]);
+    const baseUrl = await startFixtureServer();
+
+    await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+    moveTicketBackToVerification();
+    setSteps([manualStep()]);
+    await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+    moveTicketBackToVerification();
+    setSteps([{ ...apiStep(202), order: 3, description: "Different check" }]);
+    await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+    moveTicketBackToVerification();
+    setSteps([manualStep()]);
+    await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+    moveTicketBackToVerification();
+    setSteps([{ ...apiStep(203), order: 5, description: "Yet another check" }]);
+    const fifthRun = await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+
+    expect(fifthRun.status).toBe("failed");
+    const ticket = db
+      .prepare("SELECT status, is_blocked, blocked_reason FROM tickets WHERE id = 'ticket-1'")
+      .get() as { status: string; is_blocked: number; blocked_reason: string | null };
+    expect(ticket.status).toBe("in_progress");
+    expect(ticket.is_blocked).toBe(1);
+    expect(ticket.blocked_reason).toContain("consecutive non-passing runs");
+  });
+
+  it("seals a dirty-worktree diff hash into the manifest", async () => {
+    seedDemo([apiStep(200)]);
+    const baseUrl = await startFixtureServer();
+
+    const run = await verifyTicket(db, {
+      ticketId: "ticket-1",
+      baseUrl,
+      execFileNoThrow: async (command, args) => {
+        if (command === "git" && args.join(" ") === "rev-parse HEAD") {
+          return { success: true, stdout: "sha-dirty\n", stderr: "", exitCode: 0 };
+        }
+        if (command === "git" && args.join(" ") === "status --short --untracked-files=all") {
+          return { success: true, stdout: " M src/app.ts\n", stderr: "", exitCode: 0 };
+        }
+        if (command === "git" && args[0] === "diff" && args[1] === "HEAD") {
+          return {
+            success: true,
+            stdout: "diff --git a/src/app.ts b/src/app.ts\n+changed\n",
+            stderr: "",
+            exitCode: 0,
+          };
+        }
+        return { success: true, stdout: "", stderr: "", exitCode: 0 };
+      },
+    });
+
+    expect(run.manifest.dirty).toBe(true);
+    expect(run.manifest.dirtyDiffHash).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("changes the dirty-worktree hash when untracked file contents change", async () => {
+    const untrackedPath = join(tempDir, "draft.ts");
+    writeFileSync(untrackedPath, "export const value = 1;\n");
+    const execFileNoThrow: NonNullable<VerifyTicketParams["execFileNoThrow"]> = async (
+      command,
+      args
+    ) => {
+      const joined = args.join(" ");
+      if (command === "git" && joined === "rev-parse HEAD") {
+        return { success: true, stdout: "sha-dirty\n", stderr: "", exitCode: 0 };
+      }
+      if (command === "git" && joined === "status --short --untracked-files=all") {
+        return { success: true, stdout: "?? draft.ts\n", stderr: "", exitCode: 0 };
+      }
+      if (command === "git" && args[0] === "diff") {
+        return { success: true, stdout: "", stderr: "", exitCode: 0 };
+      }
+      if (command === "git" && args[0] === "ls-files") {
+        return { success: true, stdout: "draft.ts\0", stderr: "", exitCode: 0 };
+      }
+      return { success: true, stdout: "", stderr: "", exitCode: 0 };
+    };
+
+    const first = await verificationTestInternals.getGitInfo(tempDir, execFileNoThrow);
+    writeFileSync(untrackedPath, "export const value = 2;\n");
+    const second = await verificationTestInternals.getGitInfo(tempDir, execFileNoThrow);
+
+    expect(first.dirtyDiffHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(second.dirtyDiffHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(second.dirtyDiffHash).not.toBe(first.dirtyDiffHash);
+  });
+
+  it("fails the worktree seal when an untracked file cannot be read", async () => {
+    const execFileNoThrow: NonNullable<VerifyTicketParams["execFileNoThrow"]> = async (
+      command,
+      args
+    ) => {
+      const joined = args.join(" ");
+      if (command === "git" && joined === "rev-parse HEAD") {
+        return { success: true, stdout: "sha-dirty\n", stderr: "", exitCode: 0 };
+      }
+      if (command === "git" && joined === "status --short --untracked-files=all") {
+        return { success: true, stdout: "?? disappeared.ts\n", stderr: "", exitCode: 0 };
+      }
+      if (command === "git" && args[0] === "diff") {
+        return { success: true, stdout: "", stderr: "", exitCode: 0 };
+      }
+      if (command === "git" && args[0] === "ls-files") {
+        return { success: true, stdout: "disappeared.ts\0", stderr: "", exitCode: 0 };
+      }
+      return { success: true, stdout: "", stderr: "", exitCode: 0 };
+    };
+
+    const info = await verificationTestInternals.getGitInfo(tempDir, execFileNoThrow);
+
+    expect(info.dirtyDiffHash).toBeNull();
+    expect(info.worktreeSealFailed).toBe(true);
+  });
+
+  it("fails the worktree seal when untracked content exceeds the hashing budget", async () => {
+    const oversizedPath = join(tempDir, "oversized.bin");
+    writeFileSync(oversizedPath, "x");
+    truncateSync(oversizedPath, 33 * 1024 * 1024);
+    const execFileNoThrow: NonNullable<VerifyTicketParams["execFileNoThrow"]> = async (
+      command,
+      args
+    ) => {
+      const joined = args.join(" ");
+      if (command === "git" && joined === "rev-parse HEAD") {
+        return { success: true, stdout: "sha-dirty\n", stderr: "", exitCode: 0 };
+      }
+      if (command === "git" && joined === "status --short --untracked-files=all") {
+        return { success: true, stdout: "?? oversized.bin\n", stderr: "", exitCode: 0 };
+      }
+      if (command === "git" && args[0] === "diff") {
+        return { success: true, stdout: "", stderr: "", exitCode: 0 };
+      }
+      if (command === "git" && args[0] === "ls-files") {
+        return { success: true, stdout: "oversized.bin\0", stderr: "", exitCode: 0 };
+      }
+      return { success: true, stdout: "", stderr: "", exitCode: 0 };
+    };
+
+    const info = await verificationTestInternals.getGitInfo(tempDir, execFileNoThrow);
+
+    expect(info.dirtyDiffHash).toBeNull();
+    expect(info.worktreeSealFailed).toBe(true);
+  });
+
+  it("fails the worktree seal when a submodule has uncommitted contents", async () => {
+    const execFileNoThrow: NonNullable<VerifyTicketParams["execFileNoThrow"]> = async (
+      command,
+      args
+    ) => {
+      const joined = args.join(" ");
+      if (command === "git" && joined === "rev-parse HEAD") {
+        return { success: true, stdout: "sha-dirty\n", stderr: "", exitCode: 0 };
+      }
+      if (command === "git" && joined === "status --short --untracked-files=all") {
+        return { success: true, stdout: " M vendor/library\n", stderr: "", exitCode: 0 };
+      }
+      if (
+        command === "git" &&
+        joined === "diff --full-index --binary --no-ext-diff --no-textconv HEAD"
+      ) {
+        return {
+          success: true,
+          stdout:
+            "diff --git a/vendor/library b/vendor/library\n-Subproject commit abcdef1\n+Subproject commit abcdef1-dirty\n",
+          stderr: "",
+          exitCode: 0,
+        };
+      }
+      if (command === "git" && args[0] === "ls-files") {
+        return { success: true, stdout: "", stderr: "", exitCode: 0 };
+      }
+      return { success: true, stdout: "", stderr: "", exitCode: 0 };
+    };
+
+    const info = await verificationTestInternals.getGitInfo(tempDir, execFileNoThrow);
+
+    expect(info.dirtyDiffHash).toBeNull();
+    expect(info.worktreeSealFailed).toBe(true);
+  });
+
+  it("fails closed when Git metadata commands are unavailable", async () => {
+    const info = await verificationTestInternals.getGitInfo(tempDir, async () => ({
+      success: false,
+      stdout: "",
+      stderr: "git executable unavailable",
+      exitCode: 127,
+    }));
+
+    expect(info.dirty).toBe(true);
+    expect(info.dirtyDiffHash).toBeNull();
+    expect(info.worktreeSealFailed).toBe(true);
+  });
+
+  it("fails the worktree seal for an untracked directory entry", async () => {
+    mkdirSync(join(tempDir, "embedded-repository"));
+    const execFileNoThrow: NonNullable<VerifyTicketParams["execFileNoThrow"]> = async (
+      command,
+      args
+    ) => {
+      const joined = args.join(" ");
+      if (command === "git" && joined === "rev-parse HEAD") {
+        return { success: true, stdout: "sha-dirty\n", stderr: "", exitCode: 0 };
+      }
+      if (command === "git" && joined === "status --short --untracked-files=all") {
+        return {
+          success: true,
+          stdout: "?? embedded-repository/\n",
+          stderr: "",
+          exitCode: 0,
+        };
+      }
+      if (command === "git" && args[0] === "diff") {
+        return { success: true, stdout: "", stderr: "", exitCode: 0 };
+      }
+      if (command === "git" && args[0] === "ls-files") {
+        return {
+          success: true,
+          stdout: "embedded-repository\0",
+          stderr: "",
+          exitCode: 0,
+        };
+      }
+      return { success: true, stdout: "", stderr: "", exitCode: 0 };
+    };
+
+    const info = await verificationTestInternals.getGitInfo(tempDir, execFileNoThrow);
+
+    expect(info.dirtyDiffHash).toBeNull();
+    expect(info.worktreeSealFailed).toBe(true);
+  });
+
+  it("leaves a dirty worktree uncertified when its tracked diff cannot be sealed", async () => {
+    seedDemo([apiStep(200)]);
+    const baseUrl = await startFixtureServer();
+
+    const run = await verifyTicket(db, {
+      ticketId: "ticket-1",
+      baseUrl,
+      execFileNoThrow: async (command, args) => {
+        const joined = args.join(" ");
+        if (command === "git" && joined === "rev-parse HEAD") {
+          return { success: true, stdout: "sha-dirty\n", stderr: "", exitCode: 0 };
+        }
+        if (command === "git" && joined === "status --short --untracked-files=all") {
+          return { success: true, stdout: " M src/app.ts\n", stderr: "", exitCode: 0 };
+        }
+        if (
+          command === "git" &&
+          joined === "diff --full-index --binary --no-ext-diff --no-textconv HEAD"
+        ) {
+          return { success: false, stdout: "", stderr: "buffer exceeded", exitCode: 1 };
+        }
+        return { success: true, stdout: "", stderr: "", exitCode: 0 };
+      },
+    });
+
+    expect(run.status).toBe("uncertified");
+    expect(run.certified).toBe(false);
+    expect(run.manifest.dirtyDiffHash).toBeNull();
+    expect(run.manifest.stepVerdicts).toContainEqual(
+      expect.objectContaining({
+        status: "skipped",
+        message: expect.stringContaining("dirty worktree could not be sealed"),
+      })
+    );
+  });
+
+  it("leaves a Git worktree uncertified when its status and seal cannot be read", async () => {
+    seedDemo([apiStep(200)]);
+    const baseUrl = await startFixtureServer();
+
+    const run = await verifyTicket(db, {
+      ticketId: "ticket-1",
+      baseUrl,
+      execFileNoThrow: async (command, args) => {
+        if (command === "git" && args.join(" ") === "rev-parse HEAD") {
+          return { success: true, stdout: "sha-unknown\n", stderr: "", exitCode: 0 };
+        }
+        return { success: false, stdout: "", stderr: "git unavailable", exitCode: 1 };
+      },
+    });
+
+    expect(run.status).toBe("uncertified");
+    expect(run.certified).toBe(false);
+    expect(run.manifest.dirtyDiffHash).toBeNull();
+  });
+
+  it("leaves a run uncertified when verification changes the sealed worktree", async () => {
+    seedDemo([apiStep(200)]);
+    const baseUrl = await startFixtureServer();
+    let targetStatusReads = 0;
+
+    const run = await verifyTicket(db, {
+      ticketId: "ticket-1",
+      baseUrl,
+      execFileNoThrow: async (command, args, options) => {
+        const joined = args.join(" ");
+        if (command === "git" && joined === "rev-parse HEAD") {
+          return { success: true, stdout: "sha-dirty\n", stderr: "", exitCode: 0 };
+        }
+        if (command === "git" && joined === "status --short --untracked-files=all") {
+          if (options?.cwd === tempDir) targetStatusReads += 1;
+          return {
+            success: true,
+            stdout: targetStatusReads > 1 ? " M src/app.ts\n" : "",
+            stderr: "",
+            exitCode: 0,
+          };
+        }
+        if (command === "git" && args[0] === "diff") {
+          return {
+            success: true,
+            stdout: targetStatusReads > 1 ? "+changed during verification\n" : "",
+            stderr: "",
+            exitCode: 0,
+          };
+        }
+        return { success: true, stdout: "", stderr: "", exitCode: 0 };
+      },
+    });
+
+    expect(run.status).toBe("uncertified");
+    expect(run.certified).toBe(false);
+    expect(run.manifest.dirtyDiffHash).toBeNull();
+    expect(run.manifest.stepVerdicts).toContainEqual(
+      expect.objectContaining({
+        status: "skipped",
+        message: expect.stringContaining("worktree changed while verification was running"),
+      })
+    );
+  });
+
+  it("resolve-verification-failure clears a blocked ticket with a structured record and returns it to ai_review", async () => {
+    seedDemo([apiStep(201)]);
+    enqueueVerificationJob(db, "ticket-1");
+    const baseUrl = await startFixtureServer();
+    await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+    moveTicketBackToVerification();
+    await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+    moveTicketBackToVerification();
+    await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+
+    const blocked = db.prepare("SELECT is_blocked FROM tickets WHERE id = 'ticket-1'").get() as {
+      is_blocked: number;
+    };
+    expect(blocked.is_blocked).toBe(1);
+
+    const result = resolveVerificationFailure(db, {
+      ticketId: "ticket-1",
+      rootCause: "CORS allowlist rejected the runner's random loopback port",
+      classification: "connectivity",
+      validation: "Random-port origin now receives CORS headers; full test suite green.",
+      fixCommits: ["a678f99"],
+      whyNextAttemptWillPass: "The demo now boots through verify.json with {port} substitution.",
+      operator: "release-engineer",
+    });
+
+    expect(result.newStatus).toBe("ai_review");
+    expect(result.latestRunId).toBeTruthy();
+    const ticket = db
+      .prepare("SELECT status, is_blocked, blocked_reason FROM tickets WHERE id = 'ticket-1'")
+      .get() as { status: string; is_blocked: number; blocked_reason: string | null };
+    expect(ticket).toEqual({ status: "ai_review", is_blocked: 0, blocked_reason: null });
+    const phase = db
+      .prepare("SELECT current_phase FROM ticket_workflow_state WHERE ticket_id = 'ticket-1'")
+      .get() as { current_phase: string };
+    expect(phase.current_phase).toBe("ai_review");
+    const job = db
+      .prepare(
+        "SELECT status, last_error, completed_at FROM verification_jobs WHERE ticket_id = 'ticket-1'"
+      )
+      .get() as { status: string; last_error: string | null; completed_at: string | null };
+    expect(job.status).toBe("failed");
+    expect(job.last_error).toBeNull();
+    expect(job.completed_at).toBeTruthy();
+    expect(
+      db
+        .prepare(
+          "SELECT verification_streak_reset_at FROM ticket_workflow_state WHERE ticket_id = 'ticket-1'"
+        )
+        .get()
+    ).toMatchObject({ verification_streak_reset_at: expect.any(String) });
+    const comment = db
+      .prepare(
+        "SELECT content FROM ticket_comments WHERE ticket_id = 'ticket-1' AND content LIKE '%Verification Failure Resolved%'"
+      )
+      .get() as { content: string };
+    expect(comment.content).toContain("Root cause: CORS allowlist rejected");
+    expect(comment.content).toContain("a678f99");
+    expect(comment.content).toContain("Classification: connectivity");
+    expect(comment.content).toContain("Resolved by: release-engineer");
+    expect(comment.content).toContain("Mark every open verification finding");
+
+    moveTicketBackToVerification();
+    await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+    expect(
+      db.prepare("SELECT status, is_blocked FROM tickets WHERE id = 'ticket-1'").get()
+    ).toMatchObject({ status: "in_progress", is_blocked: 0 });
+  });
+
+  it("resolve-verification-failure refuses unblocked tickets and empty evidence", async () => {
+    seedDemo([apiStep(201)]);
+    const baseUrl = await startFixtureServer();
+    await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+
+    expect(() =>
+      resolveVerificationFailure(db, {
+        ticketId: "ticket-1",
+        rootCause: "anything",
+        classification: "other",
+        validation: "anything",
+      })
+    ).toThrow(/not blocked/);
+
+    db.prepare(
+      "UPDATE tickets SET is_blocked = 1, blocked_reason = 'x' WHERE id = 'ticket-1'"
+    ).run();
+    expect(() =>
+      resolveVerificationFailure(db, {
+        ticketId: "ticket-1",
+        rootCause: "  ",
+        classification: "other",
+        validation: "proof",
+      })
+    ).toThrow(/rootCause/);
+    expect(() =>
+      resolveVerificationFailure(db, {
+        ticketId: "ticket-1",
+        rootCause: "cause",
+        classification: "other",
+        validation: "",
+      })
+    ).toThrow(/validation/);
+  });
+
+  it("resolve-verification-failure refuses an unrelated blocker after a historical run", async () => {
+    seedDemo([apiStep(201)]);
+    const baseUrl = await startFixtureServer();
+    await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+    db.prepare(
+      `UPDATE tickets
+       SET is_blocked = 1,
+           blocked_reason = 'Automatic epic continuation failed after 3 attempts: provider exited'
+       WHERE id = 'ticket-1'`
+    ).run();
+
+    expect(() =>
+      resolveVerificationFailure(db, {
+        ticketId: "ticket-1",
+        rootCause: "provider exited",
+        classification: "environment",
+        validation: "provider now starts",
+      })
+    ).toThrow(/current blocker was not created by the latest verification run/);
+  });
+
+  it("keeps the verification blocker when scoped PRD synchronization fails", async () => {
+    seedDemo([apiStep(201)]);
+    const baseUrl = await startFixtureServer();
+    await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+    moveTicketBackToVerification();
+    await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+    moveTicketBackToVerification();
+    await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+    mkdirSync(join(tempDir, "plans"));
+    writeFileSync(join(tempDir, "plans", "prd.json"), "{malformed");
+
+    expect(() =>
+      resolveVerificationFailure(db, {
+        ticketId: "ticket-1",
+        rootCause: "The random-port app boot was rejected by CORS.",
+        classification: "connectivity",
+        validation: "The random-port smoke test now passes.",
+      })
+    ).toThrow(/could not synchronize the scoped PRD/);
+
+    expect(
+      db.prepare("SELECT status, is_blocked FROM tickets WHERE id = 'ticket-1'").get()
+    ).toMatchObject({ status: "in_progress", is_blocked: 1 });
+  });
+
   it("does not crash loop-back when a prior failed run has a malformed manifest", async () => {
     seedDemo([apiStep(201)]);
     const baseUrl = await startFixtureServer();
@@ -1551,6 +2234,20 @@ createServer((request, response) => {
         if (command === "git" && args.join(" ") === "rev-parse HEAD") {
           return { success: true, stdout: "abc123\n", stderr: "", exitCode: 0 };
         }
+        if (
+          command === "git" &&
+          args.join(" ") === "diff --full-index --binary --no-ext-diff --no-textconv HEAD"
+        ) {
+          return {
+            success: true,
+            stdout: "diff --git a/core/verification.ts b/core/verification.ts\n+changed\n",
+            stderr: "",
+            exitCode: 0,
+          };
+        }
+        if (command === "git" && args[0] === "ls-files") {
+          return { success: true, stdout: "", stderr: "", exitCode: 0 };
+        }
         return {
           success: true,
           stdout: " M core/verification.ts\n",
@@ -1581,7 +2278,7 @@ createServer((request, response) => {
         if (command === "git" && args.join(" ") === "rev-parse HEAD") {
           return { success: true, stdout: "abc123\n", stderr: "", exitCode: 0 };
         }
-        if (command === "git" && args.join(" ") === "status --short") {
+        if (command === "git" && args.join(" ") === "status --short --untracked-files=all") {
           return {
             success: true,
             stdout: " M public/manifest.json\n M src/site.webmanifest\n",
@@ -1608,7 +2305,7 @@ createServer((request, response) => {
         if (command === "git" && args.join(" ") === "rev-parse HEAD") {
           return { success: true, stdout: "abc123\n", stderr: "", exitCode: 0 };
         }
-        if (command === "git" && args.join(" ") === "status --short") {
+        if (command === "git" && args.join(" ") === "status --short --untracked-files=all") {
           return { success: true, stdout: "", stderr: "", exitCode: 0 };
         }
         if (command === "git" && args.join(" ") === "diff --name-only HEAD~1 HEAD") {
@@ -1709,6 +2406,172 @@ createServer((request, response) => {
       .prepare("SELECT COUNT(*) as count FROM ticket_comments WHERE ticket_id = 'ticket-1'")
       .get() as { count: number };
     expect(comments.count).toBe(0);
+  });
+});
+
+describe("classifyVerificationRunFailure", () => {
+  const runWithMessages = (
+    messages: string[],
+    status = "failed",
+    automationKind?: "api" | "ui" | "command" | "file"
+  ): VerificationRun =>
+    ({
+      manifest: {
+        stepVerdicts: messages.map((message, index) => ({
+          order: index + 1,
+          status,
+          message,
+          durationMs: 0,
+          evidenceFiles: [],
+          ...(automationKind ? { automationKind } : {}),
+        })),
+      },
+    }) as unknown as VerificationRun;
+
+  it("labels network-layer errors as connectivity", () => {
+    const classification = classifyVerificationRunFailure(
+      runWithMessages(["page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:36287/"])
+    );
+    expect(classification?.kind).toBe("connectivity");
+  });
+
+  it("labels a step where several independent UI assertions failed together as connectivity", () => {
+    const classification = classifyVerificationRunFailure(
+      runWithMessages(
+        [
+          "expected [data-testid^='portfolio-row-'] to be visible; expected [data-testid='expert-framework']:nth-child(8) to be visible; UI assertion failed: expect(locator).toContainText(expected) failed",
+        ],
+        "failed",
+        "ui"
+      )
+    );
+    expect(classification?.kind).toBe("connectivity");
+  });
+
+  it("labels a lone failing assertion as an assertion failure", () => {
+    const classification = classifyVerificationRunFailure(
+      runWithMessages(["expected status 201, got 200"])
+    );
+    expect(classification?.kind).toBe("assertion");
+  });
+
+  it("does not classify several command assertions as a UI connectivity failure", () => {
+    const classification = classifyVerificationRunFailure(
+      runWithMessages(
+        [
+          "expected stdout to contain one; expected stdout to contain two; expected stderr not to contain error",
+        ],
+        "failed",
+        "command"
+      )
+    );
+    expect(classification?.kind).toBe("assertion");
+  });
+
+  it("returns null when no step failed", () => {
+    expect(classifyVerificationRunFailure(runWithMessages(["all good"], "passed"))).toBeNull();
+  });
+});
+
+describe("verification failure identity", () => {
+  it("distinguishes UI assertions reached through different state-changing actions", () => {
+    const stepForButton = (selector: string): DemoStep => ({
+      order: 1,
+      description: "Trigger a mutation",
+      expectedOutcome: "A success toast appears",
+      type: "visual",
+      automation: {
+        kind: "ui",
+        route: "/settings",
+        actions: [{ act: "click", selector }],
+        assert: [{ type: "text", selector: "[role='status']", expected: "Saved" }],
+        screenshot: true,
+      },
+    });
+    const verdict = {
+      order: 1,
+      status: "failed" as const,
+      message: "UI assertion failed",
+      durationMs: 1,
+      evidenceFiles: [],
+      failedAssertionIndexes: [0],
+    };
+
+    const save = verificationTestInternals.withAutomationKey(stepForButton("#save"), verdict);
+    const publish = verificationTestInternals.withAutomationKey(stepForButton("#publish"), verdict);
+
+    expect(save.failureKeys).toHaveLength(1);
+    expect(publish.failureKeys).toHaveLength(1);
+    expect(save.failureKeys).not.toEqual(publish.failureKeys);
+  });
+
+  it("retains non-assertion failure identities alongside assertion identities", () => {
+    const step = commandStep("expected output");
+    const verdict = {
+      order: 1,
+      status: "failed" as const,
+      message: "exit code and stdout failed",
+      durationMs: 1,
+      evidenceFiles: [],
+      failedAssertionIndexes: [0],
+      failureKeys: ["stable-exit-code-failure"],
+    };
+
+    const sealed = verificationTestInternals.withAutomationKey(step, verdict);
+
+    expect(sealed.failureKeys).toContain("stable-exit-code-failure");
+    expect(sealed.failureKeys).toHaveLength(2);
+  });
+
+  it("does not exempt tracked mutations or files checked before a later command", () => {
+    mkdirSync(join(tempDir, "generated"));
+    writeFileSync(join(tempDir, "generated", "report.json"), '{"ok":true}\n');
+    const before = {
+      sha: "sha",
+      dirty: false,
+      dirtyDiffHash: null,
+      worktreeSealFailed: false,
+      dirtyFiles: [],
+      untrackedFiles: [],
+      changedFiles: [],
+    };
+    const after = {
+      sha: "sha",
+      dirty: true,
+      dirtyDiffHash: "hash",
+      worktreeSealFailed: false,
+      dirtyFiles: ["generated/report.json"],
+      untrackedFiles: ["generated/report.json"],
+      changedFiles: ["generated/report.json"],
+    };
+    const notExistsStep = fileStep();
+    if (notExistsStep.automation?.kind !== "file") throw new Error("Expected file step");
+    notExistsStep.automation.path = "generated/report.json";
+    notExistsStep.automation.assert = [{ type: "notExists" }];
+    const positiveFileStep = fileStep('"ok":true');
+    if (positiveFileStep.automation?.kind !== "file") throw new Error("Expected file step");
+    positiveFileStep.automation.path = "generated/report.json";
+
+    expect(
+      verificationTestInternals.isDeclaredGeneratedArtifactChange(
+        before,
+        after,
+        [notExistsStep, commandStep()],
+        tempDir,
+        [],
+        "run"
+      )
+    ).toBe(false);
+    expect(
+      verificationTestInternals.isDeclaredGeneratedArtifactChange(
+        before,
+        { ...after, untrackedFiles: [] },
+        [commandStep(), positiveFileStep],
+        tempDir,
+        [],
+        "run"
+      )
+    ).toBe(false);
   });
 });
 
@@ -2281,12 +3144,28 @@ describe("verification worker", () => {
       lastError: "Automatic verification worker failed: boot crashed again",
     });
     expect(
-      db.prepare("SELECT status, is_blocked, blocked_reason FROM tickets WHERE id = 'ticket-1'").get()
+      db
+        .prepare("SELECT status, is_blocked, blocked_reason FROM tickets WHERE id = 'ticket-1'")
+        .get()
     ).toMatchObject({
       status: "in_progress",
       is_blocked: 1,
       blocked_reason: "Automatic verification worker failed: boot crashed again",
     });
+
+    const resolved = resolveVerificationFailure(db, {
+      ticketId: "ticket-1",
+      rootCause: "The verification worker boot environment was missing its browser runtime.",
+      classification: "environment",
+      validation: "The browser runtime is installed and the worker smoke test passes.",
+    });
+    expect(resolved).toMatchObject({ newStatus: "ai_review", latestRunId: null });
+    const resolutionComment = db
+      .prepare(
+        "SELECT content FROM ticket_comments WHERE ticket_id = 'ticket-1' AND content LIKE '%Verification Failure Resolved%'"
+      )
+      .get() as { content: string };
+    expect(resolutionComment.content).toContain("none (worker failed before run persistence)");
   });
 
   it("reports queue health for operator diagnostics", () => {
@@ -2428,7 +3307,9 @@ describe("verification worker", () => {
       humanActionTicketIds: ["ticket-1"],
     });
     expect(
-      db.prepare("SELECT status, is_blocked, blocked_reason FROM tickets WHERE id = 'ticket-1'").get()
+      db
+        .prepare("SELECT status, is_blocked, blocked_reason FROM tickets WHERE id = 'ticket-1'")
+        .get()
     ).toMatchObject({
       status: "in_progress",
       is_blocked: 1,
@@ -2448,7 +3329,9 @@ describe("verification worker", () => {
       humanActionTicketIds: ["ticket-1"],
     });
     expect(
-      db.prepare("SELECT status, is_blocked, blocked_reason FROM tickets WHERE id = 'ticket-1'").get()
+      db
+        .prepare("SELECT status, is_blocked, blocked_reason FROM tickets WHERE id = 'ticket-1'")
+        .get()
     ).toMatchObject({
       status: "in_progress",
       is_blocked: 1,

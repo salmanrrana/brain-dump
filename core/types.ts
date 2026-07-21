@@ -244,6 +244,12 @@ export interface ReviewFinding {
   epicReviewRunId?: string | null;
   status: FindingStatus;
   createdAt: string;
+  /**
+   * True when submit-finding matched an existing open finding (same category,
+   * file, and near-identical description) and merged into it instead of
+   * inserting a duplicate row.
+   */
+  deduplicated?: boolean;
 }
 
 export interface ReviewCompletionStatus {

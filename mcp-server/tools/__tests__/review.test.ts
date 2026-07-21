@@ -384,6 +384,12 @@ describe("review tool generate-demo PR sync", () => {
   it("accepts command and file automation specs", async () => {
     seedProject(db, { id: "proj-1", path: tempDir });
     seedTicket(db, { id: "ticket-1", projectId: "proj-1", status: "ai_review" });
+    // Content assertions now require the target file to exist in the project.
+    mkdirSync(join(tempDir, "docs"), { recursive: true });
+    writeFileSync(
+      join(tempDir, "docs", "universal-workflow.md"),
+      "Tickets move through ai_verification before done."
+    );
 
     const server = new McpServer({ name: "test", version: "1.0.0" });
     registerReviewTool(server, db);

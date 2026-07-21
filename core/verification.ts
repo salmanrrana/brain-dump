@@ -1,5 +1,15 @@
-import { randomUUID, createHmac } from "crypto";
-import { existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "fs";
+import { randomUUID, createHash, createHmac } from "crypto";
+import {
+  createReadStream,
+  existsSync,
+  mkdirSync,
+  lstatSync,
+  readFileSync,
+  realpathSync,
+  statSync,
+  writeFileSync,
+} from "fs";
+import { lstat, readlink } from "fs/promises";
 import { dirname, isAbsolute, join, relative, resolve } from "path";
 import { spawn } from "child_process";
 import { fileURLToPath } from "url";
@@ -64,6 +74,16 @@ export interface VerificationStepVerdict {
   message: string;
   durationMs: number;
   evidenceFiles: VerificationEvidenceFile[];
+  /** Stable identity for the assertion target across demo step renumbering. */
+  automationKey?: string;
+  /** Automation adapter that produced this verdict. */
+  automationKind?: "api" | "ui" | "command" | "file";
+  /** Stable identities for the assertion and non-assertion conditions that failed. */
+  failureKeys?: string[];
+  /** HMAC of a file step's inspected contents, used to bind generated artifacts to final state. */
+  verifiedFileHash?: string | null;
+  /** Internal assertion indexes, removed after stable failure keys are derived. */
+  failedAssertionIndexes?: number[];
   request?: {
     method: string;
     url: string;
@@ -87,6 +107,14 @@ export interface VerificationManifest {
   certified: boolean;
   gitSha: string | null;
   dirty: boolean;
+  /**
+   * SHA-256 over the uncommitted diff plus untracked file names, modes, and
+   * contents when the
+   * worktree is dirty. gitSha alone cannot pin what a dirty run actually
+   * verified; this makes the sealed evidence reproducible or at least
+   * comparable across runs.
+   */
+  dirtyDiffHash?: string | null;
   port: number;
   bootCommand: string[];
   bootCwd?: string;
@@ -160,6 +188,10 @@ class VerificationBootError extends ValidationError {
 interface GitInfo {
   sha: string | null;
   dirty: boolean;
+  dirtyDiffHash: string | null;
+  worktreeSealFailed: boolean;
+  dirtyFiles: string[];
+  untrackedFiles: string[];
   changedFiles: string[];
 }
 
@@ -172,6 +204,8 @@ const BODY_LIMIT = 16_384;
 const BOOT_LOG_LIMIT = 8_192;
 const COMMAND_OUTPUT_LIMIT = 16_384;
 const COMMAND_EXEC_BUFFER_LIMIT = 16 * 1024 * 1024;
+const UNTRACKED_HASH_BYTE_LIMIT = 32 * 1024 * 1024;
+const DIRTY_SUBMODULE_DIFF_PATTERN = /^\+Subproject commit [0-9a-f]+-dirty$/im;
 const FILE_SNIPPET_LIMIT = 16_384;
 const FILE_READ_LIMIT = 1_048_576;
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -187,6 +221,10 @@ const SPLASH_SKIP_RESULT_KEY = "__brainDumpVerificationSplashSkip";
 const SPLASH_OVERLAY_SELECTOR = '[data-testid="app-splash"]';
 const SPLASH_DISMISS_TIMEOUT_MS = 15_000;
 const SCROLL_INTO_VIEW_TIMEOUT_MS = 3_000;
+const UNCERTIFIED_WORKTREE_INTEGRITY_MESSAGE =
+  "Verification run uncertified because the dirty worktree could not be sealed into evidence (unreadable or oversized uncommitted/untracked content). Commit the work being verified, or remove/gitignore large runtime artifacts, then re-run verification.";
+const UNCERTIFIED_WORKTREE_CHANGED_MESSAGE =
+  "Verification run uncertified because the worktree changed while verification was running. If the app writes runtime artifacts into the project, add them to .gitignore or prove them with trailing file assertions; then re-run verification from a stable worktree (ideally with the work committed).";
 const REDACTED_SECRET = "[redacted]";
 const SECRET_ENV_KEY_PATTERN = /(SECRET|TOKEN|PASSWORD|PASS|KEY|AUTH|CREDENTIAL|COOKIE|SESSION)/i;
 const COMMAND_ENV_ALLOWLIST = ["PATH", "SystemRoot", "WINDIR", "COMSPEC", "PATHEXT"];
@@ -286,6 +324,12 @@ function isStepVerdict(value: unknown): value is VerificationStepVerdict {
     (step.status === "passed" || step.status === "failed" || step.status === "skipped") &&
     typeof step.message === "string" &&
     typeof step.durationMs === "number" &&
+    (step.automationKey === undefined || typeof step.automationKey === "string") &&
+    (step.automationKind === undefined ||
+      ["api", "ui", "command", "file"].includes(step.automationKind)) &&
+    (step.failureKeys === undefined ||
+      (Array.isArray(step.failureKeys) &&
+        step.failureKeys.every((key) => typeof key === "string"))) &&
     Array.isArray(step.evidenceFiles) &&
     step.evidenceFiles.every(isEvidenceFile)
   );
@@ -878,9 +922,23 @@ async function getGitInfo(
   projectPath: string,
   execFileNoThrow?: VerifyTicketParams["execFileNoThrow"]
 ): Promise<GitInfo> {
-  if (!execFileNoThrow) return { sha: null, dirty: false, changedFiles: [] };
+  if (!execFileNoThrow) {
+    return {
+      sha: null,
+      dirty: false,
+      dirtyDiffHash: null,
+      worktreeSealFailed: false,
+      dirtyFiles: [],
+      untrackedFiles: [],
+      changedFiles: [],
+    };
+  }
   const shaResult = await execFileNoThrow("git", ["rev-parse", "HEAD"], { cwd: projectPath });
-  const statusResult = await execFileNoThrow("git", ["status", "--short"], { cwd: projectPath });
+  const statusResult = await execFileNoThrow(
+    "git",
+    ["status", "--short", "--untracked-files=all"],
+    { cwd: projectPath }
+  );
   const committedDiffResult = await execFileNoThrow(
     "git",
     ["diff", "--name-only", "HEAD~1", "HEAD"],
@@ -900,11 +958,109 @@ async function getGitInfo(
         .map((line) => line.trim())
         .filter(Boolean)
     : [];
+  const notGitRepository =
+    !shaResult.success &&
+    !statusResult.success &&
+    /not a git repository/i.test(`${shaResult.stderr}\n${statusResult.stderr}`);
+  // A confirmed path outside Git has no worktree to seal. Any other metadata
+  // failure is an unknown worktree and must fail closed.
+  const dirty = statusResult.success ? dirtyFiles.length > 0 : !notGitRepository;
+  let dirtyDiffHash: string | null = null;
+  let worktreeSealFailed = dirty && !statusResult.success;
+  let untrackedFiles: string[] = [];
+  if (dirty) {
+    const diffResult = await execFileNoThrow(
+      "git",
+      ["diff", "--full-index", "--binary", "--no-ext-diff", "--no-textconv", "HEAD"],
+      {
+        cwd: projectPath,
+        maxBuffer: 32 * 1024 * 1024,
+      }
+    );
+    const untrackedResult = await execFileNoThrow(
+      "git",
+      ["ls-files", "--others", "--exclude-standard", "-z"],
+      { cwd: projectPath }
+    );
+    if (
+      !worktreeSealFailed &&
+      diffResult.success &&
+      untrackedResult.success &&
+      !DIRTY_SUBMODULE_DIFF_PATTERN.test(diffResult.stdout)
+    ) {
+      untrackedFiles = untrackedResult.stdout.split("\0").filter(Boolean).sort();
+      const untrackedEntries: string[] = [];
+      let untrackedBytesHashed = 0;
+      for (const file of untrackedFiles) {
+        const entry = await hashUntrackedFile(
+          projectPath,
+          file,
+          UNTRACKED_HASH_BYTE_LIMIT - untrackedBytesHashed
+        );
+        if (entry === null) {
+          worktreeSealFailed = true;
+          break;
+        }
+        untrackedBytesHashed += entry.bytesHashed;
+        untrackedEntries.push(`${file}\0${entry.hash}`);
+      }
+      if (!worktreeSealFailed) {
+        dirtyDiffHash = createHash("sha256")
+          .update(diffResult.stdout)
+          .update("\n--untracked--\n")
+          .update(untrackedEntries.join("\n"))
+          .digest("hex");
+      }
+    } else {
+      worktreeSealFailed = true;
+    }
+  }
   return {
     sha: shaResult.success ? shaResult.stdout.trim() : null,
-    dirty: statusResult.success ? dirtyFiles.length > 0 : true,
+    dirty,
+    dirtyDiffHash,
+    worktreeSealFailed,
+    dirtyFiles,
+    untrackedFiles,
     changedFiles: [...new Set([...dirtyFiles, ...committedFiles])],
   };
+}
+
+async function hashUntrackedFile(
+  projectPath: string,
+  file: string,
+  remainingBytes: number
+): Promise<{ hash: string; bytesHashed: number } | null> {
+  const projectRoot = resolve(projectPath);
+  const absolutePath = resolve(projectRoot, file);
+  const projectRelativePath = relative(projectRoot, absolutePath);
+  if (projectRelativePath.startsWith("..") || isAbsolute(projectRelativePath)) {
+    return null;
+  }
+  try {
+    const stats = await lstat(absolutePath);
+    const mode = (stats.mode & 0o7777).toString(8);
+    if (stats.isSymbolicLink()) {
+      const target = await readlink(absolutePath);
+      const bytesHashed = Buffer.byteLength(target);
+      if (bytesHashed > remainingBytes) return null;
+      return { hash: `symlink:${mode}:${target}`, bytesHashed };
+    }
+    if (!stats.isFile()) return null;
+    if (stats.size > remainingBytes) return null;
+    const contentHash = createHash("sha256");
+    let bytesHashed = 0;
+    for await (const chunk of createReadStream(absolutePath)) {
+      bytesHashed += Buffer.byteLength(chunk);
+      if (bytesHashed > remainingBytes) return null;
+      contentHash.update(chunk);
+    }
+    return { hash: `file:${mode}:${contentHash.digest("hex")}`, bytesHashed };
+  } catch {
+    // Unreadable entry (permissions, races with the app): the worktree cannot
+    // be sealed, which the caller reports as worktreeSealFailed evidence.
+    return null;
+  }
 }
 
 function hasVerificationTripwireChange(changedFiles: string[]): boolean {
@@ -918,6 +1074,87 @@ function hasVerificationTripwireChange(changedFiles: string[]): boolean {
       file.startsWith("core/verifier-identity") ||
       file.startsWith("core/__tests__/verification")
   );
+}
+
+function gitWorktreeSealMatches(before: GitInfo, after: GitInfo): boolean {
+  return (
+    before.sha === after.sha &&
+    before.dirty === after.dirty &&
+    before.dirtyDiffHash === after.dirtyDiffHash &&
+    before.worktreeSealFailed === after.worktreeSealFailed
+  );
+}
+
+function isDeclaredGeneratedArtifactChange(
+  before: GitInfo,
+  after: GitInfo,
+  steps: DemoStep[],
+  projectPath: string,
+  verdicts: VerificationStepVerdict[],
+  runId: string
+): boolean {
+  if (
+    before.dirty ||
+    !after.dirty ||
+    before.sha !== after.sha ||
+    before.worktreeSealFailed ||
+    after.worktreeSealFailed ||
+    after.dirtyFiles.length === 0
+  ) {
+    return false;
+  }
+  let lastMutatingStepIndex = -1;
+  steps.forEach((step, index) => {
+    if (step.automation !== undefined && step.automation.kind !== "file") {
+      lastMutatingStepIndex = index;
+    }
+  });
+  const declaredFiles = new Set(
+    steps.flatMap((step, index) => {
+      if (step.automation?.kind !== "file" || index <= lastMutatingStepIndex) return [];
+      // The carve-out requires a content assertion: exists-only steps never
+      // hash the file (privacy), so they cannot vouch for a generated
+      // artifact's final bytes.
+      const positivelyVerifiesFinalFile =
+        step.automation.assert.length > 0 &&
+        step.automation.assert.every((assertion) => assertion.type !== "notExists") &&
+        step.automation.assert.some((assertion) =>
+          ["contains", "notContains", "jsonPath"].includes(assertion.type)
+        );
+      return positivelyVerifiesFinalFile
+        ? [step.automation.path.replaceAll("\\", "/").replace(/^\.\//, "")]
+        : [];
+    })
+  );
+  const untrackedFiles = new Set(after.untrackedFiles);
+  return after.dirtyFiles.every((file) => {
+    const normalized = file.replaceAll("\\", "/").replace(/^\.\//, "");
+    if (!untrackedFiles.has(file) || !declaredFiles.has(normalized)) return false;
+    try {
+      const stats = lstatSync(resolve(projectPath, file));
+      if (!stats.isFile() || stats.size > FILE_READ_LIMIT) return false;
+      const step = steps.find(
+        (candidate, index) =>
+          index > lastMutatingStepIndex &&
+          candidate.automation?.kind === "file" &&
+          candidate.automation.assert.every((assertion) => assertion.type !== "notExists") &&
+          candidate.automation.assert.some((assertion) =>
+            ["contains", "notContains", "jsonPath"].includes(assertion.type)
+          ) &&
+          candidate.automation.path.replaceAll("\\", "/").replace(/^\.\//, "") === normalized
+      );
+      const verdict = step
+        ? verdicts.find((candidate) => candidate.order === step.order)
+        : undefined;
+      const finalHash = hmac(
+        readFileSync(resolve(projectPath, file), "utf-8"),
+        `brain-dump:file:${runId}`
+      );
+      return verdict?.status === "passed" && verdict.verifiedFileHash === finalHash;
+    } catch {
+      return false;
+    }
+  });
 }
 
 async function runExecutableSteps(params: {
@@ -1024,18 +1261,23 @@ async function runApiStep(
   const body = truncate(await response.text());
   const responseHeaders = Object.fromEntries(response.headers.entries());
   const failures: string[] = [];
+  const failedAssertionIndexes: number[] = [];
+  const failAssertion = (index: number, message: string): void => {
+    failures.push(message);
+    failedAssertionIndexes.push(index);
+  };
 
-  for (const assertion of step.automation.assert) {
+  for (const [index, assertion] of step.automation.assert.entries()) {
     if (assertion.type === "status" && response.status !== assertion.expected) {
-      failures.push(`expected status ${assertion.expected}, got ${response.status}`);
+      failAssertion(index, `expected status ${assertion.expected}, got ${response.status}`);
     } else if (assertion.type === "bodyContains" && !body.includes(String(assertion.expected))) {
-      failures.push(`expected body to contain ${String(assertion.expected)}`);
+      failAssertion(index, `expected body to contain ${String(assertion.expected)}`);
     } else if (assertion.type === "jsonPath") {
       let json: unknown;
       try {
         json = JSON.parse(body);
       } catch {
-        failures.push("expected JSON body for jsonPath assertion");
+        failAssertion(index, "expected JSON body for jsonPath assertion");
         continue;
       }
       const actual = resolveJsonPath(json, String(assertion.expected).split("=")[0] ?? "");
@@ -1043,7 +1285,8 @@ async function runApiStep(
         ? String(assertion.expected).split("=").slice(1).join("=")
         : assertion.expected;
       if (!valuesEqual(actual, expected)) {
-        failures.push(
+        failAssertion(
+          index,
           `expected jsonPath ${String(assertion.expected)}, got ${JSON.stringify(actual)}`
         );
       }
@@ -1069,6 +1312,7 @@ async function runApiStep(
     message: failures.length === 0 ? "API assertions passed." : failures.join("; "),
     durationMs: Date.now() - start,
     evidenceFiles: [evidence],
+    failedAssertionIndexes,
     request: { method: request.method, url, headers, body: request.body },
     response: { status: response.status, headers: responseHeaders, body },
   };
@@ -1156,6 +1400,25 @@ async function runUiStep(
   const browser = await playwright.chromium.launch();
   const page = await browser.newPage();
   const failures: string[] = [];
+  const failedAssertionIndexes: number[] = [];
+  const nonAssertionFailureKeys: string[] = [];
+  const uiFailureKey = (type: string): string =>
+    createHash("sha256")
+      .update(
+        stableJson({
+          target: {
+            kind: "ui",
+            route: step.automation?.kind === "ui" ? step.automation.route : "",
+            actions: step.automation?.kind === "ui" ? (step.automation.actions ?? []) : [],
+          },
+          failure: { type },
+        })
+      )
+      .digest("hex");
+  const failAssertion = (index: number, message: string): void => {
+    failures.push(message);
+    failedAssertionIndexes.push(index);
+  };
   try {
     try {
       await page.addInitScript(
@@ -1182,6 +1445,7 @@ async function runUiStep(
         failures.push(
           `Brain Dump splash skip setup failed: ${splashSkipResult.error ?? "unknown"}`
         );
+        nonAssertionFailureKeys.push(uiFailureKey("splash-skip-setup"));
       }
       // Text assertions pass against the SSR DOM underneath the splash
       // overlay, so without this wait a step can "pass" while the screenshot
@@ -1195,6 +1459,7 @@ async function runUiStep(
         failures.push(
           `App splash overlay did not dismiss within ${SPLASH_DISMISS_TIMEOUT_MS}ms; the app never became interactive, so UI evidence would only show the splash screen.`
         );
+        nonAssertionFailureKeys.push(uiFailureKey("splash-overlay-timeout"));
       }
       for (const action of step.automation.actions ?? []) {
         if (action.act === "click") await page.locator(action.selector ?? "").click();
@@ -1206,16 +1471,19 @@ async function runUiStep(
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       failures.push(`UI action failed: ${message}`);
+      nonAssertionFailureKeys.push(uiFailureKey("ui-action"));
     }
 
-    for (const assertion of step.automation.assert) {
+    for (const [index, assertion] of step.automation.assert.entries()) {
       try {
         if (assertion.type === "visible") {
           const visible = await page
             .locator(assertion.selector ?? "body")
             .first()
             .isVisible();
-          if (!visible) failures.push(`expected ${assertion.selector ?? "body"} to be visible`);
+          if (!visible) {
+            failAssertion(index, `expected ${assertion.selector ?? "body"} to be visible`);
+          }
         }
         if (assertion.type === "text") {
           await playwright
@@ -1223,11 +1491,11 @@ async function runUiStep(
             .toContainText(assertion.expected ?? "", { timeout: UI_ASSERTION_TIMEOUT_MS });
         }
         if (assertion.type === "url" && !page.url().includes(assertion.expected ?? "")) {
-          failures.push(`expected URL to contain ${assertion.expected}`);
+          failAssertion(index, `expected URL to contain ${assertion.expected}`);
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        failures.push(`UI assertion failed: ${message}`);
+        failAssertion(index, `UI assertion failed: ${message}`);
       }
     }
 
@@ -1262,6 +1530,10 @@ async function runUiStep(
       message: failures.length === 0 ? "UI assertions passed." : failures.join("; "),
       durationMs: Date.now() - start,
       evidenceFiles: [{ path: screenshotPath, hash: hashEvidence(evidenceContent, runId) }],
+      failedAssertionIndexes,
+      ...(nonAssertionFailureKeys.length > 0
+        ? { failureKeys: [...new Set(nonAssertionFailureKeys)] }
+        : {}),
     };
   } finally {
     await browser.close();
@@ -1320,27 +1592,43 @@ async function runCommandStep(
   const stdout = truncate(result.stdout, COMMAND_OUTPUT_LIMIT);
   const stderr = truncate(result.stderr, COMMAND_OUTPUT_LIMIT);
   const failures: string[] = [];
+  const failedAssertionIndexes: number[] = [];
+  const nonAssertionFailureKeys: string[] = [];
+  const failAssertion = (index: number, message: string): void => {
+    failures.push(message);
+    failedAssertionIndexes.push(index);
+  };
 
   if (result.exitCode !== automation.command.expectedExitCode) {
     failures.push(
       `expected exit code ${automation.command.expectedExitCode}, got ${result.exitCode ?? "null"}`
     );
+    nonAssertionFailureKeys.push(
+      createHash("sha256")
+        .update(
+          stableJson({
+            target: { kind: "command", command: automation.command },
+            failure: { type: "exit-code", expected: automation.command.expectedExitCode },
+          })
+        )
+        .digest("hex")
+    );
   }
-  for (const assertion of automation.assert) {
+  for (const [index, assertion] of automation.assert.entries()) {
     if (assertion.type === "stdoutContains" && !result.stdout.includes(assertion.expected)) {
-      failures.push(`expected stdout to contain ${JSON.stringify(assertion.expected)}`);
+      failAssertion(index, `expected stdout to contain ${JSON.stringify(assertion.expected)}`);
     } else if (
       assertion.type === "stdoutNotContains" &&
       result.stdout.includes(assertion.expected)
     ) {
-      failures.push(`expected stdout not to contain ${JSON.stringify(assertion.expected)}`);
+      failAssertion(index, `expected stdout not to contain ${JSON.stringify(assertion.expected)}`);
     } else if (assertion.type === "stderrContains" && !result.stderr.includes(assertion.expected)) {
-      failures.push(`expected stderr to contain ${JSON.stringify(assertion.expected)}`);
+      failAssertion(index, `expected stderr to contain ${JSON.stringify(assertion.expected)}`);
     } else if (
       assertion.type === "stderrNotContains" &&
       result.stderr.includes(assertion.expected)
     ) {
-      failures.push(`expected stderr not to contain ${JSON.stringify(assertion.expected)}`);
+      failAssertion(index, `expected stderr not to contain ${JSON.stringify(assertion.expected)}`);
     }
   }
 
@@ -1372,6 +1660,10 @@ async function runCommandStep(
     message: failures.length === 0 ? "Command assertions passed." : failures.join("; "),
     durationMs: Date.now() - start,
     evidenceFiles: [evidence],
+    failedAssertionIndexes,
+    ...(nonAssertionFailureKeys.length > 0
+      ? { failureKeys: [...new Set(nonAssertionFailureKeys)] }
+      : {}),
   };
 }
 
@@ -1400,6 +1692,11 @@ async function runFileStep(
   assertRealPathInsideProject(projectPath, filePath, `Step ${step.order} file automation path`);
   const exists = existsSync(filePath);
   const failures: string[] = [];
+  const failedAssertionIndexes: number[] = [];
+  const failAssertion = (index: number, message: string): void => {
+    failures.push(message);
+    failedAssertionIndexes.push(index);
+  };
   let content: string | null = null;
   let size: number | null = null;
   let targetFileHash: string | null = null;
@@ -1412,6 +1709,10 @@ async function runFileStep(
       if (!stat.isFile()) {
         readError = `path ${automation.path} is not a regular file`;
       } else if (needsContent && size <= FILE_READ_LIMIT) {
+        // Only content-asserting steps may read (and hash) the file: an
+        // exists-only assertion must not snapshot file contents into
+        // evidence, and the generated-artifact carve-out below requires a
+        // content assertion for the same reason.
         content = readFileSync(filePath, "utf-8");
         targetFileHash = hmac(content, `brain-dump:file:${runId}`);
       }
@@ -1420,49 +1721,53 @@ async function runFileStep(
     }
   }
 
-  for (const assertion of automation.assert) {
+  for (const [index, assertion] of automation.assert.entries()) {
     if (assertion.type === "exists") {
-      if (!exists) failures.push(`expected file ${automation.path} to exist`);
+      if (!exists) failAssertion(index, `expected file ${automation.path} to exist`);
       if (exists && readError !== null) {
-        failures.push(`could not inspect file ${automation.path}: ${readError}`);
+        failAssertion(index, `could not inspect file ${automation.path}: ${readError}`);
       }
       continue;
     }
     if (assertion.type === "notExists") {
-      if (exists) failures.push(`expected file ${automation.path} not to exist`);
+      if (exists) failAssertion(index, `expected file ${automation.path} not to exist`);
       continue;
     }
     if (!exists) {
-      failures.push(`expected file ${automation.path} to exist for ${assertion.type} assertion`);
+      failAssertion(
+        index,
+        `expected file ${automation.path} to exist for ${assertion.type} assertion`
+      );
       continue;
     }
     if (readError !== null) {
-      failures.push(`could not inspect file ${automation.path}: ${readError}`);
+      failAssertion(index, `could not inspect file ${automation.path}: ${readError}`);
       continue;
     }
     if (size !== null && size > FILE_READ_LIMIT) {
-      failures.push(`file ${automation.path} is too large to inspect (${size} bytes)`);
+      failAssertion(index, `file ${automation.path} is too large to inspect (${size} bytes)`);
       continue;
     }
     if (content === null) {
-      failures.push(`file ${automation.path} could not be read`);
+      failAssertion(index, `file ${automation.path} could not be read`);
       continue;
     }
     if (assertion.type === "contains" && !content.includes(assertion.expected)) {
-      failures.push(`expected file to contain ${JSON.stringify(assertion.expected)}`);
+      failAssertion(index, `expected file to contain ${JSON.stringify(assertion.expected)}`);
     } else if (assertion.type === "notContains" && content.includes(assertion.expected)) {
-      failures.push(`expected file not to contain ${JSON.stringify(assertion.expected)}`);
+      failAssertion(index, `expected file not to contain ${JSON.stringify(assertion.expected)}`);
     } else if (assertion.type === "jsonPath") {
       let json: unknown;
       try {
         json = JSON.parse(content);
       } catch {
-        failures.push("expected JSON file for jsonPath assertion");
+        failAssertion(index, "expected JSON file for jsonPath assertion");
         continue;
       }
       const actual = resolveJsonPath(json, assertion.path);
       if (!valuesEqual(actual, assertion.expected)) {
-        failures.push(
+        failAssertion(
+          index,
           `expected jsonPath ${assertion.path} to equal ${JSON.stringify(assertion.expected)}, got ${JSON.stringify(actual)}`
         );
       }
@@ -1493,6 +1798,8 @@ async function runFileStep(
     message: failures.length === 0 ? "File assertions passed." : failures.join("; "),
     durationMs: Date.now() - start,
     evidenceFiles: [evidence],
+    failedAssertionIndexes,
+    verifiedFileHash: targetFileHash,
   };
 }
 
@@ -1505,29 +1812,81 @@ async function runStep(
   execFileNoThrow: NonNullable<VerifyTicketParams["execFileNoThrow"]>
 ): Promise<VerificationStepVerdict> {
   if (step.type === "manual") {
-    return {
+    return withAutomationKey(step, {
       order: step.order,
       status: "skipped",
       message: MANUAL_STEP_SKIP_MESSAGE,
       durationMs: 0,
       evidenceFiles: [],
-    };
+    });
   }
   if (step.automation?.kind === "api") {
     if (baseUrl === null)
       throw new ValidationError(`Step ${step.order} API automation needs app boot.`);
-    return await runApiStep(step, runId, baseUrl, fetchImpl);
+    return withAutomationKey(step, await runApiStep(step, runId, baseUrl, fetchImpl));
   }
   if (step.automation?.kind === "ui") {
     if (baseUrl === null)
       throw new ValidationError(`Step ${step.order} UI automation needs app boot.`);
-    return await runUiStep(step, runId, baseUrl);
+    return withAutomationKey(step, await runUiStep(step, runId, baseUrl));
   }
   if (step.automation?.kind === "command") {
-    return await runCommandStep(step, runId, projectPath, execFileNoThrow);
+    return withAutomationKey(step, await runCommandStep(step, runId, projectPath, execFileNoThrow));
   }
-  if (step.automation?.kind === "file") return await runFileStep(step, runId, projectPath);
+  if (step.automation?.kind === "file") {
+    return withAutomationKey(step, await runFileStep(step, runId, projectPath));
+  }
   throw new ValidationError(`Step ${step.order} has no executable automation spec.`);
+}
+
+function withAutomationKey(
+  step: DemoStep,
+  verdict: VerificationStepVerdict
+): VerificationStepVerdict {
+  const automation = step.automation;
+  if (!automation) return verdict;
+  let target: unknown;
+  switch (automation.kind) {
+    case "api":
+      target = {
+        kind: automation.kind,
+        request: automation.request,
+      };
+      break;
+    case "ui":
+      target = {
+        kind: automation.kind,
+        route: automation.route,
+        actions: (automation.actions ?? []).filter((action) => action.act !== "waitFor"),
+      };
+      break;
+    case "command":
+      target = {
+        kind: automation.kind,
+        command: automation.command,
+      };
+      break;
+    case "file":
+      target = {
+        kind: automation.kind,
+        path: automation.path,
+      };
+      break;
+  }
+  const assertionFailureKeys = (verdict.failedAssertionIndexes ?? [])
+    .map((index) => automation.assert[index])
+    .filter((assertion) => assertion !== undefined)
+    .map((assertion) =>
+      createHash("sha256").update(stableJson({ target, assertion })).digest("hex")
+    );
+  const failureKeys = [...new Set([...(verdict.failureKeys ?? []), ...assertionFailureKeys])];
+  const { failedAssertionIndexes: _failedAssertionIndexes, ...sealedVerdict } = verdict;
+  return {
+    ...sealedVerdict,
+    automationKind: automation.kind,
+    automationKey: createHash("sha256").update(stableJson(target)).digest("hex"),
+    ...(failureKeys.length > 0 ? { failureKeys: [...new Set(failureKeys)] } : {}),
+  };
 }
 
 function summarizeStatus(verdicts: VerificationStepVerdict[]): VerificationRunStatus {
@@ -1576,6 +1935,7 @@ async function buildRun(
   let failedBootInfo: FailedBootInfo | null = null;
   let verdicts: VerificationStepVerdict[] = [];
   let status = statusOverride ?? "infra_error";
+  let executionFailed = false;
 
   try {
     if (statusOverride) {
@@ -1602,27 +1962,9 @@ async function buildRun(
       });
       boot = result.boot;
       verdicts = result.verdicts;
-      if (hasVerificationTripwireChange(gitInfo.changedFiles)) {
-        verdicts.push({
-          order: 0,
-          status: "skipped",
-          message: UNCERTIFIED_TRIPWIRE_MESSAGE,
-          durationMs: 0,
-          evidenceFiles: [],
-        });
-      }
-      if (steps.some((step) => step.coverageRationale?.trim())) {
-        verdicts.push({
-          order: 0,
-          status: "skipped",
-          message: UNCERTIFIED_COVERAGE_RATIONALE_MESSAGE,
-          durationMs: 0,
-          evidenceFiles: [],
-        });
-      }
-      status = summarizeStatus(verdicts);
     }
   } catch (error) {
+    executionFailed = true;
     if (error instanceof VerificationBootError) {
       failedBootInfo = error.bootInfo;
     }
@@ -1631,6 +1973,72 @@ async function buildRun(
     verdicts = [{ order: 0, status: "failed", message, durationMs: 0, evidenceFiles: [] }];
   } finally {
     await boot?.stop();
+  }
+
+  let evidenceGitInfo = gitInfo;
+  if (!statusOverride) {
+    const finalGitInfo = await getGitInfo(actualProjectPath, execFileNoThrow);
+    const worktreeChanged = !gitWorktreeSealMatches(gitInfo, finalGitInfo);
+    const declaredArtifactChange =
+      worktreeChanged &&
+      isDeclaredGeneratedArtifactChange(
+        gitInfo,
+        finalGitInfo,
+        steps,
+        actualProjectPath,
+        verdicts,
+        runId
+      );
+    evidenceGitInfo = declaredArtifactChange
+      ? finalGitInfo
+      : worktreeChanged
+        ? {
+            ...gitInfo,
+            dirtyDiffHash: null,
+            worktreeSealFailed: true,
+            changedFiles: [...new Set([...gitInfo.changedFiles, ...finalGitInfo.changedFiles])],
+          }
+        : gitInfo;
+
+    if (
+      hasVerificationTripwireChange(gitInfo.changedFiles) ||
+      hasVerificationTripwireChange(finalGitInfo.changedFiles)
+    ) {
+      verdicts.push({
+        order: 0,
+        status: "skipped",
+        message: UNCERTIFIED_TRIPWIRE_MESSAGE,
+        durationMs: 0,
+        evidenceFiles: [],
+      });
+    }
+    if (gitInfo.worktreeSealFailed || finalGitInfo.worktreeSealFailed) {
+      verdicts.push({
+        order: 0,
+        status: "skipped",
+        message: UNCERTIFIED_WORKTREE_INTEGRITY_MESSAGE,
+        durationMs: 0,
+        evidenceFiles: [],
+      });
+    } else if (worktreeChanged && !declaredArtifactChange) {
+      verdicts.push({
+        order: 0,
+        status: "skipped",
+        message: UNCERTIFIED_WORKTREE_CHANGED_MESSAGE,
+        durationMs: 0,
+        evidenceFiles: [],
+      });
+    }
+    if (steps.some((step) => step.coverageRationale?.trim())) {
+      verdicts.push({
+        order: 0,
+        status: "skipped",
+        message: UNCERTIFIED_COVERAGE_RATIONALE_MESSAGE,
+        durationMs: 0,
+        evidenceFiles: [],
+      });
+    }
+    status = executionFailed ? "infra_error" : summarizeStatus(verdicts);
   }
 
   const finishedAt = new Date().toISOString();
@@ -1643,8 +2051,9 @@ async function buildRun(
     round,
     status,
     certified,
-    gitSha: gitInfo.sha,
-    dirty: gitInfo.dirty,
+    gitSha: evidenceGitInfo.sha,
+    dirty: evidenceGitInfo.dirty,
+    dirtyDiffHash: evidenceGitInfo.dirtyDiffHash,
     port:
       boot?.port ??
       failedBootInfo?.port ??
@@ -1670,7 +2079,7 @@ async function buildRun(
     status,
     certified,
     manifest,
-    gitSha: gitInfo.sha,
+    gitSha: evidenceGitInfo.sha,
     identity,
     startedAt,
     finishedAt,
@@ -1841,4 +2250,7 @@ export const verificationTestInternals = {
   manifestHashFor,
   attachRunEvidenceAndReport,
   discoverBootCommand,
+  getGitInfo,
+  isDeclaredGeneratedArtifactChange,
+  withAutomationKey,
 };

@@ -72,6 +72,7 @@ export interface DbTicketWorkflowStateRow {
   findings_count: number;
   findings_fixed: number;
   demo_generated: number;
+  verification_streak_reset_at: string | null;
   created_at: string;
   updated_at: string;
 }

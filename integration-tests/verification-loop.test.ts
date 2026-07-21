@@ -98,7 +98,7 @@ function createExecStub(options: { dirtyFiles?: string } = {}) {
     if (command === "git" && args.join(" ") === "rev-parse HEAD") {
       return { success: true, stdout: "e2e-sha-111\n", stderr: "", exitCode: 0 };
     }
-    if (command === "git" && args.join(" ") === "status --short") {
+    if (command === "git" && args.join(" ") === "status --short --untracked-files=all") {
       return { success: true, stdout: options.dirtyFiles ?? "", stderr: "", exitCode: 0 };
     }
     if (command === "gh" && args[0] === "pr" && args[1] === "list") {
@@ -505,9 +505,9 @@ describe("verification loop end-to-end", () => {
     // A human unblocking the ticket (direct edit, outside workflow
     // transitions) must clear the PRD flag too, or the Ralph loop's blocked
     // gate would refuse to resume forever.
-    db.prepare(
-      "UPDATE tickets SET is_blocked = 0, blocked_reason = NULL WHERE id = ?"
-    ).run(LIVE_TICKET);
+    db.prepare("UPDATE tickets SET is_blocked = 0, blocked_reason = NULL WHERE id = ?").run(
+      LIVE_TICKET
+    );
     const syncResult = syncPrdBlockedStateForDbTicketIfPresent(db, LIVE_TICKET);
     expect(syncResult.applied).toBe(true);
     const afterUnblock = JSON.parse(readFileSync(prdPath, "utf-8")) as {

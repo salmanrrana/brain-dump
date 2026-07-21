@@ -715,6 +715,45 @@ export const COMMAND_REGISTRY: CommandDef[] = [
     examples: ["brain-dump review repair-legacy-handoff --ticket abc --pretty"],
   },
   {
+    resource: "review",
+    action: "resolve-verification-failure",
+    description: "Resolve a verified failure blocker and return the ticket to AI review",
+    flags: [
+      ticketFlag,
+      { name: "root-cause", type: "string", required: true, description: "Confirmed root cause" },
+      {
+        name: "classification",
+        type: "enum",
+        required: true,
+        description: "Failure classification",
+        enum: ["connectivity", "environment", "demo-spec", "product-defect", "other"],
+      },
+      {
+        name: "validation",
+        type: "string",
+        required: true,
+        description: "Evidence that validates the fix",
+      },
+      {
+        name: "fix-commits",
+        type: "string",
+        required: false,
+        description: "Comma-separated fix commit SHAs",
+      },
+      {
+        name: "why-next-attempt-will-pass",
+        type: "string",
+        required: false,
+        description: "Why the regenerated demo should pass",
+      },
+      { name: "operator", type: "string", required: false, description: "Operator identity" },
+      prettyFlag,
+    ],
+    examples: [
+      'brain-dump review resolve-verification-failure --ticket abc --root-cause "CORS rejected random loopback ports" --classification connectivity --validation "Random-port smoke test passes"',
+    ],
+  },
+  {
     resource: "verify",
     action: "run",
     description: "Run AI verification for a ticket",

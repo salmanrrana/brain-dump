@@ -1,6 +1,6 @@
 /**
  * Review commands: submit-finding, mark-fixed, check-complete, generate-demo, get-demo, get-findings,
- * get-verification-history, repair-legacy-handoff.
+ * get-verification-history, repair-legacy-handoff, resolve-verification-failure.
  */
 
 import { readFileSync } from "fs";
@@ -17,6 +17,7 @@ import {
   spawnDetachedVerificationDrain,
   validateRepairLegacyHumanReviewHandoff,
   repairLegacyHumanReviewHandoff,
+  resolveVerificationFailure,
   updatePrdForDbTicketIfPresent,
   InvalidActionError,
   ValidationError,
@@ -27,6 +28,7 @@ import type {
   FindingStatus,
   MarkFixedStatus,
   DemoStep,
+  VerificationFailureResolutionClassification,
 } from "../../core/index.ts";
 import {
   parseFlags,
@@ -49,6 +51,7 @@ const ACTIONS = [
   "get-findings",
   "get-verification-history",
   "repair-legacy-handoff",
+  "resolve-verification-failure",
 ];
 
 export function handle(action: string, args: string[]): void {
@@ -206,6 +209,33 @@ export function handle(action: string, args: string[]): void {
         }
         const result = repairLegacyHumanReviewHandoff(db, ticketId);
         outputResult({ ...result, prdSync }, pretty);
+        break;
+      }
+
+      case "resolve-verification-failure": {
+        const ticketId = requireFlag(flags, "ticket");
+        const rootCause = requireFlag(flags, "root-cause");
+        const classification = requireEnumFlag<VerificationFailureResolutionClassification>(
+          flags,
+          "classification",
+          ["connectivity", "environment", "demo-spec", "product-defect", "other"]
+        );
+        const validation = requireFlag(flags, "validation");
+        const fixCommitsValue = optionalFlag(flags, "fix-commits");
+        const whyNextAttemptWillPass = optionalFlag(flags, "why-next-attempt-will-pass");
+        const operator = optionalFlag(flags, "operator");
+        const result = resolveVerificationFailure(db, {
+          ticketId,
+          rootCause,
+          classification,
+          validation,
+          ...(fixCommitsValue
+            ? { fixCommits: fixCommitsValue.split(",").map((value) => value.trim()) }
+            : {}),
+          ...(whyNextAttemptWillPass ? { whyNextAttemptWillPass } : {}),
+          ...(operator ? { operator } : {}),
+        });
+        outputResult(result, pretty);
         break;
       }
 

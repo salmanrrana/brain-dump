@@ -728,6 +728,24 @@ describe("review", () => {
     expect(err.error).toBe("VALIDATION_ERROR");
     expect(err.message).toMatch(/--agent/);
   });
+
+  it("recognizes resolve-verification-failure as a review action", async () => {
+    const err = await runErr(
+      "review",
+      "resolve-verification-failure",
+      "--ticket",
+      "missing-ticket",
+      "--root-cause",
+      "App boot failed",
+      "--classification",
+      "environment",
+      "--validation",
+      "Worker smoke test passes"
+    );
+
+    expect(err.message).toContain("missing-ticket was not found");
+    expect(err.message).not.toContain("Unknown action");
+  });
 });
 
 // ── Session Commands ────────────────────────────────────────────

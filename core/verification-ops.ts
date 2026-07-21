@@ -688,6 +688,182 @@ export function requeueVerificationJob(
   };
 }
 
+export const VERIFICATION_FAILURE_RESOLUTION_CLASSIFICATIONS = [
+  "connectivity",
+  "environment",
+  "demo-spec",
+  "product-defect",
+  "other",
+] as const;
+
+export type VerificationFailureResolutionClassification =
+  (typeof VERIFICATION_FAILURE_RESOLUTION_CLASSIFICATIONS)[number];
+
+export interface ResolveVerificationFailureParams {
+  ticketId: string;
+  rootCause: string;
+  classification: VerificationFailureResolutionClassification;
+  validation: string;
+  fixCommits?: string[] | undefined;
+  whyNextAttemptWillPass?: string | undefined;
+  operator?: string | undefined;
+  now?: string | undefined;
+}
+
+export interface ResolveVerificationFailureResult {
+  ticketId: string;
+  previousStatus: string;
+  newStatus: "ai_review";
+  latestRunId: string | null;
+  clearedBlockedReason: string | null;
+}
+
+function requireNonEmpty(value: string | undefined, field: string): string {
+  const trimmed = value?.trim() ?? "";
+  if (trimmed.length === 0) {
+    throw new ValidationError(
+      `resolve-verification-failure requires a non-empty ${field}. A blocker may only be cleared with a durable record of what failed, why, and how the fix was proven.`
+    );
+  }
+  return trimmed;
+}
+
+/**
+ * First-class agent path out of a verification block. Until now an agent
+ * could fix the cause and post comments, but had no tool to clear the
+ * blocker — the ticket stayed blocked until a human ran `verify requeue`
+ * (observed: a CORS fix validated and documented while its ticket sat
+ * blocked for hours). Resolution demands the structured story (root cause,
+ * classification, validation) and returns the ticket to ai_review, so the
+ * addressed verification findings must then be marked fixed before the normal
+ * check-complete → generate-demo path re-enters verification. The runner keeps
+ * sole authority over certification.
+ */
+export function resolveVerificationFailure(
+  db: DbHandle,
+  params: ResolveVerificationFailureParams
+): ResolveVerificationFailureResult {
+  const now = nowIso(params.now);
+  const rootCause = requireNonEmpty(params.rootCause, "rootCause");
+  const validation = requireNonEmpty(params.validation, "validation");
+
+  const ticket = db
+    .prepare("SELECT id, status, is_blocked, blocked_reason FROM tickets WHERE id = ?")
+    .get(params.ticketId) as
+    | { id: string; status: string; is_blocked: number; blocked_reason: string | null }
+    | undefined;
+  if (!ticket) {
+    throw new ValidationError(`Ticket ${params.ticketId} was not found.`);
+  }
+  if (!ticket.is_blocked) {
+    throw new ValidationError(
+      `Ticket ${params.ticketId} is not blocked; there is no verification failure to resolve. Continue the normal workflow instead.`
+    );
+  }
+  if (ticket.status !== "in_progress" && ticket.status !== "ai_review") {
+    throw new ValidationError(
+      `Cannot resolve verification failure for ticket ${params.ticketId}: ticket is ${ticket.status}, expected a blocked in_progress or ai_review ticket.`
+    );
+  }
+  const latestRun = db
+    .prepare(
+      "SELECT id, status FROM verification_runs WHERE ticket_id = ? ORDER BY round DESC LIMIT 1"
+    )
+    .get(params.ticketId) as { id: string; status: string } | undefined;
+  const verificationJob = db
+    .prepare("SELECT status, last_error FROM verification_jobs WHERE ticket_id = ?")
+    .get(params.ticketId) as { status: string; last_error: string | null } | undefined;
+  const blockedReason = ticket.blocked_reason ?? "";
+  const matchesLatestRun =
+    (latestRun?.status === "failed" && blockedReason.includes(`Latest run: ${latestRun.id}.`)) ||
+    (latestRun?.status === "uncertified" &&
+      blockedReason.startsWith("Verification uncertified:")) ||
+    (latestRun?.status === "infra_error" && blockedReason.startsWith("Verification infra_error:"));
+  const matchesBlockedJob =
+    verificationJob?.status === "blocked" &&
+    (verificationJob.last_error === blockedReason || matchesLatestRun);
+  if (!matchesBlockedJob && !matchesLatestRun) {
+    throw new ValidationError(
+      `Ticket ${params.ticketId} is blocked, but its current blocker was not created by the latest verification run or blocked verification job. Resolve it through the owning workflow instead.`
+    );
+  }
+
+  const fixCommits = (params.fixCommits ?? []).map((commit) => commit.trim()).filter(Boolean);
+  const commentLines = [
+    "## Verification Failure Resolved",
+    "",
+    `- Failed run: ${latestRun?.id ?? "none (worker failed before run persistence)"}`,
+    `- Resolved by: ${params.operator?.trim() || "brain-dump"}`,
+    `- Classification: ${params.classification}`,
+    `- Root cause: ${rootCause}`,
+    `- Fix commits: ${fixCommits.length > 0 ? fixCommits.join(", ") : "none recorded"}`,
+    `- Validation: ${validation}`,
+    ...(params.whyNextAttemptWillPass?.trim()
+      ? [`- Why the next attempt should pass: ${params.whyNextAttemptWillPass.trim()}`]
+      : []),
+    ...(ticket.blocked_reason ? ["", `Cleared blocker: ${ticket.blocked_reason}`] : []),
+    "",
+    "The ticket returned to `ai_review`. Mark every open verification finding addressed by this fix as `fixed`, then continue with check-complete → generate-demo to re-enter verification; the runner still owns certification.",
+  ];
+
+  db.transaction(() => {
+    const ticketUpdate = db
+      .prepare(
+        `UPDATE tickets
+       SET status = 'ai_review', is_blocked = 0, blocked_reason = NULL,
+           completed_at = NULL, updated_at = ?
+       WHERE id = ? AND status = ? AND is_blocked = 1 AND blocked_reason IS ?`
+      )
+      .run(now, params.ticketId, ticket.status, ticket.blocked_reason);
+    if (ticketUpdate.changes !== 1) {
+      throw new ValidationError(
+        `Verification blocker resolution for ticket ${params.ticketId} lost a concurrent state change. Re-read the ticket and retry only if it is still blocked by the same verification failure.`
+      );
+    }
+    if (matchesBlockedJob) {
+      const jobUpdate = db
+        .prepare(
+          `UPDATE verification_jobs
+           SET status = 'failed', last_error = NULL, leased_by = NULL,
+               lease_expires_at = NULL, completed_at = ?, next_run_at = ?, updated_at = ?
+           WHERE ticket_id = ? AND status = 'blocked' AND last_error IS ?`
+        )
+        .run(now, now, now, params.ticketId, verificationJob.last_error);
+      if (jobUpdate.changes !== 1) {
+        throw new ValidationError(
+          `Verification job resolution for ticket ${params.ticketId} lost a concurrent state change. Re-read the job and retry only if it is still blocked by the same verification failure.`
+        );
+      }
+    }
+    db.prepare(
+      `UPDATE ticket_workflow_state
+       SET current_phase = 'ai_review', demo_generated = 0,
+           verification_streak_reset_at = ?, updated_at = ?
+       WHERE ticket_id = ?`
+    ).run(now, now, params.ticketId);
+    const prdResult = updatePrdForDbTicketIfPresent(db, params.ticketId, false, "ai_review");
+    if (!prdResult.success) {
+      throw new ValidationError(
+        `Verification blocker resolution could not synchronize the scoped PRD: ${prdResult.message}`
+      );
+    }
+    addComment(db, {
+      ticketId: params.ticketId,
+      author: "brain-dump",
+      type: "comment",
+      content: commentLines.join("\n"),
+    });
+  })();
+
+  return {
+    ticketId: params.ticketId,
+    previousStatus: ticket.status,
+    newStatus: "ai_review",
+    latestRunId: latestRun?.id ?? null,
+    clearedBlockedReason: ticket.blocked_reason,
+  };
+}
+
 export function markVerificationJobDead(
   db: DbHandle,
   params: MarkVerificationJobDeadParams

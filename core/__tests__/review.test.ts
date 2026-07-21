@@ -2038,3 +2038,612 @@ describe("submitFeedback", () => {
     ).toThrow(TicketNotFoundError);
   });
 });
+
+// ============================================
+// Demo authoring lint (generate-demo)
+// ============================================
+
+describe("generate-demo authoring lint", () => {
+  function uiStepWithActions(actions: Array<Record<string, string>>): DemoStep {
+    return {
+      order: 1,
+      description: "Open the dashboard",
+      expectedOutcome: "Dashboard renders with data",
+      type: "visual",
+      automation: {
+        kind: "ui",
+        route: "/",
+        actions: actions as never,
+        assert: [{ type: "text", selector: "#heading", expected: "Dashboard" }],
+        screenshot: true,
+      },
+    };
+  }
+
+  it("rejects app.start argv that hardcodes a port", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    expect(() =>
+      generateDemo(db, {
+        ticketId: "ticket-1",
+        steps: [
+          {
+            ...automatedStep(1),
+            app: { start: ["./start.sh", "--port", "3000"] },
+          },
+        ],
+      })
+    ).toThrow(/hardcodes a port/);
+  });
+
+  it("rejects app.start argv that hardcodes a loopback origin", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    expect(() =>
+      generateDemo(db, {
+        ticketId: "ticket-1",
+        steps: [
+          {
+            ...automatedStep(1),
+            app: { start: ["node", "server.js", "--origin", "localhost:5173"] },
+          },
+        ],
+      })
+    ).toThrow(/hardcodes a port/);
+  });
+
+  it("accepts fixed ports for local dependency URLs", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    const demo = generateDemo(db, {
+      ticketId: "ticket-1",
+      steps: [
+        {
+          ...automatedStep(1),
+          app: {
+            start: ["node", "server.js", "--redis-url", "redis://127.0.0.1:6379"],
+          },
+        },
+      ],
+    });
+
+    expect(demo.steps).toHaveLength(1);
+  });
+
+  it("rejects positional and short-flag hardcoded ports", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    for (const start of [
+      ["python", "-m", "http.server", "0"],
+      ["python", "-m", "http.server", "9"],
+      ["python", "-m", "http.server", "65535"],
+      ["python", "-m", "http.server", "3000"],
+      ["ruby", "-run", "-e", "httpd", ".", "-p", "3000"],
+      ["serve", "-l", "3000"],
+      ["./server", "3000"],
+      ["cargo", "run", "--", "3000"],
+      ["node", "server.js", "3000"],
+      ["python", "app.py", "8000"],
+      ["env", "PORT=3000", "node", "server.js"],
+      ["env", "APP_PORT=3000", "node", "server.js"],
+      ["server", "--listen=3000"],
+      ["server", "-p=3000"],
+      ["server", "-p3000"],
+      ["server", "-l3000"],
+      ["python", "manage.py", "runserver", "127.0.0.1:8000"],
+      ["gunicorn", "app:app", "--bind", "[::1]:3000"],
+      ["gunicorn", "app:app", "--bind", "[::]:3000"],
+    ]) {
+      expect(() =>
+        generateDemo(db, {
+          ticketId: "ticket-1",
+          steps: [{ ...automatedStep(1), app: { start } }],
+        })
+      ).toThrow(/hardcodes a port/);
+    }
+  });
+
+  it("rejects hardcoded ports hidden behind a package script", () => {
+    const projectPath = mkdtempSync(join(tmpdir(), "brain-dump-package-boot-"));
+    try {
+      writeFileSync(
+        join(projectPath, "package.json"),
+        JSON.stringify({ scripts: { dev: "pnpm run serve", serve: "vite --port 3000" } })
+      );
+      seedProject();
+      db.prepare("UPDATE projects SET path = ? WHERE id = 'proj-1'").run(projectPath);
+      seedAiReviewTicket();
+
+      expect(() =>
+        generateDemo(db, {
+          ticketId: "ticket-1",
+          steps: [{ ...automatedStep(1), app: { start: ["pnpm", "dev"] } }],
+        })
+      ).toThrow(/hardcodes a port/);
+    } finally {
+      rmSync(projectPath, { recursive: true, force: true });
+    }
+  });
+
+  it("resolves package-manager directory options before checking delegated scripts", () => {
+    const projectPath = mkdtempSync(join(tmpdir(), "brain-dump-nested-package-boot-"));
+    try {
+      mkdirSync(join(projectPath, "web"));
+      writeFileSync(
+        join(projectPath, "web", "package.json"),
+        JSON.stringify({ scripts: { dev: "vite --port 3000" } })
+      );
+      seedProject();
+      db.prepare("UPDATE projects SET path = ? WHERE id = 'proj-1'").run(projectPath);
+      seedAiReviewTicket();
+
+      expect(() =>
+        generateDemo(db, {
+          ticketId: "ticket-1",
+          steps: [{ ...automatedStep(1), app: { start: ["pnpm", "--dir", "web", "dev"] } }],
+        })
+      ).toThrow(/hardcodes a port/);
+    } finally {
+      rmSync(projectPath, { recursive: true, force: true });
+    }
+  });
+
+  it("accepts app.start argv that uses {port} and {host} tokens", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    const demo = generateDemo(db, {
+      ticketId: "ticket-1",
+      steps: [
+        {
+          ...automatedStep(1),
+          app: { start: ["./start.sh", "--frontend-host", "{host}", "--frontend-port", "{port}"] },
+        },
+      ],
+    });
+    expect(demo.steps).toHaveLength(1);
+  });
+
+  it("accepts unrelated trailing numeric app options", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    const demo = generateDemo(db, {
+      ticketId: "ticket-1",
+      steps: [
+        {
+          ...automatedStep(1),
+          app: { start: ["gunicorn", "app:app", "--workers", "10"] },
+        },
+      ],
+    });
+
+    expect(demo.steps).toHaveLength(1);
+  });
+
+  it("accepts unrelated trailing numeric interpreter options", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    for (const start of [
+      ["node", "server.js", "--workers", "10"],
+      ["python", "app.py", "--timeout", "5000"],
+    ]) {
+      const demo = generateDemo(db, {
+        ticketId: "ticket-1",
+        steps: [{ ...automatedStep(1), app: { start } }],
+      });
+      expect(demo.steps).toHaveLength(1);
+      db.prepare("UPDATE tickets SET status = 'ai_review' WHERE id = 'ticket-1'").run();
+    }
+  });
+
+  it("accepts flags whose names merely contain the letters port", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    for (const start of [
+      ["./start.sh", "--report-interval=3000"],
+      ["./start.sh", "--support=3000"],
+    ]) {
+      const demo = generateDemo(db, {
+        ticketId: "ticket-1",
+        steps: [{ ...automatedStep(1), app: { start } }],
+      });
+      expect(demo.steps).toHaveLength(1);
+      db.prepare("UPDATE tickets SET status = 'ai_review' WHERE id = 'ticket-1'").run();
+    }
+  });
+
+  it("rejects hardcoded ports in project-declared boot commands", () => {
+    const projectDir = mkdtempSync(join(tmpdir(), "brain-dump-boot-port-"));
+    try {
+      mkdirSync(join(projectDir, ".brain-dump"));
+      writeFileSync(
+        join(projectDir, ".brain-dump", "verify.json"),
+        JSON.stringify({ start: ["python", "-m", "http.server", "3000"] })
+      );
+      db.prepare("INSERT INTO projects (id, name, path, created_at) VALUES (?, ?, ?, ?)").run(
+        "proj-hardcoded-port",
+        "Hardcoded Port Project",
+        projectDir,
+        new Date().toISOString()
+      );
+      seedAiReviewTicket("ticket-1", "proj-hardcoded-port");
+
+      expect(() => generateDemo(db, { ticketId: "ticket-1", steps: [automatedStep()] })).toThrow(
+        /hardcodes a port/
+      );
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects a legacy boot declaration delegated to a fixed-port package script", () => {
+    const projectDir = mkdtempSync(join(tmpdir(), "brain-dump-delegated-legacy-port-"));
+    try {
+      mkdirSync(join(projectDir, ".brain-dump"));
+      writeFileSync(
+        join(projectDir, ".brain-dump", "verify.json"),
+        JSON.stringify({ start: ["pnpm", "dev"] })
+      );
+      writeFileSync(
+        join(projectDir, "package.json"),
+        JSON.stringify({ scripts: { dev: "vite --port 3000" } })
+      );
+      db.prepare("INSERT INTO projects (id, name, path, created_at) VALUES (?, ?, ?, ?)").run(
+        "proj-delegated-port",
+        "Delegated Port Project",
+        projectDir,
+        new Date().toISOString()
+      );
+      seedAiReviewTicket("ticket-1", "proj-delegated-port");
+
+      expect(() => generateDemo(db, { ticketId: "ticket-1", steps: [automatedStep()] })).toThrow(
+        /hardcodes a port/
+      );
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects hardcoded ports in selected package boot scripts", () => {
+    const projectDir = mkdtempSync(join(tmpdir(), "brain-dump-package-port-"));
+    try {
+      writeFileSync(
+        join(projectDir, "package.json"),
+        JSON.stringify({ scripts: { start: "node server.js 3000" } })
+      );
+      db.prepare("INSERT INTO projects (id, name, path, created_at) VALUES (?, ?, ?, ?)").run(
+        "proj-package-port",
+        "Package Port Project",
+        projectDir,
+        new Date().toISOString()
+      );
+      seedAiReviewTicket("ticket-1", "proj-package-port");
+
+      expect(() => generateDemo(db, { ticketId: "ticket-1", steps: [automatedStep()] })).toThrow(
+        /hardcodes a port/
+      );
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+    }
+  });
+
+  it("accepts UI steps that interact with immediately available controls", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    const demo = generateDemo(db, {
+      ticketId: "ticket-1",
+      steps: [uiStepWithActions([{ act: "click", selector: "button[aria-label='Refresh']" }])],
+    });
+
+    expect(demo.steps).toHaveLength(1);
+  });
+
+  it("accepts UI steps that waitFor before interacting", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    const demo = generateDemo(db, {
+      ticketId: "ticket-1",
+      steps: [
+        uiStepWithActions([
+          { act: "waitFor", selector: "[data-testid^='row-']" },
+          { act: "click", selector: "button[aria-label='Refresh']" },
+        ]),
+      ],
+    });
+    expect(demo.steps).toHaveLength(1);
+  });
+
+  it("accepts file content assertions for artifacts created during earlier demo steps", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    const demo = generateDemo(db, {
+      ticketId: "ticket-1",
+      steps: [
+        {
+          order: 1,
+          description: "Generate the report",
+          expectedOutcome: "The report command succeeds",
+          type: "automated",
+          automation: {
+            kind: "command",
+            command: {
+              argv: ["node", "scripts/generate-report.mjs"],
+              timeoutMs: 10_000,
+              expectedExitCode: 0,
+            },
+            assert: [{ type: "stdoutContains", expected: "report generated" }],
+          },
+        },
+        {
+          order: 2,
+          description: "Inspect the generated report",
+          expectedOutcome: "No SaaS references remain",
+          type: "automated",
+          automation: {
+            kind: "file",
+            path: "generated/report.json",
+            assert: [{ type: "notContains", expected: "isPro" }],
+          },
+        },
+      ],
+    });
+
+    expect(demo.steps).toHaveLength(2);
+  });
+
+  it("accepts notExists assertions against deleted files", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    const demo = generateDemo(db, {
+      ticketId: "ticket-1",
+      steps: [
+        {
+          order: 1,
+          description: "Prove old module was removed",
+          expectedOutcome: "The file is gone",
+          type: "automated",
+          automation: {
+            kind: "file",
+            path: "src/deleted-module-that-never-existed.ts",
+            assert: [{ type: "notExists" }],
+          },
+        },
+      ],
+    });
+    expect(demo.steps).toHaveLength(1);
+  });
+});
+
+// ============================================
+// submitFinding deduplication
+// ============================================
+
+describe("submitFinding deduplication", () => {
+  it("merges a canonically identical open finding instead of inserting a new row", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    const first = submitFinding(db, {
+      ticketId: "ticket-1",
+      agent: "code-reviewer",
+      severity: "major",
+      category: "state-management",
+      description:
+        "Shared refresh state leaks between the header and the FRED grid, so a header refresh clobbers grid results",
+      filePath: "web/src/components/dashboard/FREDChartsGrid.tsx",
+      lineNumber: 73,
+    });
+    const second = submitFinding(db, {
+      ticketId: "ticket-1",
+      agent: "silent-failure-hunter",
+      severity: "major",
+      category: "state-management",
+      description:
+        "Shared refresh state leaks between the header and the FRED grid, so a header refresh clobbers grid results",
+      filePath: "web/src/components/dashboard/FREDChartsGrid.tsx",
+      lineNumber: 75,
+    });
+
+    expect(second.deduplicated).toBe(true);
+    expect(second.id).toBe(first.id);
+    const rows = db
+      .prepare("SELECT COUNT(*) as count FROM review_findings WHERE ticket_id = 'ticket-1'")
+      .get() as { count: number };
+    expect(rows.count).toBe(1);
+    const state = db
+      .prepare("SELECT findings_count FROM ticket_workflow_state WHERE ticket_id = 'ticket-1'")
+      .get() as { findings_count: number };
+    expect(state.findings_count).toBe(1);
+    expect(second.description).toContain("duplicate report merged");
+
+    const third = submitFinding(db, {
+      ticketId: "ticket-1",
+      agent: "code-reviewer",
+      severity: "major",
+      category: "state-management",
+      description:
+        "Shared refresh state leaks between the header and the FRED grid, so a header refresh clobbers grid results",
+      filePath: "web/src/components/dashboard/FREDChartsGrid.tsx",
+      lineNumber: 74,
+    });
+    expect(third.deduplicated).toBe(true);
+    expect(third.id).toBe(first.id);
+  });
+
+  it("upgrades a duplicate to the highest reported severity and preserves fix guidance", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    submitFinding(db, {
+      ticketId: "ticket-1",
+      agent: "code-reviewer",
+      severity: "minor",
+      category: "state-management",
+      description: "Shared refresh state leaks between the header and the FRED grid",
+      filePath: "web/src/components/dashboard/FREDChartsGrid.tsx",
+      lineNumber: 73,
+    });
+    const duplicate = submitFinding(db, {
+      ticketId: "ticket-1",
+      agent: "silent-failure-hunter",
+      severity: "critical",
+      category: "state-management",
+      description: "Shared refresh state leaks between the header and the FRED grid",
+      filePath: "web/src/components/dashboard/FREDChartsGrid.tsx",
+      lineNumber: 75,
+      suggestedFix: "Give each refresh surface independent state.",
+    });
+
+    expect(duplicate.deduplicated).toBe(true);
+    expect(duplicate.severity).toBe("critical");
+    expect(duplicate.suggestedFix).toBe("Give each refresh surface independent state.");
+    expect(checkComplete(db, "ticket-1").canProceedToVerification).toBe(false);
+  });
+
+  it("keeps genuinely different findings separate", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    submitFinding(db, {
+      ticketId: "ticket-1",
+      agent: "code-reviewer",
+      severity: "major",
+      category: "state-management",
+      description: "Shared refresh state leaks between the header and the FRED grid",
+      filePath: "web/src/components/dashboard/FREDChartsGrid.tsx",
+    });
+    const other = submitFinding(db, {
+      ticketId: "ticket-1",
+      agent: "code-reviewer",
+      severity: "minor",
+      category: "state-management",
+      description: "Watchlist rows drop their category when the API omits the field",
+      filePath: "web/src/lib/api.ts",
+    });
+
+    expect(other.deduplicated).toBeUndefined();
+    const rows = db
+      .prepare("SELECT COUNT(*) as count FROM review_findings WHERE ticket_id = 'ticket-1'")
+      .get() as { count: number };
+    expect(rows.count).toBe(2);
+  });
+
+  it("keeps a shorter related finding separate from a more specific defect", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    submitFinding(db, {
+      ticketId: "ticket-1",
+      agent: "code-reviewer",
+      severity: "major",
+      category: "verification",
+      description: "Verification state update fails after the worker loses its lease",
+      filePath: "core/verification.ts",
+      lineNumber: 100,
+    });
+    const distinct = submitFinding(db, {
+      ticketId: "ticket-1",
+      agent: "silent-failure-hunter",
+      severity: "major",
+      category: "verification",
+      description:
+        "Verification state update fails after the worker loses its lease and also clears the unrelated human blocker before retry scheduling completes",
+      filePath: "core/verification.ts",
+      lineNumber: 105,
+    });
+
+    expect(distinct.deduplicated).toBeUndefined();
+    const rows = db
+      .prepare("SELECT COUNT(*) as count FROM review_findings WHERE ticket_id = 'ticket-1'")
+      .get() as { count: number };
+    expect(rows.count).toBe(2);
+  });
+
+  it("keeps semantically opposite findings independently resolvable", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    submitFinding(db, {
+      ticketId: "ticket-1",
+      agent: "code-reviewer",
+      severity: "major",
+      category: "authorization",
+      description: "Save handler accepts requests without authorization",
+      filePath: "core/save.ts",
+      lineNumber: 40,
+    });
+    const opposite = submitFinding(db, {
+      ticketId: "ticket-1",
+      agent: "silent-failure-hunter",
+      severity: "major",
+      category: "authorization",
+      description: "Save handler rejects requests without authorization",
+      filePath: "core/save.ts",
+      lineNumber: 40,
+    });
+
+    expect(opposite.deduplicated).toBeUndefined();
+  });
+
+  it("preserves code operators when comparing finding identity", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    submitFinding(db, {
+      ticketId: "ticket-1",
+      agent: "code-reviewer",
+      severity: "major",
+      category: "authorization",
+      description: "Authorization uses role == requiredRole",
+      filePath: "core/auth.ts",
+      lineNumber: 20,
+    });
+    const opposite = submitFinding(db, {
+      ticketId: "ticket-1",
+      agent: "silent-failure-hunter",
+      severity: "major",
+      category: "authorization",
+      description: "Authorization uses role != requiredRole",
+      filePath: "core/auth.ts",
+      lineNumber: 20,
+    });
+
+    expect(opposite.deduplicated).toBeUndefined();
+  });
+
+  it("does not merge a located finding with one missing its line number", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    submitFinding(db, {
+      ticketId: "ticket-1",
+      agent: "code-reviewer",
+      severity: "major",
+      category: "verification",
+      description: "The verification worker clears the active lease before settlement",
+      filePath: "core/verification.ts",
+      lineNumber: 100,
+    });
+    const unlocated = submitFinding(db, {
+      ticketId: "ticket-1",
+      agent: "silent-failure-hunter",
+      severity: "major",
+      category: "verification",
+      description: "The verification worker clears the active lease before settlement",
+      filePath: "core/verification.ts",
+    });
+
+    expect(unlocated.deduplicated).toBeUndefined();
+  });
+});

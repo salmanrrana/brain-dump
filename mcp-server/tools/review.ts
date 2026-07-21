@@ -28,6 +28,10 @@ import {
 import { listVerificationRuns } from "../../core/verification.ts";
 import { getVerificationJob } from "../../core/verification-queue.ts";
 import {
+  resolveVerificationFailure,
+  VERIFICATION_FAILURE_RESOLUTION_CLASSIFICATIONS,
+} from "../../core/verification-ops.ts";
+import {
   resolveBrainDumpRootFrom,
   spawnDetachedVerificationDrain,
 } from "../../core/verification-worker.ts";
@@ -56,6 +60,7 @@ const ACTIONS = [
   "get-verification-history",
   "get-verification-job",
   "repair-legacy-handoff",
+  "resolve-verification-failure",
 ] as const;
 
 const SEVERITIES = ["critical", "major", "minor", "suggestion"] as const;
@@ -185,6 +190,7 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
 ### get-verification-history - Read verification run history for a ticket
 ### get-verification-job - Read queued/running verification job state for a ticket
 ### repair-legacy-handoff - Repair a legacy human_review ticket to ai_verification (with demo) or ai_review (without demo)
+### resolve-verification-failure - Clear a verification blocker after fixing its cause. Requires rootCause, classification, and validation (exact commands/results proving the fix); records the structured resolution on the ticket and returns it to ai_review so check-complete -> generate-demo can re-enter verification. Never certifies anything itself.
 
 Workflow schema: ${WORKFLOW_SCHEMA_VERSION}
 
@@ -233,6 +239,28 @@ No MCP action uploads evidence or marks verification passed. The verification ru
         )
         .optional()
         .describe("Step results"),
+      rootCause: z
+        .string()
+        .optional()
+        .describe("resolve-verification-failure: what actually caused the failed runs"),
+      classification: z
+        .enum(VERIFICATION_FAILURE_RESOLUTION_CLASSIFICATIONS)
+        .optional()
+        .describe(
+          "resolve-verification-failure: failure class (connectivity, environment, demo-spec, product-defect, other)"
+        ),
+      fixCommits: z
+        .array(z.string())
+        .optional()
+        .describe("resolve-verification-failure: commit hashes that fix the cause"),
+      validation: z
+        .string()
+        .optional()
+        .describe("resolve-verification-failure: exact commands and results proving the fix works"),
+      whyNextAttemptWillPass: z
+        .string()
+        .optional()
+        .describe("resolve-verification-failure: why the next verification attempt should pass"),
     },
     async (params: {
       action: (typeof ACTIONS)[number];
@@ -255,6 +283,11 @@ No MCP action uploads evidence or marks verification passed. The verification ru
       stepResults?:
         | Array<{ order: number; passed: boolean; notes?: string | undefined }>
         | undefined;
+      rootCause?: string | undefined;
+      classification?: (typeof VERIFICATION_FAILURE_RESOLUTION_CLASSIFICATIONS)[number] | undefined;
+      fixCommits?: string[] | undefined;
+      validation?: string | undefined;
+      whyNextAttemptWillPass?: string | undefined;
     }) => {
       try {
         switch (params.action) {
@@ -277,6 +310,16 @@ No MCP action uploads evidence or marks verification passed. The verification ru
               ...(params.lineNumber !== undefined ? { lineNumber: params.lineNumber } : {}),
               ...(params.suggestedFix !== undefined ? { suggestedFix: params.suggestedFix } : {}),
             });
+
+            if (finding.deduplicated) {
+              log.info(
+                `Finding for ticket ${ticketId} merged into existing open finding ${finding.id}`
+              );
+              return formatResult(
+                finding,
+                `Matched existing open ${finding.severity} finding ${finding.id} (same category/file/description); merged instead of creating a duplicate.`
+              );
+            }
 
             // Add audit comment to ticket
             const icon = SEVERITY_ICONS[severity] ?? "📋";
@@ -456,6 +499,48 @@ No MCP action uploads evidence or marks verification passed. The verification ru
               return formatEmpty("verification job for this ticket");
             }
             return formatResult(job);
+          }
+
+          case "resolve-verification-failure": {
+            const ticketId = requireParam(
+              params.ticketId,
+              "ticketId",
+              "resolve-verification-failure"
+            );
+            const rootCause = requireParam(
+              params.rootCause,
+              "rootCause",
+              "resolve-verification-failure"
+            );
+            const classification = requireParam(
+              params.classification,
+              "classification",
+              "resolve-verification-failure"
+            );
+            const validation = requireParam(
+              params.validation,
+              "validation",
+              "resolve-verification-failure"
+            );
+
+            const result = resolveVerificationFailure(db, {
+              ticketId,
+              rootCause,
+              classification,
+              validation,
+              ...(params.fixCommits !== undefined ? { fixCommits: params.fixCommits } : {}),
+              ...(params.whyNextAttemptWillPass !== undefined
+                ? { whyNextAttemptWillPass: params.whyNextAttemptWillPass }
+                : {}),
+            });
+
+            log.info(
+              `Resolved verification failure for ticket ${ticketId} (${classification}); ticket returned to ai_review`
+            );
+            return formatResult(
+              result,
+              `Verification blocker cleared; ticket returned to ai_review. Continue with check-complete then generate-demo to re-enter verification. The runner still owns certification.`
+            );
           }
 
           case "repair-legacy-handoff": {

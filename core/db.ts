@@ -370,6 +370,7 @@ function ensureBaseSchema(db: DbHandle, logger: Logger): void {
       findings_count INTEGER NOT NULL DEFAULT 0,
       findings_fixed INTEGER NOT NULL DEFAULT 0,
       demo_generated INTEGER NOT NULL DEFAULT 0,
+      verification_streak_reset_at TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -757,6 +758,7 @@ export function runMigrations(db: DbHandle, logger: Logger = silentLogger): void
     "TEXT REFERENCES epic_review_runs(id) ON DELETE SET NULL",
     logger
   );
+  addColumnIfMissing(db, "ticket_workflow_state", "verification_streak_reset_at", "TEXT", logger);
   addColumnIfMissing(
     db,
     "demo_scripts",

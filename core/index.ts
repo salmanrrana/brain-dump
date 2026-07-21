@@ -403,6 +403,7 @@ export {
   getVerificationSchemaHealth,
   markVerificationJobDead,
   requeueVerificationJob,
+  resolveVerificationFailure,
   setVerificationWorkerPaused,
   summarizeVerificationJobsForOps,
 } from "./verification-ops.ts";
@@ -440,7 +441,10 @@ export type {
 export type {
   MarkVerificationJobDeadParams,
   RequeueVerificationJobParams,
+  ResolveVerificationFailureParams,
+  ResolveVerificationFailureResult,
   SetVerificationWorkerPausedParams,
+  VerificationFailureResolutionClassification,
   VerificationJobControlResult,
   VerificationOperationsStatus,
   VerificationOpsIssue,
