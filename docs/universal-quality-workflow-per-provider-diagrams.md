@@ -245,7 +245,7 @@ sequenceDiagram
         Runner->>Core: verification failure with evidence
         Core->>DB: preserve failed step statuses, notes, and evidence refs
         Core->>DB: add verification findings/report
-        Core->>DB: ticket -> in_progress or blocked ai_verification
+        Core->>DB: ticket -> in_progress (unblocked for rework or blocked for human action)
         Note over LLM,DB: Next launch prioritizes verification failure context<br/>and repeats implementation, tests, AI review, and demo generation.
     end
 ```

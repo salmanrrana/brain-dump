@@ -17,6 +17,7 @@ import {
   startVerificationWorker,
 } from "../../core/verification-worker.ts";
 import { drainEpicContinuations } from "../../core/epic-continuation.ts";
+import { reconcileVerificationTicketStates } from "../../core/verification-ops.ts";
 import { launchEpicContinuationHeadless } from "./ralph-launch/epic-continuation-adapter";
 import { execFileNoThrow } from "../utils/execFileNoThrow";
 
@@ -1040,6 +1041,18 @@ function scheduleVerificationWorker(): void {
   }
 
   if (!isVerificationExecutionAllowedFromEnv()) return;
+
+  const reconciliation = reconcileVerificationTicketStates(sqlite);
+  if (reconciliation.enqueuedTicketIds.length > 0) {
+    console.log(
+      `[VerificationWorker] Recovered ${reconciliation.enqueuedTicketIds.length} missing verification job(s)`
+    );
+  }
+  if (reconciliation.humanActionTicketIds.length > 0) {
+    console.warn(
+      `[VerificationWorker] Returned ${reconciliation.humanActionTicketIds.length} terminal verification ticket(s) for human action`
+    );
+  }
 
   const brainDumpRoot = resolveBrainDumpRootFrom(import.meta.url);
   if (brainDumpRoot) {

@@ -51,6 +51,7 @@ import {
   runNextVerificationJob,
 } from "../core/verification-worker.ts";
 import { getVerificationFailuresByTicketId } from "../src/lib/ralph-launch/change-request-context.ts";
+import { syncPrdBlockedStateForDbTicketIfPresent } from "../core/prd-sync.ts";
 import type { DemoStep, GitCommandResult, GitOperations } from "../core/types.ts";
 import { saveAutonomousEpicLaunch } from "../core/epic-continuation.ts";
 
@@ -463,8 +464,9 @@ describe("verification loop end-to-end", () => {
     expect(humanGateComments.count).toBe(0);
   });
 
-  it("tripwire: a diff touching core/verification* stays blocked in ai_verification and never reaches done", async () => {
+  it("tripwire: a diff touching core/verification* exits runner ownership blocked and never reaches done", async () => {
     seedTicket(LIVE_TICKET, "ai_verification", null);
+    const prdPath = seedPrdFile();
     const now = new Date().toISOString();
     db.prepare(
       `INSERT INTO ticket_workflow_state (id, ticket_id, current_phase, review_iteration, findings_count, findings_fixed, demo_generated, created_at, updated_at)
@@ -486,10 +488,34 @@ describe("verification loop end-to-end", () => {
     expect(run.status).toBe("uncertified");
     expect(run.certified).toBe(false);
     const ticket = ticketRow(LIVE_TICKET);
-    expect(ticket.status).toBe("ai_verification");
+    expect(ticket.status).toBe("in_progress");
     expect(ticket.is_blocked).toBe(1);
     expect(ticket.blocked_reason).toContain("uncertified");
     expect(ticket.completed_at).toBeNull();
+
+    // The scoped PRD mirrors the blocked state so the Ralph loop can tell
+    // "waiting on a human" apart from silent no-progress.
+    const prd = JSON.parse(readFileSync(prdPath, "utf-8")) as {
+      userStories: Array<{ id: string; blocked?: boolean; blockedReason?: string }>;
+    };
+    const story = prd.userStories.find((s) => s.id === LIVE_TICKET)!;
+    expect(story.blocked).toBe(true);
+    expect(story.blockedReason).toContain("uncertified");
+
+    // A human unblocking the ticket (direct edit, outside workflow
+    // transitions) must clear the PRD flag too, or the Ralph loop's blocked
+    // gate would refuse to resume forever.
+    db.prepare(
+      "UPDATE tickets SET is_blocked = 0, blocked_reason = NULL WHERE id = ?"
+    ).run(LIVE_TICKET);
+    const syncResult = syncPrdBlockedStateForDbTicketIfPresent(db, LIVE_TICKET);
+    expect(syncResult.applied).toBe(true);
+    const afterUnblock = JSON.parse(readFileSync(prdPath, "utf-8")) as {
+      userStories: Array<{ id: string; blocked?: boolean; blockedReason?: string }>;
+    };
+    const unblockedStory = afterUnblock.userStories.find((s) => s.id === LIVE_TICKET)!;
+    expect(unblockedStory.blocked).toBeUndefined();
+    expect(unblockedStory.blockedReason).toBeUndefined();
 
     // The stored run is flagged as the tripwire state by the integrity audit.
     const storedRun = db.prepare("SELECT * FROM verification_runs WHERE id = ?").get(run.id) as {

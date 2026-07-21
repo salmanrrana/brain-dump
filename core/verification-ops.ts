@@ -1,7 +1,10 @@
 import type { DbHandle } from "./types.ts";
 import { addComment } from "./comment.ts";
 import { ValidationError } from "./errors.ts";
+import { updatePrdForDbTicketIfPresent } from "./prd-sync.ts";
+import { returnVerificationTicketForHumanAction } from "./verification-lifecycle.ts";
 import {
+  enqueueVerificationJob,
   getVerificationJob,
   isVerificationWorkerPaused,
   listVerificationJobs,
@@ -88,6 +91,11 @@ export interface VerificationJobControlResult {
   previousStatus: VerificationJob["status"];
   ticketBlocked: boolean;
   auditCommentAdded: boolean;
+}
+
+export interface VerificationTicketReconciliationResult {
+  enqueuedTicketIds: string[];
+  humanActionTicketIds: string[];
 }
 
 interface SchemaRequirement {
@@ -226,11 +234,13 @@ function getTicketStatus(db: DbHandle, ticketId: string): string {
   return row.status;
 }
 
-function assertTicketInVerification(db: DbHandle, ticketId: string): void {
+function assertTicketCanBeRequeued(db: DbHandle, ticketId: string, job: VerificationJob): void {
   const status = getTicketStatus(db, ticketId);
-  if (status !== "ai_verification") {
+  const isHumanActionTicket =
+    status === "in_progress" && (job.status === "blocked" || job.status === "dead");
+  if (status !== "ai_verification" && !isHumanActionTicket) {
     throw new ValidationError(
-      `Cannot control verification job for ticket ${ticketId}: ticket is ${status}, expected ai_verification.`
+      `Cannot requeue verification job for ticket ${ticketId}: ticket is ${status}, expected ai_verification or an in_progress ticket blocked by this job.`
     );
   }
 }
@@ -254,6 +264,76 @@ function addControlComment(
     type: "comment",
     content: lines.join("\n"),
   });
+}
+
+/**
+ * Repair lifecycle drift at startup. Tickets with executable handoffs regain
+ * an automatic job; tickets whose runner already terminated (or which have no
+ * handoff to execute) leave ai_verification with an explicit human blocker.
+ */
+export function reconcileVerificationTicketStates(
+  db: DbHandle,
+  options: { now?: string } = {}
+): VerificationTicketReconciliationResult {
+  const now = nowIso(options.now);
+  const rows = db
+    .prepare(
+      `SELECT tickets.id, demo_scripts.id AS demo_id,
+              verification_jobs.status AS job_status,
+              verification_jobs.last_error AS job_error
+       FROM tickets
+       LEFT JOIN demo_scripts ON demo_scripts.ticket_id = tickets.id
+       LEFT JOIN verification_jobs ON verification_jobs.ticket_id = tickets.id
+       WHERE tickets.status = 'ai_verification'`
+    )
+    .all() as Array<{
+    id: string;
+    demo_id: string | null;
+    job_status: VerificationJob["status"] | null;
+    job_error: string | null;
+  }>;
+  const enqueuedTicketIds: string[] = [];
+  const humanActionTicketIds: string[] = [];
+
+  db.transaction(() => {
+    for (const row of rows) {
+      if (row.job_status === null && row.demo_id !== null) {
+        enqueueVerificationJob(db, row.id, { now });
+        enqueuedTicketIds.push(row.id);
+        addControlComment(db, {
+          ticketId: row.id,
+          title: "Verification Job Recovered",
+          body: "The ticket was in AI verification without a runner job. Brain Dump recreated the job automatically.",
+          operator: undefined,
+          reason: null,
+        });
+        continue;
+      }
+
+      let reason: string | null = null;
+      if (row.job_status === null) {
+        reason = "AI verification has no demo script or runner job to execute.";
+      } else if (row.job_status === "blocked" || row.job_status === "dead") {
+        reason = row.job_error ?? `Verification job ended in ${row.job_status}.`;
+      } else if (row.job_status === "succeeded") {
+        reason =
+          "Verification job succeeded but the ticket did not reach done; lifecycle state needs inspection.";
+      }
+      if (reason === null) continue;
+
+      returnVerificationTicketForHumanAction(db, row.id, reason, now);
+      humanActionTicketIds.push(row.id);
+      addControlComment(db, {
+        ticketId: row.id,
+        title: "Verification Requires Human Action",
+        body: "The runner has no automatic work left. The ticket was returned to in_progress and blocked with the reason below.",
+        operator: undefined,
+        reason,
+      });
+    }
+  })();
+
+  return { enqueuedTicketIds, humanActionTicketIds };
 }
 
 function activeVerificationTicketIds(db: DbHandle): string[] {
@@ -556,8 +636,8 @@ export function requeueVerificationJob(
 ): VerificationJobControlResult {
   const now = nowIso(params.now);
   const reason = normalizeReason(params.reason);
-  assertTicketInVerification(db, params.ticketId);
   const job = requireVerificationJob(db, params.ticketId);
+  assertTicketCanBeRequeued(db, params.ticketId, job);
   if (job.status === "succeeded") {
     throw new ValidationError(
       `Cannot requeue verification job for ticket ${params.ticketId}: the job already succeeded.`
@@ -577,8 +657,16 @@ export function requeueVerificationJob(
        WHERE ticket_id = ?`
     ).run(now, now, params.ticketId);
     db.prepare(
-      "UPDATE tickets SET is_blocked = 0, blocked_reason = NULL, updated_at = ? WHERE id = ?"
+      `UPDATE tickets
+       SET status = 'ai_verification', is_blocked = 0, blocked_reason = NULL, updated_at = ?
+       WHERE id = ?`
     ).run(now, params.ticketId);
+    db.prepare(
+      `UPDATE ticket_workflow_state
+       SET current_phase = 'ai_verification', demo_generated = 1, updated_at = ?
+       WHERE ticket_id = ?`
+    ).run(now, params.ticketId);
+    updatePrdForDbTicketIfPresent(db, params.ticketId, false, "ai_verification");
     addControlComment(db, {
       ticketId: params.ticketId,
       title: "Verification Job Requeued",
@@ -606,8 +694,12 @@ export function markVerificationJobDead(
 ): VerificationJobControlResult {
   const now = nowIso(params.now);
   const reason = requireReason(params.reason);
-  assertTicketInVerification(db, params.ticketId);
   const job = requireVerificationJob(db, params.ticketId);
+  if (getTicketStatus(db, params.ticketId) !== "ai_verification") {
+    throw new ValidationError(
+      `Cannot mark verification job for ticket ${params.ticketId} dead: ticket is no longer in ai_verification.`
+    );
+  }
   if (job.status === "succeeded") {
     throw new ValidationError(
       `Cannot mark verification job for ticket ${params.ticketId} dead: the job already succeeded.`
@@ -627,9 +719,7 @@ export function markVerificationJobDead(
            completed_at = ?, updated_at = ?
        WHERE ticket_id = ?`
     ).run(blockedReason, now, now, params.ticketId);
-    db.prepare(
-      "UPDATE tickets SET is_blocked = 1, blocked_reason = ?, updated_at = ? WHERE id = ?"
-    ).run(blockedReason, now, params.ticketId);
+    returnVerificationTicketForHumanAction(db, params.ticketId, blockedReason, now);
     addControlComment(db, {
       ticketId: params.ticketId,
       title: "Verification Job Dead-Lettered",

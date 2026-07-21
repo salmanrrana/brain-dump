@@ -9,6 +9,7 @@ import { ValidationError } from "./errors.ts";
 import {
   addInfraErrorAttentionComment,
   infraErrorBlockedReason,
+  returnVerificationTicketForHumanAction,
 } from "./verification-lifecycle.ts";
 import {
   claimNextVerificationJob,
@@ -146,11 +147,7 @@ function markWorkerExceptionBlocked(
   const result = db.prepare("SELECT changes() as changes").get() as { changes: number };
   if (result.changes !== 1) return false;
 
-  db.prepare(
-    `UPDATE tickets
-     SET is_blocked = 1, blocked_reason = ?, updated_at = ?
-     WHERE id = ? AND status = 'ai_verification'`
-  ).run(reason, params.now, params.ticketId);
+  returnVerificationTicketForHumanAction(db, params.ticketId, reason, params.now);
   addComment(db, {
     ticketId: params.ticketId,
     author: "brain-dump",
@@ -280,10 +277,12 @@ export async function runNextVerificationJob(
       // a comment failure must not fall into the outer catch — that path would
       // misreport it as a lost lease.
       try {
+        const reason = infraErrorBlockedReason(run);
+        returnVerificationTicketForHumanAction(db, job.ticketId, reason, run.finishedAt);
         addInfraErrorAttentionComment(db, {
           ticketId: job.ticketId,
           runId: run.id,
-          reason: infraErrorBlockedReason(run),
+          reason,
         });
       } catch (error) {
         attentionCommentError = `Verification settled as blocked, but posting the infra-error attention comment failed: ${errorMessage(error)}`;

@@ -33,6 +33,7 @@ import {
 import { getActiveVerificationLease } from "./verification-queue.ts";
 import {
   DEMO_COMMAND_MAX_TIMEOUT_MS,
+  readProjectVerifyCommandTemplates,
   validateDemoAppBootArgv,
   validateNonShellArgv,
   validateProjectRelativePath,
@@ -907,11 +908,15 @@ async function getGitInfo(
 }
 
 function hasVerificationTripwireChange(changedFiles: string[]): boolean {
+  // Only the verifier's own code counts. A bare "manifest" substring match
+  // would uncertify innocent target-project diffs (public/manifest.json,
+  // site.webmanifest, app manifests) that have nothing to do with the sealed
+  // verification manifest.
   return changedFiles.some(
     (file) =>
       file.startsWith("core/verification") ||
-      file.startsWith("core/__tests__/verification") ||
-      file.includes("manifest")
+      file.startsWith("core/verifier-identity") ||
+      file.startsWith("core/__tests__/verification")
   );
 }
 
@@ -1274,7 +1279,11 @@ async function runCommandStep(
   }
   const start = Date.now();
   const automation = step.automation;
-  validateNonShellArgv(automation.command.argv, `Step ${step.order} command automation argv`);
+  validateNonShellArgv(
+    automation.command.argv,
+    `Step ${step.order} command automation argv`,
+    readProjectVerifyCommandTemplates(projectPath)
+  );
   const [command, ...args] = automation.command.argv;
   if (!command) {
     throw new ValidationError(`Step ${step.order} command automation argv must not be empty.`);

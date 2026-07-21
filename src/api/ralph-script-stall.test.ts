@@ -40,6 +40,34 @@ describe("generateRalphScript no-progress circuit breaker", () => {
     expect(script).toContain("no-progress tracking paused");
   });
 
+  it("stops with named blockers instead of a generic stall when every ticket awaits a human", () => {
+    const script = generateRalphScript("/tmp/project", 3);
+
+    // Blocked tickets are read from the scoped PRD (synced from Brain Dump).
+    // A blocked ticket still in ai_verification is with the runner, not a stop.
+    expect(script).toContain('s.blocked===true&&s.status!=="ai_verification"');
+    expect(script).toContain("print_blocked_tickets");
+    expect(script).toContain("Tickets blocked for human action");
+    expect(script).toContain("BLOCKED: Every remaining ticket is blocked for human action");
+    // A ticket newly entering the blocked state is observable progress, not a
+    // silent no-progress iteration.
+    expect(script).toContain('high[s.id+"#blocked"]');
+  });
+
+  it("keeps interactive terminals open on every stop path so the reason survives", () => {
+    const script = generateRalphScript("/tmp/project", 3);
+
+    expect(script).toContain("finish_ralph() {");
+    // Headless continuations still exit so the parent settles their job.
+    expect(script).toContain('if [ "${BRAIN_DUMP_EPIC_CONTINUATION:-0}" = "1" ]; then');
+    // No stop path may close a spawned terminal with a bare exit: the stall,
+    // abort, all-complete, and all-blocked paths all funnel through the helper.
+    expect(script).toContain("This terminal stays open so the log above is not lost");
+    const stallBlock = script.slice(script.indexOf("STALLED: No new ticket completed"));
+    expect(stallBlock.slice(0, 200)).toContain("finish_ralph 0");
+    expect(script).not.toMatch(/ABORTED: \$CONSECUTIVE_FAILURES consecutive failures" >> "\$PROGRESS_FILE"\n\s*exit 1/);
+  });
+
   it("pins durable continuation launches to the failed ticket", () => {
     const script = generateRalphScript("/tmp/project", 3);
     expect(script).toContain("RESUME_TICKET_ID=${2:-}");

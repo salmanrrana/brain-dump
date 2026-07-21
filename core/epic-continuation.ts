@@ -156,6 +156,48 @@ export function setAutonomousEpicLaunchActive(
   ).run(active ? 1 : 0, now, epicId);
 }
 
+/**
+ * Settle running continuation rows whose target ticket is already done. The
+ * table is unique per epic, so a stale "running" row (parent process died
+ * before settling, or the promise was lost) vetoes every later repair enqueue
+ * for that epic until its lease expires — up to 24 hours.
+ *
+ * By default only rows with an expired (or missing) lease are touched: a live
+ * lease may belong to a child epic script that finished its target ticket but
+ * is still working the epic, and settling it mid-flight would make the owner's
+ * later settlement fail. `includeLiveLeases` overrides that guard for the
+ * enqueue path, where a verification failure needs the epic's single
+ * continuation slot right now and a running row for a done ticket cannot serve
+ * the repair.
+ */
+export function reconcileObsoleteEpicContinuations(
+  db: DbHandle,
+  options: { epicId?: string; now?: string; includeLiveLeases?: boolean } = {}
+): number {
+  const now = options.now ?? new Date().toISOString();
+  const params: string[] = [now, now];
+  let where = `status = 'running'
+         AND ticket_id IN (SELECT id FROM tickets WHERE status = 'done')`;
+  if (!options.includeLiveLeases) {
+    where += " AND (lease_expires_at IS NULL OR lease_expires_at <= ?)";
+    params.push(now);
+  }
+  if (options.epicId) {
+    where += " AND epic_id = ?";
+    params.push(options.epicId);
+  }
+  const result = db
+    .prepare(
+      `UPDATE epic_continuation_jobs
+       SET status = 'succeeded', leased_by = NULL, lease_expires_at = NULL,
+           last_error = 'Settled as obsolete: the continuation''s target ticket is already done.',
+           completed_at = ?, updated_at = ?
+       WHERE ${where}`
+    )
+    .run(...params);
+  return result.changes;
+}
+
 export function enqueueEpicContinuationForTicket(
   db: DbHandle,
   ticketId: string,
@@ -172,6 +214,7 @@ export function enqueueEpicContinuationForTicket(
     .get(ticketId, now) as { epic_id: string } | undefined;
   if (!launch) return null;
 
+  reconcileObsoleteEpicContinuations(db, { epicId: launch.epic_id, now, includeLiveLeases: true });
   db.prepare(
     `INSERT INTO epic_continuation_jobs
        (id, epic_id, ticket_id, status, attempt_count, next_run_at, created_at, updated_at)
@@ -201,6 +244,7 @@ export function claimNextEpicContinuation(
   options: { workerId: string; now?: string; leaseMs?: number }
 ): EpicContinuationJob | null {
   const now = options.now ?? new Date().toISOString();
+  reconcileObsoleteEpicContinuations(db, { now });
   quarantineInvalidProfiles(db, now);
   const leaseExpiresAt = new Date(
     new Date(now).getTime() + (options.leaseMs ?? 2 * 60 * 1000)
@@ -254,22 +298,42 @@ export async function runNextEpicContinuation(
   });
   if (!job) return { claimed: false };
 
+  // The enqueue path may settle this row as obsolete mid-launch when the
+  // target ticket reaches done (freeing the epic's single continuation slot
+  // for a newer repair). Losing the lease that way is a benign race: the row
+  // is already settled, so report the launch outcome without letting the
+  // lost-lease error crash the drain loop or trigger ticket-blocking side
+  // effects for work that is finished.
+  const settleOrDetectLostLease = (params: {
+    status: "succeeded" | "failed" | "dead";
+    nextRunAt: string;
+    error: string | null;
+    completedAt: string | null;
+  }): boolean => {
+    try {
+      settleDurableJobLease<ContinuationRow, EpicContinuationJob>(db, {
+        tableName: "epic_continuation_jobs",
+        jobId: job.id,
+        workerId,
+        attemptCount: job.attemptCount,
+        status: params.status,
+        nextRunAt: params.nextRunAt,
+        error: params.error,
+        completedAt: params.completedAt,
+        now,
+        notLeasedMessage: `Epic continuation ${job.id} lost its lease.`,
+        selectSettledSql: SELECT_CONTINUATION_WITH_PROFILE,
+        toJob,
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   try {
     await options.launch(job.profile, job.ticketId);
-    settleDurableJobLease<ContinuationRow, EpicContinuationJob>(db, {
-      tableName: "epic_continuation_jobs",
-      jobId: job.id,
-      workerId,
-      attemptCount: job.attemptCount,
-      status: "succeeded",
-      nextRunAt: now,
-      error: null,
-      completedAt: now,
-      now,
-      notLeasedMessage: `Epic continuation ${job.id} lost its lease.`,
-      selectSettledSql: SELECT_CONTINUATION_WITH_PROFILE,
-      toJob,
-    });
+    settleOrDetectLostLease({ status: "succeeded", nextRunAt: now, error: null, completedAt: now });
     return { claimed: true, status: "succeeded", ticketId: job.ticketId };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -277,20 +341,17 @@ export async function runNextEpicContinuation(
     const nextRunAt = new Date(
       (options.now?.() ?? new Date()).getTime() + (options.retryDelayMs ?? 30_000)
     ).toISOString();
-    settleDurableJobLease<ContinuationRow, EpicContinuationJob>(db, {
-      tableName: "epic_continuation_jobs",
-      jobId: job.id,
-      workerId,
-      attemptCount: job.attemptCount,
+    const settled = settleOrDetectLostLease({
       status: exhausted ? "dead" : "failed",
       nextRunAt,
       error: message,
       completedAt: exhausted ? now : null,
-      now,
-      notLeasedMessage: `Epic continuation ${job.id} lost its lease.`,
-      selectSettledSql: SELECT_CONTINUATION_WITH_PROFILE,
-      toJob,
     });
+    if (!settled) {
+      // Another actor settled the row (obsolete reconcile or lease takeover);
+      // do not block a ticket this worker no longer owns.
+      return { claimed: true, status: "failed", ticketId: job.ticketId, error: message };
+    }
     if (exhausted) {
       const reason = `Automatic epic continuation failed after ${job.attemptCount} attempts: ${message}`;
       db.transaction(() => {

@@ -218,7 +218,7 @@ No MCP action uploads evidence or marks verification passed. The verification ru
         )
         .optional()
         .describe(
-          "Demo steps. Use executable automation and covers references (criterion:1, subtask:<id>) so every acceptance criterion is proven. API/UI steps for non-legacy projects require app.start argv selected from that project's docs/config, with {port}/{host} tokens and optional project-relative cwd. Use coverageRationale only for non-certifiable criteria; it must name criterion ids and keeps the run uncertified."
+          "Demo steps. Use executable automation and covers references (criterion:1, subtask:<id>) so every acceptance criterion is proven. API/UI steps for non-legacy projects require app.start argv selected from that project's docs/config, with {port}/{host} tokens and optional project-relative cwd. coverageRationale is rejected: if a required command is outside the default allowlist, declare its exact argv in the project's .brain-dump/verify.json commands array; if a criterion cannot be automated, reword it to match what automation can prove."
         ),
       demoScriptId: z.string().optional().describe("Demo script ID"),
       passed: z.boolean().optional().describe("Whether demo passed"),

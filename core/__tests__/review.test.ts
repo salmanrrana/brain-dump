@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import type Database from "better-sqlite3";
-import { mkdtempSync, rmSync, writeFileSync } from "fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { createTestDatabase } from "../db.ts";
@@ -1418,34 +1418,12 @@ describe("generateDemo", () => {
     ).toThrow(/claims to cover criterion:1/);
   });
 
-  it("accepts a loud coverage rationale for non-certifiable criteria", () => {
+  it("rejects any coverage rationale so uncertifiable demos fail fast in ai_review", () => {
     seedProject();
     seedAiReviewTicket();
     setTicketDescription(
       "ticket-1",
       "## Acceptance Criteria\n- External OAuth provider is manually enabled"
-    );
-
-    const demo = generateDemo(db, {
-      ticketId: "ticket-1",
-      steps: [
-        {
-          ...automatedStep(),
-          coverageRationale:
-            "criterion:1 requires an external provider account; automation verifies the local fallback only.",
-        },
-      ],
-    });
-
-    expect(demo.steps[0]!.coverageRationale).toContain("criterion:1");
-  });
-
-  it("rejects coverage rationale that does not name the missing criterion", () => {
-    seedProject();
-    seedAiReviewTicket();
-    setTicketDescription(
-      "ticket-1",
-      "## Acceptance Criteria\n- External OAuth provider is enabled"
     );
 
     expect(() =>
@@ -1454,11 +1432,66 @@ describe("generateDemo", () => {
         steps: [
           {
             ...automatedStep(),
-            coverageRationale: "External provider setup is not certifiable in local automation.",
+            coverageRationale:
+              "criterion:1 requires an external provider account; automation verifies the local fallback only.",
           },
         ],
       })
-    ).toThrow(/coverageRationale that names each non-certifiable criterion id/);
+    ).toThrow(/uses coverageRationale, which the verification runner can never certify/);
+  });
+
+  it("accepts a project-declared command outside the default allowlist", () => {
+    const projectDir = mkdtempSync(join(tmpdir(), "brain-dump-verify-"));
+    try {
+      mkdirSync(join(projectDir, ".brain-dump"));
+      writeFileSync(
+        join(projectDir, ".brain-dump", "verify.json"),
+        JSON.stringify({ commands: [["make", "lint"]] })
+      );
+      db.prepare("INSERT INTO projects (id, name, path, created_at) VALUES (?, ?, ?, ?)").run(
+        "proj-make",
+        "Make Project",
+        projectDir,
+        new Date().toISOString()
+      );
+      seedAiReviewTicket("ticket-1", "proj-make");
+      const makeStep: DemoStep = {
+        order: 1,
+        description: "Run the project's lint gate",
+        expectedOutcome: "make lint exits cleanly",
+        type: "automated",
+        automation: {
+          kind: "command",
+          command: { argv: ["make", "lint"], timeoutMs: 60_000, expectedExitCode: 0 },
+          assert: [{ type: "stderrNotContains", expected: "error" }],
+        },
+      };
+
+      const demo = generateDemo(db, { ticketId: "ticket-1", steps: [makeStep] });
+      expect(demo.steps[0]!.automation).toMatchObject({ kind: "command" });
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+    }
+  });
+
+  it("still rejects undeclared commands outside the default allowlist", () => {
+    seedProject();
+    seedAiReviewTicket();
+    const makeStep: DemoStep = {
+      order: 1,
+      description: "Run the project's lint gate",
+      expectedOutcome: "make lint exits cleanly",
+      type: "automated",
+      automation: {
+        kind: "command",
+        command: { argv: ["make", "lint"], timeoutMs: 60_000, expectedExitCode: 0 },
+        assert: [{ type: "stderrNotContains", expected: "error" }],
+      },
+    };
+
+    expect(() => generateDemo(db, { ticketId: "ticket-1", steps: [makeStep] })).toThrow(
+      /unsupported command "make"/
+    );
   });
 
   it("enforces coverage for criterion-shaped subtasks", () => {

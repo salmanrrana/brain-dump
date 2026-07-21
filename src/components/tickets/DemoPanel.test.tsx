@@ -236,6 +236,23 @@ describe("DemoPanel", () => {
     ).toBeInTheDocument();
   });
 
+  it("explains that a human-action ticket is no longer runner-owned", () => {
+    mockBaseQueries();
+
+    render(
+      <DemoPanel
+        ticketId="ticket-1"
+        ticketStatus="in_progress"
+        isBlocked={true}
+        blockedReason="Verification retries were exhausted."
+      />
+    );
+
+    expect(screen.getByText("Verification Needs Attention")).toBeInTheDocument();
+    expect(screen.getByText(/Automatic verification stopped/i)).toBeInTheDocument();
+    expect(screen.getByText("Verification retries were exhausted.")).toBeInTheDocument();
+  });
+
   it("shows a no-job error instead of a manual runner command", () => {
     mockBaseQueries();
     mockUseDemoScript.mockReturnValue({
@@ -265,6 +282,7 @@ describe("DemoPanel", () => {
 
     expect(screen.getByText("No verification job found")).toBeInTheDocument();
     expect(screen.getByText(/no automatic runner job is queued yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/recreates missing jobs during startup recovery/i)).toBeInTheDocument();
     expect(screen.queryByText(/brain-dump verify run/)).not.toBeInTheDocument();
   });
 

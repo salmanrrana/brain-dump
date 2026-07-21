@@ -602,7 +602,7 @@ function validateStepAppearsToCoverCriterion(
   const hasOverlap = criterionTokens.some((token) => proofText.includes(token));
   if (!hasOverlap) {
     throw new ValidationError(
-      `${getStepLabel(step, index)} claims to cover ${criterion.id} (${criterion.text}) but the step description, expected outcome, and automation spec do not reference that criterion. Use a more specific step or add a non-certifiable coverageRationale.`
+      `${getStepLabel(step, index)} claims to cover ${criterion.id} (${criterion.text}) but the step description, expected outcome, and automation spec do not reference that criterion. Use a more specific step whose automation actually exercises the criterion.`
     );
   }
 }
@@ -667,7 +667,96 @@ function validateSpawnSafeArgv(
   return argv;
 }
 
-export function validateNonShellArgv(argv: unknown, path: string): string[] {
+function normalizeCommandTemplate(entry: unknown, source: string): string[] {
+  const argv = Array.isArray(entry)
+    ? entry
+    : typeof entry === "string"
+      ? entry.trim().split(/\s+/).filter(Boolean)
+      : null;
+  if (!argv || argv.length === 0 || !argv.every((part) => typeof part === "string")) {
+    throw new ValidationError(
+      `Invalid command template in ${source}. Provide argv arrays like ["make","lint"] or strings like "npx knip".`
+    );
+  }
+  return argv as string[];
+}
+
+/**
+ * Commands a project explicitly declares for verification, from
+ * .brain-dump/verify.json `commands` or package.json `brainDump.verify.commands`.
+ * The default demo-command allowlist only covers JS package managers; projects
+ * whose acceptance criteria require other toolchains (make, go, npx linters)
+ * declare exact argv templates here so demos can prove those criteria instead
+ * of falling back to a never-certifiable coverage rationale. Templates come
+ * from the reviewed project repo and are spawned without a shell; structural
+ * safety checks (no shells, no metacharacters, no escaping the project) still
+ * apply. A malformed declaration throws so a broken opt-in surfaces loudly.
+ */
+export function readProjectVerifyCommandTemplates(projectPath: string): string[][] {
+  const configPath = join(projectPath, ".brain-dump", "verify.json");
+  if (existsSync(configPath)) {
+    let config: { commands?: unknown };
+    try {
+      config = JSON.parse(readFileSync(configPath, "utf-8")) as { commands?: unknown };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new ValidationError(`Could not parse ${configPath}: ${message}`);
+    }
+    if (config.commands !== undefined) {
+      if (!Array.isArray(config.commands)) {
+        throw new ValidationError(`${configPath} "commands" must be an array of argv templates.`);
+      }
+      return config.commands.map((entry) => normalizeCommandTemplate(entry, configPath));
+    }
+  }
+
+  const packagePath = join(projectPath, "package.json");
+  if (existsSync(packagePath)) {
+    // Boot discovery only runs for demos with app steps, so a command-only
+    // demo would otherwise turn a malformed package.json into a misleading
+    // "unsupported command" rejection. Surface the parse failure here.
+    let pkg: { brainDump?: { verify?: { commands?: unknown } } };
+    try {
+      pkg = JSON.parse(readFileSync(packagePath, "utf-8")) as {
+        brainDump?: { verify?: { commands?: unknown } };
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new ValidationError(
+        `Could not parse ${packagePath} while reading brainDump.verify.commands: ${message}`
+      );
+    }
+    const declared = pkg.brainDump?.verify?.commands;
+    if (Array.isArray(declared)) {
+      return declared.map((entry) =>
+        normalizeCommandTemplate(entry, `${packagePath} (brainDump.verify.commands)`)
+      );
+    }
+  }
+  return [];
+}
+
+function matchesCommandTemplate(
+  argv: unknown,
+  templates: ReadonlyArray<readonly string[]> | undefined
+): boolean {
+  if (!templates?.length || !Array.isArray(argv)) return false;
+  return templates.some(
+    (template) =>
+      template.length === argv.length && template.every((token, index) => token === argv[index])
+  );
+}
+
+export function validateNonShellArgv(
+  argv: unknown,
+  path: string,
+  projectCommandTemplates?: ReadonlyArray<readonly string[]>
+): string[] {
+  // An argv that exactly matches a project-declared template bypasses only the
+  // binary allowlist; every structural safety check still runs.
+  if (matchesCommandTemplate(argv, projectCommandTemplates)) {
+    return validateSpawnSafeArgv(argv, path);
+  }
   return validateSpawnSafeArgv(argv, path, DEMO_COMMAND_ALLOWED_BINARIES);
 }
 
@@ -873,7 +962,11 @@ function validateApiAutomation(step: DemoStep, index: number): void {
   }
 }
 
-function validateCommandAutomation(step: DemoStep, index: number): void {
+function validateCommandAutomation(
+  step: DemoStep,
+  index: number,
+  projectCommandTemplates?: ReadonlyArray<readonly string[]>
+): void {
   const label = getStepLabel(step, index);
   const automation = step.automation;
   if (!isRecord(automation) || automation.kind !== "command") {
@@ -883,7 +976,11 @@ function validateCommandAutomation(step: DemoStep, index: number): void {
     throw new ValidationError(`${label} command automation command is required.`);
   }
 
-  validateNonShellArgv(automation.command.argv, `${label} command automation argv`);
+  validateNonShellArgv(
+    automation.command.argv,
+    `${label} command automation argv`,
+    projectCommandTemplates
+  );
   if (automation.command.cwd !== undefined) {
     if (typeof automation.command.cwd !== "string") {
       throw new ValidationError(`${label} command automation cwd must be a string.`);
@@ -980,7 +1077,11 @@ function validateFileAutomation(step: DemoStep, index: number): void {
   }
 }
 
-function validateDemoStepAutomation(step: DemoStep, index: number): void {
+function validateDemoStepAutomation(
+  step: DemoStep,
+  index: number,
+  projectCommandTemplates?: ReadonlyArray<readonly string[]>
+): void {
   const label = getStepLabel(step, index);
   if (step.type === "manual") {
     throw new ValidationError(
@@ -1000,7 +1101,7 @@ function validateDemoStepAutomation(step: DemoStep, index: number): void {
     return;
   }
   if (step.automation.kind === "command") {
-    validateCommandAutomation(step, index);
+    validateCommandAutomation(step, index, projectCommandTemplates);
     return;
   }
   if (step.automation.kind === "file") {
@@ -1023,9 +1124,14 @@ function validateDemoStepCoverageMetadata(step: DemoStep, index: number): void {
     }
   }
   if (step.coverageRationale !== undefined) {
-    if (typeof step.coverageRationale !== "string" || step.coverageRationale.trim().length === 0) {
-      throw new ValidationError(`${label} coverageRationale must be a non-empty string.`);
-    }
+    // A rationale used to be the sanctioned escape hatch for non-automatable
+    // criteria, but the runner refuses to certify any run containing one — the
+    // ticket would pass every executed step and still bounce back to
+    // implementation. Fail here, in the same phase, with the same information,
+    // instead of ambushing the agent at verification.
+    throw new ValidationError(
+      `${label} uses coverageRationale, which the verification runner can never certify — the run would be uncertified and returned to implementation. Cover every acceptance criterion with executable automation instead. If a required command is outside the default allowlist (make, go, npx, ...), declare its exact argv in the project's .brain-dump/verify.json, e.g. { "commands": [["make","lint"], ["npx","knip"]] }, and use a command step. If a criterion genuinely cannot be proven by automation, reword the criterion to match what automation can prove.`
+    );
   }
 }
 
@@ -1035,7 +1141,6 @@ function validateDemoCoverage(ticket: DbTicketRow, steps: DemoStep[]): void {
 
   const criteriaById = new Map(criteria.map((criterion) => [criterion.id, criterion]));
   const coveredCriteria = new Set<string>();
-  const rationaleText = steps.map((step) => step.coverageRationale ?? "").join("\n");
 
   for (const [index, step] of steps.entries()) {
     for (const cover of step.covers ?? []) {
@@ -1054,17 +1159,15 @@ function validateDemoCoverage(ticket: DbTicketRow, steps: DemoStep[]): void {
   const missingCriteria = criteria.filter((criterion) => !coveredCriteria.has(criterion.id));
   if (missingCriteria.length === 0) return;
 
-  const rationalizedMissing = missingCriteria.filter((criterion) =>
-    rationaleText.includes(criterion.id)
-  );
-  if (rationalizedMissing.length === missingCriteria.length) return;
-
   throw new ValidationError(
-    `Demo steps must cover every acceptance criterion before AI verification. Add covers references or an explicit coverageRationale that names each non-certifiable criterion id. Missing coverage: ${missingCriteria.map((criterion) => `${criterion.id} (${criterion.text})`).join("; ")}.`
+    `Demo steps must cover every acceptance criterion with executable automation before AI verification. Add covers references backed by ui, api, command, or file steps. If a required command is outside the default allowlist, declare it in the project's .brain-dump/verify.json "commands"; if a criterion cannot be automated, reword it to match what automation can prove. Missing coverage: ${missingCriteria.map((criterion) => `${criterion.id} (${criterion.text})`).join("; ")}.`
   );
 }
 
-function validateDemoSteps(steps: GenerateDemoParams["steps"]): void {
+function validateDemoSteps(
+  steps: GenerateDemoParams["steps"],
+  projectCommandTemplates?: ReadonlyArray<readonly string[]>
+): void {
   if (!Array.isArray(steps)) {
     throw new ValidationError("Demo steps must be an array.");
   }
@@ -1089,7 +1192,7 @@ function validateDemoSteps(steps: GenerateDemoParams["steps"]): void {
     }
     validateDemoStepCoverageMetadata(step, index);
     validateDemoAppBoot(step, index);
-    validateDemoStepAutomation(step, index);
+    validateDemoStepAutomation(step, index, projectCommandTemplates);
   }
 
   const appBoots = steps.flatMap((step) => (step.app ? [step.app] : []));
@@ -1258,10 +1361,25 @@ function validateDemoGeneration(db: DbHandle, ticketId: string, steps: DemoStep[
 }
 
 /**
+ * Command templates declared by the ticket's project for demo verification.
+ * Empty when the ticket has no project, the project path is gone, or nothing
+ * is declared.
+ */
+function getTicketProjectCommandTemplates(db: DbHandle, ticketId: string): string[][] {
+  const ticket = getTicketRow(db, ticketId);
+  if (!ticket.project_id) return [];
+  const project = db.prepare("SELECT path FROM projects WHERE id = ?").get(ticket.project_id) as
+    | { path: string }
+    | undefined;
+  if (!project || !existsSync(project.path)) return [];
+  return readProjectVerifyCommandTemplates(project.path);
+}
+
+/**
  * Validate demo generation without mutating database state.
  */
 export function validateGenerateDemo(db: DbHandle, params: GenerateDemoParams): void {
-  validateDemoSteps(params.steps);
+  validateDemoSteps(params.steps, getTicketProjectCommandTemplates(db, params.ticketId));
   validateDemoGeneration(db, params.ticketId, params.steps);
 }
 
@@ -1281,7 +1399,7 @@ export function validateGenerateDemo(db: DbHandle, params: GenerateDemoParams): 
 export function generateDemo(db: DbHandle, params: GenerateDemoParams): DemoScript {
   const { ticketId, steps } = params;
 
-  validateDemoSteps(steps);
+  validateDemoSteps(steps, getTicketProjectCommandTemplates(db, ticketId));
   validateDemoGeneration(db, ticketId, steps);
 
   const now = new Date().toISOString();

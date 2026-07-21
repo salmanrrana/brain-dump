@@ -144,8 +144,12 @@ function getVerificationJobClassName(job: VerificationJob): string {
 
 function getPanelSubheading(
   ticketStatus: string | undefined,
-  latestRun: VerificationRunSummary | null
+  latestRun: VerificationRunSummary | null,
+  isBlocked: boolean
 ): string {
+  if (isBlocked && ticketStatus !== "ai_verification") {
+    return "Automatic verification stopped. Resolve the blocker below, then requeue or run the normal review handoff again.";
+  }
   if (latestRun) return "Runner results, evidence, and integrity checks are recorded below.";
   if (ticketStatus === "ai_verification") {
     return "The automatic verification runner owns execution, evidence, and completion.";
@@ -533,8 +537,8 @@ function VerificationJobStatusPanel({
       <div className="rounded-lg border border-[var(--warning)]/30 bg-[var(--warning-muted)] p-4 text-sm text-[var(--text-secondary)]">
         <p className="font-medium text-[var(--text-primary)]">No verification job found</p>
         <p className="mt-1">
-          This ticket is in AI verification, but no automatic runner job is queued yet. Regenerate
-          the demo or check the verification worker health.
+          This ticket is in AI verification, but no automatic runner job is queued yet. Brain Dump
+          recreates missing jobs during startup recovery; if this persists, check the worker health.
         </p>
       </div>
     );
@@ -603,6 +607,7 @@ export function DemoPanel({
   blockedReason,
   pollingInterval = 0,
 }: DemoPanelProps) {
+  const ticketIsBlocked = isBlocked === true;
   const shouldPoll = ticketStatus === "ai_verification" && pollingInterval > 0;
   const { demoScript, loading, error, refetch } = useDemoScript(ticketId, {
     pollingInterval: shouldPoll ? pollingInterval : 0,
@@ -671,8 +676,13 @@ export function DemoPanel({
     );
   }
 
-  const heading = ticketStatus === "done" ? "Verification Evidence" : "AI Verification Handoff";
-  const subheading = getPanelSubheading(ticketStatus, latestRun);
+  const heading =
+    ticketStatus === "done"
+      ? "Verification Evidence"
+      : ticketIsBlocked && ticketStatus !== "ai_verification"
+        ? "Verification Needs Attention"
+        : "AI Verification Handoff";
+  const subheading = getPanelSubheading(ticketStatus, latestRun, ticketIsBlocked);
 
   return (
     <div className="space-y-4 rounded-lg border border-[var(--info)]/30 bg-[var(--info-muted)] p-6">
@@ -684,7 +694,7 @@ export function DemoPanel({
         </div>
       </div>
 
-      {isBlocked && (
+      {ticketIsBlocked && (
         <div className="rounded-lg border border-[var(--accent-danger)]/40 bg-[var(--accent-danger)]/10 p-4 text-[var(--accent-danger)]">
           <div className="mb-1 flex items-center gap-2 font-semibold">
             <AlertTriangle size={16} aria-hidden="true" />

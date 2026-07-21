@@ -87,7 +87,6 @@ pnpm brain-dump status --pretty
 | Command                | Description                                   |
 | ---------------------- | --------------------------------------------- |
 | `pnpm dev`             | Start app (current UI) on `localhost:4242`    |
-| `pnpm dev:v2`          | Start UI v2 branch app on `localhost:4243`    |
 | `pnpm check`           | Type-check + lint + fast node tests           |
 | `pnpm test`            | Run fast node tests for the feature loop      |
 | `pnpm test:ui`         | Run active React/jsdom user-flow tests        |
@@ -173,7 +172,7 @@ brain-dump admin check --full
 
 Status flow:
 
-```text
+```text                    [fix loop]
 ready → in_progress → ai_review → ai_verification → done
                           ↑
                     [fix loop]

@@ -51,6 +51,96 @@ describe("durable epic continuation", () => {
     expect(enqueueEpicContinuationForTicket(db, "failed-ticket")).toBeNull();
   });
 
+  it("replaces a stale running continuation whose target ticket is already done", () => {
+    saveAutonomousEpicLaunch(db, {
+      epicId: "e",
+      projectPath: "/tmp/p",
+      scriptPath: "/tmp/ralph.sh",
+      maxIterations: 7,
+    });
+    const now = "2026-07-18T00:00:00.000Z";
+    db.prepare("UPDATE tickets SET status = 'done' WHERE id = 'next-ticket'").run();
+    db.prepare(
+      `INSERT INTO epic_continuation_jobs
+         (id, epic_id, ticket_id, status, attempt_count, next_run_at, leased_by, lease_expires_at, created_at, updated_at)
+       VALUES ('stale-job', 'e', 'next-ticket', 'running', 1, ?, 'dead-worker', '2099-01-01T00:00:00.000Z', ?, ?)`
+    ).run(now, now, now);
+
+    const job = enqueueEpicContinuationForTicket(db, "failed-ticket", now)!;
+
+    expect(job.ticketId).toBe("failed-ticket");
+    expect(job.status).toBe("queued");
+    expect(db.prepare("SELECT count(*) count FROM epic_continuation_jobs").get()).toEqual({
+      count: 1,
+    });
+  });
+
+  it("claim reconciliation leaves a live-leased running row alone even when its ticket is done", () => {
+    saveAutonomousEpicLaunch(db, {
+      epicId: "e",
+      projectPath: "/tmp/p",
+      scriptPath: "/tmp/ralph.sh",
+      maxIterations: 7,
+    });
+    const now = "2026-07-18T00:00:00.000Z";
+    db.prepare("UPDATE tickets SET status = 'done' WHERE id = 'next-ticket'").run();
+    db.prepare(
+      `INSERT INTO epic_continuation_jobs
+         (id, epic_id, ticket_id, status, attempt_count, next_run_at, leased_by, lease_expires_at, created_at, updated_at)
+       VALUES ('live-job', 'e', 'next-ticket', 'running', 1, ?, 'live-worker', '2099-01-01T00:00:00.000Z', ?, ?)`
+    ).run(now, now, now);
+
+    expect(claimNextEpicContinuation(db, { workerId: "other-worker", now })).toBeNull();
+
+    expect(
+      db.prepare("SELECT status, leased_by FROM epic_continuation_jobs WHERE id = 'live-job'").get()
+    ).toEqual({ status: "running", leased_by: "live-worker" });
+  });
+
+  it("claim reconciliation settles an expired-lease running row for a done ticket", () => {
+    saveAutonomousEpicLaunch(db, {
+      epicId: "e",
+      projectPath: "/tmp/p",
+      scriptPath: "/tmp/ralph.sh",
+      maxIterations: 7,
+    });
+    const now = "2026-07-18T12:00:00.000Z";
+    db.prepare("UPDATE tickets SET status = 'done' WHERE id = 'next-ticket'").run();
+    db.prepare(
+      `INSERT INTO epic_continuation_jobs
+         (id, epic_id, ticket_id, status, attempt_count, next_run_at, leased_by, lease_expires_at, created_at, updated_at)
+       VALUES ('orphan-job', 'e', 'next-ticket', 'running', 1, ?, 'dead-worker', '2026-07-18T00:30:00.000Z', ?, ?)`
+    ).run("2026-07-18T00:00:00.000Z", "2026-07-18T00:00:00.000Z", "2026-07-18T00:00:00.000Z");
+
+    expect(claimNextEpicContinuation(db, { workerId: "other-worker", now })).toBeNull();
+
+    expect(
+      db.prepare("SELECT status, completed_at FROM epic_continuation_jobs WHERE id = 'orphan-job'").get()
+    ).toMatchObject({ status: "succeeded", completed_at: now });
+  });
+
+  it("does not clobber a running continuation whose target ticket is still in progress", () => {
+    saveAutonomousEpicLaunch(db, {
+      epicId: "e",
+      projectPath: "/tmp/p",
+      scriptPath: "/tmp/ralph.sh",
+      maxIterations: 7,
+    });
+    const now = "2026-07-18T00:00:00.000Z";
+    db.prepare("UPDATE tickets SET status = 'in_progress' WHERE id = 'next-ticket'").run();
+    db.prepare(
+      `INSERT INTO epic_continuation_jobs
+         (id, epic_id, ticket_id, status, attempt_count, next_run_at, leased_by, lease_expires_at, created_at, updated_at)
+       VALUES ('live-job', 'e', 'next-ticket', 'running', 1, ?, 'live-worker', '2099-01-01T00:00:00.000Z', ?, ?)`
+    ).run(now, now, now);
+
+    const job = enqueueEpicContinuationForTicket(db, "failed-ticket", now)!;
+
+    expect(job.id).toBe("live-job");
+    expect(job.ticketId).toBe("next-ticket");
+    expect(job.status).toBe("running");
+  });
+
   it("leases and launches the failed in_progress ticket without promoting its sibling", async () => {
     saveAutonomousEpicLaunch(db, {
       epicId: "e",

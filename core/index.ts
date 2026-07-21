@@ -201,6 +201,7 @@ export {
   claimNextEpicContinuation,
   drainEpicContinuations,
   enqueueEpicContinuationForTicket,
+  reconcileObsoleteEpicContinuations,
   runNextEpicContinuation,
   saveAutonomousEpicLaunch,
   setAutonomousEpicLaunchActive,

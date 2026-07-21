@@ -26,6 +26,7 @@ import {
 import {
   getVerificationOperationsStatus,
   markVerificationJobDead,
+  reconcileVerificationTicketStates,
   requeueVerificationJob,
   setVerificationWorkerPaused,
 } from "../verification-ops.ts";
@@ -40,6 +41,7 @@ import {
   spawnDetachedVerificationDrainIfNeeded,
   type VerificationWorkerOptions,
 } from "../verification-worker.ts";
+import { saveAutonomousEpicLaunch } from "../epic-continuation.ts";
 import type { DemoStep, ExecFileNoThrowOptions } from "../types.ts";
 
 let db: Database.Database;
@@ -913,6 +915,101 @@ createServer((request, response) => {
     expect(healComment.content).toContain("What to do next");
   });
 
+  it("replaces a stale epic continuation so an uncertified return has a resumer", async () => {
+    seedDemo([
+      {
+        ...apiStep(),
+        coverageRationale: "criterion:1 requires an external provider account outside automation.",
+      },
+    ]);
+    const now = new Date().toISOString();
+    db.prepare("INSERT INTO epics (id, title, project_id, created_at) VALUES (?, ?, ?, ?)").run(
+      "epic-1",
+      "Verification Epic",
+      "project-1",
+      now
+    );
+    db.prepare("UPDATE tickets SET epic_id = 'epic-1' WHERE id = 'ticket-1'").run();
+    db.prepare(
+      `INSERT INTO tickets (id, title, status, priority, position, project_id, epic_id, created_at, updated_at)
+       VALUES ('ticket-2', 'Earlier ticket', 'done', 'high', 2, 'project-1', 'epic-1', ?, ?)`
+    ).run(now, now);
+    saveAutonomousEpicLaunch(db, {
+      epicId: "epic-1",
+      projectPath: tempDir,
+      scriptPath: "/tmp/ralph.sh",
+      maxIterations: 7,
+    });
+    db.prepare(
+      `INSERT INTO epic_continuation_jobs
+         (id, epic_id, ticket_id, status, attempt_count, next_run_at, leased_by, lease_expires_at, created_at, updated_at)
+       VALUES ('stale-job', 'epic-1', 'ticket-2', 'running', 1, ?, 'dead-worker', '2099-01-01T00:00:00.000Z', ?, ?)`
+    ).run(now, now, now);
+    const baseUrl = await startFixtureServer();
+
+    const run = await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+
+    expect(run.status).toBe("uncertified");
+    const continuation = db
+      .prepare("SELECT ticket_id, status FROM epic_continuation_jobs WHERE epic_id = 'epic-1'")
+      .get() as { ticket_id: string; status: string };
+    expect(continuation).toEqual({ ticket_id: "ticket-1", status: "queued" });
+    const attention = db
+      .prepare(
+        "SELECT count(*) count FROM ticket_comments WHERE ticket_id = 'ticket-1' AND content LIKE '%no autonomous resumer%'"
+      )
+      .get() as { count: number };
+    expect(attention.count).toBe(0);
+  });
+
+  it("warns on the ticket when a live continuation for another ticket holds the epic slot", async () => {
+    seedDemo([
+      {
+        ...apiStep(),
+        coverageRationale: "criterion:1 requires an external provider account outside automation.",
+      },
+    ]);
+    const now = new Date().toISOString();
+    db.prepare("INSERT INTO epics (id, title, project_id, created_at) VALUES (?, ?, ?, ?)").run(
+      "epic-1",
+      "Verification Epic",
+      "project-1",
+      now
+    );
+    db.prepare("UPDATE tickets SET epic_id = 'epic-1' WHERE id = 'ticket-1'").run();
+    db.prepare(
+      `INSERT INTO tickets (id, title, status, priority, position, project_id, epic_id, created_at, updated_at)
+       VALUES ('ticket-2', 'Sibling repair', 'in_progress', 'high', 2, 'project-1', 'epic-1', ?, ?)`
+    ).run(now, now);
+    saveAutonomousEpicLaunch(db, {
+      epicId: "epic-1",
+      projectPath: tempDir,
+      scriptPath: "/tmp/ralph.sh",
+      maxIterations: 7,
+    });
+    db.prepare(
+      `INSERT INTO epic_continuation_jobs
+         (id, epic_id, ticket_id, status, attempt_count, next_run_at, leased_by, lease_expires_at, created_at, updated_at)
+       VALUES ('live-job', 'epic-1', 'ticket-2', 'running', 1, ?, 'live-worker', '2099-01-01T00:00:00.000Z', ?, ?)`
+    ).run(now, now, now);
+    const baseUrl = await startFixtureServer();
+
+    const run = await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+
+    expect(run.status).toBe("uncertified");
+    const continuation = db
+      .prepare("SELECT ticket_id, status FROM epic_continuation_jobs WHERE epic_id = 'epic-1'")
+      .get() as { ticket_id: string; status: string };
+    expect(continuation).toEqual({ ticket_id: "ticket-2", status: "running" });
+    const attention = db
+      .prepare(
+        "SELECT content FROM ticket_comments WHERE ticket_id = 'ticket-1' AND content LIKE '%no autonomous resumer%'"
+      )
+      .get() as { content: string };
+    expect(attention.content).toContain("was **not** scheduled");
+    expect(attention.content).toContain("ticket-2");
+  });
+
   it("blocks the second consecutive uncertified run for human attention", async () => {
     seedDemo([
       {
@@ -930,7 +1027,7 @@ createServer((request, response) => {
     const ticket = db
       .prepare("SELECT status, is_blocked, blocked_reason FROM tickets WHERE id = 'ticket-1'")
       .get() as { status: string; is_blocked: number; blocked_reason: string | null };
-    expect(ticket.status).toBe("ai_verification");
+    expect(ticket.status).toBe("in_progress");
     expect(ticket.is_blocked).toBe(1);
     expect(ticket.blocked_reason).toContain("non-certifiable coverage rationale");
     const comments = db
@@ -1278,6 +1375,10 @@ createServer((request, response) => {
        VALUES (?, ?, 'done', 'high', 2, 'project-1', 'epic-1', ?, ?, ?)`
     ).run("ticket-2", "Already verified", "feature/verification-epic", now, now);
     seedPassedVerificationRun("ticket-2", "sha222");
+    db.prepare(
+      `INSERT INTO epic_workflow_state (id, epic_id, tickets_total, tickets_done, created_at, updated_at)
+       VALUES ('ews-1', 'epic-1', 2, 0, ?, ?)`
+    ).run(now, now);
     const baseUrl = await startFixtureServer();
     const calls: Array<[string, ...string[]]> = [];
 
@@ -1314,6 +1415,9 @@ createServer((request, response) => {
       prNumber: 91,
     });
     expect(calls).toContainEqual(["git", "push", "-u", "origin", "feature/verification-epic"]);
+    expect(
+      db.prepare("SELECT tickets_total, tickets_done FROM epic_workflow_state WHERE epic_id = 'epic-1'").get()
+    ).toEqual({ tickets_total: 2, tickets_done: 2 });
   });
 
   function moveTicketBackToVerification(): void {
@@ -1374,7 +1478,7 @@ createServer((request, response) => {
     const ticket = db
       .prepare("SELECT status, is_blocked, blocked_reason FROM tickets WHERE id = 'ticket-1'")
       .get() as { status: string; is_blocked: number; blocked_reason: string | null };
-    expect(ticket.status).toBe("ai_verification");
+    expect(ticket.status).toBe("in_progress");
     expect(ticket.is_blocked).toBe(1);
     expect(ticket.blocked_reason).toContain("3 consecutive times on step 1");
     const comment = db
@@ -1430,7 +1534,7 @@ createServer((request, response) => {
     const ticket = db
       .prepare("SELECT status, is_blocked, blocked_reason FROM tickets WHERE id = 'ticket-1'")
       .get() as { status: string; is_blocked: number; blocked_reason: string | null };
-    expect(ticket.status).toBe("ai_verification");
+    expect(ticket.status).toBe("in_progress");
     expect(ticket.is_blocked).toBe(1);
     expect(ticket.blocked_reason).toContain("uncertified");
     expect(ticket.blocked_reason).toContain("Manual steps cannot be certified");
@@ -1461,9 +1565,36 @@ createServer((request, response) => {
     const ticket = db
       .prepare("SELECT status, is_blocked, blocked_reason FROM tickets WHERE id = 'ticket-1'")
       .get() as { status: string; is_blocked: number; blocked_reason: string | null };
-    expect(ticket.status).toBe("ai_verification");
+    expect(ticket.status).toBe("in_progress");
     expect(ticket.is_blocked).toBe(1);
     expect(ticket.blocked_reason).toContain("verification/manifest code");
+  });
+
+  it("does not trip the verification tripwire for a target project's web manifest", async () => {
+    seedDemo([apiStep()]);
+    const baseUrl = await startFixtureServer();
+
+    const run = await verifyTicket(db, {
+      ticketId: "ticket-1",
+      baseUrl,
+      execFileNoThrow: async (command, args) => {
+        if (command === "git" && args.join(" ") === "rev-parse HEAD") {
+          return { success: true, stdout: "abc123\n", stderr: "", exitCode: 0 };
+        }
+        if (command === "git" && args.join(" ") === "status --short") {
+          return {
+            success: true,
+            stdout: " M public/manifest.json\n M src/site.webmanifest\n",
+            stderr: "",
+            exitCode: 0,
+          };
+        }
+        return { success: true, stdout: "", stderr: "", exitCode: 0 };
+      },
+    });
+
+    expect(run.status).toBe("passed");
+    expect(run.certified).toBe(true);
   });
 
   it("marks runs uncertified when committed verification code changed", async () => {
@@ -2150,8 +2281,9 @@ describe("verification worker", () => {
       lastError: "Automatic verification worker failed: boot crashed again",
     });
     expect(
-      db.prepare("SELECT is_blocked, blocked_reason FROM tickets WHERE id = 'ticket-1'").get()
+      db.prepare("SELECT status, is_blocked, blocked_reason FROM tickets WHERE id = 'ticket-1'").get()
     ).toMatchObject({
+      status: "in_progress",
       is_blocked: 1,
       blocked_reason: "Automatic verification worker failed: boot crashed again",
     });
@@ -2238,7 +2370,7 @@ describe("verification worker", () => {
     expect(
       db.prepare("SELECT status, is_blocked FROM tickets WHERE id = 'ticket-1'").get()
     ).toMatchObject({
-      status: "ai_verification",
+      status: "in_progress",
       is_blocked: 1,
     });
     expect(listVerificationRuns(db, "ticket-1")).toHaveLength(0);
@@ -2269,6 +2401,59 @@ describe("verification worker", () => {
     const commentText = comments.map((comment) => comment.content).join("\n");
     expect(commentText).toContain("Verification Job Dead-Lettered");
     expect(commentText).toContain("Verification Job Requeued");
+  });
+
+  it("reconciles missing jobs automatically and exits terminal verification states", () => {
+    seedDemo([apiStep()]);
+
+    const recovered = reconcileVerificationTicketStates(db, {
+      now: "2026-03-08T01:00:00.000Z",
+    });
+    expect(recovered).toEqual({
+      enqueuedTicketIds: ["ticket-1"],
+      humanActionTicketIds: [],
+    });
+    expect(getVerificationJob(db, "ticket-1")).toMatchObject({ status: "queued" });
+
+    db.prepare(
+      `UPDATE verification_jobs
+       SET status = 'blocked', last_error = 'Browser runtime is unavailable'
+       WHERE ticket_id = 'ticket-1'`
+    ).run();
+    const terminal = reconcileVerificationTicketStates(db, {
+      now: "2026-03-08T01:00:01.000Z",
+    });
+    expect(terminal).toEqual({
+      enqueuedTicketIds: [],
+      humanActionTicketIds: ["ticket-1"],
+    });
+    expect(
+      db.prepare("SELECT status, is_blocked, blocked_reason FROM tickets WHERE id = 'ticket-1'").get()
+    ).toMatchObject({
+      status: "in_progress",
+      is_blocked: 1,
+      blocked_reason: "Browser runtime is unavailable",
+    });
+  });
+
+  it("returns an ai_verification ticket without a demo to human action", () => {
+    db.prepare("DELETE FROM demo_scripts WHERE ticket_id = 'ticket-1'").run();
+
+    const result = reconcileVerificationTicketStates(db, {
+      now: "2026-03-08T01:00:00.000Z",
+    });
+
+    expect(result).toEqual({
+      enqueuedTicketIds: [],
+      humanActionTicketIds: ["ticket-1"],
+    });
+    expect(
+      db.prepare("SELECT status, is_blocked, blocked_reason FROM tickets WHERE id = 'ticket-1'").get()
+    ).toMatchObject({
+      status: "in_progress",
+      is_blocked: 1,
+      blocked_reason: "AI verification has no demo script or runner job to execute.",
+    });
   });
 
   it("surfaces stale leases, retrying jobs, dead letters, and schema drift for doctor output", () => {

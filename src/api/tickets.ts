@@ -13,6 +13,7 @@ import { tagFilterConditions } from "../lib/sql-helpers";
 import { randomUUID } from "crypto";
 import { ensureExists, safeJsonStringify } from "../lib/utils";
 import { handleEpicCompletionLearnings } from "../../core/index";
+import { syncPrdBlockedStateForDbTicketIfPresent } from "../../core/prd-sync.ts";
 import { normalizeUserWritableAttachmentFilenames } from "../../core/attachments.ts";
 import {
   canDirectlyUpdateTicketStatus,
@@ -226,6 +227,17 @@ export const updateTicket = createServerFn({ method: "POST" })
     if (Object.keys(updateData).length > 0) {
       updateData.updatedAt = new Date().toISOString();
       db.update(tickets).set(updateData).where(eq(tickets.id, id)).run();
+    }
+
+    if (updates.isBlocked !== undefined || updates.blockedReason !== undefined) {
+      // Ralph's loop reads blocked state from the scoped PRD; a UI unblock
+      // that only touches the DB would leave the loop refusing to resume.
+      const prdSync = syncPrdBlockedStateForDbTicketIfPresent(sqlite, id);
+      if (!prdSync.success) {
+        log.error(
+          `Failed to sync PRD blocked state after ticket ${id} update: ${prdSync.message}`
+        );
+      }
     }
 
     return db.select().from(tickets).where(eq(tickets.id, id)).get();

@@ -53,6 +53,26 @@
         "ui",
         "correctness"
       ]
+    },
+    {
+      "id": "7fe1a9e1-ff65-412b-8a15-8b17bdca43f0",
+      "title": "Automatically resume epic Ralph after verification failure",
+      "passes": false,
+      "status": "in_progress",
+      "acceptanceCriteria": [
+        "Persist autonomous epic launch profiles in Brain Dump",
+        "Durably enqueue and consume one continuation after verification failure",
+        "Resume only the failed ticket without target-project hooks",
+        "Keep verification waiting outside iteration and no-progress budgets"
+      ],
+      "priority": "high",
+      "tags": [
+        "workflow",
+        "reliability",
+        "ralph",
+        "verification",
+        "orchestration"
+      ]
     }
   ],
   "projectContext": {

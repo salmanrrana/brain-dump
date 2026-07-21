@@ -34,7 +34,7 @@ Self-review the diff, submit every finding through Brain Dump, fix critical/majo
 
 ### Step 3: Demo
 
-Generate 3-7 test steps after review completion, including criterion coverage references plus automation specs for visual/automated UI, API, command, or file checks. Before API/UI steps, inspect the target project's docs and build/runtime config and declare app.start as spawn-safe argv (with {port}/{host} tokens and optional project-relative cwd); never assume npm or pnpm. Use coverageRationale only for non-certifiable criteria and name each criterion id; rationale keeps the run uncertified. This moves the ticket to ai_verification for runner certification.
+Generate 3-7 test steps after review completion, including criterion coverage references plus automation specs for visual/automated UI, API, command, or file checks. Before API/UI steps, inspect the target project's docs and build/runtime config and declare app.start as spawn-safe argv (with {port}/{host} tokens and optional project-relative cwd); never assume npm or pnpm. Every acceptance criterion must be proven by executable automation — coverageRationale is rejected at generate-demo. If a required command is outside the default allowlist (make, go, npx, ...), declare its exact argv in the project's .brain-dump/verify.json commands array; if a criterion cannot be automated, reword the criterion to match what automation can prove. This moves the ticket to ai_verification for runner certification.
 
 - `review({ action: "generate-demo", ticketId, steps }) with covers references and automation specs on visual/automated steps`
 

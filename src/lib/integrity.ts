@@ -327,6 +327,7 @@ export function fullDatabaseCheck(dbPath?: string): FullCheckResult {
   if (
     integrityCheck.status === "error" ||
     fkCheck.status === "error" ||
+    walResult.status === "error" ||
     tableResult.status === "error"
   ) {
     overallStatus = "error";
@@ -357,6 +358,12 @@ export function fullDatabaseCheck(dbPath?: string): FullCheckResult {
 
   if (walResult.status === "warning") {
     suggestions.push("WAL status warnings - consider running PRAGMA wal_checkpoint(TRUNCATE)");
+  }
+
+  if (walResult.status === "error") {
+    suggestions.push(
+      "WAL check failed - the write-ahead log could not be verified; check disk health and file permissions before trusting writes"
+    );
   }
 
   if (tableResult.status === "error") {

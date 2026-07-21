@@ -785,6 +785,37 @@ if [ "$PER_ITERATION_TIMEOUT" -gt 0 ] 2>/dev/null; then
   fi
 fi
 
+# Every stop path funnels through here. Headless epic continuations exit so
+# the parent can settle their durable job; interactive runs keep the terminal
+# open — a spawned window that closes on exit destroys the only explanation of
+# why Ralph stopped.
+finish_ralph() {
+  FINISH_CODE=\${1:-0}
+  if [ "\${BRAIN_DUMP_EPIC_CONTINUATION:-0}" = "1" ]; then
+    exit "$FINISH_CODE"
+  fi
+  # exec replaces the process without firing the EXIT trap, so run cleanup
+  # (kills the session-timeout timer, removes service files) explicitly —
+  # otherwise the leaked timer later SIGALRMs the kept-open shell dead.
+  if type cleanup_on_exit >/dev/null 2>&1; then
+    cleanup_on_exit || true
+    trap - EXIT
+  fi
+  echo ""
+  echo -e "\\033[0;36mRalph stopped. This terminal stays open so the log above is not lost; press Ctrl+D to close it.\\033[0m"
+  exec bash
+}
+
+# List tickets parked for human action so a stop never looks like a silent
+# stall. Reads the scoped PRD's blocked flags synced from Brain Dump. This
+# runs at the moment Ralph explains why it stopped, so a read failure must say
+# so instead of printing nothing.
+print_blocked_tickets() {
+  if ! node -e 'const p=require(process.argv[1]); const blocked=p.userStories.filter(s=>s.passes===false&&s.blocked===true); if(blocked.length===0)process.exit(0); console.log(""); console.log("\\u26d4 Tickets blocked for human action:"); for(const s of blocked){console.log("  - "+(s.title||s.id)); console.log("    "+(s.blockedReason||"See the ticket in Brain Dump for the blocking reason."))}' "$PRD_FILE" 2>/dev/null; then
+    echo "  (could not read blocked-ticket details from plans/prd.json — open the ticket in Brain Dump for the blocking reasons)"
+  fi
+}
+
 # Rotate progress file if it exceeds 500 lines
 rotate_progress_file() {
   if [ -f "$PROGRESS_FILE" ]; then
@@ -831,8 +862,23 @@ echo ""
 
 for i in $(seq 1 $MAX_ITERATIONS); do
   while [ -f "$PRD_FILE" ]; do
-    WAITING_FOR_VERIFICATION=$(node -e 'const p=require(process.argv[1]); const x=p.userStories.filter(s=>s.passes===false); process.stdout.write(x.length>0&&x.every(s=>s.status==="ai_verification")?"1":"0")' "$PRD_FILE" 2>/dev/null || echo 0)
-    if [ "$WAITING_FOR_VERIFICATION" != "1" ]; then
+    # "wait": every incomplete ticket is either with the verification runner or
+    # blocked, and at least one is with the runner (so something will move).
+    # "blocked": every incomplete ticket is parked for a human — no amount of
+    # waiting or iterating changes that, so stop with the reasons on screen.
+    INCOMPLETE_GATE=$(node -e 'const p=require(process.argv[1]); const x=p.userStories.filter(s=>s.passes===false); if(x.length===0){process.stdout.write("work");process.exit(0)} const parked=(s)=>s.blocked===true&&s.status!=="ai_verification"; if(x.every(parked)){process.stdout.write("blocked");process.exit(0)} process.stdout.write(x.every(s=>s.status==="ai_verification"||parked(s))?"wait":"work")' "$PRD_FILE" 2>/dev/null || echo prd-unreadable)
+    if [ "$INCOMPLETE_GATE" = "prd-unreadable" ]; then
+      echo -e "\\033[0;33m⚠️  Could not parse $PRD_FILE for the blocked/verification gate; proceeding with a normal iteration.\\033[0m"
+      break
+    fi
+    if [ "$INCOMPLETE_GATE" = "blocked" ]; then
+      echo ""
+      echo -e "\\033[0;33m⛔ Every remaining ticket is blocked for human action; Ralph cannot make further progress on its own.\\033[0m"
+      print_blocked_tickets
+      echo "[$(date -Iseconds)] BLOCKED: Every remaining ticket is blocked for human action. Resolve the blockers in Brain Dump, then relaunch." >> "$PROGRESS_FILE"
+      finish_ralph 0
+    fi
+    if [ "$INCOMPLETE_GATE" != "wait" ]; then
       break
     fi
     echo -e "\\033[0;36m⏳ All incomplete tickets are awaiting AI verification; Ralph is waiting without spending an iteration.\\033[0m"
@@ -867,7 +913,7 @@ RALPH_RESUME_EOF
     if [ $CONSECUTIVE_FAILURES -ge $MAX_CONSECUTIVE_FAILURES ]; then
       echo -e "\\033[0;31m❌ Too many consecutive failures ($CONSECUTIVE_FAILURES). Stopping Ralph.\\033[0m"
       echo "[$(date -Iseconds)] ABORTED: $CONSECUTIVE_FAILURES consecutive failures" >> "$PROGRESS_FILE"
-      exit 1
+      finish_ralph 1
     fi
     sleep 2
     continue
@@ -959,7 +1005,7 @@ ${reviewerBlock}
       echo -e "\\033[0;31m   Check: API key, network, MCP server, or run the CLI with --help\\033[0m"
       echo -e "\\033[0;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
       echo "[$(date -Iseconds)] ABORTED: $CONSECUTIVE_FAILURES consecutive failures" >> "$PROGRESS_FILE"
-      exit 1
+      finish_ralph 1
     fi
   else
     # Reset on success
@@ -976,7 +1022,12 @@ ${reviewerBlock}
     TOTAL=\${TOTAL:-0}
     COMPLETE=$((TOTAL - INCOMPLETE))
     WAITING_FOR_VERIFICATION=$(node -e 'const p=require(process.argv[1]); const x=p.userStories.filter(s=>s.passes===false); process.stdout.write(x.length>0&&x.every(s=>s.status==="ai_verification")?"1":"0")' "$PRD_FILE" 2>/dev/null || echo 0)
-    WORKFLOW_PROGRESS=$(node -e 'const high=JSON.parse(process.argv[1]); const p=require(process.argv[2]); const rank={backlog:0,ready:1,in_progress:2,ai_review:3,ai_verification:4,done:5}; let advanced=false; for(const s of p.userStories){const current=rank[s.status]??0; if(current>(high[s.id]??-1)){high[s.id]=current; advanced=true}} process.stdout.write((advanced?"1":"0")+" "+JSON.stringify(high))' "$PRD_STATUS_HIGH_WATER" "$PRD_FILE" 2>/dev/null) || WORKFLOW_PROGRESS="0 $PRD_STATUS_HIGH_WATER"
+    WORKFLOW_PROGRESS=$(node -e 'const high=JSON.parse(process.argv[1]); const p=require(process.argv[2]); const rank={backlog:0,ready:1,in_progress:2,ai_review:3,ai_verification:4,done:5}; let advanced=false; for(const s of p.userStories){const current=rank[s.status]??0; if(current>(high[s.id]??-1)){high[s.id]=current; advanced=true} if(s.blocked===true && !high[s.id+"#blocked"]){high[s.id+"#blocked"]=1; advanced=true}} process.stdout.write((advanced?"1":"0")+" "+JSON.stringify(high))' "$PRD_STATUS_HIGH_WATER" "$PRD_FILE" 2>/dev/null) || WORKFLOW_PROGRESS="0 $PRD_STATUS_HIGH_WATER"
+    ALL_BLOCKED=$(node -e 'const p=require(process.argv[1]); const x=p.userStories.filter(s=>s.passes===false); process.stdout.write(x.length>0&&x.every(s=>s.blocked===true&&s.status!=="ai_verification")?"1":"0")' "$PRD_FILE" 2>/dev/null || echo error)
+    if [ "$ALL_BLOCKED" = "error" ]; then
+      echo -e "\\033[0;33m⚠️  Could not parse $PRD_FILE for the blocked check; treating tickets as workable this iteration.\\033[0m"
+      ALL_BLOCKED=0
+    fi
     WORKFLOW_ADVANCED=\${WORKFLOW_PROGRESS%% *}
     PRD_STATUS_HIGH_WATER=\${WORKFLOW_PROGRESS#* }
 
@@ -988,7 +1039,7 @@ ${reviewerBlock}
       echo -e "\\033[0;32m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
       echo -e "\\033[0;32m✅ All tasks complete! Ralph is done.\\033[0m"
       echo -e "\\033[0;32m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
-      exit 0
+      finish_ralph 0
     fi
 
     # Circuit breaker: an iteration only counts as progress when it lowers the
@@ -1000,6 +1051,15 @@ ${reviewerBlock}
     # can't latch BEST_INCOMPLETE_COUNT=0 and poison progress detection.
     if [ "$TOTAL" = "0" ]; then
       echo -e "\\033[0;33m⚠️  PRD unreadable or empty this iteration; progress tracking skipped.\\033[0m"
+    elif [ "$ALL_BLOCKED" = "1" ]; then
+      # Checked before the progress resets: the same iteration that parks the
+      # last workable ticket also trips the blocked latch, and a "workflow
+      # advanced" reset must not defer this stop by a full AI iteration.
+      echo ""
+      echo -e "\\033[0;33m⛔ Every remaining ticket is blocked for human action; Ralph cannot make further progress on its own.\\033[0m"
+      print_blocked_tickets
+      echo "[$(date -Iseconds)] BLOCKED: Every remaining ticket is blocked for human action. Resolve the blockers in Brain Dump, then relaunch." >> "$PROGRESS_FILE"
+      finish_ralph 0
     elif [ "$INCOMPLETE" -lt "$BEST_INCOMPLETE_COUNT" ]; then
       BEST_INCOMPLETE_COUNT="$INCOMPLETE"
       NO_PROGRESS_COUNT=0
@@ -1018,8 +1078,9 @@ ${reviewerBlock}
         echo -e "\\033[0;33m   (stuck verification, repeated handoff repair, or a stale tool/schema).\\033[0m"
         echo -e "\\033[0;33m   Stopping so a human can look at the last progress-log entries.\\033[0m"
         echo -e "\\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+        print_blocked_tickets
         echo "[$(date -Iseconds)] STALLED: No new ticket completed for $MAX_NO_PROGRESS iterations. $INCOMPLETE/$TOTAL incomplete. Likely a repeating blocker; needs human attention." >> "$PROGRESS_FILE"
-        exit 0
+        finish_ralph 0
       fi
     fi
   fi
@@ -1043,9 +1104,6 @@ echo -e "\\033[0;33m⚠️  Max iterations reached. Some tasks may remain.\\033[
 echo -e "\\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
 echo ""
 ${endMessage}
-if [ "\${BRAIN_DUMP_EPIC_CONTINUATION:-0}" = "1" ]; then
-  exit 0
-fi
-exec bash
+finish_ralph 0
 `;
 }

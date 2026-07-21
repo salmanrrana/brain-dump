@@ -21,6 +21,7 @@ import {
   enqueueEpicContinuationForTicket,
   setAutonomousEpicLaunchActive,
 } from "./epic-continuation.ts";
+import { refreshEpicWorkflowTicketCounts } from "./epic-progress.ts";
 import type { VerifierIdentity } from "./verifier-identity.ts";
 import type {
   VerificationEvidenceFile,
@@ -283,16 +284,25 @@ function completeTicketIfCertified(db: DbHandle, ticketId: string, now: string):
     ticketId
   );
   updatePrdForDbTicketIfPresent(db, ticketId, true);
-  db.prepare(
-    `UPDATE autonomous_epic_launches
-     SET active = 0, updated_at = ?
-     WHERE epic_id = (SELECT epic_id FROM tickets WHERE id = ?)
-       AND NOT EXISTS (
-         SELECT 1 FROM tickets sibling
-         WHERE sibling.epic_id = autonomous_epic_launches.epic_id
-           AND sibling.status != 'done'
-       )`
-  ).run(now, ticketId);
+  const epic = db.prepare("SELECT epic_id FROM tickets WHERE id = ?").get(ticketId) as
+    | { epic_id: string | null }
+    | undefined;
+  if (epic?.epic_id) {
+    // Keep the stored epic aggregate honest: certified completion is the only
+    // path to done, so without this the epic_workflow_state counts drift to 0
+    // while every ticket finishes.
+    refreshEpicWorkflowTicketCounts(db, epic.epic_id);
+    db.prepare(
+      `UPDATE autonomous_epic_launches
+       SET active = 0, updated_at = ?
+       WHERE epic_id = ?
+         AND NOT EXISTS (
+           SELECT 1 FROM tickets sibling
+           WHERE sibling.epic_id = autonomous_epic_launches.epic_id
+             AND sibling.status != 'done'
+         )`
+    ).run(now, epic.epic_id);
+  }
 }
 
 function blockTicket(db: DbHandle, ticketId: string, reason: string, now: string): void {
@@ -300,6 +310,34 @@ function blockTicket(db: DbHandle, ticketId: string, reason: string, now: string
   db.prepare(
     "UPDATE tickets SET is_blocked = 1, blocked_reason = ?, updated_at = ? WHERE id = ?"
   ).run(reason, now, ticketId);
+}
+
+/**
+ * End runner ownership when verification cannot make any more automatic
+ * progress. A blocked ticket must not remain in ai_verification: that status
+ * means a worker can still claim and settle it. Human-action tickets return to
+ * the workable lane with their blocker and evidence preserved.
+ */
+export function returnVerificationTicketForHumanAction(
+  db: DbHandle,
+  ticketId: string,
+  reason: string,
+  now: string
+): void {
+  assertTicketStillInVerification(db, ticketId, "return verification ticket for human action");
+  ensureWorkflowState(db, ticketId, "implementation", now);
+  db.prepare(
+    `UPDATE tickets
+     SET status = 'in_progress', completed_at = NULL, is_blocked = 1,
+         blocked_reason = ?, updated_at = ?
+     WHERE id = ?`
+  ).run(reason, now, ticketId);
+  db.prepare(
+    `UPDATE ticket_workflow_state
+     SET current_phase = 'implementation', demo_generated = 0, updated_at = ?
+     WHERE ticket_id = ?`
+  ).run(now, ticketId);
+  updatePrdForDbTicketIfPresent(db, ticketId, false, "in_progress");
 }
 
 function assertTicketStillInVerification(db: DbHandle, ticketId: string, action: string): void {
@@ -337,12 +375,12 @@ function blockTicketAfterRepeatedVerificationFailures(
   const reason = `Verification failed 3 consecutive times on step ${stepOrder}. Latest run: ${run.id}. Evidence: ${stringifyEvidenceRefs(
     run.manifest.stepVerdicts.find((step) => step.order === stepOrder)?.evidenceFiles ?? []
   )}`;
-  blockTicket(db, run.ticketId, reason, now);
+  returnVerificationTicketForHumanAction(db, run.ticketId, reason, now);
   addComment(db, {
     ticketId: run.ticketId,
     author: "brain-dump",
     type: "comment",
-    content: `## Needs Attention\n\n${reason}\n\nThe ticket remains in AI verification and is blocked to prevent an infinite repair loop.`,
+    content: `## Needs Attention\n\n${reason}\n\nAutomatic verification has stopped. The ticket was returned to \`in_progress\` and blocked so a person can resolve it.`,
   });
 }
 
@@ -461,7 +499,7 @@ function addVerificationAttentionComment(
     ticketId: params.ticketId,
     author: "brain-dump",
     type: "comment",
-    content: `## Needs Attention — verification blocked\n\n${params.reason}\n\n${params.guidance}\n\nRun: ${params.runId}. The ticket remains in AI verification and is blocked until a human intervenes.`,
+    content: `## Needs Attention — verification blocked\n\n${params.reason}\n\n${params.guidance}\n\nRun: ${params.runId}. Automatic verification has stopped; the ticket is now \`in_progress\` and blocked until a person resolves it.`,
   });
 }
 
@@ -527,7 +565,51 @@ function returnTicketToImplementationAfterVerificationFailure(
     "UPDATE ticket_workflow_state SET current_phase = 'implementation', demo_generated = 0, updated_at = ? WHERE ticket_id = ?"
   ).run(now, run.ticketId);
   updatePrdForDbTicketIfPresent(db, run.ticketId, false, "in_progress");
-  enqueueEpicContinuationForTicket(db, run.ticketId, now);
+  const continuation = enqueueEpicContinuationForTicket(db, run.ticketId, now);
+  notifyWhenContinuationNotScheduled(db, run.ticketId, continuation, now);
+}
+
+/**
+ * A verification failure hands the ticket back to implementation expecting an
+ * autonomous resumer to pick it up. When an active epic launch exists but the
+ * continuation could not be installed for this ticket (e.g. the epic's single
+ * continuation row is held by a live run for a different ticket), that handoff
+ * silently has no consumer — say so on the ticket instead of stalling quietly.
+ * No comment is posted when the epic was never launched autonomously; a human
+ * or interactive agent owns the loop in that mode.
+ */
+function notifyWhenContinuationNotScheduled(
+  db: DbHandle,
+  ticketId: string,
+  continuation: { ticketId: string } | null,
+  now: string
+): void {
+  if (continuation?.ticketId === ticketId) return;
+  const activeLaunch = db
+    .prepare(
+      `SELECT l.epic_id
+       FROM autonomous_epic_launches l
+       JOIN tickets t ON t.epic_id = l.epic_id
+       WHERE t.id = ? AND l.active = 1
+         AND json_extract(l.profile_json, '$.expiresAt') > ?`
+    )
+    .get(ticketId, now) as { epic_id: string } | undefined;
+  if (!activeLaunch) return;
+  const detail = continuation
+    ? `The epic's continuation slot is held by a run for ticket ${continuation.ticketId}.`
+    : "No continuation could be enqueued for this epic.";
+  addComment(db, {
+    ticketId,
+    author: "brain-dump",
+    type: "comment",
+    content: [
+      "## Needs Attention — no autonomous resumer scheduled",
+      "",
+      `Verification returned this ticket to \`in_progress\`, but an automatic epic continuation was **not** scheduled for it. ${detail}`,
+      "",
+      "Resume it manually with `brain-dump verify worker --drain --pretty` (drains continuations after verification jobs) or relaunch the epic from the UI/CLI.",
+    ].join("\n"),
+  });
 }
 
 function settleJob(
@@ -638,7 +720,7 @@ export async function settleVerificationLifecycle(
         const guidance = tripwire
           ? "The diff touches verification/manifest code, so automated certification is disabled as a safety tripwire. A human must review the verification-code changes and complete the ticket manually."
           : "The regenerated demo is still not certifiable. A human should decide: make every demo step executable, reword the acceptance criteria to match what automation can prove, or verify the work manually and complete the ticket.";
-        blockTicket(db, run.ticketId, blockedReason, now);
+        returnVerificationTicketForHumanAction(db, run.ticketId, blockedReason, now);
         addVerificationAttentionComment(db, {
           ticketId: run.ticketId,
           runId: run.id,
@@ -656,7 +738,13 @@ export async function settleVerificationLifecycle(
       }
     } else if (run.status === "infra_error") {
       const blockedReason = infraErrorBlockedReason(run);
-      blockTicket(db, run.ticketId, blockedReason, now);
+      if (params.verificationJobLease) {
+        // The worker decides whether an infrastructure failure still has an
+        // automatic retry. Keep runner ownership until that decision is made.
+        blockTicket(db, run.ticketId, blockedReason, now);
+      } else {
+        returnVerificationTicketForHumanAction(db, run.ticketId, blockedReason, now);
+      }
       if (!params.verificationJobLease) {
         // Leased (worker) runs may still be retried; the worker posts the
         // loud notice itself once its infra retries are exhausted.
