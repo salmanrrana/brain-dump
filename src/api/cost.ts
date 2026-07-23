@@ -11,7 +11,6 @@ import {
   repairTokenUsageAttribution as coreRepairTokenUsageAttribution,
   getCostAttributionDiagnostics as coreGetCostAttributionDiagnostics,
   getCostExplorerData as coreGetCostExplorerData,
-  getTicketCostDetail as coreGetTicketCostDetail,
   syncDefaultCostModels as coreSyncDefaultCostModels,
 } from "../../core/cost.ts";
 import { deepRecalculateCosts as coreDeepRecalculateCosts } from "../../core/deep-cost-recalculate.ts";
@@ -353,20 +352,6 @@ export const getCostExplorerData = createServerFn({ method: "GET" })
     }
   });
 
-/**
- * Get detailed cost breakdown for a specific ticket including stage and session data.
- */
-export const getTicketCostDetail = createServerFn({ method: "GET" })
-  .inputValidator((data: string) => {
-    if (!data || typeof data !== "string") {
-      throw new Error("Ticket ID is required");
-    }
-    return data;
-  })
-  .handler(async ({ data: ticketId }) => {
-    return coreGetTicketCostDetail(sqlite, ticketId);
-  });
-
 // Re-export types from core for convenience
 export type {
   CostModel,
@@ -374,7 +359,6 @@ export type {
   EpicCostResult,
   CostExplorerNode,
   CostExplorerParams,
-  TicketCostDetail,
 } from "../../core/types.ts";
 export type {
   RecalculateResult,

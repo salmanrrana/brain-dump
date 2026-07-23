@@ -19,23 +19,8 @@ export const STAGE_COLORS: Record<string, string> = {
   done: "#6b7280",
 };
 
-/** Darker shade of each stage color for gradient bottom. */
-export const STAGE_COLORS_DARK: Record<string, string> = {
-  analyzing: "#1e40af",
-  implementing: "#c2410c",
-  testing: "#15803d",
-  committing: "#7c3aed",
-  reviewing: "#0d9488",
-  idle: "#52525b",
-  done: "#4b5563",
-};
-
 export function getStageColor(stage: RalphSessionState | string): string {
   return STAGE_COLORS[stage] ?? "#71717a";
-}
-
-export function getStageColorDark(stage: RalphSessionState | string): string {
-  return STAGE_COLORS_DARK[stage] ?? "#52525b";
 }
 
 // ============================================

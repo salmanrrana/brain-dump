@@ -6,7 +6,7 @@
  * that can be overridden as needed.
  */
 
-import type { Project, Epic, Ticket, TicketComment, Settings } from "../lib/schema";
+import type { Project, Epic, Ticket, TicketComment } from "../lib/schema";
 
 // Counter for generating sequential positions
 let positionCounter = 0;
@@ -96,33 +96,6 @@ export function createMockComment(overrides: Partial<TicketComment> = {}): Ticke
     author: overrides.author ?? "claude",
     type: overrides.type ?? "comment",
     createdAt: overrides.createdAt ?? new Date().toISOString(),
-  };
-}
-
-/**
- * Create mock settings
- */
-export function createMockSettings(overrides: Partial<Settings> = {}): Settings {
-  return {
-    id: overrides.id ?? "default",
-    terminalEmulator: overrides.terminalEmulator ?? null,
-    ralphSandbox: overrides.ralphSandbox ?? false,
-    ralphTimeout: overrides.ralphTimeout ?? 3600,
-    ralphMaxIterations: overrides.ralphMaxIterations ?? 10,
-    autoCreatePr: overrides.autoCreatePr ?? true,
-    epicAutoPr: overrides.epicAutoPr ?? true,
-    verificationWorkerPaused: overrides.verificationWorkerPaused ?? false,
-    prTargetBranch: overrides.prTargetBranch ?? "dev",
-    defaultProjectsDirectory: overrides.defaultProjectsDirectory ?? null,
-    defaultWorkingMethod: overrides.defaultWorkingMethod ?? "auto",
-    defaultReviewerProvider: overrides.defaultReviewerProvider ?? null,
-    defaultReviewerModel: overrides.defaultReviewerModel ?? null,
-    dockerRuntime: overrides.dockerRuntime ?? null,
-    dockerSocketPath: overrides.dockerSocketPath ?? null,
-    conversationRetentionDays: overrides.conversationRetentionDays ?? 90,
-    conversationLoggingEnabled: overrides.conversationLoggingEnabled ?? true,
-    createdAt: overrides.createdAt ?? new Date().toISOString(),
-    updatedAt: overrides.updatedAt ?? new Date().toISOString(),
   };
 }
 

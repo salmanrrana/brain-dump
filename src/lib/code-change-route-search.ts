@@ -23,15 +23,6 @@ const FILE_PARAM = "changeFile";
 const WRAP_PARAM = "diffWrap";
 const WHITESPACE_PARAM = "diffWhitespace";
 
-export const codeChangeSearchParamNames = {
-  open: OPEN_PARAM,
-  selectedTicketId: TICKET_PARAM,
-  selectedSourceId: SOURCE_PARAM,
-  selectedFilePath: FILE_PARAM,
-  wordWrap: WRAP_PARAM,
-  ignoreWhitespace: WHITESPACE_PARAM,
-} as const;
-
 function readParam(params: URLSearchParams, name: string): string | undefined {
   const value = params.get(name);
   if (!value) {

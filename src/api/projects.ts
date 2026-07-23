@@ -45,12 +45,6 @@ const VALID_WORKING_METHODS: Array<NonNullable<UpdateProjectInput["workingMethod
   "pi",
 ];
 
-// Get all projects
-export const getProjects = createServerFn({ method: "GET" }).handler(async () => {
-  const allProjects = db.select().from(projects).orderBy(projects.position, projects.name).all();
-  return allProjects;
-});
-
 // Get all projects with their epics in a single query (eliminates N+1)
 export const getProjectsWithEpics = createServerFn({ method: "GET" }).handler(async () => {
   const rows = db

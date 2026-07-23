@@ -226,10 +226,6 @@ export function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function isImageExtension(ext: string): boolean {
-  return (IMAGE_EXTENSIONS as readonly string[]).includes(ext.toLowerCase());
-}
-
 /**
  * A stored attachment filename is safe when it matches what the write-side
  * sanitizer (core/attachments.ts) would have produced. Read surfaces use this
@@ -264,15 +260,6 @@ export function createProviderRalphUploader(provider: unknown): ProviderRalphUpl
   return `${normalizeAttachmentProvider(provider)} ralph`;
 }
 
-export function isProviderRalphUploader(uploader: unknown): uploader is ProviderRalphUploader {
-  if (typeof uploader !== "string") return false;
-  const match = uploader
-    .trim()
-    .toLowerCase()
-    .match(/^([a-z0-9-]+) ralph$/);
-  return !!match && normalizeAttachmentProvider(match[1]) === match[1];
-}
-
 export function normalizeAttachmentUploader(uploader: unknown): AttachmentUploader {
   if (uploader && typeof uploader === "object") {
     const obj = uploader as Record<string, unknown>;
@@ -291,17 +278,6 @@ export function normalizeAttachmentUploader(uploader: unknown): AttachmentUpload
   if ((BASE_UPLOADERS as string[]).includes(normalized))
     return normalized as BaseAttachmentUploader;
   return "human";
-}
-
-export function isValidAttachmentUploader(uploader: unknown): uploader is AttachmentUploader {
-  if (uploader && typeof uploader === "object") {
-    const obj = uploader as Record<string, unknown>;
-    return obj.agent === "ralph" && normalizeAttachmentProvider(obj.provider) !== "unknown";
-  }
-  if (typeof uploader !== "string") return false;
-  return (
-    normalizeAttachmentUploader(uploader) !== "human" || uploader.trim().toLowerCase() === "human"
-  );
 }
 
 export function normalizeAttachments(

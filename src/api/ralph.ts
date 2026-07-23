@@ -21,11 +21,7 @@ export type {
   RalphWorkingMethod,
 } from "../lib/ralph-launch/types";
 
-export {
-  clearActiveSessionsForProject,
-  getActiveRalphSession,
-  getActiveRalphSessions,
-} from "./ralph-sessions";
+export { clearActiveSessionsForProject, getActiveRalphSessions } from "./ralph-sessions";
 // NOTE: prepareEpicLaunch is intentionally NOT re-exported here.
 // ralph.ts is imported by client hooks (src/lib/hooks/ralph.ts), and any
 // top-level re-export from ../lib/ralph-launch/* drags core/db.ts and

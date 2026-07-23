@@ -8,8 +8,6 @@ import type {
   PushBranchResult,
   ShipPrepInput,
   ShipPrepResult,
-  SyncPrVerificationChecklistInput,
-  SyncPrVerificationChecklistResult,
 } from "./ship-core";
 
 export type { ShipMutationStep, ShipPrepData } from "./ship-core";
@@ -57,21 +55,3 @@ export const pushBranchServerFn = createServerFn({ method: "POST" })
     const { pushBranch, defaultPushBranchDeps } = await getShipCore();
     return pushBranch(data, defaultPushBranchDeps);
   });
-
-export const syncPrVerificationChecklistServerFn = createServerFn({ method: "POST" })
-  .inputValidator((data: SyncPrVerificationChecklistInput) => data)
-  .handler(
-    async ({
-      data,
-    }: {
-      data: SyncPrVerificationChecklistInput;
-    }): Promise<SyncPrVerificationChecklistResult> => {
-      const { defaultPushBranchDeps } = await getShipCore();
-      const { syncPrVerificationChecklist } = await import("../../core/ship.ts");
-
-      return await syncPrVerificationChecklist(data, {
-        db: defaultPushBranchDeps.db,
-        execFileNoThrow: defaultPushBranchDeps.execFileNoThrow,
-      });
-    }
-  );

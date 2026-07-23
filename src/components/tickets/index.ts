@@ -26,7 +26,3 @@ export {
   type TicketPriority,
 } from "./ticket-form-schema";
 export { ticketFormOpts } from "./ticket-form-opts";
-
-// NOTE: Server-side validation (ticket-server-validate.ts) is NOT exported here
-// because it imports Node.js-only modules (logger). Import it directly where needed
-// on the server side: import { serverValidateTicket } from "./ticket-server-validate"

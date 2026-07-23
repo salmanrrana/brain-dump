@@ -222,18 +222,3 @@ export function showResourceHelp(resource: string): never {
 
   process.exit(0);
 }
-
-/**
- * Print "did you mean?" suggestion for an unknown action within a resource.
- */
-export function suggestAction(resource: string, unknownAction: string): string | undefined {
-  const commands = getCommandsForResource(resource);
-  const validActions = commands.map((c) => c.action);
-  // Also include aliases
-  for (const cmd of commands) {
-    if (cmd.aliases) {
-      validActions.push(...cmd.aliases);
-    }
-  }
-  return suggestClosest(unknownAction, validActions);
-}

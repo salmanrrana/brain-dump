@@ -46,7 +46,6 @@ export {
   useDeleteTicket,
   useTicketDeletePreview,
   useTicketSummaries,
-  usePaginatedTicketSummaries,
   useSearch,
   useTags,
   useTagsWithMetadata,
@@ -56,7 +55,7 @@ export {
   type TagMetadata,
 } from "./tickets";
 
-export type { TicketSummary, PaginatedTicketResult } from "../../api/tickets";
+export type { TicketSummary } from "../../api/tickets";
 
 // =============================================================================
 // PROJECT & EPIC HOOKS
@@ -102,8 +101,6 @@ export {
   useDockerStatus,
   useBuildSandboxImage,
   useDockerAvailability,
-  useAvailableDockerRuntimes,
-  useActiveDockerRuntime,
   type Settings,
   type DockerStatus,
 } from "./settings";
@@ -116,15 +113,11 @@ export {
   useLaunchRalphForEpic,
   useActiveRalphSessions,
   useClearActiveSessions,
-  useLaunchProjectInception,
-  useLaunchSpecBreakdown,
-  useRalphEvents,
   useDockerAvailable,
   useRalphContainers,
   useRalphContainerLogs,
   useContainerStats,
   type ActiveRalphSession,
-  type ParsedRalphEvent,
   type ContainerStats,
   type ContainerStatsResult,
 } from "./ralph";
@@ -133,10 +126,8 @@ export {
 // COMMENTS HOOKS
 // =============================================================================
 export {
-  useComments,
   usePaginatedComments,
   useCreateComment,
-  useDeleteComment,
   type Comment,
   type CreateCommentInput,
   type PaginatedCommentsResult,
@@ -189,7 +180,6 @@ export { useDashboardAnalytics, useDashboardTelemetryAnalytics } from "./analyti
 // =============================================================================
 export {
   useCostAnalytics,
-  useTicketCost,
   useCostModels,
   useUpdateCostModel,
   useDeleteCostModel,
@@ -198,9 +188,7 @@ export {
   useCostAttributionDiagnostics,
   useRepairTokenUsageAttribution,
   useCostExplorer,
-  useCostExplorerSummary,
   deriveCostExplorerSummary,
-  useTicketCostDetail,
 } from "./cost";
 
 // =============================================================================

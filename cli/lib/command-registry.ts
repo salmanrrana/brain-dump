@@ -1659,11 +1659,6 @@ export function getCommandsForResource(resource: string): CommandDef[] {
   return COMMAND_REGISTRY.filter((c) => c.resource === resource);
 }
 
-/** Get a specific command definition. */
-export function getCommand(resource: string, action: string): CommandDef | undefined {
-  return COMMAND_REGISTRY.find((c) => c.resource === resource && c.action === action);
-}
-
 /** Get a one-line description for a resource (from its first command's resource name). */
 export function getResourceDescription(resource: string): string {
   const descriptions: Record<string, string> = {

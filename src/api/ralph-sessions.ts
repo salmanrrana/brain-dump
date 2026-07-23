@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { db, sqlite } from "../lib/db";
 import { tickets, ralphSessions, type RalphSessionState } from "../lib/schema";
-import { eq, and, isNull, desc } from "drizzle-orm";
+import { eq, isNull, desc } from "drizzle-orm";
 import { safeJsonParse } from "../lib/utils";
 
 // ============================================================================
@@ -28,44 +28,6 @@ export interface ActiveRalphSession {
 // ============================================================================
 // SERVER FUNCTIONS
 // ============================================================================
-
-/**
- * Get active Ralph session for a ticket (if any).
- * An active session is one that has not been completed (completedAt is null).
- */
-export const getActiveRalphSession = createServerFn({ method: "GET" })
-  .inputValidator((ticketId: string) => ticketId)
-  .handler(async ({ data: ticketId }): Promise<ActiveRalphSession | null> => {
-    // Join with tickets to get projectId for the session
-    const session = db
-      .select({
-        id: ralphSessions.id,
-        ticketId: ralphSessions.ticketId,
-        projectId: tickets.projectId,
-        currentState: ralphSessions.currentState,
-        startedAt: ralphSessions.startedAt,
-        stateHistory: ralphSessions.stateHistory,
-      })
-      .from(ralphSessions)
-      .innerJoin(tickets, eq(ralphSessions.ticketId, tickets.id))
-      .where(and(eq(ralphSessions.ticketId, ticketId), isNull(ralphSessions.completedAt)))
-      .orderBy(desc(ralphSessions.startedAt))
-      .limit(1)
-      .get();
-
-    if (!session) {
-      return null;
-    }
-
-    return {
-      id: session.id,
-      ticketId: session.ticketId,
-      projectId: session.projectId,
-      currentState: session.currentState as RalphSessionState,
-      startedAt: session.startedAt,
-      stateHistory: safeJsonParse(session.stateHistory, null),
-    };
-  });
 
 /**
  * Get all active Ralph sessions (for batch fetching on kanban board).

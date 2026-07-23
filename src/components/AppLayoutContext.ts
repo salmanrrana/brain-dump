@@ -60,12 +60,6 @@ export interface AppMobileMenuState {
   closeMobileMenu: () => void;
 }
 
-export interface AppProjectsPanelState {
-  isProjectsPanelOpen: boolean;
-  openProjectsPanel: () => void;
-  closeProjectsPanel: () => void;
-}
-
 export interface AppActiveSessionsState {
   /**
    * Map of ticketId -> active Ralph session, computed once in the persistent
@@ -76,17 +70,6 @@ export interface AppActiveSessionsState {
   activeSessions: Record<string, ActiveRalphSession>;
 }
 
-type AppState = AppFiltersState &
-  AppModalActionsState &
-  AppTicketRefreshState &
-  AppRefreshState &
-  AppSearchNavigationState &
-  AppSampleDataState &
-  AppEpicDeletionState &
-  AppMobileMenuState &
-  AppProjectsPanelState &
-  AppActiveSessionsState;
-
 export const AppFiltersContext = createContext<AppFiltersState | null>(null);
 export const AppModalActionsContext = createContext<AppModalActionsState | null>(null);
 export const AppTicketRefreshContext = createContext<AppTicketRefreshState | null>(null);
@@ -95,7 +78,6 @@ export const AppSearchNavigationContext = createContext<AppSearchNavigationState
 export const AppSampleDataContext = createContext<AppSampleDataState | null>(null);
 export const AppEpicDeletionContext = createContext<AppEpicDeletionState | null>(null);
 export const AppMobileMenuContext = createContext<AppMobileMenuState | null>(null);
-export const AppProjectsPanelContext = createContext<AppProjectsPanelState | null>(null);
 export const AppActiveSessionsContext = createContext<AppActiveSessionsState | null>(null);
 
 function useRequiredContext<T>(context: T | null, hookName: string) {
@@ -141,36 +123,6 @@ export function useAppMobileMenu() {
   return useRequiredContext(useContext(AppMobileMenuContext), "useAppMobileMenu");
 }
 
-export function useAppProjectsPanel() {
-  return useRequiredContext(useContext(AppProjectsPanelContext), "useAppProjectsPanel");
-}
-
 export function useAppActiveSessions() {
   return useRequiredContext(useContext(AppActiveSessionsContext), "useAppActiveSessions");
-}
-
-/**
- * Aggregate hook returning the full app state surface.
- *
- * ⚠️ Subscribes to EVERY context — including AppRefreshContext, so a caller
- * re-renders whenever `isRefreshing` toggles. This defeats the render isolation
- * that AppTicketRefreshContext provides. Prefer the granular hooks
- * (`useAppFilters`, `useAppTicketRefresh`, `useAppRefresh`, …); in particular
- * board/list should call `useAppTicketRefresh()` directly so the refresh
- * spinner does not re-render them. Use this only where the full merged state is
- * genuinely needed.
- */
-export function useAppState() {
-  return {
-    ...useAppFilters(),
-    ...useAppModalActions(),
-    ...useAppTicketRefresh(),
-    ...useAppRefresh(),
-    ...useAppSearchNavigation(),
-    ...useAppSampleData(),
-    ...useAppEpicDeletion(),
-    ...useAppMobileMenu(),
-    ...useAppProjectsPanel(),
-    ...useAppActiveSessions(),
-  } satisfies AppState;
 }

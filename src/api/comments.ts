@@ -33,29 +33,6 @@ const VALID_TYPES: CommentType[] = [
   "change_request",
 ];
 
-// Get comments for a ticket
-export const getComments = createServerFn({ method: "GET" })
-  .inputValidator((data: string) => {
-    if (!data || typeof data !== "string") {
-      throw new Error("Ticket ID is required");
-    }
-    // Basic UUID format validation
-    if (!/^[a-zA-Z0-9-]+$/.test(data)) {
-      throw new Error("Invalid ticket ID format");
-    }
-    return data;
-  })
-  .handler(async ({ data: ticketId }): Promise<Comment[]> => {
-    const comments = db
-      .select()
-      .from(ticketComments)
-      .where(eq(ticketComments.ticketId, ticketId))
-      .orderBy(desc(ticketComments.createdAt))
-      .all();
-
-    return comments;
-  });
-
 // ─── Paginated Comments ──────────────────────────────────────────────────────
 
 export interface PaginatedCommentsInput {
@@ -172,18 +149,3 @@ export const createComment = createServerFn({ method: "POST" })
   });
 
 // Delete a comment
-export const deleteComment = createServerFn({ method: "POST" })
-  .inputValidator((data: string) => {
-    if (!data || typeof data !== "string") {
-      throw new Error("Comment ID is required");
-    }
-    // Basic UUID format validation
-    if (!/^[a-zA-Z0-9-]+$/.test(data)) {
-      throw new Error("Invalid comment ID format");
-    }
-    return data;
-  })
-  .handler(async ({ data: commentId }): Promise<{ success: boolean }> => {
-    db.delete(ticketComments).where(eq(ticketComments.id, commentId)).run();
-    return { success: true };
-  });

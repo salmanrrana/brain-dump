@@ -9,7 +9,6 @@ import { createBrowserLogger } from "../browser-logger";
 const logger = createBrowserLogger("hooks:cost");
 import {
   getCostAnalytics,
-  getTicketCost,
   getEpicCost,
   getCostModels,
   updateCostModel,
@@ -19,7 +18,6 @@ import {
   getCostAttributionDiagnostics,
   repairTokenUsageAttribution,
   getCostExplorerData,
-  getTicketCostDetail,
   type UpdateCostModelInput,
   type CostExplorerParams,
   type CostExplorerNode,
@@ -48,19 +46,6 @@ export function useEpicCost(epicId: string | undefined) {
     queryKey: queryKeys.cost.epicCost(epicId ?? ""),
     queryFn: () => getEpicCost({ data: epicId! }),
     enabled: !!epicId,
-    staleTime: 300_000,
-    gcTime: 600_000,
-  });
-}
-
-/**
- * Hook for fetching cost breakdown for a specific ticket.
- */
-export function useTicketCost(ticketId: string | undefined) {
-  return useQuery({
-    queryKey: queryKeys.cost.ticketCost(ticketId ?? ""),
-    queryFn: () => getTicketCost({ data: ticketId! }),
-    enabled: !!ticketId,
     staleTime: 300_000,
     gcTime: 600_000,
   });
@@ -318,34 +303,4 @@ export function deriveCostExplorerSummary(tree: CostExplorerNode) {
     cacheSavings: computeTotalCacheSavings(tree),
     totalSessions: tree.sessionCount,
   };
-}
-
-/**
- * Derived view of the explorer data — same cache, no extra fetch.
- * Computes summary stats from the explorer tree.
- */
-export function useCostExplorerSummary(params?: CostExplorerParams) {
-  return useQuery({
-    queryKey: queryKeys.cost.explorer(params),
-    queryFn: async () => {
-      const result = await getCostExplorerData({ data: params ?? {} });
-      return result as CostExplorerNode;
-    },
-    staleTime: 300_000,
-    gcTime: 300_000,
-    select: deriveCostExplorerSummary,
-  });
-}
-
-/**
- * Hook for fetching detailed cost breakdown for a specific ticket.
- */
-export function useTicketCostDetail(ticketId: string | undefined) {
-  return useQuery({
-    queryKey: queryKeys.cost.ticketDetail(ticketId!),
-    queryFn: () => getTicketCostDetail({ data: ticketId! }),
-    enabled: !!ticketId,
-    staleTime: 300_000,
-    gcTime: 300_000,
-  });
 }

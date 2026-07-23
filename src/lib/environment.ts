@@ -292,13 +292,6 @@ export function isCursor(): boolean {
 }
 
 /**
- * Check if currently running in Cursor Agent CLI
- */
-export function isCursorAgent(): boolean {
-  return detectEnvironment() === "cursor-agent";
-}
-
-/**
  * Check if currently running in VS Code
  */
 export function isVSCode(): boolean {

@@ -14,7 +14,6 @@ Canonical status module: `core/workflow-steps.ts`.
 
 - [x] `core/types.ts:24` - `TicketStatus` union now imports from `core/workflow-steps.ts`.
 - [x] `core/ticket.ts:154` - `VALID_STATUSES` replaced with `TICKET_STATUSES` / `isTicketStatus`.
-- [x] `mcp-server/types.ts:31` - MCP `TicketStatus` union now imports from `core/workflow-steps.ts`.
 - [x] `mcp-server/tools/ticket.ts:46` - MCP Zod status enum now uses `TICKET_STATUSES`.
 - [x] `cli/commands/ticket.ts:46` - CLI ticket status flags now use `TICKET_STATUSES`.
 - [x] `cli/commands/search.ts:15` - CLI search status flag now uses `TICKET_STATUSES`.

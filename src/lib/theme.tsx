@@ -133,11 +133,6 @@ export const LIGHT_THEMES: readonly Theme[] = [
   "oasis",
 ] as const;
 
-/** Check if a theme is a light theme */
-export function isLightTheme(theme: Theme): boolean {
-  return LIGHT_THEMES.includes(theme);
-}
-
 /**
  * Validates that a value is a valid Theme.
  * Returns the validated theme or the default if invalid.

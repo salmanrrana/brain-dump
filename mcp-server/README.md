@@ -25,7 +25,6 @@ pnpm test:watch
 - **Core**: `core/*.ts` - Business logic modules (extracted for reuse by CLI)
 - **Tools**: `tools/*.ts` - 9 action-dispatched MCP tools
 - **Library**: `lib/*.ts` - Utilities and database access
-- **Types**: `types.ts` - Shared TypeScript definitions
 
 ## Tools Overview (9 tools, 65 actions)
 
@@ -74,10 +73,9 @@ health, environment, start-conversation, log-message, end-conversation, list-con
    ```typescript
    import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
    import type Database from "better-sqlite3";
-   import type { ToolResponse } from "../types.js";
 
    export function registerMyTools(server: McpServer, db: Database.Database): void {
-     server.tool("my-tool", "Description", {}, async (): Promise<ToolResponse> => {
+     server.tool("my-tool", "Description", {}, async () => {
        // Implementation
      });
    }
@@ -122,7 +120,6 @@ All code follows strict TypeScript mode:
 - Conversation logging
 - Cross-environment compatibility
 - E2E workflows
-- TypeScript migration verification
 
 Run all tests: `pnpm test`
 Run specific test: `pnpm test path/to/file.test.ts`

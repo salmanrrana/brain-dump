@@ -234,9 +234,7 @@ export const updateTicket = createServerFn({ method: "POST" })
       // that only touches the DB would leave the loop refusing to resume.
       const prdSync = syncPrdBlockedStateForDbTicketIfPresent(sqlite, id);
       if (!prdSync.success) {
-        log.error(
-          `Failed to sync PRD blocked state after ticket ${id} update: ${prdSync.message}`
-        );
+        log.error(`Failed to sync PRD blocked state after ticket ${id} update: ${prdSync.message}`);
       }
     }
 
@@ -455,67 +453,6 @@ export const getTicketSummaries = createServerFn({ method: "GET" })
     }
 
     return query.orderBy(tickets.position).all();
-  });
-
-// ─── Paginated Ticket Summaries ──────────────────────────────────────────────
-
-export interface PaginatedTicketFilters extends TicketFilters {
-  /** Max tickets per page (default 50) */
-  limit?: number;
-  /** Offset for pagination (default 0) */
-  offset?: number;
-}
-
-export interface PaginatedTicketResult {
-  tickets: TicketSummary[];
-  /** Total matching tickets (before pagination) */
-  total: number;
-  /** Whether more pages exist */
-  hasMore: boolean;
-}
-
-const DEFAULT_TICKET_PAGE_SIZE = 50;
-
-/**
- * Paginated ticket summaries. Returns a page of lightweight ticket summaries
- * with total count and hasMore flag. Omits heavy text fields.
- */
-export const getPaginatedTicketSummaries = createServerFn({ method: "GET" })
-  .inputValidator((filters: PaginatedTicketFilters) => filters)
-  .handler(async ({ data: filters }): Promise<PaginatedTicketResult> => {
-    const { limit = DEFAULT_TICKET_PAGE_SIZE, offset = 0, ...ticketFilters } = filters;
-    const pageSize = Math.min(Math.max(1, limit), 200);
-    const safeOffset = Math.max(0, offset);
-
-    // Build WHERE conditions (including tags — single code path)
-    const conditions: SQL[] = [];
-    if (ticketFilters.projectId) conditions.push(eq(tickets.projectId, ticketFilters.projectId));
-    if (ticketFilters.epicId) conditions.push(eq(tickets.epicId, ticketFilters.epicId));
-    if (ticketFilters.status) conditions.push(eq(tickets.status, ticketFilters.status));
-    if (ticketFilters.tags && ticketFilters.tags.length > 0) {
-      conditions.push(...tagFilterConditions(ticketFilters.tags));
-    }
-
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-
-    // Total count (includes tag filters)
-    let countQuery = db.select({ count: sql<number>`COUNT(*)` }).from(tickets);
-    if (whereClause) {
-      countQuery = countQuery.where(whereClause) as typeof countQuery;
-    }
-    const total = countQuery.get()?.count ?? 0;
-
-    // Paginated data query
-    let query = db
-      .select(TICKET_SUMMARY_COLUMNS)
-      .from(tickets)
-      .leftJoin(verificationJobs, eq(verificationJobs.ticketId, tickets.id));
-    if (whereClause) {
-      query = query.where(whereClause) as typeof query;
-    }
-    const ticketRows = query.orderBy(tickets.position).limit(pageSize).offset(safeOffset).all();
-
-    return { tickets: ticketRows, total, hasMore: safeOffset + ticketRows.length < total };
   });
 
 // Delete a ticket with dry-run preview support
