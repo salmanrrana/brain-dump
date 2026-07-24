@@ -467,9 +467,12 @@ const config = defineConfig({
       },
     }),
   ],
-  // Keep the browser dep optimizer from eagerly pre-bundling native modules.
+  // Keep the browser dep optimizer from eagerly pre-bundling server-only packages.
+  // Playwright is dynamically imported by the verification runner, but Vite's client
+  // scanner still discovers the literal import and otherwise tries to bundle its
+  // Node-only browser drivers.
   optimizeDeps: {
-    exclude: ["better-sqlite3", "drizzle-orm/better-sqlite3"],
+    exclude: ["better-sqlite3", "drizzle-orm/better-sqlite3", "@playwright/test"],
   },
   // Native modules must stay external on the SSR side too.
   ssr: {
