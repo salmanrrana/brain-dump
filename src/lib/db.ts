@@ -489,11 +489,22 @@ function initTicketComments() {
         content TEXT NOT NULL,
         author TEXT NOT NULL,
         type TEXT NOT NULL DEFAULT 'comment',
+        phase TEXT,
+        actor_kind TEXT,
+        provider TEXT,
+        model_provider TEXT,
+        model_name TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
       )
     `);
     sqlite.exec(`CREATE INDEX idx_comments_ticket ON ticket_comments (ticket_id)`);
     console.log("ticket_comments table created successfully");
+  } else {
+    ensureColumnExists("ticket_comments", "phase", "TEXT");
+    ensureColumnExists("ticket_comments", "actor_kind", "TEXT");
+    ensureColumnExists("ticket_comments", "provider", "TEXT");
+    ensureColumnExists("ticket_comments", "model_provider", "TEXT");
+    ensureColumnExists("ticket_comments", "model_name", "TEXT");
   }
 }
 
@@ -971,7 +982,7 @@ function runSchemaMigrations(): void {
  * Bump this whenever a new table/column migration is added to
  * `runSchemaMigrations()` so existing DBs re-run the checks once and re-stamp.
  */
-const CURRENT_SCHEMA_VERSION = 6;
+const CURRENT_SCHEMA_VERSION = 7;
 
 // Gate the migration checks behind PRAGMA user_version (standard SQLite
 // pattern). When the DB is already at the current version we skip all ~25

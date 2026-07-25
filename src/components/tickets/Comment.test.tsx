@@ -12,6 +12,11 @@ describe("Comment", () => {
           content: "Implemented the requested flow.",
           author: "codex",
           type: "comment",
+          phase: null,
+          actorKind: null,
+          provider: null,
+          modelProvider: null,
+          modelName: null,
           createdAt: new Date().toISOString(),
         }}
       />
@@ -29,6 +34,11 @@ describe("Comment", () => {
           content: "Implemented with Pi.",
           author: "pi",
           type: "comment",
+          phase: null,
+          actorKind: null,
+          provider: null,
+          modelProvider: null,
+          modelName: null,
           createdAt: new Date().toISOString(),
         }}
       />
@@ -46,6 +56,11 @@ describe("Comment", () => {
           content: "Automated pass completed.",
           author: "ralph:codex",
           type: "progress",
+          phase: null,
+          actorKind: null,
+          provider: null,
+          modelProvider: null,
+          modelName: null,
           createdAt: new Date().toISOString(),
         }}
       />
@@ -63,6 +78,11 @@ describe("Comment", () => {
           content: "Automated Pi pass completed.",
           author: "pi ralph",
           type: "progress",
+          phase: null,
+          actorKind: null,
+          provider: null,
+          modelProvider: null,
+          modelName: null,
           createdAt: new Date().toISOString(),
         }}
       />
@@ -80,6 +100,11 @@ describe("Comment", () => {
           content: "<!-- verification-run:run-42 -->\n## Verification passed\n\nEvidence captured.",
           author: "opencode ralph",
           type: "verification_report",
+          phase: null,
+          actorKind: null,
+          provider: null,
+          modelProvider: null,
+          modelName: null,
           createdAt: new Date().toISOString(),
         }}
       />
@@ -101,6 +126,11 @@ describe("Comment", () => {
             "## Verification failed\n\n| Step | Status | Result | Evidence |\n| --- | --- | --- | --- |\n| 1 | failed | Banner missing | attachment-1, attachment-2 |",
           author: "opencode ralph",
           type: "verification_report",
+          phase: null,
+          actorKind: null,
+          provider: null,
+          modelProvider: null,
+          modelName: null,
           createdAt: new Date().toISOString(),
         }}
       />
@@ -125,6 +155,11 @@ describe("Comment", () => {
             "![local screenshot](data:image/png;base64,abc)\n![external screenshot](https://example.com/screen.png)",
           author: "opencode ralph",
           type: "verification_report",
+          phase: null,
+          actorKind: null,
+          provider: null,
+          modelProvider: null,
+          modelName: null,
           createdAt: new Date().toISOString(),
         }}
       />
@@ -138,6 +173,104 @@ describe("Comment", () => {
     expect(screen.getByText("[image blocked: external screenshot]")).toBeInTheDocument();
   });
 
+  it("shows AI phase, provider, and exact recorded model provenance", () => {
+    render(
+      <Comment
+        comment={{
+          id: "comment-ai-provenance",
+          ticketId: "ticket-1",
+          content: "Reviewed the implementation.",
+          author: "opencode",
+          type: "comment",
+          phase: "ai_review",
+          actorKind: "ai",
+          provider: "opencode",
+          modelProvider: "anthropic",
+          modelName: "claude-opus-4-6",
+          createdAt: new Date().toISOString(),
+        }}
+      />
+    );
+
+    const provenance = screen.getByLabelText("Comment provenance");
+    expect(provenance).toHaveTextContent("AI Review");
+    expect(provenance).toHaveTextContent("AI");
+    expect(provenance).toHaveTextContent("Provider: OpenCode");
+    expect(provenance).toHaveTextContent("Model: anthropic/claude-opus-4-6");
+  });
+
+  it("says when an AI comment model was not recorded", () => {
+    render(
+      <Comment
+        comment={{
+          id: "comment-ai-without-model",
+          ticketId: "ticket-1",
+          content: "Implementation completed.",
+          author: "codex",
+          type: "work_summary",
+          phase: "implementation",
+          actorKind: "ai",
+          provider: "codex",
+          modelProvider: null,
+          modelName: null,
+          createdAt: new Date().toISOString(),
+        }}
+      />
+    );
+
+    expect(screen.getByLabelText("Comment provenance")).toHaveTextContent(
+      /Implementation.*AI.*Provider: Codex.*Model not recorded/
+    );
+  });
+
+  it("shows verifier provenance without model attribution for system comments", () => {
+    render(
+      <Comment
+        comment={{
+          id: "comment-system-provenance",
+          ticketId: "ticket-1",
+          content: "Verification passed.",
+          author: "opencode ralph",
+          type: "verification_report",
+          phase: "ai_verification",
+          actorKind: "system",
+          provider: "opencode",
+          modelProvider: "anthropic",
+          modelName: "must-not-be-shown",
+          createdAt: new Date().toISOString(),
+        }}
+      />
+    );
+
+    const provenance = screen.getByLabelText("Comment provenance");
+    expect(provenance).toHaveTextContent(/AI Verification.*System.*Verifier: OpenCode/);
+    expect(provenance).not.toHaveTextContent("Model");
+    expect(provenance).not.toHaveTextContent("must-not-be-shown");
+  });
+
+  it("leaves historical comments without provenance unchanged", () => {
+    render(
+      <Comment
+        comment={{
+          id: "comment-legacy",
+          ticketId: "ticket-1",
+          content: "A historical manual note.",
+          author: "user",
+          type: "comment",
+          phase: null,
+          actorKind: null,
+          provider: null,
+          modelProvider: null,
+          modelName: null,
+          createdAt: new Date().toISOString(),
+        }}
+      />
+    );
+
+    expect(screen.getByText("A historical manual note.")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Comment provenance")).not.toBeInTheDocument();
+  });
+
   it("visually distinguishes change-request comments", () => {
     render(
       <Comment
@@ -147,6 +280,11 @@ describe("Comment", () => {
           content: "## Changes Requested\n\nButton did not save.",
           author: "brain-dump",
           type: "change_request",
+          phase: null,
+          actorKind: null,
+          provider: null,
+          modelProvider: null,
+          modelName: null,
           createdAt: new Date().toISOString(),
         }}
       />

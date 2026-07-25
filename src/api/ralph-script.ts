@@ -49,8 +49,6 @@ export const DEFAULT_RESOURCE_LIMITS: DockerResourceLimits = {
   pidsLimit: 256,
 };
 
-const RALPH_ENV_EXPORTS = `export RALPH_SESSION=1`;
-
 function escapeForBashDoubleQuote(value: string): string {
   return value
     .replace(/\\/g, "\\\\")
@@ -58,6 +56,13 @@ function escapeForBashDoubleQuote(value: string): string {
     .replace(/`/g, "\\`")
     .replace(/"/g, '\\"')
     .replace(/!/g, "\\!");
+}
+
+function buildRalphProviderEnvAssignments(aiBackend: RalphAiBackend): string {
+  const providerId = getProviderDefinitionForAiBackend(aiBackend).id;
+  return `export RALPH_SESSION=1
+export BRAIN_DUMP_PROVIDER="${escapeForBashDoubleQuote(providerId)}"
+export BRAIN_DUMP_RALPH_PROVIDER="${escapeForBashDoubleQuote(providerId)}"`;
 }
 
 function buildLaunchModelEnvExports(
@@ -402,6 +407,7 @@ fi
   const aiPreflightCheck = useSandbox
     ? ""
     : `${AI_BACKEND_CONFIGS[aiBackend].preflightCheck}${reviewerPreflightCheck}`;
+  const ralphProviderEnvAssignments = buildRalphProviderEnvAssignments(aiBackend);
   const launchModelEnvExports = buildLaunchModelEnvExports(modelSelection);
   const freshEyes = reviewer ? buildFreshEyesInfo(aiBackend, reviewer) : undefined;
   const effectivePromptProfile: RalphPromptProfile =
@@ -537,6 +543,10 @@ fi
   const reviewerModelEnvAssignments = reviewer
     ? buildLaunchModelEnvAssignments(reviewer.modelSelection)
     : "";
+  const reviewerProviderEnvAssignments = reviewer
+    ? buildRalphProviderEnvAssignments(reviewer.aiBackend)
+    : "";
+  const implementerProviderEnvAssignments = buildRalphProviderEnvAssignments(aiBackend);
   const implementerModelEnvAssignments = buildLaunchModelEnvAssignments(modelSelection);
 
   // Generate the AI invocation command based on backend choice.
@@ -622,6 +632,7 @@ RALPH_REVIEW_PROMPT_EOF
         export BRAIN_DUMP_REVIEWER_AUTHOR="${getFreshEyesReviewerAuthor(reviewer.aiBackend)}"
         export BRAIN_DUMP_REVIEWER_MODEL_PROVIDER="${reviewer.modelSelection ? escapeForBashDoubleQuote(reviewer.modelSelection.provider) : ""}"
         export BRAIN_DUMP_REVIEWER_MODEL="${reviewer.modelSelection ? escapeForBashDoubleQuote(reviewer.modelSelection.modelName) : ""}"
+        ${reviewerProviderEnvAssignments}
         ${reviewerModelEnvAssignments}
         : > "$AI_OUTPUT_FILE" 2>/dev/null || true
         set +e
@@ -634,6 +645,7 @@ ${reviewerAiInvocation}
         unset BRAIN_DUMP_REVIEWER_MODEL_PROVIDER
         unset BRAIN_DUMP_REVIEWER_MODEL
         PROMPT_FILE="$IMPLEMENTER_PROMPT_FILE"
+        ${implementerProviderEnvAssignments}
         ${implementerModelEnvAssignments}
         if [ $REVIEW_EXIT_CODE -ne 0 ]; then
           echo -e "\\033[0;31m⚠️  ${reviewerAiName} reviewer exited with code $REVIEW_EXIT_CODE\\033[0m"
@@ -766,7 +778,7 @@ PRD_STATUS_HIGH_WATER=$(node -e 'const p=require(process.argv[1]); const rank={b
 PER_ITERATION_TIMEOUT=${perIterationTimeoutValue}
 
 cd "$PROJECT_PATH"
-${RALPH_ENV_EXPORTS}
+${ralphProviderEnvAssignments}
 ${launchModelEnvExports}
 ${dockerHostSetup}${dockerImageCheck}${sshAgentSetup}${aiPreflightCheck}
 # Ensure plans directory exists

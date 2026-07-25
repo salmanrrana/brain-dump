@@ -104,6 +104,41 @@ describe("submitFinding", () => {
     expect(finding.iteration).toBe(1);
   });
 
+  it("attributes finding audit comments to the fresh-eyes reviewer model", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    submitFinding(db, {
+      ticketId: "ticket-1",
+      agent: "code-reviewer",
+      severity: "major",
+      category: "type-safety",
+      description: "Missing null check",
+      commentIdentity: {
+        env: {
+          BRAIN_DUMP_LAUNCH_MODEL_PROVIDER: "openai",
+          BRAIN_DUMP_LAUNCH_MODEL: "gpt-5.6",
+          BRAIN_DUMP_REVIEWER_AUTHOR: "claude",
+          BRAIN_DUMP_REVIEWER_MODEL_PROVIDER: "anthropic",
+          BRAIN_DUMP_REVIEWER_MODEL: "claude-opus-4-6",
+        },
+      },
+    });
+
+    const comment = db
+      .prepare(
+        "SELECT phase, actor_kind, provider, model_provider, model_name FROM ticket_comments WHERE ticket_id = ?"
+      )
+      .get("ticket-1");
+    expect(comment).toEqual({
+      phase: "ai_review",
+      actor_kind: "ai",
+      provider: "claude-code",
+      model_provider: "anthropic",
+      model_name: "claude-opus-4-6",
+    });
+  });
+
   it("includes optional filePath, lineNumber, suggestedFix when provided", () => {
     seedProject();
     seedAiReviewTicket();
@@ -312,6 +347,59 @@ describe("markFixed", () => {
       .prepare("SELECT findings_fixed FROM ticket_workflow_state WHERE ticket_id = ?")
       .get("ticket-1") as { findings_fixed: number };
 
+    expect(state.findings_fixed).toBe(0);
+  });
+
+  it("does not double-count an already fixed finding", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    const finding = submitFinding(db, {
+      ticketId: "ticket-1",
+      agent: "code-reviewer",
+      severity: "major",
+      category: "correctness",
+      description: "Issue 1",
+    });
+
+    markFixed(db, finding.id, "fixed");
+    markFixed(db, finding.id, "fixed");
+
+    const state = db
+      .prepare("SELECT findings_fixed FROM ticket_workflow_state WHERE ticket_id = ?")
+      .get("ticket-1") as { findings_fixed: number };
+    expect(state.findings_fixed).toBe(1);
+  });
+
+  it("rolls back the resolution when its audit comment cannot be written", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    const finding = submitFinding(db, {
+      ticketId: "ticket-1",
+      agent: "code-reviewer",
+      severity: "major",
+      category: "correctness",
+      description: "Issue 1",
+    });
+    db.exec(`
+      CREATE TRIGGER reject_finding_resolution_comment
+      BEFORE INSERT ON ticket_comments
+      WHEN NEW.content LIKE '%Finding marked as fixed%'
+      BEGIN
+        SELECT RAISE(ABORT, 'simulated comment write failure');
+      END;
+    `);
+
+    expect(() => markFixed(db, finding.id, "fixed")).toThrow("simulated comment write failure");
+
+    const persistedFinding = db
+      .prepare("SELECT status, fixed_at FROM review_findings WHERE id = ?")
+      .get(finding.id);
+    const state = db
+      .prepare("SELECT findings_fixed FROM ticket_workflow_state WHERE ticket_id = ?")
+      .get("ticket-1") as { findings_fixed: number };
+    expect(persistedFinding).toEqual({ status: "open", fixed_at: null });
     expect(state.findings_fixed).toBe(0);
   });
 

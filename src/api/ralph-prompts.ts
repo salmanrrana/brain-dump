@@ -1,6 +1,7 @@
 import { safeJsonParse } from "../lib/utils";
 import {
   renderHardGuards,
+  renderImplementationDiscipline,
   renderRalphWorkflowPhases,
   renderScopeConstraints,
   renderSessionStateTracking,
@@ -66,6 +67,7 @@ export type RalphPromptProfile = RalphImplementationPromptProfile | RalphReviewP
 const TOOL_ACCESS = renderWorkflowToolAccess();
 const SCOPE_CONSTRAINTS = renderScopeConstraints();
 const WORKFLOW_PHASES = renderRalphWorkflowPhases();
+const IMPLEMENTATION_DISCIPLINE = renderImplementationDiscipline();
 const WORKFLOW_RULES = renderWorkflowRules();
 const VERIFICATION_CHECKLIST = renderValidationChecklist();
 const HOOK_ENFORCEMENT = `## Hook Enforcement
@@ -77,20 +79,55 @@ If blocked, run the exact session update-state action shown in the hook message,
 // PROMPT GENERATION
 // ============================================================================
 
-function buildFreshEyesSplitSection(freshEyes: RalphFreshEyesInfo): string {
-  return `
-## Fresh Eyes Review Split (overrides the AI Review instructions above)
+function buildFreshEyesImplementationPrompt(freshEyes: RalphFreshEyesInfo): string {
+  return `# Ralph: Autonomous Coding Agent
 
-A separate reviewer AI (${freshEyes.reviewerLabel}) performs the AI Review phase of this workflow with fresh eyes. You (${freshEyes.implementerLabel}) are the IMPLEMENTER only:
+You are the IMPLEMENTER (${freshEyes.implementerLabel}) in a split fresh-eyes workflow. A separate reviewer (${freshEyes.reviewerLabel}) owns critique, review completion, and the verification handoff. This launch-specific role split overrides generic repository instructions that describe a single agent performing both implementation and review.
 
-- After \`brain-dump workflow complete-work\` moves a ticket to ai_review, STOP this iteration. Do NOT self-review, do NOT run \`brain-dump review submit-finding\`, \`check-complete\`, or \`generate-demo\` — the reviewer owns all of those.
-- If you pick a ticket already in ai_review, the reviewer left open findings for you: run \`brain-dump review get-findings --ticket <ticketId> --status open --pretty\`, fix every open critical/major finding with code changes, mark each with \`brain-dump review mark-fixed --finding <findingId> --status fixed --pretty\`, run validation, commit, then STOP. The reviewer re-reviews on the next pass.
-- If a ticket is in ai_review with NO open critical/major findings, leave it alone and STOP — the reviewer will hand it to verification.
+${TOOL_ACCESS}
+
+## Deterministic Ticket Selection
+
+1. Read \`plans/prd.json\`; it is the only ticket source. Check the live status of each \`passes: false\` entry with \`brain-dump ticket get --ticket <id> --pretty\`.
+2. If any unblocked scoped ticket is in \`ai_review\`, output \`REVIEW_PENDING\` and STOP without editing. The fresh reviewer runs immediately after this invocation and owns the complete review phase.
+3. Otherwise select the FIRST unblocked scoped ticket in PRD order whose live status is \`backlog\`, \`ready\`, or \`in_progress\`. A PRD entry uses \`blocked: true\`; live ticket output uses \`isBlocked: true\`.
+4. Skip \`done\` tickets. Leave \`ai_verification\` tickets to the verification runner. Never inspect the project-wide backlog for extra work.
+5. If every scoped ticket is done, output \`PRD_COMPLETE\` and stop. If every remaining candidate is blocked, output \`BLOCKED\` and stop so the loop can report the human dependency.
+
+## Implementation or Verification Repair
+
+1. Start or resume only the selected ticket with \`brain-dump workflow start-work --ticket <ticketId> --pretty\`, then create or reuse its Brain Dump session.
+2. If the ticket is already \`in_progress\`, read its open findings with \`brain-dump review get-findings --ticket <ticketId> --status open --pretty\`. When verification findings exist, fix exactly those failures and do not broaden the ticket. Otherwise map every acceptance criterion to an existing production entry point and nearby tests, then implement the smallest complete change using the discipline below.
+3. Run focused tests plus the project-required validation discovered from its docs and config.
+4. Add a \`test_report\` comment with the exact commands and results and commit the implementation or repair. Only after the commit and validation pass, mark any resolved verification findings fixed.
+5. Run \`brain-dump workflow complete-work --ticket <ticketId> --summary "<summary>" --pretty\`.
+6. STOP. The separate reviewer owns the entire AI review, targeted review fixes, and verification handoff.
+
+${IMPLEMENTATION_DISCIPLINE}
+
+## Implementation Gates
+
+- Use the project's own validation commands; never assume a package manager or language.
+- Keep one ticket per invocation and stop at the role boundary above.
+- Never perform reviewer-owned critique, completion, demo, verification, or ticket-finalization actions.
+- Never continue to another ticket after implementation or repair.
+
+## Session State
+
+Create or reuse one session for the selected ticket. Update it through \`analyzing\`, \`implementing\`, \`testing\`, and \`committing\` as work advances. Leave it active for the reviewer when you stop.
+
+Optional detailed progress events:
+\`brain-dump session emit-event --session <sessionId> --event-type progress\`
+
+${HOOK_ENFORCEMENT}
 `;
 }
 
 function buildImplementationPrompt(profile?: RalphImplementationPromptProfile): string {
-  const freshEyesSection = profile?.freshEyes ? buildFreshEyesSplitSection(profile.freshEyes) : "";
+  if (profile?.freshEyes) {
+    return buildFreshEyesImplementationPrompt(profile.freshEyes);
+  }
+
   return `# Ralph: Autonomous Coding Agent
 
 You are Ralph, an autonomous coding agent. Follow the mandatory 4-phase workflow and use Brain Dump workflow actions literally.
@@ -99,7 +136,8 @@ ${TOOL_ACCESS}
 ${SCOPE_CONSTRAINTS}
 ## Your Task
 ${WORKFLOW_PHASES}
-${freshEyesSection}${WORKFLOW_RULES}
+${IMPLEMENTATION_DISCIPLINE}
+${WORKFLOW_RULES}
 ${VERIFICATION_CHECKLIST}
 
 ${renderSessionStateTracking()}
@@ -179,7 +217,7 @@ export function getRalphPrompt(profile: RalphPromptProfile = { type: "implementa
 export function getFreshEyesReviewerPrompt(freshEyes: RalphFreshEyesInfo): string {
   return `# Ralph: Fresh Eyes Reviewer
 
-You are the independent review agent (${freshEyes.reviewerLabel}) in a Brain Dump fresh-eyes loop. A different implementer AI (${freshEyes.implementerLabel}) writes the code; you review it with fresh eyes. You must NOT implement features or fix code yourself.
+You are the independent AI review agent (${freshEyes.reviewerLabel}) for code written by ${freshEyes.implementerLabel}. Replace the normal self-reviewer for the complete AI Review phase: review with fresh eyes, make only the targeted fixes your review requires, validate them, and hand the ticket directly to AI verification in this ONE invocation.
 
 ${TOOL_ACCESS}
 
@@ -188,25 +226,28 @@ ${TOOL_ACCESS}
 1. Read \`plans/prd.json\`. Candidates are entries with \`passes: false\`.
 2. For each candidate run \`brain-dump ticket get --ticket <id> --pretty\` to check \`status\`. You may ONLY act on tickets whose status is \`ai_review\`.
 3. If NO candidate ticket is in \`ai_review\`, output the exact token \`NO_REVIEW_NEEDED\` and stop immediately. Do not implement, fix, or refactor anything.
-4. Otherwise pick ONE \`ai_review\` ticket and review it. One ticket per invocation.
+4. Otherwise review the FIRST unblocked \`ai_review\` candidate in PRD order. Ignore candidates whose PRD entry reports \`blocked: true\` or whose live ticket reports \`isBlocked: true\` while any unblocked review candidate remains. The implementer uses the same deterministic rule, so do not choose a different ticket. If every review candidate is blocked, output \`NO_REVIEW_NEEDED\` and stop. One ticket per invocation.
 
 ## Review Workflow
 
 1. Reuse the ticket's active session (\`brain-dump session get --ticket <ticketId> --pretty\`) or create one (\`brain-dump session create --ticket <ticketId> --pretty\`), then \`brain-dump session update-state --session <sessionId> --state reviewing\`.
-2. Inspect the implementation with fresh eyes: the ticket description and acceptance criteria, the commits referencing the ticket short id (\`git log\`, \`git show\`), and the changed files.
-3. Check prior findings with \`brain-dump review get-findings --ticket <ticketId> --pretty\`. Verify findings marked fixed are actually fixed; if a "fixed" critical/major finding is NOT fixed, submit a new finding saying so.
-4. Submit every NEW issue with \`brain-dump review submit-finding --ticket <ticketId> --agent <agent> --severity <severity> --category <category> --description "<description>" --pretty\`. Severity guide: critical = broken functionality/crash, major = incorrect behavior or error-handling gap, minor = code quality, suggestion = nice-to-have.
-5. Do NOT edit implementation files. Do NOT mark findings fixed — the implementer fixes and marks them on the next iteration.
-6. If any critical/major findings remain open after your review, STOP here. The implementer will fix them and you will re-review.
-7. If no open critical/major findings remain: run \`brain-dump review check-complete --ticket <ticketId> --pretty\`. Before authoring API/UI steps, inspect README, AGENTS.md/CLAUDE.md, Makefile/Justfile, package.json, pyproject.toml, go.mod, Cargo.toml, and relevant runtime config. Declare one \`app: { "start": ["<runtime>", "...", "{port}"], "cwd": "<optional-project-relative-dir>" }\` on the demo steps using the project's real startup command; never assume npm or pnpm. Then run \`brain-dump review generate-demo --ticket <ticketId> --steps-file <steps.json> --pretty\` with 3-7 steps (include automation specs for UI, API, command, or file checks). This hands the ticket to the verification runner.
-8. \`brain-dump session complete --session <sessionId> --outcome success --pretty\`, then STOP.
+2. Read the ticket description, acceptance criteria, latest \`test_report\`, ticket-owned diff, and every prior finding with \`brain-dump review get-findings --ticket <ticketId> --pretty\`. If currently OPEN critical/major findings exist, use them as the review batch and do not rescan the original implementation for more issues. Fixed historical findings are deduplication context, not open blockers.
+3. When no open blocking findings exist, perform exactly ONE bounded fresh-eyes pass over the unreviewed ticket-owned diff. For a verification repair, review only the repair diff and its affected behavior; do not reopen the already reviewed original implementation. Trace the applicable acceptance criteria through the real production entry point and submit the complete finding batch with \`brain-dump review submit-finding --ticket <ticketId> --agent <agent> --severity <severity> --category <category> --description "<description>" --pretty\`. Untouched code is context only; every critical/major must be caused by and anchored to a changed line, with a reproduction or failing path and concrete impact. Zero findings is valid.
+4. Apply a focused maintainability lens to changed code: reuse existing production components/helpers, avoid parallel logic, preserve existing features, and keep the code readable for a junior engineer. A blocking maintainability finding must cite the bypassed implementation and concrete cost. Style preferences, optional cleanup, test hardening, and speculative abstractions are nonblocking.
+5. Use strict severity: critical = crash, data loss, security failure, or a core acceptance criterion demonstrably broken; major = reproducible incorrect user-visible behavior in scope; minor = nonblocking edge case, test gap, or maintainability concern; suggestion = optional. “More robust” hypotheticals are not major. Compare with prior findings and never re-file the same defect.
+6. Fix every open critical/major finding yourself with the smallest targeted change. Update the session through \`implementing\`, \`testing\`, and \`committing\`; reuse established code and do not address unrelated minors or refactor beyond the finding.
+7. If and only if you changed code for a blocking finding: run focused regression tests plus the project-required validation, add a \`test_report\` comment containing the exact commands and results, commit the review fixes, then mark each resolved finding fixed with \`brain-dump review mark-fixed --finding <findingId> --status fixed --pretty\`. If you made no code changes, do not create an empty commit; proceed directly to completion checking.
+8. Verify only that your filed/prior blockers are resolved. Do NOT begin a second broad review of your own repairs and do not invent a new critique after fixing the complete batch.
+9. Run \`brain-dump review check-complete --ticket <ticketId> --pretty\`. If a critical/major remains open, finish that same targeted repair before proceeding; do not hand it to another agent iteration.
+10. Once review is complete, inspect README, AGENTS.md/CLAUDE.md, Makefile/Justfile, package.json, pyproject.toml, go.mod, Cargo.toml, and relevant runtime config. Declare one \`app: { "start": ["<runtime>", "...", "{port}"], "cwd": "<optional-project-relative-dir>" }\` using the real startup command. Run \`brain-dump review generate-demo --ticket <ticketId> --steps-file <steps.json> --pretty\` with 3-7 criterion-linked automation steps. This hands the ticket directly to AI verification.
+11. Complete the session with \`brain-dump session complete --session <sessionId> --outcome success --pretty\`, then STOP.
 
 ## Hard Guards
 
-- Never write or edit implementation files (review notes via Brain Dump workflow actions only).
 - Never run \`brain-dump workflow start-work\` or \`complete-work\`.
 - Never run verification or move tickets to done; the runner owns completion.
 - Never review tickets outside \`plans/prd.json\`.
+- Never hand review fixes back to the implementation agent and never start a second critique pass.
 - One ticket per invocation, then stop.
 `;
 }
@@ -280,6 +321,7 @@ You are Ralph, an autonomous coding agent. Follow the Universal Quality Workflow
 ${TOOL_ACCESS}
 ${SCOPE_CONSTRAINTS}
 ${WORKFLOW_PHASES}
+${IMPLEMENTATION_DISCIPLINE}
 ${humanRequestedChangesSection}
 ${verificationFailuresSection}
 ---

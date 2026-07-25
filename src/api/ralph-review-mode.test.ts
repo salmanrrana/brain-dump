@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { EnhancedPRDDocument } from "../lib/prd-extraction";
-import { generateEnhancedPRD, generateVSCodeContext, getRalphPrompt } from "./ralph-prompts";
+import {
+  generateEnhancedPRD,
+  generateVSCodeContext,
+  getFreshEyesReviewerPrompt,
+  getRalphPrompt,
+} from "./ralph-prompts";
 import { prepareEpicLaunch } from "../lib/ralph-launch/launch-epic";
 
 type LaunchTicket = Parameters<typeof prepareEpicLaunch>[0][number];
@@ -208,6 +213,62 @@ describe("review-mode prompt builders", () => {
     expect(prompt).not.toMatch(/pnpm type-check.*pnpm lint.*pnpm test/);
   });
 
+  it("keeps the fresh-eyes implementer focused on implementation and verification repairs", () => {
+    const prompt = getRalphPrompt({
+      type: "implementation",
+      freshEyes: { implementerLabel: "Claude", reviewerLabel: "Codex" },
+    });
+
+    expect(prompt).toContain("## Implementation Discipline");
+    expect(prompt).toContain(
+      "map each acceptance criterion to the existing production entry point"
+    );
+    expect(prompt).toContain("New shared logic must be wired through the real production caller");
+    expect(prompt).toContain("output `REVIEW_PENDING` and STOP without editing");
+    expect(prompt).toContain("When verification findings exist, fix exactly those failures");
+    expect(prompt).toContain("Only after the commit and validation pass");
+    expect(prompt).toContain("mark any resolved verification findings fixed");
+    expect(prompt).toContain("PRD entry uses `blocked: true`");
+    expect(prompt).toContain("live ticket output uses `isBlocked: true`");
+    expect(prompt).toContain("FIRST unblocked scoped ticket");
+    expect(prompt).not.toContain("brain-dump review submit-finding");
+    expect(prompt).not.toContain("brain-dump review check-complete");
+    expect(prompt).not.toContain("brain-dump review generate-demo");
+    expect(prompt).not.toContain("Work Mode B");
+    expect(prompt).not.toContain("mandatory 4-phase workflow");
+  });
+
+  it("makes the fresh reviewer own one complete review, repair, and handoff", () => {
+    const prompt = getFreshEyesReviewerPrompt({
+      implementerLabel: "Claude",
+      reviewerLabel: "Codex",
+    });
+
+    expect(prompt).toContain("# Ralph: Fresh Eyes Reviewer");
+    expect(prompt).toContain("review the FIRST unblocked `ai_review` candidate in PRD order");
+    expect(prompt).toContain("PRD entry reports `blocked: true`");
+    expect(prompt).toContain("live ticket reports `isBlocked: true`");
+    expect(prompt).toContain("perform exactly ONE bounded fresh-eyes pass");
+    expect(prompt).toContain("currently OPEN critical/major findings");
+    expect(prompt).toContain("Fixed historical findings are deduplication context");
+    expect(prompt).toContain("review only the repair diff");
+    expect(prompt).toContain("submit the complete finding batch with");
+    expect(prompt).toContain("Fix every open critical/major finding yourself");
+    expect(prompt).toContain("`implementing`, `testing`, and `committing`");
+    expect(prompt).toContain("If and only if you changed code for a blocking finding");
+    expect(prompt).toContain(
+      "add a `test_report` comment containing the exact commands and results"
+    );
+    expect(prompt).toContain("do not create an empty commit");
+    expect(prompt).toContain("commit the review fixes, then mark each resolved finding fixed");
+    expect(prompt).toContain("Do NOT begin a second broad review");
+    expect(prompt).toContain("finish that same targeted repair before proceeding");
+    expect(prompt).toContain("generate-demo");
+    expect(prompt).not.toContain("allows at most 3 blocking review waves");
+    expect(prompt).not.toContain("The implementer owns repairs");
+    expect(prompt).not.toContain("Never write or edit implementation files");
+  });
+
   it("tells implementation Ralph to resume scoped tickets already in AI review", () => {
     const prompt = getRalphPrompt();
 
@@ -299,6 +360,17 @@ describe("review-mode prompt builders", () => {
     expect(context.indexOf("## Human Requested Changes - Fix This First")).toBeLessThan(
       context.indexOf("## Current Tickets")
     );
+  });
+
+  it("includes reuse and production-path discipline in implementation contexts", () => {
+    const context = generateVSCodeContext(createReviewPrd());
+
+    expect(context).toContain("## Implementation Discipline");
+    expect(context).toContain(
+      "map each acceptance criterion to the existing production entry point"
+    );
+    expect(context).toContain("New shared logic must be wired through the real production caller");
+    expect(context).toContain("Prefer explicit code a junior engineer can trace");
   });
 
   it("keeps review-only workflow gates in the focused review context", () => {

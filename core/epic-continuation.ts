@@ -122,6 +122,9 @@ function quarantineInvalidProfiles(db: DbHandle, now: string): void {
           content: reason,
           author: "brain-dump",
           type: "progress",
+          phase: "system_workflow",
+          actorKind: "system",
+          provider: "brain-dump",
         });
       })();
     }
@@ -364,6 +367,9 @@ export async function runNextEpicContinuation(
           content: `${reason}\n\nThe ticket remains in implementation so it can be resumed after the launch problem is repaired.`,
           author: "brain-dump",
           type: "progress",
+          phase: "system_workflow",
+          actorKind: "system",
+          provider: "brain-dump",
         });
       })();
     }

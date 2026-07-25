@@ -11,6 +11,7 @@ import {
   InvalidActionError,
   ValidationError,
   listCostModels,
+  resolveCommentAuthor,
 } from "../../core/index.ts";
 import { resolveReviewerSelection } from "../../core/providers.ts";
 import * as schema from "../../src/lib/schema.ts";
@@ -110,7 +111,14 @@ export async function handle(action: string, args: string[]): Promise<void> {
       case "complete-work": {
         const ticketId = requireFlag(flags, "ticket");
         const summary = optionalFlag(flags, "summary");
-        const result = completeWork(sqlite, ticketId, git, summary);
+        const author = resolveCommentAuthor(
+          process.env.BRAIN_DUMP_PROVIDER ?? "",
+          process.env.RALPH_SESSION === "1"
+        );
+        const result = completeWork(sqlite, ticketId, git, summary, {
+          author,
+          env: process.env,
+        });
         outputResult(result, pretty);
         break;
       }

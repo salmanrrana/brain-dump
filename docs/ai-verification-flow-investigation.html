@@ -1,0 +1,1007 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Brain Dump AI Verification Flow Investigation</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0e1117;
+        --panel: #151a23;
+        --panel-2: #1b2230;
+        --text: #e8edf7;
+        --muted: #a7b1c2;
+        --dim: #768195;
+        --line: #2d3748;
+        --good: #3ddc97;
+        --warn: #ffbf47;
+        --bad: #ff6b6b;
+        --info: #6bb8ff;
+        --violet: #b891ff;
+        --orange: #ff9f64;
+        --shadow: 0 18px 50px rgb(0 0 0 / 0.28);
+        --radius: 8px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        background:
+          linear-gradient(180deg, rgb(255 255 255 / 0.025), transparent 360px),
+          var(--bg);
+        color: var(--text);
+        font: 15px/1.55 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      main {
+        width: min(1180px, calc(100vw - 32px));
+        margin: 0 auto;
+        padding: 32px 0 64px;
+      }
+
+      header {
+        display: grid;
+        gap: 18px;
+        padding: 28px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: linear-gradient(135deg, #151a23, #10141c);
+        box-shadow: var(--shadow);
+      }
+
+      h1,
+      h2,
+      h3 {
+        margin: 0;
+        line-height: 1.15;
+      }
+
+      h1 {
+        max-width: 900px;
+        font-size: clamp(32px, 5vw, 54px);
+        letter-spacing: 0;
+      }
+
+      h2 {
+        margin-top: 46px;
+        font-size: 26px;
+      }
+
+      h3 {
+        margin-top: 24px;
+        font-size: 18px;
+      }
+
+      p {
+        margin: 10px 0 0;
+        color: var(--muted);
+      }
+
+      a {
+        color: var(--info);
+      }
+
+      code,
+      .mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      }
+
+      code {
+        padding: 0.12em 0.35em;
+        border: 1px solid rgb(255 255 255 / 0.08);
+        border-radius: 4px;
+        background: rgb(255 255 255 / 0.05);
+        color: #f4f7ff;
+      }
+
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 28px;
+        padding: 5px 9px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgb(255 255 255 / 0.04);
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .grid {
+        display: grid;
+        gap: 14px;
+      }
+
+      .grid.cols-2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .grid.cols-3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .card {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--panel);
+        padding: 18px;
+      }
+
+      .card.strong {
+        background: linear-gradient(180deg, var(--panel-2), var(--panel));
+      }
+
+      .metric {
+        display: grid;
+        gap: 8px;
+      }
+
+      .metric .num {
+        font-size: 32px;
+        font-weight: 760;
+        letter-spacing: 0;
+      }
+
+      .metric .label {
+        color: var(--dim);
+        font-size: 13px;
+        text-transform: uppercase;
+      }
+
+      .status-bar {
+        display: grid;
+        grid-template-columns: 5fr 1fr 1fr 1fr;
+        overflow: hidden;
+        height: 26px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: #0b0e14;
+      }
+
+      .status-bar span {
+        display: grid;
+        place-items: center;
+        min-width: 0;
+        font-size: 12px;
+        font-weight: 700;
+        color: #081014;
+      }
+
+      .done {
+        background: var(--good);
+      }
+
+      .review {
+        background: var(--orange);
+      }
+
+      .progress {
+        background: var(--warn);
+      }
+
+      .ready {
+        background: var(--info);
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        min-height: 24px;
+        padding: 3px 8px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .badge.good {
+        background: rgb(61 220 151 / 0.12);
+        color: var(--good);
+        border: 1px solid rgb(61 220 151 / 0.32);
+      }
+
+      .badge.warn {
+        background: rgb(255 191 71 / 0.12);
+        color: var(--warn);
+        border: 1px solid rgb(255 191 71 / 0.32);
+      }
+
+      .badge.bad {
+        background: rgb(255 107 107 / 0.12);
+        color: var(--bad);
+        border: 1px solid rgb(255 107 107 / 0.32);
+      }
+
+      .badge.info {
+        background: rgb(107 184 255 / 0.12);
+        color: var(--info);
+        border: 1px solid rgb(107 184 255 / 0.32);
+      }
+
+      .flow {
+        display: grid;
+        gap: 12px;
+      }
+
+      .flow-row {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 10px;
+        align-items: stretch;
+      }
+
+      .node {
+        position: relative;
+        min-height: 88px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--panel);
+        padding: 14px;
+      }
+
+      .node strong {
+        display: block;
+        margin-bottom: 7px;
+      }
+
+      .node small {
+        color: var(--dim);
+      }
+
+      .node.runner {
+        border-color: rgb(184 145 255 / 0.55);
+        box-shadow: inset 0 0 0 1px rgb(184 145 255 / 0.15);
+      }
+
+      .arrow {
+        display: flex;
+        justify-content: space-around;
+        color: var(--dim);
+        font-size: 13px;
+      }
+
+      .swimlanes {
+        display: grid;
+        gap: 10px;
+      }
+
+      .lane {
+        display: grid;
+        grid-template-columns: 170px 1fr;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        overflow: hidden;
+        background: var(--panel);
+      }
+
+      .lane-title {
+        padding: 12px;
+        background: #10151f;
+        color: var(--muted);
+        font-weight: 700;
+      }
+
+      .lane-steps {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 12px;
+      }
+
+      .step {
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: rgb(255 255 255 / 0.035);
+        padding: 8px 10px;
+        color: var(--muted);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--panel);
+      }
+
+      th,
+      td {
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--line);
+        vertical-align: top;
+        text-align: left;
+      }
+
+      th {
+        background: #10151f;
+        color: var(--muted);
+        font-size: 12px;
+        text-transform: uppercase;
+      }
+
+      tr:last-child td {
+        border-bottom: 0;
+      }
+
+      .timeline {
+        position: relative;
+        display: grid;
+        gap: 12px;
+        padding-left: 20px;
+      }
+
+      .timeline::before {
+        content: "";
+        position: absolute;
+        left: 6px;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: var(--line);
+      }
+
+      .event {
+        position: relative;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--panel);
+        padding: 14px;
+      }
+
+      .event::before {
+        content: "";
+        position: absolute;
+        left: -20px;
+        top: 18px;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: var(--info);
+        box-shadow: 0 0 0 4px var(--bg);
+      }
+
+      .event.bad::before {
+        background: var(--bad);
+      }
+
+      .event.warn::before {
+        background: var(--warn);
+      }
+
+      .callout {
+        border-left: 4px solid var(--info);
+        border-radius: var(--radius);
+        background: rgb(107 184 255 / 0.08);
+        padding: 14px 16px;
+      }
+
+      .callout.bad {
+        border-left-color: var(--bad);
+        background: rgb(255 107 107 / 0.08);
+      }
+
+      .callout.warn {
+        border-left-color: var(--warn);
+        background: rgb(255 191 71 / 0.08);
+      }
+
+      .risk-list {
+        display: grid;
+        gap: 12px;
+        counter-reset: risks;
+      }
+
+      .risk {
+        counter-increment: risks;
+        display: grid;
+        grid-template-columns: 44px 1fr;
+        gap: 12px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--panel);
+        padding: 16px;
+      }
+
+      .risk::before {
+        content: counter(risks);
+        display: grid;
+        place-items: center;
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        background: #10151f;
+        color: var(--text);
+        font-weight: 800;
+      }
+
+      .source-list {
+        columns: 2;
+        column-gap: 24px;
+      }
+
+      .source-list li {
+        break-inside: avoid;
+        margin-bottom: 8px;
+        color: var(--muted);
+      }
+
+      .small {
+        color: var(--dim);
+        font-size: 13px;
+      }
+
+      .print-note {
+        margin-top: 40px;
+        color: var(--dim);
+      }
+
+      @media (max-width: 900px) {
+        .grid.cols-2,
+        .grid.cols-3,
+        .flow-row {
+          grid-template-columns: 1fr;
+        }
+
+        .lane {
+          grid-template-columns: 1fr;
+        }
+
+        .source-list {
+          columns: 1;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div class="meta">
+          <span class="pill mono">Snapshot: 2026-07-19 12:31:38 CDT</span>
+          <span class="pill mono">Epic: 0aaf3207-a8bc-4c06-ad04-0338ad94082c</span>
+          <span class="pill">Project: fready</span>
+        </div>
+        <h1>AI Verification Flow Investigation</h1>
+        <p>
+          This report explains how the current Brain Dump workflow moves work from implementation
+          to AI review, hands it to the AI verification runner, records evidence, and resumes an
+          autonomous epic after failures. It also documents what is actually happening in the
+          fready Personal Edition epic and where the new flow is fragile.
+        </p>
+      </header>
+
+      <h2>Executive Summary</h2>
+      <div class="grid cols-3">
+        <section class="card strong metric">
+          <span class="label">Current fready epic status</span>
+          <span class="num">5 / 8 done</span>
+          <p>Remaining: ticket 6 in implementation, ticket 7 in AI review, ticket 8 ready.</p>
+        </section>
+        <section class="card strong metric">
+          <span class="label">Verification queue</span>
+          <span class="num">0 runnable</span>
+          <p>The queue is not currently backed up. Ticket 6 already settled as uncertified.</p>
+        </section>
+        <section class="card strong metric">
+          <span class="label">Epic continuation</span>
+          <span class="num">1 stale lease</span>
+          <p>A running continuation job points at ticket 3, which is already done.</p>
+        </section>
+      </div>
+
+      <div class="callout bad" style="margin-top: 16px">
+        <strong>Main diagnosis:</strong>
+        the AI verification runner itself is mostly doing what the new design says it should do,
+        but the orchestration around it has weak failure recovery. In this epic, ticket 6 did not
+        fail its product checks. Every executed step passed. It was marked
+        <code>uncertified</code> because the demo used <code>coverageRationale</code> for criteria
+        the runner could not prove. The lifecycle correctly returned the ticket to
+        <code>in_progress</code>, but a stale 24-hour epic continuation lease can prevent the
+        owning epic launch from resuming that failed ticket promptly.
+      </div>
+
+      <h2>Current Epic Snapshot</h2>
+      <p>
+        Source: live Brain Dump SQLite database at
+        <code>/home/xtra/.local/share/brain-dump/brain-dump.db</code>.
+      </p>
+      <div class="card" style="margin-top: 14px">
+        <div class="status-bar" aria-label="Epic status distribution">
+          <span class="done">done: 5</span>
+          <span class="progress">in progress: 1</span>
+          <span class="review">AI review: 1</span>
+          <span class="ready">ready: 1</span>
+        </div>
+      </div>
+      <table style="margin-top: 14px">
+        <thead>
+          <tr>
+            <th>Ticket</th>
+            <th>Status</th>
+            <th>What it means right now</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="mono">1. a29c3d9b<br />2. 6785e8b5<br />3. 083706cd<br />4. 953b7341<br />5. a5454e14</td>
+            <td><span class="badge good">done</span></td>
+            <td>Runner-certified and complete. Their verification jobs are all <code>succeeded</code>.</td>
+          </tr>
+          <tr>
+            <td class="mono">6. 9e13f53e</td>
+            <td><span class="badge warn">in_progress</span></td>
+            <td>
+              Returned from AI verification because the demo was non-certifiable. It has an open
+              major verification finding telling the agent to regenerate a fully executable demo.
+            </td>
+          </tr>
+          <tr>
+            <td class="mono">7. b4417a1f</td>
+            <td><span class="badge info">ai_review</span></td>
+            <td>
+              Fresh-eyes review is still active. As of the snapshot it had 31 findings total,
+              including 2 open major findings and 4 open minor findings.
+            </td>
+          </tr>
+          <tr>
+            <td class="mono">8. c7ed1af1</td>
+            <td><span class="badge info">ready</span></td>
+            <td>Not started yet. Ralph should not jump here until the scoped higher-order work clears.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>How The New Flow Works</h2>
+      <div class="flow card">
+        <div class="flow-row">
+          <div class="node">
+            <strong>backlog</strong>
+            <small>Not started.</small>
+          </div>
+          <div class="node">
+            <strong>ready</strong>
+            <small>Candidate for implementation.</small>
+          </div>
+          <div class="node">
+            <strong>in_progress</strong>
+            <small>Agent edits, validates, commits, and calls complete-work.</small>
+          </div>
+          <div class="node">
+            <strong>ai_review</strong>
+            <small>Review findings are filed and major/critical issues must be fixed.</small>
+          </div>
+          <div class="node runner">
+            <strong>ai_verification</strong>
+            <small>Runner-owned. Implementer stops here.</small>
+          </div>
+          <div class="node">
+            <strong>done</strong>
+            <small>Only certified verification can set this.</small>
+          </div>
+        </div>
+        <div class="arrow mono">
+          <span>start-work</span>
+          <span>start-work</span>
+          <span>complete-work</span>
+          <span>generate-demo</span>
+          <span>verify-pass</span>
+        </div>
+      </div>
+
+      <div class="swimlanes" style="margin-top: 14px">
+        <div class="lane">
+          <div class="lane-title">Implementer / Ralph</div>
+          <div class="lane-steps">
+            <span class="step">read scoped PRD</span>
+            <span class="step">start-work</span>
+            <span class="step">validate project</span>
+            <span class="step">test_report</span>
+            <span class="step">commit</span>
+            <span class="step">complete-work</span>
+          </div>
+        </div>
+        <div class="lane">
+          <div class="lane-title">Fresh-eyes reviewer</div>
+          <div class="lane-steps">
+            <span class="step">inspect diff</span>
+            <span class="step">submit findings</span>
+            <span class="step">wait for major/critical fixes</span>
+            <span class="step">check-complete</span>
+            <span class="step">generate-demo</span>
+          </div>
+        </div>
+        <div class="lane">
+          <div class="lane-title">Verification runner</div>
+          <div class="lane-steps">
+            <span class="step">claim queued job</span>
+            <span class="step">boot app if needed</span>
+            <span class="step">run demo steps</span>
+            <span class="step">write evidence</span>
+            <span class="step">settle lifecycle</span>
+          </div>
+        </div>
+      </div>
+
+      <h2>Handoff Mechanics</h2>
+      <p>
+        The handoff to AI verification is not a single state update. It is a chain of writes and
+        process launches. Any weak link can leave a ticket looking stuck.
+      </p>
+      <table style="margin-top: 14px">
+        <thead>
+          <tr>
+            <th>Step</th>
+            <th>Owner</th>
+            <th>Durable write</th>
+            <th>Failure mode</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Generate demo</td>
+            <td>Review tool</td>
+            <td>Writes <code>demo_scripts</code>, moves ticket to <code>ai_verification</code>, enqueues <code>verification_jobs</code>.</td>
+            <td>Open major/critical findings block this. Non-executable coverage may pass generation but later certifies as false.</td>
+          </tr>
+          <tr>
+            <td>Spawn drain</td>
+            <td>CLI or MCP review command</td>
+            <td>No state guarantee beyond the already queued job.</td>
+            <td>If spawn fails, the job stays queued until boot recovery or manual drain.</td>
+          </tr>
+          <tr>
+            <td>Claim job</td>
+            <td>Verification worker</td>
+            <td>Sets job <code>running</code>, increments attempt, writes lease owner/expiry.</td>
+            <td>Stale lease blocks other workers until expiry, unless recovery reclaims it.</td>
+          </tr>
+          <tr>
+            <td>Settle lifecycle</td>
+            <td><code>settleVerificationLifecycle</code></td>
+            <td>Writes run, evidence attachments, comments, ticket status, PRD state, job status.</td>
+            <td>Pass goes to done. Failure loops to in_progress. Uncertified may loop once, then block. Infra errors retry or block.</td>
+          </tr>
+          <tr>
+            <td>Resume epic</td>
+            <td>Epic continuation worker</td>
+            <td>Enqueues one continuation job per epic after verification returns a ticket to implementation.</td>
+            <td>A stale running continuation for the same epic can suppress the new continuation.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>What Happened In Ticket 6</h2>
+      <div class="timeline">
+        <div class="event">
+          <strong>Ticket 6 generated a 7-step demo at 2026-07-19T12:10:21Z.</strong>
+          <p>
+            The demo used file and command automation. Steps 2-7 were executable. Step 1 also
+            included <code>coverageRationale</code> to cover lint and dead-code criteria that the
+            runner could not execute under its command allowlist.
+          </p>
+        </div>
+        <div class="event">
+          <strong>The verification drain ran immediately.</strong>
+          <p>
+            Worker <code>verification-drain-701203-32e77ad4-3ee5-4d04-96c1-9bbd1fd2577f</code>
+            ran on the <code>enqueue-drain</code> surface against fready git SHA
+            <code>52f24b42ad128c31942cb49572a59521c6b2ab0d</code>.
+          </p>
+        </div>
+        <div class="event warn">
+          <strong>All seven executed steps passed.</strong>
+          <p>
+            The manifest has passed verdicts for steps 1-7. The runner then added synthetic skipped
+            step 0: "Verification run uncertified because the demo includes a non-certifiable
+            coverage rationale."
+          </p>
+        </div>
+        <div class="event bad">
+          <strong>The run settled as <code>uncertified</code>.</strong>
+          <p>
+            The lifecycle filed a major verification finding, wrote a verification report, set the
+            ticket back to <code>in_progress</code>, synced PRD
+            <code>passes: false</code>, and attempted to enqueue an epic continuation.
+          </p>
+        </div>
+      </div>
+
+      <div class="callout warn" style="margin-top: 16px">
+        <strong>Important distinction:</strong>
+        ticket 6 is not currently stuck in <code>ai_verification</code>. It is in
+        <code>in_progress</code> because the runner already rejected the handoff as
+        non-certifiable. The problem is that autonomous continuation did not cleanly pick it back up.
+      </div>
+
+      <h2>Why The Epic Still Feels Stuck</h2>
+      <table style="margin-top: 14px">
+        <thead>
+          <tr>
+            <th>Subsystem</th>
+            <th>Observed state</th>
+            <th>Effect</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Verification jobs</td>
+            <td>Global queue depth 0; fready ticket 6 job is <code>failed</code> and completed.</td>
+            <td>There is no current verification worker backlog to drain.</td>
+          </tr>
+          <tr>
+            <td>Epic continuation jobs</td>
+            <td>
+              One <code>running</code> job for ticket <code>083706cd</code>, which is already
+              <code>done</code>. Lease owner:
+              <code>epic-continuation-c688aa2f-2fe1-429e-b222-e65b372f1efc</code>. Lease expiry:
+              <code>2026-07-19T21:18:08.969Z</code>.
+            </td>
+            <td>
+              A new continuation for ticket 6 can be suppressed because the table is unique on
+              <code>epic_id</code> and enqueue refuses to replace a non-expired running row.
+            </td>
+          </tr>
+          <tr>
+            <td>Ralph progress loop</td>
+            <td>
+              fready <code>plans/progress.txt</code> has repeated <code>STALLED</code>,
+              <code>REVIEW FAILURE</code>, and timeout lines across July 18-19.
+            </td>
+            <td>
+              The outer loop detects no new completed tickets and stops, but it does not explain
+              which queue, lease, or review phase caused the stall.
+            </td>
+          </tr>
+          <tr>
+            <td>Ticket 7 review</td>
+            <td>31 findings total; 25 fixed major findings, 2 open major findings, 4 open minors.</td>
+            <td>The ticket cannot generate a demo until open major findings are fixed or dismissed.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>Weak Spots</h2>
+      <div class="risk-list">
+        <section class="risk">
+          <div>
+            <h3>Stale epic continuation lease can block the whole epic</h3>
+            <p>
+              <code>epic_continuation_jobs</code> has a unique row per epic. Enqueue only replaces
+              the row when it is not running or the running lease has expired. In this epic, the row
+              is running for a ticket that is already done, and the lease lasts 24 hours. That can
+              prevent verification failures from automatically resuming the failed ticket.
+            </p>
+            <p>
+              Fix direction: during enqueue and claim, treat a running continuation as stale if its
+              target ticket is no longer <code>in_progress</code>. Either replace it immediately or
+              settle it as obsolete. Also add an operator command/status view for continuation jobs.
+            </p>
+          </div>
+        </section>
+
+        <section class="risk">
+          <div>
+            <h3>Ralph waits on <code>ai_verification</code> using only PRD state</h3>
+            <p>
+              The generated Ralph script pauses while every incomplete PRD item has
+              <code>status === "ai_verification"</code>. That is reasonable for short runner jobs,
+              but dangerous when the PRD is stale, the drain did not spawn, the worker is paused, or
+              a lease is stale.
+            </p>
+            <p>
+              Fix direction: bound the wait loop and call verification ops status from the loop. If
+              queue depth is zero or the ticket left <code>ai_verification</code> in the database,
+              refresh PRD and continue. If a queued/running job is stranded, stop with a targeted
+              diagnostic.
+            </p>
+          </div>
+        </section>
+
+        <section class="risk">
+          <div>
+            <h3><code>ai_verification</code> is marked active/workable even though agents cannot work it</h3>
+            <p>
+              Status metadata says <code>ai_verification</code> is active and workable, while the
+              transition table only allows the runner to move it to <code>done</code> or back to
+              <code>in_progress</code>. That mismatch leaks into UI and agent behavior.
+            </p>
+            <p>
+              Fix direction: split status metadata into <code>agentWorkable</code> and
+              <code>runnerOwned</code>. Treat <code>ai_verification</code> as active but not
+              implementation-workable.
+            </p>
+          </div>
+        </section>
+
+        <section class="risk">
+          <div>
+            <h3><code>coverageRationale</code> is a trap for autonomous demo handoffs</h3>
+            <p>
+              Demo validation allows a step to name non-certifiable criteria with
+              <code>coverageRationale</code>, but the runner will then mark the run
+              <code>uncertified</code>. Ticket 6 hit exactly that path: all executable checks
+              passed, but certification failed because criterion coverage was not executable.
+            </p>
+            <p>
+              Fix direction: for autonomous Ralph handoffs, fail <code>generate-demo</code> when
+              <code>coverageRationale</code> is present, unless an explicit human-verification mode
+              is selected. Alternatively, expand the safe command allowlist for project validation
+              wrappers such as <code>make</code> when the project docs require them.
+            </p>
+          </div>
+        </section>
+
+        <section class="risk">
+          <div>
+            <h3>Verification drain spawn is best-effort after the durable handoff</h3>
+            <p>
+              The CLI and MCP tools enqueue the job, then try to spawn a detached one-shot drain. If
+              spawn fails, the command still returns with the ticket in <code>ai_verification</code>
+              and the job remains queued for boot or recovery. The current UI does not make this
+              obvious at the epic level.
+            </p>
+            <p>
+              Fix direction: expose queue/drain state on the epic page and in Ralph's terminal loop.
+              If drain spawning fails, add a visible ticket comment with the exact command to run:
+              <code>brain-dump verify worker --drain --pretty</code>.
+            </p>
+          </div>
+        </section>
+
+        <section class="risk">
+          <div>
+            <h3>Fresh-eyes review failures are not durable jobs</h3>
+            <p>
+              Ticket 7 is stuck in review churn with open major findings and repeated reviewer
+              failures/timeouts in progress logs. Review is still controlled by a shell subprocess,
+              not a durable leased job with a first-class status.
+            </p>
+            <p>
+              Fix direction: give fresh-eyes review the same queue/lease/attempt model as
+              verification, or at minimum write a durable review-run error row and block the ticket
+              with a clear reason after repeated reviewer process failures.
+            </p>
+          </div>
+        </section>
+
+        <section class="risk">
+          <div>
+            <h3>Epic detail can make handoff look more complete than it is</h3>
+            <p>
+              The epic detail API maps a focused review run ticket from <code>running</code> to
+              <code>completed</code> when the ticket is <code>ai_verification</code> or
+              <code>done</code>. That is true for the review-run subtask, but easy to confuse with
+              ticket completion.
+            </p>
+            <p>
+              Fix direction: label these as <code>review completed</code> or
+              <code>verification pending</code>, and reserve <code>completed</code> for ticket
+              <code>done</code>.
+            </p>
+          </div>
+        </section>
+
+        <section class="risk">
+          <div>
+            <h3>Stale CLI/MCP/schema versions still create weird handoffs</h3>
+            <p>
+              The progress logs show prior stale MCP behavior that moved tickets into old
+              <code>human_review</code> paths or generated invalid demos. The code now has schema
+              markers, but stale long-running tool processes remain a practical failure source.
+            </p>
+            <p>
+              Fix direction: every workflow command should print the workflow schema version, and
+              Ralph should fail fast when the running MCP server's schema version is older than the
+              local CLI/core schema.
+            </p>
+          </div>
+        </section>
+      </div>
+
+      <h2>Recommended Repairs</h2>
+      <table style="margin-top: 14px">
+        <thead>
+          <tr>
+            <th>Priority</th>
+            <th>Repair</th>
+            <th>Why it matters</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="badge bad">P0</span></td>
+            <td>Fix stale epic continuation lease replacement and add continuation ops status.</td>
+            <td>This is the live blocker pattern in the fready epic.</td>
+          </tr>
+          <tr>
+            <td><span class="badge bad">P0</span></td>
+            <td>Make Ralph's "waiting for verification" loop query live DB/ops status and time out with diagnostics.</td>
+            <td>Prevents silent indefinite waits when PRD state or worker state drifts.</td>
+          </tr>
+          <tr>
+            <td><span class="badge warn">P1</span></td>
+            <td>Make autonomous <code>generate-demo</code> reject <code>coverageRationale</code> by default.</td>
+            <td>Prevents another ticket 6: all checks pass but certification is impossible.</td>
+          </tr>
+          <tr>
+            <td><span class="badge warn">P1</span></td>
+            <td>Add an epic-level "verification and continuation health" panel.</td>
+            <td>Lets the user see queued jobs, active/stale leases, last drain, last error, and current continuation target without opening every ticket.</td>
+          </tr>
+          <tr>
+            <td><span class="badge warn">P1</span></td>
+            <td>Persist fresh-eyes review attempts as durable review jobs.</td>
+            <td>Review failures are currently buried in progress logs and can leave tickets spinning in <code>ai_review</code>.</td>
+          </tr>
+          <tr>
+            <td><span class="badge info">P2</span></td>
+            <td>Clarify status labels and review-run completion wording.</td>
+            <td>Reduces confusion between "review handoff complete", "verification pending", and "ticket done".</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>Immediate Operator Read</h2>
+      <div class="grid cols-2">
+        <section class="card">
+          <h3>What is safe to do next</h3>
+          <p>
+            Ticket 6 needs a new implementation/review/demo pass that removes the non-certifiable
+            coverage rationale. Either prove the lint/dead-code criteria with allowed executable
+            automation or change the criteria so the runner can prove them.
+          </p>
+          <p>
+            Ticket 7 needs open major findings fixed before demo generation. It is in
+            <code>ai_review</code>, not blocked on the verification runner.
+          </p>
+        </section>
+        <section class="card">
+          <h3>What not to assume</h3>
+          <p>
+            Do not assume the verification queue is currently stuck: it is empty in the snapshot.
+            The stuck part is continuation/review orchestration. Also do not manually mark tickets
+            done; the new design intentionally has no agent-owned pass button.
+          </p>
+        </section>
+      </div>
+
+      <h2>Source Map</h2>
+      <ul class="source-list">
+        <li><code>core/workflow-steps.ts:63-68</code> marks <code>ai_verification</code> active/workable.</li>
+        <li><code>core/workflow-steps.ts:127-136</code> defines legal status transitions.</li>
+        <li><code>core/review.ts:1219-1324</code> validates demo generation, moves the ticket to <code>ai_verification</code>, and enqueues verification.</li>
+        <li><code>cli/commands/review.ts:117-151</code> and <code>mcp-server/tools/review.ts:365-430</code> spawn detached drains after demo generation.</li>
+        <li><code>core/verification-worker.ts:497-552</code> drains queued verification jobs.</li>
+        <li><code>src/lib/db.ts:1043-1094</code> runs startup reconciliation, recovery drain supervision, boot drain, and continuation drain.</li>
+        <li><code>core/verification-ops.ts:274-336</code> reconciles malformed <code>ai_verification</code> tickets.</li>
+        <li><code>core/verification-lifecycle.ts:429-480</code> returns an uncertified run to implementation with a finding and comment.</li>
+        <li><code>core/verification-lifecycle.ts:548-558</code> syncs PRD and enqueues epic continuation after verification failure.</li>
+        <li><code>core/epic-continuation.ts:159-186</code> enqueues only one continuation per epic and does not replace a non-expired running job.</li>
+        <li><code>core/epic-continuation.ts:250-254</code> gives continuation launches a 24-hour lease by default.</li>
+        <li><code>src/lib/ralph-launch/epic-continuation-adapter.ts:26-47</code> waits for the spawned epic script to exit before settling the continuation.</li>
+        <li><code>src/api/ralph-script.ts:833-839</code> waits when every incomplete PRD item is <code>ai_verification</code>.</li>
+        <li><code>src/api/ralph-script.ts:1009-1021</code> pauses no-progress tracking while PRD says all incomplete tickets await verification.</li>
+        <li><code>src/api/epics.ts:467-498</code> maps review-run ticket status to <code>completed</code> when the ticket is <code>ai_verification</code> or <code>done</code>.</li>
+        <li><code>core/prd-sync.ts:28-35</code> keeps <code>passes: false</code> and clears stale verification failures when status becomes <code>ai_verification</code>.</li>
+      </ul>
+
+      <p class="print-note">
+        This is a static investigation document. It intentionally does not mutate tickets, queues,
+        PRD files, or the fready worktree.
+      </p>
+    </main>
+  </body>
+</html>

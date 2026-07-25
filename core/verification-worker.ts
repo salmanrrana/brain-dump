@@ -153,6 +153,9 @@ function markWorkerExceptionBlocked(
     author: "brain-dump",
     type: "comment",
     content: `## Verification Worker Blocked\n\n${reason}`,
+    phase: "ai_verification",
+    actorKind: "system",
+    provider: "brain-dump",
   });
   return true;
 }
@@ -283,6 +286,7 @@ export async function runNextVerificationJob(
           ticketId: job.ticketId,
           runId: run.id,
           reason,
+          provider: run.identity.provider,
         });
       } catch (error) {
         attentionCommentError = `Verification settled as blocked, but posting the infra-error attention comment failed: ${errorMessage(error)}`;

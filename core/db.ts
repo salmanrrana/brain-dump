@@ -268,7 +268,12 @@ function shouldBackfillProjectPositions(db: DbHandle): boolean {
 }
 
 function ensureBaseSchema(db: DbHandle, logger: Logger): void {
-  if (tableExists(db, "projects") && tableExists(db, "tickets") && tableExists(db, "settings")) {
+  if (
+    tableExists(db, "projects") &&
+    tableExists(db, "tickets") &&
+    tableExists(db, "ticket_comments") &&
+    tableExists(db, "settings")
+  ) {
     return;
   }
 
@@ -335,6 +340,11 @@ function ensureBaseSchema(db: DbHandle, logger: Logger): void {
       content TEXT NOT NULL,
       author TEXT NOT NULL DEFAULT 'user',
       type TEXT NOT NULL DEFAULT 'comment',
+      phase TEXT,
+      actor_kind TEXT,
+      provider TEXT,
+      model_provider TEXT,
+      model_name TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -657,6 +667,15 @@ function initFts5(db: DbHandle, logger: Logger): void {
 }
 
 export function runMigrations(db: DbHandle, logger: Logger = silentLogger): void {
+  // Ticket comment provenance columns. Nullable by design so historical/manual rows remain unannotated.
+  if (tableExists(db, "ticket_comments")) {
+    addColumnIfMissing(db, "ticket_comments", "phase", "TEXT", logger);
+    addColumnIfMissing(db, "ticket_comments", "actor_kind", "TEXT", logger);
+    addColumnIfMissing(db, "ticket_comments", "provider", "TEXT", logger);
+    addColumnIfMissing(db, "ticket_comments", "model_provider", "TEXT", logger);
+    addColumnIfMissing(db, "ticket_comments", "model_name", "TEXT", logger);
+  }
+
   // Ticket columns
   addColumnIfMissing(db, "tickets", "linked_commits", "TEXT", logger);
   addColumnIfMissing(db, "tickets", "branch_name", "TEXT", logger);

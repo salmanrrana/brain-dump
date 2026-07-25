@@ -56,13 +56,7 @@ function seedTestReport(ticketId = "ticket-1", author = "ralph:claude") {
   db.prepare(
     `INSERT INTO ticket_comments (id, ticket_id, content, author, type, created_at)
      VALUES (?, ?, ?, ?, 'test_report', ?)`
-  ).run(
-    `comment-${ticketId}-${now}`,
-    ticketId,
-    "make check: pass\nmake test: pass",
-    author,
-    now
-  );
+  ).run(`comment-${ticketId}-${now}`, ticketId, "make check: pass\nmake test: pass", author, now);
 }
 
 /**
@@ -317,6 +311,35 @@ describe("completeWork", () => {
     const summaryComment = comments.find((c) => c.type === "work_summary");
     expect(summaryComment).toBeDefined();
     expect(summaryComment!.content).toContain("Did the work");
+  });
+
+  it("persists the exact implementer model on work summaries", () => {
+    seedProject();
+    seedTicket("ticket-1", "proj-1", { status: "in_progress" });
+    seedTestReport("ticket-1", "ralph:codex");
+
+    completeWork(db, "ticket-1", createMockGit(), "Did the work", {
+      author: "ralph:codex",
+      env: {
+        BRAIN_DUMP_LAUNCH_MODEL_PROVIDER: "openai",
+        BRAIN_DUMP_LAUNCH_MODEL: "gpt-5.6",
+        BRAIN_DUMP_REVIEWER_MODEL_PROVIDER: "anthropic",
+        BRAIN_DUMP_REVIEWER_MODEL: "claude-opus-4-6",
+      },
+    });
+
+    const summary = db
+      .prepare(
+        "SELECT phase, actor_kind, provider, model_provider, model_name FROM ticket_comments WHERE ticket_id = ? AND type = 'work_summary'"
+      )
+      .get("ticket-1");
+    expect(summary).toEqual({
+      phase: "implementation",
+      actor_kind: "ai",
+      provider: "codex",
+      model_provider: "openai",
+      model_name: "gpt-5.6",
+    });
   });
 
   it("uses the provided work summary author", () => {

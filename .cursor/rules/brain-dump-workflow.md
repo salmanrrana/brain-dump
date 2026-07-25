@@ -14,7 +14,7 @@ When working on Brain Dump tickets, follow this quality workflow to ensure consi
 Status flow: `backlog -> ready -> in_progress -> ai_review -> ai_verification -> done`
 
 - **Implementation**: start-work -> create or reuse a session -> implement -> validate -> commit -> complete-work. Skip this phase only when the selected ticket is already in ai_review.
-- **AI Review**: Self-review the diff, submit every finding through Brain Dump, fix critical/major findings, then check completion.
+- **AI Review**: Review the ticket's own changed code for regressions, acceptance gaps, and maintainability (reuse existing patterns; keep junior-readable). Submit only concrete NEW blocking findings, fix critical/major findings, then check completion.
 - **Demo**: Generate 3-7 test steps after review completion, including criterion coverage references plus automation specs for visual/automated UI, API, command, or file checks. Before API/UI steps, inspect the target project's docs and build/runtime config and declare app.start as spawn-safe argv (with {port}/{host} tokens and optional project-relative cwd); never assume npm or pnpm. Every acceptance criterion must be proven by executable automation — coverageRationale is rejected at generate-demo. If a required command is outside the default allowlist (make, go, npx, ...), declare its exact argv in the project's .brain-dump/verify.json commands array; if a criterion cannot be automated, reword the criterion to match what automation can prove. This moves the ticket to ai_verification for runner certification.
 - **Stop**: Complete the Ralph session and stop. Never run verification or move the ticket to done yourself.
 
@@ -30,6 +30,13 @@ Status flow: `backlog -> ready -> in_progress -> ai_review -> ai_verification ->
 - `review({ action: "check-complete", ticketId })`
 - `review({ action: "generate-demo", ticketId, steps }) with covers references and automation specs on visual/automated steps`
 - `session({ action: "complete", sessionId, outcome: "success" })`
+
+## Implementation Discipline
+
+- Before editing, map each acceptance criterion to the existing production entry point and nearby tests. Search for components, helpers, services, and patterns that already own the behavior.
+- Extend or reuse the established implementation instead of adding a parallel path. New shared logic must be wired through the real production caller; replace superseded ticket-owned logic rather than leaving two competing implementations.
+- Keep the diff minimal and match the codebase's existing style. Prefer explicit code a junior engineer can trace; use the smallest local or established abstraction that removes concrete duplication, never a speculative framework or dependency.
+- Preserve existing behavior outside the ticket and add focused regression coverage at the changed boundary. Before handoff, inspect the final diff for dead code, duplicate logic, and acceptance criteria implemented only in tests but not reachable in production.
 
 ## Quality Gates
 

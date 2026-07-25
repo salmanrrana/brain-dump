@@ -21,6 +21,7 @@ describe("generateRalphScript no-progress circuit breaker", () => {
   it("counts progress only when the incomplete count reaches a new low", () => {
     const script = generateRalphScript("/tmp/project", 3);
 
+    expect(script).toContain("MAX_NO_PROGRESS=3");
     expect(script).toContain("BEST_INCOMPLETE_COUNT=999999");
     expect(script).toContain('[ "$INCOMPLETE" -lt "$BEST_INCOMPLETE_COUNT" ]');
     expect(script).toContain("PRD_STATUS_HIGH_WATER=");
@@ -65,7 +66,9 @@ describe("generateRalphScript no-progress circuit breaker", () => {
     expect(script).toContain("This terminal stays open so the log above is not lost");
     const stallBlock = script.slice(script.indexOf("STALLED: No new ticket completed"));
     expect(stallBlock.slice(0, 200)).toContain("finish_ralph 0");
-    expect(script).not.toMatch(/ABORTED: \$CONSECUTIVE_FAILURES consecutive failures" >> "\$PROGRESS_FILE"\n\s*exit 1/);
+    expect(script).not.toMatch(
+      /ABORTED: \$CONSECUTIVE_FAILURES consecutive failures" >> "\$PROGRESS_FILE"\n\s*exit 1/
+    );
   });
 
   it("pins durable continuation launches to the failed ticket", () => {

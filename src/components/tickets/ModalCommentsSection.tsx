@@ -1,54 +1,13 @@
 import { type FC, useState, useCallback, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { MessageSquare, ChevronDown, Loader2, Send, Bot, Terminal } from "lucide-react";
+import { MessageSquare, ChevronDown, Loader2, Send } from "lucide-react";
 import { usePaginatedComments, useCreateComment } from "../../lib/hooks";
 import { POLLING_INTERVALS } from "../../lib/constants";
-import { getCommentAuthorBase, getCommentAuthorDisplayName } from "../../lib/comment-authors";
 import { useToast } from "../Toast";
+import { Comment } from "./Comment";
 
 const VIRTUALIZATION_THRESHOLD = 20;
 const COMMENT_HEIGHT_ESTIMATE = 80;
-
-// Comments sit on a single neutral surface — no per-type rainbow tints or
-// side stripes. change_request is the one meaningful exception: a restrained
-// tint + full border because it's an action signal, not a category color.
-const COMMENT_CONTAINER_NEUTRAL = "p-3 bg-[var(--bg-tertiary)]";
-const COMMENT_CONTAINER_CHANGE_REQUEST =
-  "p-3 bg-[var(--warning-muted)] border border-[var(--warning)]/40";
-
-function getCommentContainerClass(type: string): string {
-  return type === "change_request" ? COMMENT_CONTAINER_CHANGE_REQUEST : COMMENT_CONTAINER_NEUTRAL;
-}
-
-const COMMENT_AUTHOR_STYLES: Record<string, string> = {
-  ralph: "text-[var(--status-review)]",
-  claude: "text-[var(--accent-ai)]",
-  codex: "text-[var(--success)]",
-  cursor: "text-[var(--text-primary)]",
-  vscode: "text-[var(--accent-primary)]",
-  copilot: "text-[var(--text-secondary)]",
-  opencode: "text-[var(--success)]",
-  ai: "text-[var(--accent-primary)]",
-  "brain-dump": "text-[var(--text-secondary)]",
-  user: "text-[var(--text-primary)]",
-};
-
-// Single neutral chip for ordinary types; change_request keeps the one accent.
-const COMMENT_BADGE_NEUTRAL =
-  "bg-[var(--bg-hover)] text-[var(--text-secondary)] border border-[var(--border-primary)]";
-const COMMENT_BADGE_CHANGE_REQUEST = "bg-[var(--warning-muted)] text-[var(--warning)]";
-
-function getCommentBadgeClass(type: string): string {
-  return type === "change_request" ? COMMENT_BADGE_CHANGE_REQUEST : COMMENT_BADGE_NEUTRAL;
-}
-
-const COMMENT_BADGE_LABELS: Record<string, string> = {
-  progress: "Working...",
-  work_summary: "Work Summary",
-  test_report: "Test Report",
-  change_request: "Changes Requested",
-  verification_report: "Verification Report",
-};
 
 export interface ModalCommentsSectionProps {
   ticketId: string;
@@ -74,6 +33,7 @@ export const ModalCommentsSection: FC<ModalCommentsSectionProps> = ({ ticketId, 
         : POLLING_INTERVALS.DISABLED,
   });
   const createCommentMutation = useCreateComment();
+  const commentsRegionId = `ticket-${ticketId}-activity-comments`;
 
   const handleAddComment = useCallback(() => {
     const content = newComment.trim();
@@ -103,7 +63,10 @@ export const ModalCommentsSection: FC<ModalCommentsSectionProps> = ({ ticketId, 
   return (
     <div>
       <button
+        type="button"
         onClick={() => setShowComments(!showComments)}
+        aria-expanded={showComments}
+        aria-controls={commentsRegionId}
         className="flex items-center gap-2 text-sm font-medium text-[var(--text-secondary)] mb-2 hover:text-[var(--text-primary)] transition-colors"
       >
         <MessageSquare size={16} />
@@ -116,7 +79,7 @@ export const ModalCommentsSection: FC<ModalCommentsSectionProps> = ({ ticketId, 
       </button>
 
       {showComments && (
-        <div className="space-y-3">
+        <div id={commentsRegionId} className="space-y-3">
           {/* Add comment input */}
           <div className="flex gap-2">
             <input
@@ -125,11 +88,14 @@ export const ModalCommentsSection: FC<ModalCommentsSectionProps> = ({ ticketId, 
               onChange={(e) => setNewComment(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleAddComment()}
               placeholder="Add a comment..."
+              aria-label="Add a comment"
               className="flex-1 px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] text-sm"
             />
             <button
+              type="button"
               onClick={handleAddComment}
               disabled={!newComment.trim() || createCommentMutation.isPending}
+              aria-label="Post comment"
               className="px-3 py-2 bg-[var(--accent-primary)] hover:bg-[var(--accent-secondary)] disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-tertiary)] rounded-lg transition-colors"
             >
               {createCommentMutation.isPending ? (
@@ -198,43 +164,12 @@ function CommentsList({
 
   function renderComment(comment: CommentsListProps["comments"][number]) {
     return (
-      <div
+      <Comment
         key={comment.id}
-        className={`rounded-lg text-sm ${getCommentContainerClass(comment.type)}`}
-      >
-        <div className="flex items-center gap-2 mb-1">
-          {comment.type === "progress" && (
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--text-secondary)] opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--text-secondary)]"></span>
-            </span>
-          )}
-          <span
-            className={`font-medium ${COMMENT_AUTHOR_STYLES[getCommentAuthorBase(comment.author)] ?? COMMENT_AUTHOR_STYLES.user}`}
-          >
-            {getCommentAuthorBase(comment.author) === "ralph" && (
-              <Bot size={12} className="inline mr-1" />
-            )}
-            {getCommentAuthorBase(comment.author) === "claude" && (
-              <Terminal size={12} className="inline mr-1" />
-            )}
-            {getCommentAuthorDisplayName(comment.author)}
-          </span>
-          <span className="text-[var(--text-tertiary)] text-xs">
-            {new Date(comment.createdAt).toLocaleString()}
-          </span>
-          {COMMENT_BADGE_LABELS[comment.type] && (
-            <span className={`text-xs px-1.5 py-0.5 rounded ${getCommentBadgeClass(comment.type)}`}>
-              {COMMENT_BADGE_LABELS[comment.type]}
-            </span>
-          )}
-        </div>
-        <p
-          className={`whitespace-pre-wrap ${comment.type === "progress" ? "text-[var(--text-secondary)] text-xs" : "text-[var(--text-primary)]"}`}
-        >
-          {comment.content}
-        </p>
-      </div>
+        comment={comment}
+        maxLines={0}
+        testId={`modal-comment-${comment.id}`}
+      />
     );
   }
 

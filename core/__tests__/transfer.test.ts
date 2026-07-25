@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import type Database from "better-sqlite3";
 import { createTestDatabase } from "../db.ts";
 import { gatherEpicExportData, gatherProjectExportData, importData } from "../transfer.ts";
-import { EpicNotFoundError, ProjectNotFoundError } from "../errors.ts";
+import { EpicNotFoundError, ProjectNotFoundError, TransferError } from "../errors.ts";
 import type { BrainDumpManifest } from "../transfer-types.ts";
 import { MANIFEST_VERSION } from "../transfer-types.ts";
 
@@ -51,10 +51,35 @@ function seedTicket(
   return id;
 }
 
-function seedComment(id: string, ticketId: string) {
+function seedComment(
+  id: string,
+  ticketId: string,
+  provenance: {
+    phase?: string | null;
+    actorKind?: string | null;
+    provider?: string | null;
+    modelProvider?: string | null;
+    modelName?: string | null;
+  } = {}
+) {
   db.prepare(
-    "INSERT INTO ticket_comments (id, ticket_id, content, author, type, created_at) VALUES (?, ?, ?, ?, ?, ?)"
-  ).run(id, ticketId, `Comment ${id}`, "claude", "comment", new Date().toISOString());
+    `INSERT INTO ticket_comments (
+      id, ticket_id, content, author, type,
+      phase, actor_kind, provider, model_provider, model_name, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    id,
+    ticketId,
+    `Comment ${id}`,
+    "claude",
+    "comment",
+    provenance.phase ?? null,
+    provenance.actorKind ?? null,
+    provenance.provider ?? null,
+    provenance.modelProvider ?? null,
+    provenance.modelName ?? null,
+    new Date().toISOString()
+  );
   return id;
 }
 
@@ -180,6 +205,29 @@ describe("gatherEpicExportData", () => {
     expect(result.manifest.demoScripts).toHaveLength(1);
   });
 
+  it("exports nullable comment provenance when recorded", () => {
+    seedProject();
+    seedEpic();
+    seedTicket("t-1", "proj-1", "epic-1");
+    seedComment("c-1", "t-1", {
+      phase: "implementation",
+      actorKind: "ai",
+      provider: "codex",
+      modelProvider: "openai",
+      modelName: "gpt-5.6",
+    });
+
+    const result = gatherEpicExportData(db, "epic-1");
+
+    expect(result.manifest.comments[0]).toMatchObject({
+      phase: "implementation",
+      actorKind: "ai",
+      provider: "codex",
+      modelProvider: "openai",
+      modelName: "gpt-5.6",
+    });
+  });
+
   it("throws EpicNotFoundError for non-existent epic", () => {
     expect(() => gatherEpicExportData(db, "nonexistent")).toThrow(EpicNotFoundError);
   });
@@ -267,6 +315,68 @@ describe("importData - basic", () => {
     expect(result.idMap["exp-ticket-1"]).not.toBe("exp-ticket-1");
   });
 
+  it("accepts legacy manifests without provenance and keeps imported comments unannotated", () => {
+    seedProject("proj-target", "Target Project");
+    const manifest = buildMinimalManifest();
+
+    const result = doImport(manifest);
+    const importedCommentId = result.idMap["exp-comment-1"]!;
+    const importedComment = db
+      .prepare(
+        `SELECT phase, actor_kind, provider, model_provider, model_name
+         FROM ticket_comments WHERE id = ?`
+      )
+      .get(importedCommentId);
+
+    expect(importedComment).toEqual({
+      phase: null,
+      actor_kind: null,
+      provider: null,
+      model_provider: null,
+      model_name: null,
+    });
+  });
+
+  it("imports recorded comment provenance", () => {
+    seedProject("proj-target", "Target Project");
+    const manifest = buildMinimalManifest({
+      comments: [
+        {
+          ...buildMinimalManifest().comments[0]!,
+          phase: "ai_review",
+          actorKind: "ai",
+          provider: "claude-code",
+          modelProvider: "anthropic",
+          modelName: "claude-sonnet-4-6",
+        },
+      ],
+    });
+
+    const result = doImport(manifest);
+    const importedComment = db
+      .prepare("SELECT * FROM ticket_comments WHERE id = ?")
+      .get(result.idMap["exp-comment-1"]!);
+
+    expect(importedComment).toMatchObject({
+      phase: "ai_review",
+      actor_kind: "ai",
+      provider: "claude-code",
+      model_provider: "anthropic",
+      model_name: "claude-sonnet-4-6",
+    });
+  });
+
+  it("rejects unknown imported provenance values and rolls back the import", () => {
+    seedProject("proj-target", "Target Project");
+    const manifest = buildMinimalManifest();
+    Object.assign(manifest.comments[0]!, { phase: "future_phase" });
+
+    expect(() => doImport(manifest)).toThrow(TransferError);
+    expect(
+      db.prepare("SELECT COUNT(*) AS count FROM tickets WHERE project_id = ?").get("proj-target")
+    ).toEqual({ count: 0 });
+  });
+
   it("throws ProjectNotFoundError for invalid target project", () => {
     const manifest = buildMinimalManifest();
     expect(() => doImport(manifest, "nonexistent")).toThrow(ProjectNotFoundError);
@@ -296,10 +406,24 @@ describe("importData - basic", () => {
 
     const comments = db
       .prepare("SELECT * FROM ticket_comments WHERE ticket_id = ? ORDER BY created_at")
-      .all(newTicketId) as Array<{ content: string; author: string }>;
+      .all(newTicketId) as Array<{
+      content: string;
+      author: string;
+      phase: string | null;
+      actor_kind: string | null;
+      provider: string | null;
+      model_provider: string | null;
+      model_name: string | null;
+    }>;
 
     const provenance = comments.find((c) => c.author === "brain-dump");
-    expect(provenance).toBeDefined();
+    expect(provenance).toMatchObject({
+      phase: "system_workflow",
+      actor_kind: "system",
+      provider: "brain-dump",
+      model_provider: null,
+      model_name: null,
+    });
     expect(provenance!.content).toContain("Source Project");
     expect(provenance!.content).toContain("testuser");
   });

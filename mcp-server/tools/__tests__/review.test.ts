@@ -46,6 +46,9 @@ afterEach(() => {
   delete process.env.BRAIN_DUMP_FAKE_GH_BODY;
   delete process.env.BRAIN_DUMP_FAKE_GH_EDIT_BODY;
   delete process.env.BRAIN_DUMP_FAKE_GH_FAIL;
+  delete process.env.BRAIN_DUMP_REVIEWER_AUTHOR;
+  delete process.env.BRAIN_DUMP_REVIEWER_MODEL_PROVIDER;
+  delete process.env.BRAIN_DUMP_REVIEWER_MODEL;
   rmSync(tempDir, { recursive: true, force: true });
 });
 
@@ -228,6 +231,41 @@ describe("review tool generate-demo PR sync", () => {
     )._registeredTools;
 
     expect(tools.review?.description).toContain(`Workflow schema: ${WORKFLOW_SCHEMA_VERSION}`);
+  });
+
+  it("passes reviewer provenance through the canonical core review operation", async () => {
+    seedProject(db, { id: "proj-1", path: tempDir });
+    seedTicket(db, { id: "ticket-1", projectId: "proj-1", status: "ai_review" });
+    process.env.BRAIN_DUMP_REVIEWER_AUTHOR = "claude";
+    process.env.BRAIN_DUMP_REVIEWER_MODEL_PROVIDER = "anthropic";
+    process.env.BRAIN_DUMP_REVIEWER_MODEL = "claude-opus-4-6";
+
+    const server = new McpServer({ name: "test", version: "1.0.0" });
+    registerReviewTool(server, db);
+    await getToolHandler(server, "review")(
+      {
+        action: "submit-finding",
+        ticketId: "ticket-1",
+        agent: "code-reviewer",
+        severity: "major",
+        category: "type-safety",
+        description: "Missing null check",
+      },
+      {}
+    );
+
+    const comment = db
+      .prepare(
+        "SELECT phase, actor_kind, provider, model_provider, model_name FROM ticket_comments WHERE ticket_id = ?"
+      )
+      .get("ticket-1");
+    expect(comment).toEqual({
+      phase: "ai_review",
+      actor_kind: "ai",
+      provider: "claude-code",
+      model_provider: "anthropic",
+      model_name: "claude-opus-4-6",
+    });
   });
 
   it("syncs demo steps into the linked PR body and reports the update", async () => {

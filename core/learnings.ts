@@ -215,7 +215,15 @@ export function reconcileLearnings(
 
   let commentWarning: string | undefined;
   try {
-    addComment(db, { ticketId, content: commentContent, type: "progress" });
+    addComment(db, {
+      ticketId,
+      content: commentContent,
+      author: "brain-dump",
+      type: "progress",
+      phase: "system_workflow",
+      actorKind: "system",
+      provider: "brain-dump",
+    });
   } catch (err) {
     commentWarning = `Audit trail comment was not saved: ${err instanceof Error ? err.message : String(err)}`;
   }

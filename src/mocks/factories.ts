@@ -95,6 +95,11 @@ export function createMockComment(overrides: Partial<TicketComment> = {}): Ticke
     content: overrides.content ?? "Test comment",
     author: overrides.author ?? "claude",
     type: overrides.type ?? "comment",
+    phase: overrides.phase ?? null,
+    actorKind: overrides.actorKind ?? null,
+    provider: overrides.provider ?? null,
+    modelProvider: overrides.modelProvider ?? null,
+    modelName: overrides.modelName ?? null,
     createdAt: overrides.createdAt ?? new Date().toISOString(),
   };
 }

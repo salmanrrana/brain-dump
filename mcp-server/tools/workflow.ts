@@ -435,7 +435,7 @@ function handleCompleteWork(
 ) {
   const ticketId = requireParam(params.ticketId, "ticketId", "complete-work");
   const commentAuthor = detectAuthor() as CommentAuthor;
-  const result = completeWork(db, ticketId, git, params.summary, commentAuthor);
+  const result = completeWork(db, ticketId, git, params.summary, { author: commentAuthor });
 
   // Re-fetch display fields after the core transition and PRD synchronization.
   const ticketRow = db

@@ -1,9 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
-import { db } from "../lib/db";
+import { db, sqlite } from "../lib/db";
 import { ticketComments } from "../lib/schema";
 import type { TicketComment } from "../lib/schema";
 import { eq, desc, and, lt, sql } from "drizzle-orm";
-import { randomUUID } from "crypto";
+import { addComment as addCoreComment } from "../../core/comment";
 import {
   BASE_COMMENT_AUTHORS,
   isValidCommentAuthor,
@@ -126,26 +126,12 @@ export const createComment = createServerFn({ method: "POST" })
   })
   .handler(async ({ data }): Promise<Comment> => {
     const { ticketId, content, author, type = "comment" } = data;
-
-    const id = randomUUID();
-
-    db.insert(ticketComments)
-      .values({
-        id,
-        ticketId,
-        content,
-        author,
-        type,
-      })
-      .run();
-
-    const comment = db.select().from(ticketComments).where(eq(ticketComments.id, id)).get();
-
-    if (!comment) {
-      throw new Error("Failed to create comment");
-    }
-
-    return comment;
+    return addCoreComment(sqlite, {
+      ticketId,
+      content,
+      author,
+      type,
+    });
   });
 
 // Delete a comment

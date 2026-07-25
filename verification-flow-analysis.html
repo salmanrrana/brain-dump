@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Verification Flow — Deep Diagnosis</title>
+<style>
+  :root{
+    --bg:#0c0f16; --panel:#131824; --panel2:#1a2030; --ink:#e7ecf5; --muted:#9aa7bd;
+    --line:#26304a; --accent:#5b9dff; --good:#3ecf8e; --warn:#f5b64c; --bad:#f2555a;
+    --uncert:#c06bff; --infra:#ff8a4c; --mono:"SF Mono",ui-monospace,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:linear-gradient(180deg,#0a0d14,#0c0f16 30%);color:var(--ink);
+    font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px 120px}
+  header.hero{padding:60px 0 34px;border-bottom:1px solid var(--line);margin-bottom:8px}
+  .kicker{color:var(--accent);font-weight:700;letter-spacing:.14em;text-transform:uppercase;font-size:12px}
+  h1{font-size:38px;line-height:1.12;margin:12px 0 10px;letter-spacing:-.02em}
+  h2{font-size:25px;margin:52px 0 14px;padding-top:14px;letter-spacing:-.01em;border-top:1px solid var(--line)}
+  h3{font-size:18px;margin:30px 0 10px;color:#cdd8ee}
+  p{color:#d3dbea}
+  .lede{font-size:17px;color:var(--muted);max-width:78ch}
+  a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+  code,.mono{font-family:var(--mono);font-size:.87em}
+  code{background:#0c1120;border:1px solid var(--line);padding:1px 6px;border-radius:5px;color:#bcd0f5}
+  .toc{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 22px;margin:26px 0}
+  .toc ol{margin:6px 0 0;padding-left:20px;columns:2;column-gap:34px}
+  .toc a{color:#cdd8ee}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 24px;margin:18px 0}
+  .grid{display:grid;gap:16px}
+  .g2{grid-template-columns:1fr 1fr}
+  .g4{grid-template-columns:repeat(4,1fr)}
+  @media(max-width:760px){.g2,.g4{grid-template-columns:1fr}.toc ol{columns:1}}
+  .stat{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+  .stat .n{font-size:32px;font-weight:800;letter-spacing:-.02em}
+  .stat .l{color:var(--muted);font-size:13px;margin-top:2px}
+  .tag{display:inline-block;font-family:var(--mono);font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;vertical-align:middle}
+  .t-pass{background:rgba(62,207,142,.15);color:var(--good);border:1px solid rgba(62,207,142,.35)}
+  .t-fail{background:rgba(242,85,90,.15);color:var(--bad);border:1px solid rgba(242,85,90,.35)}
+  .t-uncert{background:rgba(192,107,255,.15);color:var(--uncert);border:1px solid rgba(192,107,255,.35)}
+  .t-infra{background:rgba(255,138,76,.15);color:var(--infra);border:1px solid rgba(255,138,76,.35)}
+  .t-warn{background:rgba(245,182,76,.15);color:var(--warn);border:1px solid rgba(245,182,76,.35)}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px}
+  th,td{text-align:left;padding:9px 11px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+  tbody tr:hover{background:#0f1524}
+  .seq{font-family:var(--mono);font-size:12px}
+  .callout{border-left:4px solid var(--accent);background:#101728;border-radius:0 10px 10px 0;padding:14px 18px;margin:16px 0}
+  .callout.bad{border-color:var(--bad);background:#1a1013}
+  .callout.warn{border-color:var(--warn);background:#191510}
+  .callout.good{border-color:var(--good);background:#0f1a15}
+  .callout h4{margin:0 0 6px;font-size:15px}
+  .sev{font-family:var(--mono);font-size:11px;font-weight:800;padding:2px 8px;border-radius:6px;letter-spacing:.04em}
+  .s-crit{background:var(--bad);color:#160406}
+  .s-high{background:var(--infra);color:#1c0a02}
+  .s-med{background:var(--warn);color:#1c1402}
+  .wscard{border:1px solid var(--line);border-radius:12px;padding:0;margin:16px 0;overflow:hidden;background:var(--panel)}
+  .wscard .hd{display:flex;align-items:center;gap:12px;padding:14px 18px;background:var(--panel2);border-bottom:1px solid var(--line)}
+  .wscard .hd .num{font-family:var(--mono);color:var(--muted);font-weight:700}
+  .wscard .hd h3{margin:0;font-size:16px;color:var(--ink);flex:1}
+  .wscard .bd{padding:14px 18px}
+  .wscard .bd p{margin:8px 0}
+  .fileref{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+  .flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0;font-family:var(--mono);font-size:12.5px}
+  .node{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 11px;white-space:nowrap}
+  .node.hot{border-color:var(--bad);color:#ffd5d6}
+  .node.q{border-color:var(--accent)}
+  .arr{color:var(--muted)}
+  svg{max-width:100%;height:auto;display:block}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;margin:10px 0;font-size:12.5px;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .dot{width:11px;height:11px;border-radius:3px;display:inline-block}
+  ul.clean{margin:8px 0;padding-left:20px} ul.clean li{margin:5px 0}
+  .footer{margin-top:60px;padding-top:20px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+  .pill{font-family:var(--mono);font-size:11px;background:#0c1120;border:1px solid var(--line);border-radius:6px;padding:2px 7px;color:#bcd0f5}
+  .hl{color:#fff;font-weight:600}
+  .quote{font-style:italic;color:#c9b6ee;border-left:3px solid var(--uncert);padding-left:14px;margin:10px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">Brain Dump · Internal Engineering Report</div>
+  <h1>Why every ticket stalls at <span style="color:var(--uncert)">AI&nbsp;Verification</span></h1>
+  <p class="lede">A deep trace of the new evidence-based verification gate — how work is handed off, how it's
+  tracked, and the specific design decisions that turn a one-step "prove it works" check into a
+  3-to-4-lap grind on every ticket. Built from live database evidence in epic
+  <code>0aaf3207 · fready Personal Edition</code>.</p>
+  <p class="fileref">Generated 2026-07-19 · branch <code>feature/epic-bc99b396-ai-verification-gate-evidence-based-review</code></p>
+</header>
+
+<div class="callout bad">
+  <h4>TL;DR — the one-sentence cause</h4>
+  <p style="margin:0">The gate is <span class="hl">all-or-nothing and self-defeating</span>: a demo can pass
+  <em>every executable step</em> and still be rejected, and <span class="hl">every rejection throws the ticket
+  all the way back to <code>in_progress</code></span> — forcing a full re-implement → re-review → re-demo lap.
+  Worst of all, the escape hatch the system <em>tells</em> agents to use (<code>coverageRationale</code>) is the
+  exact thing that guarantees rejection. That's a catch-22, and it's why tickets bounce instead of finishing.</p>
+</div>
+
+<div class="toc">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#evidence">The live evidence</a></li>
+    <li><a href="#statemachine">The intended workflow</a></li>
+    <li><a href="#handoff">How handoff &amp; tracking work</a></li>
+    <li><a href="#loop">The bounce-back loop</a></li>
+    <li><a href="#catch22">The coverageRationale catch-22</a></li>
+    <li><a href="#weakspots">Ranked weak spots</a></li>
+    <li><a href="#recommendations">What to change</a></li>
+  </ol>
+</div>
+
+<!-- ============================================================= -->
+<h2 id="evidence">1 · The live evidence</h2>
+<p>This isn't a hypothesis. Here is the actual state of the 8 tickets in the epic, pulled straight from
+<code>verification_runs</code>. Each ticket that reached verification is shown with the <em>sequence of run
+outcomes</em> it took before it could leave the gate.</p>
+
+<div class="grid g4">
+  <div class="stat"><div class="n">15</div><div class="l">verification runs executed…</div></div>
+  <div class="stat"><div class="n" style="color:var(--good)">5</div><div class="l">…to produce 5 passing tickets</div></div>
+  <div class="stat"><div class="n" style="color:var(--bad)">3.0×</div><div class="l">runs per successful ticket</div></div>
+  <div class="stat"><div class="n" style="color:var(--warn)">1&nbsp;/&nbsp;6</div><div class="l">tickets passed on first try</div></div>
+</div>
+
+<table>
+  <thead><tr><th>#</th><th>Ticket</th><th>Status now</th><th>Verification attempts (in order)</th><th>Span</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Fix the broken build</td><td><span class="tag t-pass">done</span></td>
+      <td class="seq"><span class="tag t-infra">infra_error</span> → <span class="tag t-infra">infra_error</span> → <span class="tag t-fail">failed</span> → <span class="tag t-pass">passed</span></td><td>2.0 h</td></tr>
+    <tr><td>2</td><td>Watchlist persistence</td><td><span class="tag t-pass">done</span></td>
+      <td class="seq"><span class="tag t-uncert">uncertified</span> → <span class="tag t-uncert">uncertified</span> → <span class="tag t-pass">passed</span></td><td>1.7 h</td></tr>
+    <tr><td>3</td><td>Remove backend SaaS layer</td><td><span class="tag t-pass">done</span></td>
+      <td class="seq"><span class="tag t-fail">failed</span> → <span class="tag t-fail">failed</span> → <span class="tag t-pass">passed</span></td><td>2.9 h</td></tr>
+    <tr><td>4</td><td>Remove frontend SaaS layer</td><td><span class="tag t-pass">done</span></td>
+      <td class="seq"><span class="tag t-fail">failed</span> → <span class="tag t-fail">failed</span> → <span class="tag t-pass">passed</span></td><td>4.5 h</td></tr>
+    <tr><td>5</td><td>Restore local AI chat</td><td><span class="tag t-pass">done</span></td>
+      <td class="seq"><span class="tag t-pass">passed</span> <span style="color:var(--muted)">(clean — the only one)</span></td><td>&lt;0.1 h</td></tr>
+    <tr><td>6</td><td>Dead-code sweep &amp; docs</td><td><span class="tag t-warn">in_progress ⟳</span></td>
+      <td class="seq"><span class="tag t-uncert">uncertified</span> <span style="color:var(--muted)">→ bounced back, now re-implementing</span></td><td>live stall</td></tr>
+    <tr><td>7</td><td>Dashboard facelift</td><td><span class="tag t-warn">ai_review</span></td>
+      <td class="seq" style="color:var(--muted)">never reached verification — 31 findings, 25 fixed</td><td>—</td></tr>
+    <tr><td>8</td><td>End-to-end hardening</td><td><span class="tag" style="background:#20283c;color:#9aa7bd">ready</span></td>
+      <td class="seq" style="color:var(--muted)">not started (blocked behind 6 &amp; 7)</td><td>—</td></tr>
+  </tbody>
+</table>
+
+<div class="callout warn">
+  <h4>Read the pattern in the sequences</h4>
+  <p style="margin:0">Only <span class="hl">ticket 5</span> passed the gate on the first attempt. Every other ticket
+  needed <span class="hl">3–4 full attempts</span>, and each attempt is not a cheap retry — it's a complete round-trip
+  back through implementation, review, and demo generation (explained in §4). Ticket&nbsp;6 is the live stall you're
+  seeing right now: it was kicked back to <code>in_progress</code> and is waiting to be re-worked, which also parks
+  tickets 7 and 8 behind it.</p>
+</div>
+
+<!-- ============================================================= -->
+<h2 id="statemachine">2 · The intended workflow (what <em>should</em> happen)</h2>
+<p>The status ladder is defined in <code>core/workflow-steps.ts</code>. On paper it's a clean one-way climb.
+Verification is the final gate before <code>done</code>.</p>
+
+<svg viewBox="0 0 980 150" role="img" aria-label="Ticket status flow">
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#5b9dff"/></marker>
+  </defs>
+  <!-- nodes -->
+  <g font-family="var(--mono)" font-size="13" text-anchor="middle">
+    <g><rect x="10" y="55" width="120" height="40" rx="9" fill="#1a2030" stroke="#26304a"/><text x="70" y="80" fill="#9aa7bd">backlog / ready</text></g>
+    <g><rect x="180" y="55" width="115" height="40" rx="9" fill="#1a2030" stroke="#26304a"/><text x="237" y="80" fill="#e7ecf5">in_progress</text></g>
+    <g><rect x="345" y="55" width="110" height="40" rx="9" fill="#1a2030" stroke="#26304a"/><text x="400" y="80" fill="#e7ecf5">ai_review</text></g>
+    <g><rect x="505" y="45" width="150" height="60" rx="9" fill="#241a33" stroke="#c06bff" stroke-width="1.6"/><text x="580" y="70" fill="#e7ecf5">ai_verification</text><text x="580" y="90" fill="#c06bff" font-size="11">the gate</text></g>
+    <g><rect x="700" y="55" width="90" height="40" rx="9" fill="#0f1a15" stroke="#3ecf8e"/><text x="745" y="80" fill="#3ecf8e">done</text></g>
+  </g>
+  <g stroke="#5b9dff" stroke-width="1.8" fill="none" marker-end="url(#ar)">
+    <line x1="130" y1="75" x2="176" y2="75"/>
+    <line x1="295" y1="75" x2="341" y2="75"/>
+    <line x1="455" y1="75" x2="501" y2="75"/>
+    <line x1="655" y1="75" x2="696" y2="75"/>
+  </g>
+  <g font-family="var(--mono)" font-size="10.5" fill="#9aa7bd" text-anchor="middle">
+    <text x="153" y="66">start-work</text>
+    <text x="318" y="66">complete-work</text>
+    <text x="478" y="66">generate-demo</text>
+    <text x="676" y="66" fill="#3ecf8e">verify-pass ✓</text>
+  </g>
+  <!-- the fail edge -->
+  <path d="M580,105 C580,140 237,140 237,97" stroke="#f2555a" stroke-width="1.8" fill="none" marker-end="url(#ar)" stroke-dasharray="5 4"/>
+  <text x="408" y="135" fill="#f2555a" font-family="var(--mono)" font-size="11" text-anchor="middle">verify-fail — back to the very start of the lane</text>
+</svg>
+
+<p>The trouble is entirely in that <span style="color:var(--bad)">red dashed edge</span>. In the current design,
+<code>verify-fail</code> doesn't mean "try the demo again" — it means "you are no longer verified; go back to
+<code>in_progress</code>, throw away your demo, and re-earn your way here." Verification is the only gate in the
+ladder that can demote a ticket <em>two full stages</em>, and it fires often.</p>
+
+<!-- ============================================================= -->
+<h2 id="handoff">3 · How the handoff &amp; tracking actually work</h2>
+<p>When a demo is generated (<code>ai_review → ai_verification</code>), the ticket is handed to a background
+<span class="hl">verification worker</span>. Four database tables track the whole lifecycle. Understanding them is
+key to seeing where state gets lost or stuck.</p>
+
+<div class="grid g2">
+  <div class="panel">
+    <h3 style="margin-top:0"><span class="pill">verification_jobs</span> — the runner's work queue</h3>
+    <p>One row per ticket. This is the durable lease/queue. Status moves
+    <code>queued → running → succeeded | failed | blocked | dead</code>. A worker <em>claims</em> a job with a
+    time-boxed lease (2–5 min), heartbeats to renew it, and settles it when the run finishes.</p>
+    <p class="fileref">core/verification-queue.ts · core/verification-worker.ts</p>
+  </div>
+  <div class="panel">
+    <h3 style="margin-top:0"><span class="pill">verification_runs</span> — the sealed evidence ledger</h3>
+    <p>One row per <em>attempt</em> (round 1, 2, 3…). Stores the HMAC-sealed manifest: every step verdict, boot log,
+    git SHA, screenshots/API evidence hashes, and the <code>certified</code> boolean. This is the audit trail the
+    epic table above was read from.</p>
+    <p class="fileref">core/verification.ts (buildRun / persistRun)</p>
+  </div>
+  <div class="panel">
+    <h3 style="margin-top:0"><span class="pill">demo_scripts</span> — what to prove</h3>
+    <p>The 3–7 step demo the runner executes. On every failure this gets wiped
+    (<code>completed_at=NULL, passed=NULL</code>) and the workflow flag <code>demo_generated</code> is reset to
+    <code>0</code> — which is what <em>forces</em> the agent to regenerate it from scratch.</p>
+    <p class="fileref">core/verification-lifecycle.ts (updateDemoStepStatusesForRun)</p>
+  </div>
+  <div class="panel">
+    <h3 style="margin-top:0"><span class="pill">ticket_workflow_state</span> — the phase mirror</h3>
+    <p>Tracks <code>current_phase</code>, <code>review_iteration</code>, <code>findings_count/fixed</code>. On a
+    verification failure it's rewound to <code>implementation</code>, and a <code>review_findings</code> row is
+    filed so the agent has something to "fix" — even when nothing was actually broken.</p>
+    <p class="fileref">core/verification-lifecycle.ts (recordVerificationFindings)</p>
+  </div>
+</div>
+
+<h3>Who executes the run</h3>
+<p>By default there is <span class="hl">no resident poller</span>. Execution happens through <em>one-shot drain
+processes</em>: when a demo is enqueued, Brain Dump spawns a detached
+<code>brain-dump verify worker --drain</code> that loads current on-disk code, runs the queue empty, and exits.
+This design (see <code>shouldStartVerificationWorkerFromEnv</code>) exists to avoid a server booting with a stale
+module graph — but it also means <span class="hl">if that spawn silently fails, the job just sits <code>queued</code>
+forever</span> until the next enqueue or a Brain Dump restart triggers a boot-drain. Startup reconciliation
+(<code>reconcileVerificationTicketStates</code>) exists precisely to mop up jobs that got orphaned this way — a tell
+that orphaning happens in practice.</p>
+
+<!-- ============================================================= -->
+<h2 id="loop">4 · The bounce-back loop — why "one gate" costs four laps</h2>
+<p>Here's the mechanism that produces the sequences in §1. When a run is anything other than
+<span class="tag t-pass">passed + certified</span>, the lifecycle doesn't retry the demo. It runs
+<code>returnTicketToImplementationAfterVerificationFailure()</code>, which resets the ticket to the
+<em>beginning</em> of the working lane.</p>
+
+<svg viewBox="0 0 960 300" role="img" aria-label="Verification bounce loop">
+  <defs>
+    <marker id="a2" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#f2555a"/></marker>
+    <marker id="a3" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#5b9dff"/></marker>
+  </defs>
+  <g font-family="var(--mono)" font-size="12.5" text-anchor="middle">
+    <g><rect x="40" y="30" width="150" height="46" rx="9" fill="#1a2030" stroke="#26304a"/><text x="115" y="52" fill="#e7ecf5">in_progress</text><text x="115" y="67" fill="#9aa7bd" font-size="10">re-implement</text></g>
+    <g><rect x="255" y="30" width="150" height="46" rx="9" fill="#1a2030" stroke="#26304a"/><text x="330" y="52" fill="#e7ecf5">ai_review</text><text x="330" y="67" fill="#9aa7bd" font-size="10">re-review + fixes</text></g>
+    <g><rect x="470" y="30" width="160" height="46" rx="9" fill="#1a2030" stroke="#26304a"/><text x="550" y="52" fill="#e7ecf5">generate-demo</text><text x="550" y="67" fill="#9aa7bd" font-size="10">rebuild all 3–7 steps</text></g>
+    <g><rect x="700" y="24" width="200" height="58" rx="9" fill="#241a33" stroke="#c06bff" stroke-width="1.6"/><text x="800" y="46" fill="#e7ecf5">ai_verification</text><text x="800" y="65" fill="#c06bff" font-size="10">worker runs the demo</text></g>
+  </g>
+  <!-- forward arrows -->
+  <g stroke="#5b9dff" stroke-width="1.7" fill="none" marker-end="url(#a3)">
+    <line x1="190" y1="53" x2="251" y2="53"/>
+    <line x1="405" y1="53" x2="466" y2="53"/>
+    <line x1="630" y1="53" x2="696" y2="53"/>
+  </g>
+  <!-- decision -->
+  <g font-family="var(--mono)" font-size="12" text-anchor="middle">
+    <path d="M800 82 L860 140 L800 198 L740 140 Z" fill="#131824" stroke="#c06bff"/>
+    <text x="800" y="138" fill="#e7ecf5">certified?</text>
+    <text x="800" y="154" fill="#9aa7bd" font-size="10">passed &amp; sealed</text>
+  </g>
+  <!-- yes -> done -->
+  <line x1="800" y1="198" x2="800" y2="235" stroke="#3ecf8e" stroke-width="1.8" marker-end="url(#a3)"/>
+  <g><rect x="745" y="238" width="110" height="40" rx="9" fill="#0f1a15" stroke="#3ecf8e"/><text x="800" y="263" fill="#3ecf8e" font-family="var(--mono)" font-size="12.5" text-anchor="middle">done ✓</text></g>
+  <text x="815" y="222" fill="#3ecf8e" font-family="var(--mono)" font-size="10">yes</text>
+  <!-- no -> all the way back -->
+  <path d="M740 140 C420 140 300 150 115 150 C115 150 115 110 115 80" stroke="#f2555a" stroke-width="2" fill="none" marker-end="url(#a2)"/>
+  <text x="430" y="168" fill="#f2555a" font-family="var(--mono)" font-size="11.5" text-anchor="middle">
+    NO → status=in_progress · demo wiped · demo_generated=0 · finding filed · <tspan font-weight="700">start the whole lap over</tspan>
+  </text>
+</svg>
+
+<div class="callout bad">
+  <h4>The cost multiplier</h4>
+  <p style="margin:0 0 8px">A "failure" at the gate is not a 30-second re-run of the demo. It is a full workflow
+  lap: the agent must re-open the ticket, satisfy the review phase again, and <span class="hl">regenerate the entire
+  demo script from scratch</span> (because <code>demo_generated</code> was reset to 0). With the observed 3–4 attempts
+  per ticket, that's <span class="hl">3–4 complete laps</span> where the intended design was one gate check.</p>
+  <p style="margin:0" class="fileref">core/verification-lifecycle.ts:525 · returnTicketToImplementationAfterVerificationFailure()</p>
+</div>
+
+<h3>There are four different ways to "fail" the gate — and each is common</h3>
+<div class="legend">
+  <span><span class="dot" style="background:var(--infra)"></span><code>infra_error</code> — the runner couldn't even boot/run the app</span>
+  <span><span class="dot" style="background:var(--bad)"></span><code>failed</code> — a real assertion failed</span>
+  <span><span class="dot" style="background:var(--uncert)"></span><code>uncertified</code> — every step passed, but the run wasn't allowed to certify</span>
+</div>
+<p><code>summarizeStatus()</code> is strict and ordered: any <code>failed</code> step ⇒ <span class="tag t-fail">failed</span>;
+otherwise any <code>skipped</code> step ⇒ <span class="tag t-uncert">uncertified</span>; only an all-green run is
+<span class="tag t-pass">passed</span>. And <code>certified = (status === "passed")</code> — a single binary with no
+partial credit. In our epic, <span class="hl">2 of the 15 runs were infra_errors and 3 were uncertified</span> — i.e.
+a third of all failures were <em>not</em> "the code is wrong," they were the gate refusing to certify working code.</p>
+
+<!-- ============================================================= -->
+<h2 id="catch22">5 · The <code>coverageRationale</code> catch-22 (the live stall on ticket 6)</h2>
+<p>This is the single most damaging flaw, and it's exactly what has ticket 6 stuck right now. Look at what happened:
+all 7 of ticket 6's demo steps executed and <span class="tag t-pass">passed</span>. The run was still thrown out.</p>
+
+<div class="panel" style="border-color:var(--uncert)">
+  <h3 style="margin-top:0">Ticket 6's actual run manifest</h3>
+  <table style="margin:4px 0">
+    <tbody>
+      <tr><td class="mono">step 1 · file</td><td><span class="tag t-pass">passed</span></td><td>File assertions passed.</td></tr>
+      <tr><td class="mono">step 2–7 · command</td><td><span class="tag t-pass">passed</span></td><td>Command assertions passed.</td></tr>
+      <tr><td class="mono" style="color:var(--uncert)">step 0 · synthetic</td><td><span class="tag t-uncert">skipped</span></td>
+        <td>"Verification run uncertified because the demo includes a non-certifiable <b>coverageRationale</b>."</td></tr>
+    </tbody>
+  </table>
+  <p style="margin:8px 0 0">Step 1 carried an honest note: <span class="quote">"criterion:1 requires <code>make lint</code> and
+  criterion:2 requires <code>npx knip</code>…"</span> — the agent documented that two acceptance criteria for this
+  <b>Go project</b>'s dead-code sweep couldn't be fully proven by a single file assertion. That honesty is what
+  torched the run.</p>
+</div>
+
+<h3>Why it's a catch-22, not just a bug</h3>
+<p>The system gives the agent two contradictory orders in two different files:</p>
+
+<div class="grid g2">
+  <div class="callout good" style="margin:8px 0">
+    <h4>Order A — the <code>generate-demo</code> gate <em>demands</em> it</h4>
+    <p style="margin:0"><span class="fileref">core/review.ts:1063</span></p>
+    <p style="margin:6px 0 0">"Demo steps must cover <b>every</b> acceptance criterion… Add covers references
+    <b>or an explicit <code>coverageRationale</code> that names each non-certifiable criterion id.</b>"</p>
+    <p style="margin:6px 0 0">You <em>cannot leave</em> <code>ai_review</code> unless every criterion is covered.
+    For a criterion that can't be automated, the sanctioned — and only — way through is a <code>coverageRationale</code>.</p>
+  </div>
+  <div class="callout bad" style="margin:8px 0">
+    <h4>Order B — the verification runner <em>punishes</em> it</h4>
+    <p style="margin:0"><span class="fileref">core/verification.ts:1605</span></p>
+    <p style="margin:6px 0 0">"if any step has a <code>coverageRationale</code> → push a <code>skipped</code>
+    verdict → the whole run is <b>uncertified</b>."</p>
+    <p style="margin:6px 0 0">Uncertified ⇒ bounce to <code>in_progress</code>. The prompt even admits
+    <span class="quote">"rationale keeps the run uncertified"</span> — the trap is documented, but the consequence
+    (full bounce + eventual human block) is not survivable.</p>
+  </div>
+</div>
+
+<div class="callout warn">
+  <h4>And the "self-heal" only fires once</h4>
+  <p style="margin:0">The first uncertified run is "self-healed" back to implementation with a finding
+  (<code>returnUncertifiedRunToImplementation</code>). But a <span class="hl">second consecutive uncertified run
+  blocks the ticket for a human</span> (<code>previousRunWasUncertified</code>). So if the criterion genuinely
+  can't be automated — which is the whole reason the rationale existed — the agent gets exactly one retry before
+  the ticket is parked for manual intervention. That's what happened to ticket&nbsp;2 (it survived by luck on the
+  3rd try) and what ticket&nbsp;6 is walking into now.</p>
+</div>
+
+<!-- ============================================================= -->
+<h2 id="weakspots">6 · Ranked weak spots</h2>
+
+<div class="wscard">
+  <div class="hd"><span class="num">W1</span><h3>The coverageRationale contradiction</h3><span class="sev s-crit">CRITICAL</span></div>
+  <div class="bd">
+    <p>Documented in §5. <code>generate-demo</code> forces a rationale for non-automatable criteria; the runner
+    auto-uncertifies any rationale; uncertified auto-bounces; two bounces block for a human. Any ticket with an
+    acceptance criterion that isn't cleanly expressible as a file/command/API/UI assertion is structurally
+    unable to finish autonomously.</p>
+    <p class="fileref">core/review.ts:1063 ↔ core/verification.ts:1605 ↔ verification-lifecycle.ts:649</p>
+  </div>
+</div>
+
+<div class="wscard">
+  <div class="hd"><span class="num">W2</span><h3>Every failure demotes two full stages instead of retrying the demo</h3><span class="sev s-crit">CRITICAL</span></div>
+  <div class="bd">
+    <p>A flaky UI assertion, a slow boot, or a rationale doesn't get a cheap re-run — it wipes the demo, resets
+    <code>demo_generated=0</code>, and sends the ticket to <code>in_progress</code>. The 3–4× run multiplier in §1
+    is entirely this. There is no "re-run the same demo" path and no exponential backoff on the <em>demo</em>
+    itself; the only retry granularity is "redo the whole lane."</p>
+    <p class="fileref">core/verification-lifecycle.ts:525</p>
+  </div>
+</div>
+
+<div class="wscard">
+  <div class="hd"><span class="num">W3</span><h3>App-boot fragility drives infra_errors on non-JS / cold-start apps</h3><span class="sev s-high">HIGH</span></div>
+  <div class="bd">
+    <p>Any demo with a UI or API step must boot the real app (<code>vite dev</code> auto-discovered, or a declared
+    command) and drive Playwright. Cold Vite compiles routes on first hit; a splash overlay must detach; the boot
+    must bind a chosen free port. Ticket&nbsp;1 hit <span class="tag t-infra">infra_error</span> twice before a human
+    ran a manual "Verification Startup Repair." <code>discoverBootCommand</code> assumes npm/vite by default, so
+    non-JS stacks (this epic's target is <b>Go</b>) only work if they declare <code>.brain-dump/verify.json</code> —
+    otherwise UI/API steps can't run at all. Two boot retries, then it blocks.</p>
+    <p class="fileref">core/verification.ts:651 (discoverBootCommand) · :752 (bootApp) · :1077 (warmUpUiRoutes)</p>
+  </div>
+</div>
+
+<div class="wscard">
+  <div class="hd"><span class="num">W4</span><h3>The "3 consecutive failures" safety net rarely catches — or catches the wrong thing</h3><span class="sev s-high">HIGH</span></div>
+  <div class="bd">
+    <p><code>latestThreeFailedRunsShareStep</code> only blocks when the last 3 runs are all status
+    <code>failed</code> <em>and</em> share the same failing <b>step order</b>. But because every failure regenerates
+    the demo from scratch, step orders shift between attempts, so the "same step" match often never happens — a
+    ticket can bounce well past 3 times without ever being escalated. Meanwhile <code>uncertified</code> and
+    <code>infra_error</code> runs aren't counted as <code>failed</code> at all, so a ticket alternating
+    failed/uncertified never trips this net. The escalation logic and the demo-regeneration logic fight each other.</p>
+    <p class="fileref">core/verification-lifecycle.ts:101</p>
+  </div>
+</div>
+
+<div class="wscard">
+  <div class="hd"><span class="num">W5</span><h3>The tripwire's <code>manifest</code> match is dangerously broad</h3><span class="sev s-med">MEDIUM</span></div>
+  <div class="bd">
+    <p><code>hasVerificationTripwireChange</code> uncertifies any run whose changed files include a path containing
+    the substring <code>"manifest"</code>. That's meant to stop an agent editing Brain Dump's own verification code
+    from self-certifying — but it matches innocent files in the <em>target</em> project too:
+    <code>public/manifest.json</code>, <code>site.webmanifest</code>, <code>app.manifest</code>,
+    <code>manifest.ts</code>. A frontend ticket that legitimately touches a web app manifest would be silently
+    uncertified and bounced with a confusing "diff touches verification/manifest code" reason.</p>
+    <p class="fileref">core/verification.ts:909</p>
+  </div>
+</div>
+
+<div class="wscard">
+  <div class="hd"><span class="num">W6</span><h3>Silent enqueue-drain spawn failures strand jobs</h3><span class="sev s-med">MEDIUM</span></div>
+  <div class="bd">
+    <p>With no resident poller by default, a job only runs if the detached drain process spawns successfully. Spawn
+    failures are logged but never surfaced on the ticket — the job just stays <code>queued</code>. It's only rescued
+    by the next enqueue or a Brain Dump restart's boot-drain + <code>reconcileVerificationTicketStates</code>. To a
+    user this looks like a ticket sitting in <code>ai_verification</code> doing nothing, with no explanation.</p>
+    <p class="fileref">core/verification-worker.ts:580 · core/verification-ops.ts:274</p>
+  </div>
+</div>
+
+<div class="wscard">
+  <div class="hd"><span class="num">W7</span><h3>Findings are manufactured for non-defects</h3><span class="sev s-med">MEDIUM</span></div>
+  <div class="bd">
+    <p>On an uncertified-but-all-passing run, a <code>major</code> <code>review_finding</code> is filed and
+    <code>findings_count</code> is bumped so the agent has something to "fix." But nothing failed — the demo just
+    wasn't certifiable. This pollutes the review ledger (ticket&nbsp;7 shows 31 findings / 25 fixed) and trains the
+    agent to churn on non-problems, inflating each lap.</p>
+    <p class="fileref">core/verification-lifecycle.ts:429 (returnUncertifiedRunToImplementation)</p>
+  </div>
+</div>
+
+<!-- ============================================================= -->
+<h2 id="recommendations">7 · What to change</h2>
+<p>Ordered by impact-to-effort. The first two would, on their own, likely eliminate the stalling you're seeing.</p>
+
+<div class="callout good">
+  <h4>R1 · Break the catch-22 — stop equating "not certifiable" with "must redo everything"</h4>
+  <p style="margin:6px 0 0">Decide one policy and make both gates agree on it:</p>
+  <ul class="clean">
+    <li><b>Option A (recommended):</b> a run where <em>every executable step passed</em> and the only "skips" are
+    named <code>coverageRationale</code> criteria should resolve to a distinct terminal state — e.g.
+    <span class="tag t-warn">passed-with-caveats</span> that completes the ticket but flags it for optional human
+    spot-check. Don't bounce green work.</li>
+    <li><b>Option B:</b> if you truly require executable proof, then <code>generate-demo</code> must <em>reject</em>
+    coverageRationale up front (block leaving <code>ai_review</code>) instead of accepting it and ambushing the agent
+    at verification. Fail fast, in the same phase, with the same information.</li>
+  </ul>
+</div>
+
+<div class="callout good">
+  <h4>R2 · Make <code>verify-fail</code> retry the demo, not the ticket</h4>
+  <p style="margin:6px 0 0">Add an intermediate loop: keep the ticket in <code>ai_verification</code> and re-run the
+  <em>existing</em> demo (or let the agent patch just the failing steps) for N cheap attempts before demoting to
+  <code>in_progress</code>. Only fall back to a full lane reset when the failure is a genuine assertion regression,
+  not a flake or a boot hiccup. This directly kills the 3–4× multiplier.</p>
+</div>
+
+<div class="callout good">
+  <h4>R3 · Separate infra_error from product failure in the retry budget</h4>
+  <p style="margin:6px 0 0"><code>infra_error</code> already has its own retry path, but boot fragility (W3) means it's
+  hit too often. Warm the app once and reuse the boot across steps; give non-JS projects a clearer required
+  declaration with an actionable error the moment a UI/API step is authored for a project with no discoverable boot,
+  rather than at run time. Never let a boot flake file a "fix your code" finding.</p>
+</div>
+
+<div class="callout good">
+  <h4>R4 · Tighten the tripwire &amp; fix the escalation net</h4>
+  <p style="margin:6px 0 0">Scope <code>hasVerificationTripwireChange</code> to the verifier's <em>own</em> repo
+  (compare against Brain Dump's code root, not the target project's diff) and drop the bare <code>"manifest"</code>
+  substring (W5). Rework <code>latestThreeFailedRunsShareStep</code> to count <em>any</em> non-passing outcome and to
+  key on the failing criterion/assertion rather than the volatile step order (W4), so genuinely stuck tickets escalate
+  predictably instead of bouncing forever.</p>
+</div>
+
+<div class="callout good">
+  <h4>R5 · Make stalls visible</h4>
+  <p style="margin:6px 0 0">Surface enqueue-drain spawn failures and stranded <code>queued</code> jobs on the ticket
+  itself (W6), and stop filing fake <code>review_findings</code> for non-defects (W7). If a ticket is stuck, the
+  reason should be one glance away in the UI — not buried in a detached process's stderr.</p>
+</div>
+
+<div class="panel" style="border-color:var(--good)">
+  <h3 style="margin-top:0">Expected effect</h3>
+  <p style="margin:0">R1 alone unblocks ticket&nbsp;6 immediately and prevents the whole class of "green work,
+  rejected anyway" stalls (a third of the failures observed). R1+R2 together would have turned the observed
+  <span class="hl">15 runs into roughly 6–8</span>, and turned "every ticket stalls" into "verification is a quick
+  final gate," which is what it was designed to be.</p>
+</div>
+
+<div class="footer">
+  <p><b>Method.</b> All ticket/run/job/demo data was read directly from the live SQLite database at
+  <code>~/.local/share/brain-dump/brain-dump.db</code> for epic <code>0aaf3207-a8bc-4c06-ad04-0338ad94082c</code>.
+  Code references are to the working tree on branch
+  <code>feature/epic-bc99b396-ai-verification-gate-evidence-based-review</code>. Line numbers reflect that revision.</p>
+  <p>Key files: <code>core/verification.ts</code> (runner &amp; certification),
+  <code>core/verification-lifecycle.ts</code> (settlement &amp; bounce logic),
+  <code>core/verification-worker.ts</code> (queue drain),
+  <code>core/verification-queue.ts</code> (durable leases),
+  <code>core/verification-ops.ts</code> (reconciliation),
+  <code>core/workflow-steps.ts</code> (status machine),
+  <code>core/review.ts</code> (demo coverage gate).</p>
+</div>
+
+</div>
+</body>
+</html>

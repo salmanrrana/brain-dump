@@ -41,7 +41,11 @@ import {
   updateEpicReviewRunTicketLink,
 } from "./epic-review-run.ts";
 import { completeActiveSessionsForTicket } from "./session.ts";
-import { addComment } from "./comment.ts";
+import {
+  addComment,
+  resolveCommentIdentity,
+  type ResolveCommentIdentityParams,
+} from "./comment.ts";
 import { enqueueVerificationJob } from "./verification-queue.ts";
 import {
   assertTransition,
@@ -145,6 +149,18 @@ function getOrCreateWorkflowState(db: DbHandle, ticketId: string): DbTicketWorkf
 // Public API – Findings
 // ============================================
 
+type AiOperationCommentIdentity = Pick<
+  ResolveCommentIdentityParams,
+  "author" | "provider" | "modelProvider" | "modelName" | "env"
+>;
+
+const FINDING_SEVERITY_ICONS: Record<FindingSeverity, string> = {
+  critical: "🔴",
+  major: "🟠",
+  minor: "🟡",
+  suggestion: "💡",
+};
+
 export interface SubmitFindingParams {
   ticketId: string;
   agent: FindingAgent;
@@ -154,6 +170,7 @@ export interface SubmitFindingParams {
   filePath?: string;
   lineNumber?: number;
   suggestedFix?: string;
+  commentIdentity?: AiOperationCommentIdentity | undefined;
 }
 
 /**
@@ -230,8 +247,17 @@ function findDuplicateOpenFinding(
 }
 
 function submitFindingInTransaction(db: DbHandle, params: SubmitFindingParams): ReviewFinding {
-  const { ticketId, agent, severity, category, description, filePath, lineNumber, suggestedFix } =
-    params;
+  const {
+    ticketId,
+    agent,
+    severity,
+    category,
+    description,
+    filePath,
+    lineNumber,
+    suggestedFix,
+    commentIdentity,
+  } = params;
 
   const ticket = getTicketRow(db, ticketId);
 
@@ -296,6 +322,28 @@ function submitFindingInTransaction(db: DbHandle, params: SubmitFindingParams): 
     "UPDATE ticket_workflow_state SET findings_count = findings_count + 1, updated_at = ? WHERE ticket_id = ?"
   ).run(now, ticketId);
 
+  const identity = resolveCommentIdentity({
+    phase: "ai_review",
+    actorKind: "ai",
+    role: "reviewer",
+    ...commentIdentity,
+  });
+  const icon = FINDING_SEVERITY_ICONS[severity];
+  const commentLines = [
+    `Review finding: ${icon} [${severity}] ${category}`,
+    "",
+    description,
+    ...(filePath ? ["", `File: ${filePath}${lineNumber ? `:${lineNumber}` : ""}`] : []),
+    ...(suggestedFix ? ["", "Suggested fix:", suggestedFix] : []),
+    ...(epicReviewRunId ? ["", `Epic review run: ${epicReviewRunId}`] : []),
+  ];
+  addComment(db, {
+    ticketId,
+    content: commentLines.join("\n"),
+    type: "progress",
+    ...identity,
+  });
+
   const row = db
     .prepare("SELECT * FROM review_findings WHERE id = ?")
     .get(findingId) as DbReviewFindingRow;
@@ -319,34 +367,72 @@ export type MarkFixedStatus = "fixed" | "wont_fix" | "duplicate";
  * @throws FindingNotFoundError if the finding doesn't exist
  * @throws TicketNotFoundError if the associated ticket doesn't exist
  */
-export function markFixed(db: DbHandle, findingId: string, status: MarkFixedStatus): ReviewFinding {
-  const findingRow = db.prepare("SELECT * FROM review_findings WHERE id = ?").get(findingId) as
-    | DbReviewFindingRow
-    | undefined;
-  if (!findingRow) throw new FindingNotFoundError(findingId);
+export interface MarkFixedCommentOptions {
+  fixDescription?: string | undefined;
+  commentIdentity?: AiOperationCommentIdentity | undefined;
+}
 
-  // Verify ticket still exists
-  getTicketRow(db, findingRow.ticket_id);
+export function markFixed(
+  db: DbHandle,
+  findingId: string,
+  status: MarkFixedStatus,
+  options: MarkFixedCommentOptions = {}
+): ReviewFinding {
+  const updateFinding = db.transaction(() => {
+    const findingRow = db.prepare("SELECT * FROM review_findings WHERE id = ?").get(findingId) as
+      | DbReviewFindingRow
+      | undefined;
+    if (!findingRow) throw new FindingNotFoundError(findingId);
 
-  const now = new Date().toISOString();
-  const fixedAt = status === "fixed" ? now : null;
+    getTicketRow(db, findingRow.ticket_id);
 
-  db.prepare("UPDATE review_findings SET status = ?, fixed_at = ? WHERE id = ?").run(
-    status,
-    fixedAt,
-    findingId
-  );
+    const now = new Date().toISOString();
+    const fixedAt = status === "fixed" ? now : null;
 
-  if (status === "fixed") {
-    db.prepare(
-      "UPDATE ticket_workflow_state SET findings_fixed = findings_fixed + 1, updated_at = ? WHERE ticket_id = ?"
-    ).run(now, findingRow.ticket_id);
-  }
+    db.prepare("UPDATE review_findings SET status = ?, fixed_at = ? WHERE id = ?").run(
+      status,
+      fixedAt,
+      findingId
+    );
 
-  const updated = db
-    .prepare("SELECT * FROM review_findings WHERE id = ?")
-    .get(findingId) as DbReviewFindingRow;
-  return toReviewFinding(updated);
+    if (status === "fixed" && findingRow.status !== "fixed") {
+      db.prepare(
+        "UPDATE ticket_workflow_state SET findings_fixed = findings_fixed + 1, updated_at = ? WHERE ticket_id = ?"
+      ).run(now, findingRow.ticket_id);
+    }
+
+    const updated = db
+      .prepare("SELECT * FROM review_findings WHERE id = ?")
+      .get(findingId) as DbReviewFindingRow;
+    const finding = toReviewFinding(updated);
+    const statusLabel =
+      status === "fixed"
+        ? "✅ Finding marked as fixed"
+        : status === "wont_fix"
+          ? "⚠️ Finding marked as won't fix"
+          : "↔️ Finding marked as duplicate";
+    const identity = resolveCommentIdentity({
+      phase: "ai_review",
+      actorKind: "ai",
+      role: "reviewer",
+      ...options.commentIdentity,
+    });
+    addComment(db, {
+      ticketId: finding.ticketId,
+      content: [
+        statusLabel,
+        `Category: ${finding.category}`,
+        `Severity: ${finding.severity}`,
+        ...(options.fixDescription ? ["", "Fix description:", options.fixDescription] : []),
+        ...(finding.epicReviewRunId ? ["", `Epic review run: ${finding.epicReviewRunId}`] : []),
+      ].join("\n"),
+      type: "progress",
+      ...identity,
+    });
+    return finding;
+  });
+
+  return updateFinding.immediate();
 }
 
 export interface GetFindingsFilters {
@@ -436,6 +522,7 @@ export function checkComplete(db: DbHandle, ticketId: string): ReviewCompletionS
 export interface GenerateDemoParams {
   ticketId: string;
   steps: DemoStep[];
+  commentIdentity?: AiOperationCommentIdentity | undefined;
 }
 
 export const DEMO_COMMAND_MAX_TIMEOUT_MS = 300_000;
@@ -1580,6 +1667,9 @@ export function repairLegacyHumanReviewHandoff(
       author: "brain-dump",
       type: "comment",
       content: `## Legacy Workflow Repair\n\n${reason}\n\nManual approval has been retired; the verification runner owns completion.`,
+      phase: "repair",
+      actorKind: "system",
+      provider: "brain-dump",
     });
   })();
   return { ticketId, previousStatus: "human_review", newStatus, reason };
@@ -1769,7 +1859,7 @@ export function validateGenerateDemo(db: DbHandle, params: GenerateDemoParams): 
  * @throws ValidationError if there are unresolved critical/major findings
  */
 export function generateDemo(db: DbHandle, params: GenerateDemoParams): DemoScript {
-  const { ticketId, steps } = params;
+  const { ticketId, steps, commentIdentity } = params;
 
   const projectPath = getTicketProjectPath(db, ticketId);
   validateDemoSteps(
@@ -1817,6 +1907,19 @@ export function generateDemo(db: DbHandle, params: GenerateDemoParams): DemoScri
       "UPDATE ticket_workflow_state SET current_phase = 'ai_verification', updated_at = ? WHERE ticket_id = ?"
     ).run(now, ticketId);
     enqueueVerificationJob(db, ticketId, { now });
+
+    const identity = resolveCommentIdentity({
+      phase: "demo",
+      actorKind: "ai",
+      role: "reviewer",
+      ...commentIdentity,
+    });
+    addComment(db, {
+      ticketId,
+      content: `Demo script generated with ${steps.length} steps. Ticket is now ready for AI verification.${linkedEpicReviewRunId ? `\n\nEpic review run: ${linkedEpicReviewRunId}` : ""}`,
+      type: "progress",
+      ...identity,
+    });
 
     completeActiveSessionsForTicket(
       db,

@@ -2,7 +2,13 @@
  * Comment commands: add, list.
  */
 
-import { addComment, listComments, InvalidActionError } from "../../core/index.ts";
+import {
+  addComment,
+  listComments,
+  resolveCommentAuthor,
+  resolveCommentIdentity,
+  InvalidActionError,
+} from "../../core/index.ts";
 import type { CommentAuthor, CommentType } from "../../core/index.ts";
 import { parseFlags, requireFlag, boolFlag, optionalEnumFlag } from "../lib/args.ts";
 import { outputResult, outputError, showResourceHelp } from "../lib/output.ts";
@@ -37,9 +43,35 @@ export function handle(action: string, args: string[]): void {
           "opencode",
           "cursor",
           "vscode",
+          "copilot",
+          "codex",
+          "pi",
+          "cursor-agent",
+          "brain-dump",
           "ai",
         ]);
-        const result = addComment(db, { ticketId, content, type, author });
+        const resolvedAuthor =
+          author ??
+          resolveCommentAuthor(
+            process.env.BRAIN_DUMP_PROVIDER ?? "",
+            process.env.RALPH_SESSION === "1"
+          );
+        const implementationIdentity =
+          type === "work_summary" || type === "test_report"
+            ? resolveCommentIdentity({
+                phase: "implementation",
+                actorKind: "ai",
+                role: "implementation",
+                author: resolvedAuthor,
+              })
+            : null;
+        const result = addComment(db, {
+          ticketId,
+          content,
+          type,
+          author,
+          ...(implementationIdentity ?? {}),
+        });
         outputResult(result, pretty);
         break;
       }

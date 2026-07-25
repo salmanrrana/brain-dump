@@ -29,7 +29,12 @@ import {
   InvalidStateError,
   ValidationError,
 } from "./errors.ts";
-import { addComment, type CommentAuthor } from "./comment.ts";
+import {
+  addComment,
+  resolveCommentIdentity,
+  type CommentAuthor,
+  type ResolveCommentIdentityParams,
+} from "./comment.ts";
 import { generateBranchName, generateEpicBranchName, findBaseBranch } from "./git-utils.ts";
 import type { DbEpicWorkflowStateRow } from "./db-rows.ts";
 import {
@@ -236,7 +241,15 @@ export function startWork(
     ? `Started work on ticket. Branch: \`${branchName}\` (epic branch)`
     : `Started work on ticket. Branch: \`${branchName}\``;
   try {
-    addComment(db, { ticketId, content: commentContent, author: "brain-dump", type: "progress" });
+    addComment(db, {
+      ticketId,
+      content: commentContent,
+      author: "brain-dump",
+      type: "progress",
+      phase: "system_workflow",
+      actorKind: "system",
+      provider: "brain-dump",
+    });
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : "Unknown error";
     warnings.push(`Failed to post starting comment: ${errMsg}`);
@@ -271,12 +284,17 @@ export function startWork(
  * - `TicketNotFoundError` if ticket doesn't exist
  * - `InvalidStateError` if ticket is already done, ai_review, or ai_verification
  */
+type CompleteWorkCommentIdentity = Pick<
+  ResolveCommentIdentityParams,
+  "author" | "provider" | "modelProvider" | "modelName" | "env"
+>;
+
 export function completeWork(
   db: Database.Database,
   ticketId: string,
   git: GitOperations,
   summary?: string,
-  commentAuthor: CommentAuthor = "ralph"
+  commentIdentity: CommentAuthor | CompleteWorkCommentIdentity = "ralph"
 ): CompleteWorkResult {
   // 1. Fetch ticket
   const ticket = db
@@ -368,11 +386,19 @@ export function completeWork(
     ? `## Work Summary\n\n${summary}\n\n${commitsInfo ? `### Commits\n\`\`\`\n${commitsInfo}\`\`\`` : ""}`
     : `Completed work on: ${ticket.title}${commitsInfo ? `\n\nCommits:\n${commitsInfo}` : ""}`;
   try {
+    const identityInput =
+      typeof commentIdentity === "string" ? { author: commentIdentity } : commentIdentity;
+    const identity = resolveCommentIdentity({
+      phase: "implementation",
+      actorKind: "ai",
+      role: "implementation",
+      ...identityInput,
+    });
     addComment(db, {
       ticketId,
       content: workSummaryContent,
-      author: commentAuthor,
       type: "work_summary",
+      ...identity,
     });
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : "Unknown error";
@@ -400,11 +426,9 @@ export function completeWork(
 
   // 7. Build next steps
   const nextSteps = [
-    "Run review agents (code-reviewer, silent-failure-hunter, code-simplifier)",
-    'Submit findings with review({ action: "submit-finding", ... })',
-    'Fix critical/major findings with review({ action: "mark-fixed", fixStatus: "fixed", ... })',
-    'Verify with review({ action: "check-complete", ... })',
-    'Generate demo script with review({ action: "generate-demo", ... })',
+    "AI review is next. If this launch configured a separate fresh-eyes reviewer, stop now; that reviewer owns the review, targeted fixes, validation, and verification handoff in one invocation.",
+    "Without a separate reviewer, run the ticket-scoped review workflow: inspect the changed implementation, submit concrete findings, and fix critical/major findings.",
+    "After review completion is confirmed, generate the verification demo handoff.",
     "STOP — ticket requires AI verification; the runner owns completion.",
   ];
 

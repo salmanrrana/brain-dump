@@ -1,6 +1,6 @@
 import { sqliteTable, text, integer, real, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
-import type { DemoStep } from "../../core/types.ts";
+import type { CommentActorKind, CommentPhase, DemoStep } from "../../core/types.ts";
 import type { TicketStatus } from "../../core/workflow-steps.ts";
 
 // Projects table
@@ -108,6 +108,11 @@ export const ticketComments = sqliteTable(
         | "change_request"
         | "verification_report"
       >(),
+    phase: text("phase").$type<CommentPhase>(),
+    actorKind: text("actor_kind").$type<CommentActorKind>(),
+    provider: text("provider"),
+    modelProvider: text("model_provider"),
+    modelName: text("model_name"),
     createdAt: text("created_at")
       .notNull()
       .default(sql`(datetime('now'))`),

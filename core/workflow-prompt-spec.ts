@@ -27,7 +27,7 @@ export const WORKFLOW_PHASES: readonly WorkflowPhaseSpec[] = [
   {
     title: "AI Review",
     summary:
-      "Self-review the diff, submit every finding through Brain Dump, fix critical/major findings, then check completion.",
+      "Review the ticket's own changed code for regressions, acceptance gaps, and maintainability (reuse existing patterns; keep junior-readable). Submit only concrete NEW blocking findings, fix critical/major findings, then check completion.",
     toolCalls: [
       'review({ action: "get-findings", ticketId })',
       'review({ action: "submit-finding", ticketId, agent, severity, category, description })',
@@ -73,6 +73,13 @@ export const HARD_GUARDS = [
   "Do not run verification yourself.",
   "Do not move tickets to done yourself.",
   "Do not continue to another ticket after demo handoff.",
+] as const;
+
+export const IMPLEMENTATION_DISCIPLINE_RULES = [
+  "Before editing, map each acceptance criterion to the existing production entry point and nearby tests. Search for components, helpers, services, and patterns that already own the behavior.",
+  "Extend or reuse the established implementation instead of adding a parallel path. New shared logic must be wired through the real production caller; replace superseded ticket-owned logic rather than leaving two competing implementations.",
+  "Keep the diff minimal and match the codebase's existing style. Prefer explicit code a junior engineer can trace; use the smallest local or established abstraction that removes concrete duplication, never a speculative framework or dependency.",
+  "Preserve existing behavior outside the ticket and add focused regression coverage at the changed boundary. Before handoff, inspect the final diff for dead code, duplicate logic, and acceptance criteria implemented only in tests but not reachable in production.",
 ] as const;
 
 export const SESSION_STATES = [
@@ -151,6 +158,11 @@ export function renderWorkflowRules(): string {
 - Scope is fixed by \`plans/prd.json\`. Never work on tickets outside it.`;
 }
 
+export function renderImplementationDiscipline(): string {
+  return `## Implementation Discipline
+${IMPLEMENTATION_DISCIPLINE_RULES.map((rule) => `- ${rule}`).join("\n")}`;
+}
+
 export function renderValidationChecklist(): string {
   return `## Gates
 ${VALIDATION_GATE_RULES.map((rule) => `- ${rule}`).join("\n")}`;
@@ -182,6 +194,9 @@ Follow this workflow exactly:
 
 ${WORKFLOW_PHASES.map((phase, index) => `${index + 1}. ${phase.title}\n- ${phase.summary}\n${phase.toolCalls.map((call) => `- Call ${call}`).join("\n")}`).join("\n\n")}
 
+Implementation discipline:
+${IMPLEMENTATION_DISCIPLINE_RULES.map((rule) => `- ${rule}`).join("\n")}
+
 Validation gates:
 ${VALIDATION_GATE_RULES.map((rule) => `- ${rule}`).join("\n")}
 
@@ -198,6 +213,10 @@ ${WORKFLOW_PHASES.map(
   (phase, index) =>
     `### Step ${index + 1}: ${phase.title}\n\n${phase.summary}\n\n${phase.toolCalls.map((call) => `- \`${call}\``).join("\n")}`
 ).join("\n\n")}
+
+### Implementation Discipline
+
+${IMPLEMENTATION_DISCIPLINE_RULES.map((rule) => `- ${rule}`).join("\n")}
 
 ### Validation Gates
 
@@ -220,6 +239,10 @@ ${WORKFLOW_PHASES.map((phase) => `- **${phase.title}**: ${phase.summary}`).join(
 ${WORKFLOW_PHASES.flatMap((phase) => phase.toolCalls)
   .map((call) => `- \`${call}\``)
   .join("\n")}
+
+## Implementation Discipline
+
+${IMPLEMENTATION_DISCIPLINE_RULES.map((rule) => `- ${rule}`).join("\n")}
 
 ## Quality Gates
 
@@ -245,6 +268,10 @@ Status flow: \`${getStatusFlowText()}\`
 8. Demo: \`brain-dump review generate-demo --ticket <ticket-id> --steps-file <steps.json> --pretty\`; include automation specs for visual/automated UI, API, command, or file checks.
 9. Stop after demo handoff. Do not approve or move the ticket to done.
 
+### Implementation Discipline
+
+${IMPLEMENTATION_DISCIPLINE_RULES.map((rule) => `- ${rule}`).join("\n")}
+
 ### Validation Gates
 
 ${VALIDATION_GATE_RULES.map((rule) => `- ${rule}`).join("\n")}`;
@@ -255,6 +282,7 @@ export function renderPiPromptWorkflowSection(): string {
 
 - Use the \`brain-dump\` CLI only. Do not use MCP.
 - Status flow: \`${getStatusFlowText()}\`.
+${IMPLEMENTATION_DISCIPLINE_RULES.map((rule) => `- ${rule}`).join("\n")}
 - Run project validation discovered from docs/config before \`workflow complete-work\`.
 - Record validation with \`brain-dump comment add --ticket <ticket-id> --type test_report --content "<commands and results>" --pretty\` before \`workflow complete-work\`; stop if the comment command fails.
 - Use \`brain-dump review check-complete --ticket <ticket-id> --pretty\` before generating demo steps.

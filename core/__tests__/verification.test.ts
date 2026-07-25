@@ -915,9 +915,19 @@ createServer((request, response) => {
     expect(ticket.status).toBe("done");
     expect(ticket.completed_at).toBeTruthy();
     const comment = db
-      .prepare("SELECT author, type FROM ticket_comments WHERE ticket_id = 'ticket-1'")
-      .get() as { author: string; type: string };
-    expect(comment).toEqual({ author: "unknown ralph", type: "verification_report" });
+      .prepare(
+        "SELECT author, type, phase, actor_kind, provider, model_provider, model_name FROM ticket_comments WHERE ticket_id = 'ticket-1'"
+      )
+      .get();
+    expect(comment).toEqual({
+      author: "unknown ralph",
+      type: "verification_report",
+      phase: "ai_verification",
+      actor_kind: "system",
+      provider: "unknown",
+      model_provider: null,
+      model_name: null,
+    });
     expect(run.identity).toMatchObject({
       provider: "unknown",
       actor: "unknown ralph",

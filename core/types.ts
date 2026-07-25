@@ -117,7 +117,25 @@ export interface Epic {
   createdAt: string;
 }
 
-export interface Comment {
+export type CommentPhase =
+  | "implementation"
+  | "ai_review"
+  | "demo"
+  | "ai_verification"
+  | "repair"
+  | "system_workflow";
+
+export type CommentActorKind = "ai" | "system";
+
+export interface CommentProvenance {
+  phase: CommentPhase | null;
+  actorKind: CommentActorKind | null;
+  provider: string | null;
+  modelProvider: string | null;
+  modelName: string | null;
+}
+
+export interface Comment extends CommentProvenance {
   id: string;
   ticketId: string;
   content: string;

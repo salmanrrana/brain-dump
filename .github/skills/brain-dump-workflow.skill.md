@@ -25,7 +25,7 @@ start-work -> create or reuse a session -> implement -> validate -> commit -> co
 
 ### Step 2: AI Review
 
-Self-review the diff, submit every finding through Brain Dump, fix critical/major findings, then check completion.
+Review the ticket's own changed code for regressions, acceptance gaps, and maintainability (reuse existing patterns; keep junior-readable). Submit only concrete NEW blocking findings, fix critical/major findings, then check completion.
 
 - `review({ action: "get-findings", ticketId })`
 - `review({ action: "submit-finding", ticketId, agent, severity, category, description })`
@@ -43,6 +43,13 @@ Generate 3-7 test steps after review completion, including criterion coverage re
 Complete the Ralph session and stop. Never run verification or move the ticket to done yourself.
 
 - `session({ action: "complete", sessionId, outcome: "success" })`
+
+### Implementation Discipline
+
+- Before editing, map each acceptance criterion to the existing production entry point and nearby tests. Search for components, helpers, services, and patterns that already own the behavior.
+- Extend or reuse the established implementation instead of adding a parallel path. New shared logic must be wired through the real production caller; replace superseded ticket-owned logic rather than leaving two competing implementations.
+- Keep the diff minimal and match the codebase's existing style. Prefer explicit code a junior engineer can trace; use the smallest local or established abstraction that removes concrete duplication, never a speculative framework or dependency.
+- Preserve existing behavior outside the ticket and add focused regression coverage at the changed boundary. Before handoff, inspect the final diff for dead code, duplicate logic, and acceptance criteria implemented only in tests but not reachable in production.
 
 ### Validation Gates
 

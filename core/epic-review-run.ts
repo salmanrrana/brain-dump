@@ -400,6 +400,9 @@ export function addEpicReviewRunAuditComments(db: DbHandle, epicReviewRunId: str
       author: "brain-dump",
       type: "progress",
       content: buildEpicReviewRunLaunchComment(run, epicTitle, ticket.title, ticketRows.length),
+      phase: "system_workflow",
+      actorKind: "system",
+      provider: "brain-dump",
     });
   }
 }

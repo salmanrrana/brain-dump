@@ -13,6 +13,7 @@
 
 import fs from "fs";
 import path from "path";
+import { resolveCommentAuthor } from "../../core/comment.ts";
 
 type Environment =
   | "claude-code"
@@ -241,45 +242,7 @@ export function detectAuthor(): string {
     }
   }
 
-  let baseTool = "ai"; // fallback
-
-  // Detect the underlying AI tool
-  const environment = detectEnvironment();
-  switch (environment) {
-    case "claude-code":
-      baseTool = "claude";
-      break;
-    case "opencode":
-      baseTool = "opencode";
-      break;
-    case "copilot-cli":
-      baseTool = "copilot";
-      break;
-    case "cursor":
-      baseTool = "cursor";
-      break;
-    case "cursor-agent":
-      baseTool = "cursor-agent";
-      break;
-    case "codex":
-      baseTool = "codex";
-      break;
-    case "pi":
-      baseTool = "pi";
-      break;
-    case "vscode":
-      baseTool = "vscode";
-      break;
-    default:
-      baseTool = "ai";
-  }
-
-  // If Ralph is orchestrating, prefix with ralph:
-  if (isRalphSession) {
-    return `ralph:${baseTool}`;
-  }
-
-  return baseTool;
+  return resolveCommentAuthor(detectEnvironment(), isRalphSession);
 }
 
 interface EnvironmentInfo {

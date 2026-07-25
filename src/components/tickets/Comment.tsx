@@ -1,5 +1,6 @@
 import { useState, useMemo, memo } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import { PROVIDER_REGISTRY, type ProviderId } from "../../../core/providers";
 import type { Comment as CommentData, CommentType } from "../../api/comments";
 import { getCommentAuthorDisplayName, getCommentAuthorStyle } from "../../lib/comment-authors";
 import { CommentAvatar } from "./CommentAvatar";
@@ -52,6 +53,31 @@ function formatTimestamp(dateStr: string): string {
   if (diffHours < 24) return `${diffHours}h ago`;
   if (diffDays < 7) return `${diffDays}d ago`;
   return date.toLocaleDateString();
+}
+
+function getPhaseDisplayName(phase: NonNullable<CommentData["phase"]>): string {
+  return phase
+    .split("_")
+    .map((word) => (word === "ai" ? "AI" : `${word.charAt(0).toUpperCase()}${word.slice(1)}`))
+    .join(" ");
+}
+
+function getActorDisplayName(actorKind: CommentData["actorKind"]): string | null {
+  if (actorKind === "ai") return "AI";
+  if (actorKind === "system") return "System";
+  return null;
+}
+
+function getProviderDisplayName(provider: string): string {
+  if (Object.hasOwn(PROVIDER_REGISTRY, provider)) {
+    return PROVIDER_REGISTRY[provider as ProviderId].displayName;
+  }
+
+  return getCommentAuthorDisplayName(provider);
+}
+
+function getModelDisplayName(modelProvider: string | null, modelName: string): string {
+  return modelProvider ? `${modelProvider}/${modelName}` : modelName;
 }
 
 function isAllowedAttachmentImageUrl(url: string): boolean {
@@ -364,6 +390,85 @@ function renderMarkdown(content: string): React.ReactNode {
 // Comment Component
 // =============================================================================
 
+const provenanceStyles: React.CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  alignItems: "center",
+  gap: "var(--spacing-1)",
+  marginBottom: "var(--spacing-2)",
+  color: "var(--text-secondary)",
+  fontSize: "var(--font-size-xs)",
+};
+
+const provenanceModelStyles: React.CSSProperties = {
+  padding: "1px 5px",
+  border: "1px solid var(--border-primary)",
+  borderRadius: "var(--radius-sm)",
+  background: "var(--bg-tertiary)",
+  color: "var(--text-secondary)",
+  fontFamily: "var(--font-mono)",
+};
+
+interface CommentProvenanceProps {
+  comment: CommentData;
+  testId: string;
+}
+
+function CommentProvenance({ comment, testId }: CommentProvenanceProps) {
+  if (!comment.phase) return null;
+
+  const phaseLabel = getPhaseDisplayName(comment.phase);
+  const actorLabel = getActorDisplayName(comment.actorKind);
+  const providerLabel = comment.provider ? getProviderDisplayName(comment.provider) : null;
+  const isAiComment = comment.actorKind === "ai";
+  const isVerificationSystemComment =
+    comment.actorKind === "system" && comment.phase === "ai_verification";
+
+  return (
+    <div
+      role="note"
+      aria-label="Comment provenance"
+      data-testid={`${testId}-provenance`}
+      style={provenanceStyles}
+    >
+      <span>{phaseLabel}</span>
+      {actorLabel ? (
+        <>
+          <span aria-hidden="true">·</span>
+          <span>{actorLabel}</span>
+        </>
+      ) : null}
+      {isAiComment && providerLabel ? (
+        <>
+          <span aria-hidden="true">·</span>
+          <span>Provider: {providerLabel}</span>
+        </>
+      ) : null}
+      {isAiComment ? (
+        <>
+          <span aria-hidden="true">·</span>
+          {comment.modelName ? (
+            <span>
+              Model:{" "}
+              <code style={provenanceModelStyles}>
+                {getModelDisplayName(comment.modelProvider, comment.modelName)}
+              </code>
+            </span>
+          ) : (
+            <span>Model not recorded</span>
+          )}
+        </>
+      ) : null}
+      {isVerificationSystemComment && providerLabel ? (
+        <>
+          <span aria-hidden="true">·</span>
+          <span>Verifier: {providerLabel}</span>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 /**
  * Comment - Individual comment display.
  *
@@ -392,7 +497,7 @@ export const Comment = memo(function Comment({
   // Get author + type metadata
   const authorDisplayName = getCommentAuthorDisplayName(comment.author);
   const authorColor = getCommentAuthorStyle(comment.author).textColor;
-  const typeLabel = TYPE_LABELS[comment.type as CommentType];
+  const typeLabel = TYPE_LABELS[comment.type];
   const isChangeRequest = comment.type === "change_request";
 
   // Toggle expansion
@@ -498,6 +603,8 @@ export const Comment = memo(function Comment({
           <span style={timestampStyles}>{relativeTimestamp}</span>
           {typeLabel && <span style={typeBadgeStyles}>{typeLabel}</span>}
         </div>
+
+        <CommentProvenance comment={comment} testId={testId} />
 
         {/* Comment content with markdown — memoized to avoid re-parsing on every render */}
         <div style={contentStyles}>{renderedMarkdown}</div>

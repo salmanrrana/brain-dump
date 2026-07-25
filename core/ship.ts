@@ -189,6 +189,9 @@ function addEpicAutoPrComment(
     author: "brain-dump",
     type,
     content,
+    phase: "system_workflow",
+    actorKind: "system",
+    provider: "brain-dump",
   });
 }
 

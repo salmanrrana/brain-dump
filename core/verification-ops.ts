@@ -1,5 +1,9 @@
 import type { DbHandle } from "./types.ts";
-import { addComment } from "./comment.ts";
+import {
+  addComment,
+  resolveCommentIdentity,
+  type ResolveCommentIdentityParams,
+} from "./comment.ts";
 import { ValidationError } from "./errors.ts";
 import { updatePrdForDbTicketIfPresent } from "./prd-sync.ts";
 import { returnVerificationTicketForHumanAction } from "./verification-lifecycle.ts";
@@ -263,6 +267,9 @@ function addControlComment(
     author: "brain-dump",
     type: "comment",
     content: lines.join("\n"),
+    phase: "ai_verification",
+    actorKind: "system",
+    provider: "brain-dump",
   });
 }
 
@@ -707,6 +714,10 @@ export interface ResolveVerificationFailureParams {
   fixCommits?: string[] | undefined;
   whyNextAttemptWillPass?: string | undefined;
   operator?: string | undefined;
+  commentIdentity?: Pick<
+    ResolveCommentIdentityParams,
+    "author" | "provider" | "modelProvider" | "modelName" | "env"
+  >;
   now?: string | undefined;
 }
 
@@ -789,6 +800,12 @@ export function resolveVerificationFailure(
   }
 
   const fixCommits = (params.fixCommits ?? []).map((commit) => commit.trim()).filter(Boolean);
+  const commentIdentity = resolveCommentIdentity({
+    phase: "repair",
+    actorKind: "ai",
+    role: "implementation",
+    ...params.commentIdentity,
+  });
   const commentLines = [
     "## Verification Failure Resolved",
     "",
@@ -849,9 +866,9 @@ export function resolveVerificationFailure(
     }
     addComment(db, {
       ticketId: params.ticketId,
-      author: "brain-dump",
       type: "comment",
       content: commentLines.join("\n"),
+      ...commentIdentity,
     });
   })();
 

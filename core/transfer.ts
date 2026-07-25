@@ -45,6 +45,8 @@ import type {
 } from "./db-rows.ts";
 import { safeJsonParse } from "./json.ts";
 import { getDataDir } from "./db.ts";
+import { addComment } from "./comment.ts";
+import { resolveCommentProvenance } from "./comment-provenance.ts";
 
 // ============================================
 // Internal Helpers
@@ -92,6 +94,11 @@ function toExportedComment(row: DbCommentRow): ExportedComment {
     content: row.content,
     author: row.author,
     type: row.type,
+    phase: row.phase,
+    actorKind: row.actor_kind,
+    provider: row.provider,
+    modelProvider: row.model_provider,
+    modelName: row.model_name,
     createdAt: row.created_at,
   };
 }
@@ -553,6 +560,12 @@ export function importData(params: ImportParams): ImportResult {
     }
 
     // ---- Phase 3: Import Comments + Provenance ----
+    const insertImportedComment = db.prepare(
+      `INSERT INTO ticket_comments (
+        id, ticket_id, content, author, type,
+        phase, actor_kind, provider, model_provider, model_name, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    );
     for (const comment of manifest.comments) {
       const newTicketId = idMap[comment.ticketId];
       if (!newTicketId) {
@@ -560,9 +573,20 @@ export function importData(params: ImportParams): ImportResult {
         continue;
       }
       const newId = randomUUID();
-      db.prepare(
-        "INSERT INTO ticket_comments (id, ticket_id, content, author, type, created_at) VALUES (?, ?, ?, ?, ?, ?)"
-      ).run(newId, newTicketId, comment.content, comment.author, comment.type, comment.createdAt);
+      const provenance = resolveCommentProvenance(comment);
+      insertImportedComment.run(
+        newId,
+        newTicketId,
+        comment.content,
+        comment.author,
+        comment.type,
+        provenance.phase,
+        provenance.actorKind,
+        provenance.provider,
+        provenance.modelProvider,
+        provenance.modelName,
+        comment.createdAt
+      );
       idMap[comment.id] = newId;
       commentCount++;
     }
@@ -571,11 +595,16 @@ export function importData(params: ImportParams): ImportResult {
     for (const ticket of manifest.tickets) {
       const newTicketId = idMap[ticket.id];
       if (!newTicketId) continue;
-      const provenanceId = randomUUID();
       const provenanceContent = `Imported from "${manifest.sourceProject.name}" by ${manifest.exportedBy} on ${manifest.exportedAt} (${manifest.exportType} export, v${manifest.appVersion})`;
-      db.prepare(
-        "INSERT INTO ticket_comments (id, ticket_id, content, author, type, created_at) VALUES (?, ?, ?, ?, ?, ?)"
-      ).run(provenanceId, newTicketId, provenanceContent, "brain-dump", "comment", now);
+      addComment(db, {
+        ticketId: newTicketId,
+        content: provenanceContent,
+        author: "brain-dump",
+        type: "comment",
+        phase: "system_workflow",
+        actorKind: "system",
+        provider: "brain-dump",
+      });
       commentCount++;
     }
 

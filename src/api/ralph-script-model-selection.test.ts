@@ -9,6 +9,28 @@ describe("generateRalphScript model selection", () => {
     expect(script).not.toContain("BRAIN_DUMP_LAUNCH_MODEL=");
   });
 
+  it.each([
+    ["claude", "claude-code"],
+    ["codex", "codex"],
+    ["opencode", "opencode"],
+    ["cursor-agent", "cursor-agent"],
+    ["pi", "pi"],
+  ] as const)("exports the %s execution provider for workflow comments", (backend, provider) => {
+    const script = generateRalphScript(
+      "/tmp/project",
+      3,
+      false,
+      undefined,
+      undefined,
+      null,
+      undefined,
+      backend
+    );
+
+    expect(script).toContain(`export BRAIN_DUMP_PROVIDER="${provider}"`);
+    expect(script).toContain(`export BRAIN_DUMP_RALPH_PROVIDER="${provider}"`);
+  });
+
   it("threads concrete model selection into generated Ralph scripts", () => {
     const script = generateRalphScript(
       "/tmp/project",
@@ -176,8 +198,11 @@ describe("generateRalphScript model selection", () => {
       }
     );
 
-    expect(script).toContain("Fresh Eyes Review Split");
+    expect(script).toContain("## Implementation or Verification Repair");
+    expect(script).toContain("# Ralph: Fresh Eyes Reviewer");
     expect(script).toContain("Starting Codex fresh-eyes reviewer");
+    expect(script).toContain('export BRAIN_DUMP_PROVIDER="codex"');
+    expect(script).toContain('export BRAIN_DUMP_PROVIDER="claude-code"');
     expect(script).toContain('export BRAIN_DUMP_LAUNCH_MODEL_PROVIDER="openai"');
     expect(script).toContain('export BRAIN_DUMP_LAUNCH_MODEL="gpt-5.4"');
     expect(script).toContain(

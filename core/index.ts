@@ -270,6 +270,10 @@ export {
   addVerificationReportComment,
   listComments,
   getActivityLog,
+  resolveCommentAuthor,
+  resolveCommentIdentity,
+  resolveCommentProviderFromAuthor,
+  resolveCommentProvenance,
 } from "./comment.ts";
 
 export type {
@@ -280,6 +284,10 @@ export type {
   VerificationReportStep,
   ActivityLogEntry,
   GetActivityLogParams,
+  CommentIdentityRole,
+  CommentProvenanceInput,
+  ResolveCommentIdentityParams,
+  ResolvedCommentIdentity,
 } from "./comment.ts";
 
 export {

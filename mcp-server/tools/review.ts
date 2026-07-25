@@ -37,18 +37,11 @@ import {
 } from "../../core/verification-worker.ts";
 import type { MarkFixedStatus } from "../../core/review.ts";
 import type { DemoStep, FindingAgent, FindingSeverity, FindingStatus } from "../../core/types.ts";
-import { addComment, type CommentAuthor } from "../../core/comment.ts";
+import type { CommentAuthor } from "../../core/comment.ts";
 import { detectAuthor } from "../lib/environment.js";
 import { execFileNoThrow, syncPrVerificationChecklist } from "../../core/index.ts";
 import { updatePrdForDbTicketIfPresent } from "../../core/prd-sync.ts";
 import { WORKFLOW_SCHEMA_VERSION } from "../../core/workflow-schema.ts";
-
-const SEVERITY_ICONS: Record<string, string> = {
-  critical: "🔴",
-  major: "🟠",
-  minor: "🟡",
-  suggestion: "💡",
-};
 
 const ACTIONS = [
   "submit-finding",
@@ -309,6 +302,9 @@ No MCP action uploads evidence or marks verification passed. The verification ru
               ...(params.filePath !== undefined ? { filePath: params.filePath } : {}),
               ...(params.lineNumber !== undefined ? { lineNumber: params.lineNumber } : {}),
               ...(params.suggestedFix !== undefined ? { suggestedFix: params.suggestedFix } : {}),
+              commentIdentity: {
+                author: reviewerAuthor ?? (detectAuthor() as CommentAuthor),
+              },
             });
 
             if (finding.deduplicated) {
@@ -321,26 +317,6 @@ No MCP action uploads evidence or marks verification passed. The verification ru
               );
             }
 
-            // Add audit comment to ticket
-            const icon = SEVERITY_ICONS[severity] ?? "📋";
-            let commentContent = `Review finding: ${icon} [${severity}] ${category}\n\n${description}`;
-            if (params.filePath) {
-              commentContent += `\n\nFile: ${params.filePath}`;
-              if (params.lineNumber) commentContent += `:${params.lineNumber}`;
-            }
-            if (params.suggestedFix) {
-              commentContent += `\n\nSuggested fix:\n${params.suggestedFix}`;
-            }
-            if (finding.epicReviewRunId) {
-              commentContent += `\n\nEpic review run: ${finding.epicReviewRunId}`;
-            }
-            addComment(db, {
-              ticketId,
-              content: commentContent,
-              author: reviewerAuthor ?? (detectAuthor() as CommentAuthor),
-              type: "progress",
-            });
-
             log.info(`Submitted ${severity} finding for ticket ${ticketId} by ${findingAgent}`);
             return formatResult(finding, `Finding submitted (${severity})`);
           }
@@ -349,27 +325,13 @@ No MCP action uploads evidence or marks verification passed. The verification ru
             const findingId = requireParam(params.findingId, "findingId", "mark-fixed");
             const fixStatus = requireParam(params.fixStatus, "fixStatus", "mark-fixed");
 
-            const finding = markFixed(db, findingId, fixStatus as MarkFixedStatus);
-
-            // Add audit comment to ticket
-            const statusLabel =
-              fixStatus === "fixed"
-                ? "✅ Finding marked as fixed"
-                : fixStatus === "wont_fix"
-                  ? "⚠️ Finding marked as won't fix"
-                  : "↔️ Finding marked as duplicate";
-            let fixComment = `${statusLabel}\nCategory: ${finding.category}\nSeverity: ${finding.severity}`;
-            if (params.fixDescription) {
-              fixComment += `\n\nFix description:\n${params.fixDescription}`;
-            }
-            if (finding.epicReviewRunId) {
-              fixComment += `\n\nEpic review run: ${finding.epicReviewRunId}`;
-            }
-            addComment(db, {
-              ticketId: finding.ticketId,
-              content: fixComment,
-              author: getReviewerAuthorOverride() ?? (detectAuthor() as CommentAuthor),
-              type: "progress",
+            const finding = markFixed(db, findingId, fixStatus as MarkFixedStatus, {
+              ...(params.fixDescription !== undefined
+                ? { fixDescription: params.fixDescription }
+                : {}),
+              commentIdentity: {
+                author: getReviewerAuthorOverride() ?? (detectAuthor() as CommentAuthor),
+              },
             });
 
             log.info(`Marked finding ${findingId} as ${fixStatus}`);
@@ -409,7 +371,13 @@ No MCP action uploads evidence or marks verification passed. The verification ru
             const ticketId = requireParam(params.ticketId, "ticketId", "generate-demo");
             const steps = requireParam(params.steps, "steps", "generate-demo") as DemoStep[];
 
-            const demoParams = { ticketId, steps };
+            const demoParams = {
+              ticketId,
+              steps,
+              commentIdentity: {
+                author: getReviewerAuthorOverride() ?? (detectAuthor() as CommentAuthor),
+              },
+            };
             validateGenerateDemo(db, demoParams);
             const prdSync = syncPrdPassMarker(db, ticketId, false, "ai_verification");
             if (prdSync.required && !prdSync.success) {
@@ -437,14 +405,6 @@ No MCP action uploads evidence or marks verification passed. The verification ru
                 new Error(syncResult.error)
               );
             }
-
-            // Add audit comment to ticket
-            addComment(db, {
-              ticketId,
-              content: `Demo script generated with ${steps.length} steps. Ticket is now ready for AI verification.${demo.epicReviewRunId ? `\n\nEpic review run: ${demo.epicReviewRunId}` : ""}`,
-              author: getReviewerAuthorOverride() ?? (detectAuthor() as CommentAuthor),
-              type: "progress",
-            });
 
             log.info(`Generated demo script for ticket ${ticketId} with ${steps.length} steps`);
 
@@ -532,6 +492,7 @@ No MCP action uploads evidence or marks verification passed. The verification ru
               ...(params.whyNextAttemptWillPass !== undefined
                 ? { whyNextAttemptWillPass: params.whyNextAttemptWillPass }
                 : {}),
+              commentIdentity: { author: detectAuthor() as CommentAuthor },
             });
 
             log.info(

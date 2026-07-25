@@ -7,6 +7,8 @@
  * NOT exported from core/index.ts — these are internal implementation details.
  */
 
+import type { CommentActorKind, CommentPhase } from "./types.ts";
+
 export interface DbProjectRow {
   id: string;
   name: string;
@@ -57,6 +59,11 @@ export interface DbCommentRow {
   content: string;
   author: string;
   type: string;
+  phase: CommentPhase | null;
+  actor_kind: CommentActorKind | null;
+  provider: string | null;
+  model_provider: string | null;
+  model_name: string | null;
   created_at: string;
 }
 

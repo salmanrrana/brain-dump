@@ -528,6 +528,9 @@ function blockTicketAfterRepeatedVerificationFailures(
       "Automatic verification has stopped. The ticket was returned to `in_progress` and blocked so a person can resolve it.",
       'After the cause is fixed and validated, resolve the blocker with the `review` tool, `action: "resolve-verification-failure"` (root cause, classification, fix commits, validation), then regenerate the demo to re-enter verification.',
     ].join("\n"),
+    phase: "ai_verification",
+    actorKind: "system",
+    provider: run.identity.provider,
   });
 }
 
@@ -636,18 +639,30 @@ function returnUncertifiedRunToImplementation(
       "",
       "The ticket was automatically returned to `in_progress` so work can continue instead of stalling in verification. If the next run is also uncertified, the ticket will be blocked for human attention.",
     ].join("\n"),
+    phase: "ai_verification",
+    actorKind: "system",
+    provider: run.identity.provider,
   });
 }
 
 function addVerificationAttentionComment(
   db: DbHandle,
-  params: { ticketId: string; runId: string; reason: string; guidance: string }
+  params: {
+    ticketId: string;
+    runId: string;
+    reason: string;
+    guidance: string;
+    provider?: string | undefined;
+  }
 ): void {
   addComment(db, {
     ticketId: params.ticketId,
     author: "brain-dump",
     type: "comment",
     content: `## Needs Attention — verification blocked\n\n${params.reason}\n\n${params.guidance}\n\nRun: ${params.runId}. Automatic verification has stopped; the ticket is now \`in_progress\` and blocked until a person resolves it.`,
+    phase: "ai_verification",
+    actorKind: "system",
+    provider: params.provider ?? "brain-dump",
   });
 }
 
@@ -670,13 +685,14 @@ export const INFRA_ERROR_GUIDANCE =
  */
 export function addInfraErrorAttentionComment(
   db: DbHandle,
-  params: { ticketId: string; runId: string; reason: string }
+  params: { ticketId: string; runId: string; reason: string; provider?: string | undefined }
 ): void {
   addVerificationAttentionComment(db, {
     ticketId: params.ticketId,
     runId: params.runId,
     reason: params.reason,
     guidance: INFRA_ERROR_GUIDANCE,
+    provider: params.provider,
   });
 }
 
@@ -757,6 +773,9 @@ function notifyWhenContinuationNotScheduled(
       "",
       "Resume it manually with `brain-dump verify worker --drain --pretty` (drains continuations after verification jobs) or relaunch the epic from the UI/CLI.",
     ].join("\n"),
+    phase: "ai_verification",
+    actorKind: "system",
+    provider: "brain-dump",
   });
 }
 
@@ -887,6 +906,7 @@ export async function settleVerificationLifecycle(
           runId: run.id,
           reason: blockedReason,
           guidance,
+          provider: identity.provider,
         });
         settleJob(db, {
           ticketId: run.ticketId,
@@ -913,6 +933,7 @@ export async function settleVerificationLifecycle(
           ticketId: run.ticketId,
           runId: run.id,
           reason: blockedReason,
+          provider: run.identity.provider,
         });
       }
       settleJob(db, {
