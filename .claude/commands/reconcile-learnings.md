@@ -8,7 +8,7 @@ You are extracting learnings from completed ticket work and updating project doc
 
 ## Prerequisites
 
-- Ticket must be in `done` status (human approved)
+- Ticket must be in `done` status (certified by the AI verification runner)
 - You have context about what was implemented
 - You understand the patterns and decisions made
 
@@ -36,7 +36,7 @@ Categorize learnings into four types:
 | ---------------- | ---------------------------- | ------------------------------------------------ |
 | **pattern**      | Good patterns to repeat      | "Use Zod for input validation"                   |
 | **anti-pattern** | Patterns to avoid            | "Don't use raw SQL in MCP tools"                 |
-| **tool-usage**   | How to use tools effectively | "Always check review_complete before demo"       |
+| **tool-usage**   | How to use tools effectively | "Always check check-complete before demo"        |
 | **workflow**     | Process improvements         | "Run lint before type-check for faster feedback" |
 
 ### Step 3: Draft Learnings
@@ -74,7 +74,7 @@ epic tool, action: "reconcile-learnings",
     {
       type: "workflow",
       description: "Run validation in this order: lint → type-check → test",
-      suggestedUpdate: null  // Just record, don't update docs
+      // omit suggestedUpdate to just record without updating docs
     }
   ],
   updateDocs: true  // Set to true to apply suggested updates
@@ -150,7 +150,7 @@ git commit -m "docs: Reconcile learnings from ticket <ticket-id>"
 {
   type: "tool-usage",
   description: "workflow start-work auto-creates epic branch if ticket has epic",
-  suggestedUpdate: null
+  // suggestedUpdate omitted — record only (the schema rejects an explicit null)
 }
 ```
 
@@ -164,7 +164,7 @@ git commit -m "docs: Reconcile learnings from ticket <ticket-id>"
 {
   type: "workflow",
   description: "Run review agents before fixing issues - some may be related",
-  suggestedUpdate: null
+  // suggestedUpdate omitted — record only (the schema rejects an explicit null)
 }
 ```
 

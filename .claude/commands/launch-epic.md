@@ -39,12 +39,13 @@ Launch Ralph (autonomous agent) for an entire epic. Ralph will work through all 
    - `cursor-agent` - Cursor Agent CLI (headless)
    - `copilot-cli` - GitHub Copilot CLI
    - `codex` - OpenAI Codex
+   - `pi` - Pi CLI
    - `opencode` - Open-source AI coding
 
    If the user hasn't specified a provider, check project settings first:
 
    ```
-   admin tool, action: "get-settings", projectId: "<project-id>"
+   admin tool, action: "settings", projectId: "<project-id>"
    ```
 
    Use the configured working method, or default to `claude-code`.
@@ -55,13 +56,15 @@ Launch Ralph (autonomous agent) for an entire epic. Ralph will work through all 
    - **Sandbox mode** (`--sandbox`): Run inside Docker sandbox (claude-code only)
    - **Max iterations** (`--max-iterations`): Override the Ralph loop cap per ticket
    - **Terminal** (`--terminal`): Preferred terminal emulator (ghostty, kitty, iterm2)
+   - **Model** (`--model`): Provider-specific model id for the implementer
+   - **Fresh-eyes reviewer** (`--review-provider`, `--review-model`): a DIFFERENT provider (claude-code, cursor-agent, codex, pi, opencode) that owns the AI review phase
 
 5. **Launch Ralph for the epic:**
 
    Run the CLI command via Bash:
 
    ```bash
-   brain-dump workflow launch-epic --epic <epic-id> --provider <provider> [--sandbox] [--max-iterations <n>] [--terminal <term>] --pretty
+   brain-dump workflow launch-epic --epic <epic-id> --provider <provider> [--model <model>] [--review-provider <provider>] [--review-model <model>] [--sandbox] [--max-iterations <n>] [--terminal <term>] --pretty
    ```
 
 6. **Report the result:**

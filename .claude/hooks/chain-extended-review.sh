@@ -14,7 +14,7 @@ set -e
 
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-.}"
 TRACKING_FILE="$PROJECT_DIR/.claude/.extended-review-pending"
-THRESHOLD=2  # Trigger after this many pr-review-toolkit agents complete
+THRESHOLD=3  # Trigger only after ALL three pr-review-toolkit agents complete
 
 # pr-review-toolkit agent identifiers to track
 PR_REVIEW_AGENTS=(
@@ -57,7 +57,17 @@ reset_tracking() {
 
 # Main logic
 main() {
-  local agent_type="${AGENT_TYPE:-unknown}"
+  # SubagentStop delivers hook input as JSON on stdin; the AGENT_TYPE env var
+  # was never set by any Claude Code version and left this hook permanently
+  # inert. Read the subagent type from stdin, with the env var as a fallback
+  # for older installs that exported it manually.
+  local input
+  input=$(cat 2>/dev/null || echo "")
+  local agent_type
+  agent_type=$(echo "$input" | jq -r '.subagent_type // .agent_type // ""' 2>/dev/null || echo "")
+  if [[ -z "$agent_type" ]]; then
+    agent_type="${AGENT_TYPE:-unknown}"
+  fi
 
   # Only process pr-review-toolkit agents
   if ! is_pr_review_agent "$agent_type"; then

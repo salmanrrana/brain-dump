@@ -331,15 +331,15 @@ config.hooks = {
       hooks: [{ type: "command", command: "$HOME/.claude/hooks/link-commit-to-ticket.sh" }]
     },
     {
-      matcher: "mcp__brain-dump__workflow",
-      hooks: [{ type: "command", command: "$HOME/.claude/hooks/spawn-next-ticket.sh" }]
-    },
-    {
-      matcher: "Bash(gh pr create:*)",
-      hooks: [{ type: "command", command: "$HOME/.claude/hooks/spawn-after-pr.sh" }]
-    },
-    {
       matcher: "TodoWrite",
+      hooks: [{ type: "command", command: "$HOME/.claude/hooks/capture-claude-tasks.sh" }]
+    },
+    {
+      matcher: "TaskCreate",
+      hooks: [{ type: "command", command: "$HOME/.claude/hooks/capture-claude-tasks.sh" }]
+    },
+    {
+      matcher: "TaskUpdate",
       hooks: [{ type: "command", command: "$HOME/.claude/hooks/capture-claude-tasks.sh" }]
     }
   ],
@@ -351,9 +351,6 @@ config.hooks = {
   Stop: [
     {
       hooks: [{ type: "command", command: "$HOME/.claude/hooks/check-for-code-changes.sh" }]
-    },
-    {
-      hooks: [{ type: "command", command: "$HOME/.claude/hooks/mark-review-completed.sh" }]
     },
     {
       hooks: [{ type: "command", command: "$HOME/.claude/hooks/capture-token-usage.sh" }]
@@ -427,25 +424,25 @@ else
         ]
       },
       {
-        "matcher": "mcp__brain-dump__workflow",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\$HOME/.claude/hooks/spawn-next-ticket.sh"
-          }
-        ]
-      },
-      {
-        "matcher": "Bash(gh pr create:*)",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\$HOME/.claude/hooks/spawn-after-pr.sh"
-          }
-        ]
-      },
-      {
         "matcher": "TodoWrite",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\$HOME/.claude/hooks/capture-claude-tasks.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "TaskCreate",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\$HOME/.claude/hooks/capture-claude-tasks.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "TaskUpdate",
         "hooks": [
           {
             "type": "command",
@@ -470,14 +467,6 @@ else
           {
             "type": "command",
             "command": "\$HOME/.claude/hooks/check-for-code-changes.sh"
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\$HOME/.claude/hooks/mark-review-completed.sh"
           }
         ]
       },
@@ -529,8 +518,7 @@ echo "    • Commit linking to tickets (link-commit-to-ticket)"
 echo "    • Auto-review after code changes (check-for-code-changes)"
 echo "    • Claude task capture (capture-claude-tasks)"
 echo "    • Extended review chaining (chain-extended-review)"
-echo "    • Next ticket spawning (spawn-next-ticket, spawn-after-pr)"
-echo "    • Review completion marker (mark-review-completed)"
+echo "    • Claude task sync to Brain Dump (capture-claude-tasks: TodoWrite/TaskCreate/TaskUpdate)"
 echo "    • Library detection (detect-libraries)"
 echo "    • Token usage capture from JSONL transcripts (capture-token-usage)"
 echo ""

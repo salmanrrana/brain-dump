@@ -28,8 +28,8 @@ You are starting work on the next available task from the Brain Dump kanban boar
    workflow tool, action: "start-work", ticketId: "<ticket-id>"
    ```
 
-   - The tool will check preconditions and block if needed
-   - Follow any instructions in the response (e.g., if a previous ticket is awaiting AI verification)
+   - The tool validates the transition (only backlog/ready/in_progress tickets can start; tickets past implementation are rejected to protect their review state)
+   - Follow any instructions in the response
 
 4. **If successful, create a micro-plan:**
    - Write a 5-10 bullet implementation plan
@@ -51,8 +51,8 @@ You are starting work on the next available task from the Brain Dump kanban boar
 
 ## Important
 
-- The MCP tool enforces preconditions - trust its guidance
-- If blocked (e.g., previous ticket waiting in ai_verification), follow the instructions to unblock
+- The MCP tool enforces status transitions - trust its guidance
+- Tickets in `ai_verification` belong to the verification runner; leave them and pick a different workable ticket
 - Always write a plan before coding
 - Always run discovered project-specific validation before completing
 - After completing, ticket moves to `ai_review` - run `/review-ticket` next
@@ -69,6 +69,6 @@ backlog → ready → in_progress → ai_review → ai_verification → done
 
 If `workflow` tool `start-work` returns a blocking message:
 
-- **Previous ticket in ai_verification**: Wait for verification runner completion or escalate if blocked
+- **Ticket already past implementation** (`ai_review`/`ai_verification`/`done`): start-work is rejected to protect review state; resume via the review workflow instead
 - **Validation failed**: Fix issues first
 - **Branch conflict**: Resolve git conflicts

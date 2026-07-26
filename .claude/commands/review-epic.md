@@ -78,18 +78,18 @@ Task 7: senior-engineer
 - Give final merge recommendation
 ```
 
-### Step 4: Submit Epic-Level Findings
+### Step 4: Record Epic-Level Findings
 
-For significant cross-ticket issues:
+`submit-finding` only accepts tickets in `ai_review` — done tickets reject it. For cross-ticket issues found in a completed epic, record them where they can act:
+
+- If the issue warrants a fix now, create a follow-up ticket for it (`ticket` tool, `action: "create"`) and reference the affected tickets in its description.
+- Otherwise document it on the epic as a comment on the most relevant ticket (`comment` tool, `action: "add"`) so the context survives:
 
 ```
-review tool, action: "submit-finding",
-  ticketId: "<any-ticket-in-epic>",
-  agent: "senior-engineer",
-  severity: "major",
-  category: "architecture",
-  description: "Inconsistent error handling patterns across epic",
-  suggestedFix: "Standardize on error boundary pattern from ticket X"
+comment tool, action: "add",
+  ticketId: "<most-relevant-ticket>",
+  commentType: "change_request",
+  content: "Epic review: inconsistent error handling patterns across the epic. Suggest standardizing on the error boundary pattern from ticket X."
 ```
 
 ### Step 5: Generate Epic Summary
@@ -152,8 +152,8 @@ git status
 # Push epic branch
 git push origin <epic-branch>
 
-# Create PR if not exists
-gh pr create --title "Epic: <title>" --body "$(cat epic-summary.md)"
+# Create PR if not exists, using the summary from Step 5 as the body
+gh pr create --title "Epic: <title>" --body "<epic review summary from Step 5>"
 ```
 
 ## Important

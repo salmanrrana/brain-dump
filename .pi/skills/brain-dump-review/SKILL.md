@@ -84,4 +84,4 @@ Use these agent names consistently:
 
 ## Goal
 
-Track review work in Brain Dump using CLI commands only, then hand off to human review.
+Track review work in Brain Dump using CLI commands only, then hand off to AI verification via generate-demo. The verification runner (not a human) certifies completion.

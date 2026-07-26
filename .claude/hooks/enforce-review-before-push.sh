@@ -227,10 +227,29 @@ fi
 SOURCE_CHANGES=$(git diff --name-only HEAD 2>/dev/null | grep -E '\.(ts|tsx|js|jsx|py|go|rs|java|c|cpp|h|hpp)$' | grep -v '\.d\.ts$' | grep -v 'node_modules' | head -20 || echo "")
 STAGED_CHANGES=$(git diff --cached --name-only 2>/dev/null | grep -E '\.(ts|tsx|js|jsx|py|go|rs|java|c|cpp|h|hpp)$' | grep -v '\.d\.ts$' | grep -v 'node_modules' | head -20 || echo "")
 
-# Combine and deduplicate
-ALL_CHANGES=$(echo -e "${SOURCE_CHANGES}\n${STAGED_CHANGES}" | sort -u | grep -v '^$' || echo "")
+# The workflow commits BEFORE review, so a push of committed-but-unpushed
+# source changes must be gated too — otherwise the normal path (commit, then
+# push) bypasses review entirely and the gate only ever fires on dirty trees.
+UNPUSHED_CHANGES=""
+UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || echo "")
+if [[ -n "$UPSTREAM" ]]; then
+  UNPUSHED_CHANGES=$(git diff --name-only "$UPSTREAM"..HEAD 2>/dev/null | grep -E '\.(ts|tsx|js|jsx|py|go|rs|java|c|cpp|h|hpp)$' | grep -v '\.d\.ts$' | grep -v 'node_modules' | head -20 || echo "")
+else
+  # No upstream yet (first push of a branch): diff against the merge-base
+  # with the default branch so the branch's own commits are considered.
+  for BASE in main master; do
+    MERGE_BASE=$(git merge-base "$BASE" HEAD 2>/dev/null || echo "")
+    if [[ -n "$MERGE_BASE" ]]; then
+      UNPUSHED_CHANGES=$(git diff --name-only "$MERGE_BASE"..HEAD 2>/dev/null | grep -E '\.(ts|tsx|js|jsx|py|go|rs|java|c|cpp|h|hpp)$' | grep -v '\.d\.ts$' | grep -v 'node_modules' | head -20 || echo "")
+      break
+    fi
+  done
+fi
 
-# If no source code changes, allow push
+# Combine and deduplicate
+ALL_CHANGES=$(echo -e "${SOURCE_CHANGES}\n${STAGED_CHANGES}\n${UNPUSHED_CHANGES}" | sort -u | grep -v '^$' || echo "")
+
+# If no source code changes (dirty or unpushed), allow push
 if [[ -z "$ALL_CHANGES" ]]; then
   echo '{"decision": "approve"}'
   exit 0
@@ -255,6 +274,6 @@ CHANGE_COUNT=$(echo "$ALL_CHANGES" | wc -l | tr -d ' ')
 cat <<EOF
 {
   "decision": "block",
-  "reason": "CODE REVIEW REQUIRED before push. Detected $CHANGE_COUNT uncommitted source file(s). Run \`/review\` first to analyze changes with the code review pipeline (code-reviewer, silent-failure-hunter, code-simplifier). After review completes, retry the push command."
+  "reason": "CODE REVIEW REQUIRED before push. Detected $CHANGE_COUNT source file(s) with unreviewed changes (uncommitted or committed-but-unpushed). Run \`/review\` first to analyze changes with the code review pipeline (code-reviewer, silent-failure-hunter, code-simplifier). After review completes, retry the push command."
 }
 EOF

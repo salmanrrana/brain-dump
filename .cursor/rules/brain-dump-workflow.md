@@ -14,9 +14,9 @@ When working on Brain Dump tickets, follow this quality workflow to ensure consi
 Status flow: `backlog -> ready -> in_progress -> ai_review -> ai_verification -> done`
 
 - **Implementation**: start-work -> create or reuse a session -> implement -> validate -> commit -> complete-work. Skip this phase only when the selected ticket is already in ai_review.
-- **AI Review**: Review the ticket's own changed code for regressions, acceptance gaps, and maintainability (reuse existing patterns; keep junior-readable). Submit only concrete NEW blocking findings, fix critical/major findings, then check completion.
+- **AI Review**: Start with get-review-context: it returns the acceptance criteria, work history, the exact in-scope changed-file list, prior findings (never re-file resolved ones), and the blocking-findings budget. Review only the in-scope files for regressions, acceptance gaps, and maintainability (reuse existing patterns; keep junior-readable). Submit only concrete NEW blocking findings, fix critical/major findings, then check completion.
 - **Demo**: Generate 3-7 test steps after review completion, including criterion coverage references plus automation specs for visual/automated UI, API, command, or file checks. Before API/UI steps, inspect the target project's docs and build/runtime config and declare app.start as spawn-safe argv (with {port}/{host} tokens and optional project-relative cwd); never assume npm or pnpm. Every acceptance criterion must be proven by executable automation — coverageRationale is rejected at generate-demo. If a required command is outside the default allowlist (make, go, npx, ...), declare its exact argv in the project's .brain-dump/verify.json commands array; if a criterion cannot be automated, reword the criterion to match what automation can prove. This moves the ticket to ai_verification for runner certification.
-- **Stop**: Complete the Ralph session and stop. Never run verification or move the ticket to done yourself.
+- **Stop**: STOP after generate-demo. generate-demo already completed the ticket's active sessions during the verification handoff — an explicit session complete afterwards is unnecessary (though harmless if called: it returns the recorded completion). Never run verification or move the ticket to done yourself.
 
 ## Required MCP Actions
 
@@ -24,12 +24,11 @@ Status flow: `backlog -> ready -> in_progress -> ai_review -> ai_verification ->
 - `session({ action: "create", ticketId }) or session({ action: "get", ticketId })`
 - `comment({ action: "add", ticketId, content, commentType: "test_report" })`
 - `workflow({ action: "complete-work", ticketId, summary })`
-- `review({ action: "get-findings", ticketId })`
+- `review({ action: "get-review-context", ticketId })`
 - `review({ action: "submit-finding", ticketId, agent, severity, category, description })`
 - `review({ action: "mark-fixed", findingId, fixStatus: "fixed" })`
 - `review({ action: "check-complete", ticketId })`
 - `review({ action: "generate-demo", ticketId, steps }) with covers references and automation specs on visual/automated steps`
-- `session({ action: "complete", sessionId, outcome: "success" })`
 
 ## Implementation Discipline
 

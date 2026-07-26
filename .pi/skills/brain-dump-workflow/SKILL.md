@@ -19,9 +19,9 @@ Status flow: `backlog -> ready -> in_progress -> ai_review -> ai_verification ->
 4. Record validation before completion: `brain-dump comment add --ticket <ticket-id> --type test_report --content "<commands and results>" --pretty`. Stop if this command fails.
 5. Commit with `feat(<ticket-id>): <description>`.
 6. Complete work only after the test_report exists: `brain-dump workflow complete-work --ticket <ticket-id> --summary "<summary>" --pretty`.
-7. Review: use `brain-dump review submit-finding`, `brain-dump review mark-fixed`, and `brain-dump review check-complete --ticket <ticket-id> --pretty`.
-8. Demo: `brain-dump review generate-demo --ticket <ticket-id> --steps-file <steps.json> --pretty`; include automation specs for visual/automated UI, API, command, or file checks.
-9. Stop after demo handoff. Do not approve or move the ticket to done.
+7. Review: start with `brain-dump review get-review-context --ticket <ticket-id> --pretty` (criteria, in-scope files, prior findings, budgets), then use `brain-dump review submit-finding`, `brain-dump review mark-fixed`, and `brain-dump review check-complete --ticket <ticket-id> --pretty`.
+8. Demo: `brain-dump review generate-demo --ticket <ticket-id> --steps-file <steps.json> --pretty` with 3-7 visual/automated steps. Manual steps are rejected; every acceptance criterion must be proven by executable UI, API, command, or file automation via `covers` references — `coverageRationale` is rejected. UI/API steps require `app.start` argv discovered from the project's own docs/config with `{port}`/`{host}` tokens.
+9. Stop after demo handoff (sessions are completed automatically). Do not approve or move the ticket to done.
 
 ### Implementation Discipline
 

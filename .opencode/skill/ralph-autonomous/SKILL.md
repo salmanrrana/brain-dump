@@ -51,9 +51,9 @@ start-work -> create or reuse a session -> implement -> validate -> commit -> co
 
 ### Step 2: AI Review
 
-Review the ticket's own changed code for regressions, acceptance gaps, and maintainability (reuse existing patterns; keep junior-readable). Submit only concrete NEW blocking findings, fix critical/major findings, then check completion.
+Start with get-review-context: it returns the acceptance criteria, work history, the exact in-scope changed-file list, prior findings (never re-file resolved ones), and the blocking-findings budget. Review only the in-scope files for regressions, acceptance gaps, and maintainability (reuse existing patterns; keep junior-readable). Submit only concrete NEW blocking findings, fix critical/major findings, then check completion.
 
-- `review({ action: "get-findings", ticketId })`
+- `review({ action: "get-review-context", ticketId })`
 - `review({ action: "submit-finding", ticketId, agent, severity, category, description })`
 - `review({ action: "mark-fixed", findingId, fixStatus: "fixed" })`
 - `review({ action: "check-complete", ticketId })`
@@ -66,9 +66,7 @@ Generate 3-7 test steps after review completion, including criterion coverage re
 
 ### Step 4: Stop
 
-Complete the Ralph session and stop. Never run verification or move the ticket to done yourself.
-
-- `session({ action: "complete", sessionId, outcome: "success" })`
+STOP after generate-demo. generate-demo already completed the ticket's active sessions during the verification handoff — an explicit session complete afterwards is unnecessary (though harmless if called: it returns the recorded completion). Never run verification or move the ticket to done yourself.
 
 ### Implementation Discipline
 
@@ -140,14 +138,12 @@ function selectTicket(prdTickets: PrdTicket[]): Ticket {
 ### When Stuck on Implementation
 
 ```bash
-# Log the issue
-comment "add"(ticketId,
-  "Blocked: [specific issue]. Will continue with next ticket.",
-  "ralph",
-  "blocker")
+# Log the issue (valid commentType values: comment, work_summary, test_report, progress, change_request)
+brain-dump comment add --ticket <ticketId> --content "Blocked: [specific issue]." --type progress
 
-# Move on (don't waste time)
-return next_best_ticket()
+# Note it in plans/progress.txt for the next iteration, then stop this
+# iteration. The Ralph loop (not you) decides what runs next; never start a
+# second ticket inside one invocation.
 ```
 
 ### Handling Dependencies
@@ -214,29 +210,13 @@ interface TicketCompletion {
 Ralph automatically logs:
 
 ```bash
-# Start of session
-comment "add"("session-start",
-  `Ralph session started. Available tickets: ${count}`,
-  "ralph",
-  "session")
+# Ticket decisions and progress use commentType "progress"
+brain-dump comment add --ticket <ticketId> --content "Selected ticket: <title>. Reason: <reason>" --type progress
 
-# Ticket decisions
-comment "add"(ticketId,
-  `Selected ticket: ${ticket.title}. Reason: ${reason}`,
-  "ralph",
-  "decision")
+brain-dump comment add --ticket <ticketId> --content "Completed: <component>. Next: <next step>" --type progress
 
-# Implementation progress
-comment "add"(ticketId,
-  `Completed: ${component}. Next: ${next_step}`,
-  "ralph",
-  "progress")
-
-# Blockers and issues
-comment "add"(ticketId,
-  `Issue: ${problem}. Solution: ${approach}`,
-  "ralph",
-  "issue-resolution")
+# Validation results use commentType "test_report" (required before complete-work)
+brain-dump comment add --ticket <ticketId> --content "pnpm check: pass; pnpm test src/x.test.ts: pass" --type test_report
 ```
 
 ### Progress Updates in File

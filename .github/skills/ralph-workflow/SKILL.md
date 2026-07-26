@@ -31,9 +31,9 @@ start-work -> create or reuse a session -> implement -> validate -> commit -> co
 
 ### Step 2: AI Review
 
-Review the ticket's own changed code for regressions, acceptance gaps, and maintainability (reuse existing patterns; keep junior-readable). Submit only concrete NEW blocking findings, fix critical/major findings, then check completion.
+Start with get-review-context: it returns the acceptance criteria, work history, the exact in-scope changed-file list, prior findings (never re-file resolved ones), and the blocking-findings budget. Review only the in-scope files for regressions, acceptance gaps, and maintainability (reuse existing patterns; keep junior-readable). Submit only concrete NEW blocking findings, fix critical/major findings, then check completion.
 
-- `review({ action: "get-findings", ticketId })`
+- `review({ action: "get-review-context", ticketId })`
 - `review({ action: "submit-finding", ticketId, agent, severity, category, description })`
 - `review({ action: "mark-fixed", findingId, fixStatus: "fixed" })`
 - `review({ action: "check-complete", ticketId })`
@@ -46,9 +46,7 @@ Generate 3-7 test steps after review completion, including criterion coverage re
 
 ### Step 4: Stop
 
-Complete the Ralph session and stop. Never run verification or move the ticket to done yourself.
-
-- `session({ action: "complete", sessionId, outcome: "success" })`
+STOP after generate-demo. generate-demo already completed the ticket's active sessions during the verification handoff — an explicit session complete afterwards is unnecessary (though harmless if called: it returns the recorded completion). Never run verification or move the ticket to done yourself.
 
 ### Implementation Discipline
 

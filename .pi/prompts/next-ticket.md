@@ -17,7 +17,8 @@ Use the `brain-dump` CLI only. Do not use MCP.
 - Run project validation discovered from docs/config before `workflow complete-work`.
 - Record validation with `brain-dump comment add --ticket <ticket-id> --type test_report --content "<commands and results>" --pretty` before `workflow complete-work`; stop if the comment command fails.
 - Use `brain-dump review check-complete --ticket <ticket-id> --pretty` before generating demo steps.
-- Stop after `brain-dump review generate-demo`; do not approve or move tickets to done.
+- Demo steps must be visual/automated with executable automation specs; manual steps and `coverageRationale` are rejected, every acceptance criterion needs a `covers` reference, and UI/API steps need `app.start` argv with `{port}`/`{host}` tokens from the project's own docs/config.
+- Stop after `brain-dump review generate-demo` (sessions are completed automatically); do not approve or move tickets to done.
 
 <!-- END GENERATED: workflow-sequence -->
 
