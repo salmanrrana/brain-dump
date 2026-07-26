@@ -238,6 +238,20 @@ export const updateTicket = createServerFn({ method: "POST" })
       }
     }
 
+    if (updates.isBlocked === false && existing.isBlocked) {
+      // A human unblock is the reset for both loop circuit breakers: the
+      // review-round budget (completeWork) and the verification failure
+      // streak. Without this, an unblocked ticket would trip the breaker
+      // again on its very next complete-work.
+      sqlite
+        .prepare(
+          `UPDATE ticket_workflow_state
+           SET review_iteration = 0, verification_streak_reset_at = ?, updated_at = ?
+           WHERE ticket_id = ?`
+        )
+        .run(new Date().toISOString(), new Date().toISOString(), id);
+    }
+
     return db.select().from(tickets).where(eq(tickets.id, id)).get();
   });
 

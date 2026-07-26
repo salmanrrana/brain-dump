@@ -228,7 +228,7 @@ export function startWork(
       ).run(randomUUID(), ticketId, now, now);
     } else {
       db.prepare(
-        `UPDATE ticket_workflow_state SET current_phase = 'implementation', review_iteration = 0, findings_count = 0, findings_fixed = 0, demo_generated = 0, updated_at = ? WHERE ticket_id = ?`
+        `UPDATE ticket_workflow_state SET current_phase = 'implementation', review_iteration = 0, findings_count = 0, findings_fixed = 0, demo_generated = 0, reviewed_through_commit = NULL, updated_at = ? WHERE ticket_id = ?`
       ).run(now, ticketId);
     }
   } catch (err) {
@@ -278,6 +278,71 @@ export function startWork(
 // ============================================
 
 /**
+ * Maximum implement → review → verify round-trips per ticket before Brain
+ * Dump stops the loop for human attention. Matches the spirit of the
+ * verification breakers (3 same-signature failures). The count lives in
+ * ticket_workflow_state.review_iteration and is reset by human intervention
+ * (resolve-verification-failure or unblocking the ticket).
+ */
+export const MAX_REVIEW_ROUNDS = 3;
+
+function enforceReviewRoundLimit(db: Database.Database, ticketId: string): void {
+  const workflowState = db
+    .prepare("SELECT review_iteration FROM ticket_workflow_state WHERE ticket_id = ?")
+    .get(ticketId) as { review_iteration: number } | undefined;
+  const completedRounds = workflowState?.review_iteration ?? 0;
+  if (completedRounds < MAX_REVIEW_ROUNDS) return;
+
+  const now = new Date().toISOString();
+  const reason = `Review loop limit: this ticket has been through ${completedRounds} implement → review rounds without reaching done. Automatic iteration stopped so a person can decide the remaining scope.`;
+  db.prepare(
+    "UPDATE tickets SET is_blocked = 1, blocked_reason = ?, updated_at = ? WHERE id = ?"
+  ).run(reason, now, ticketId);
+  const prdResult = updatePrdForDbTicketIfPresent(db, ticketId, false, "in_progress");
+
+  const openBlocking = db
+    .prepare(
+      `SELECT severity, category, description FROM review_findings
+       WHERE ticket_id = ? AND status = 'open' AND severity IN ('critical', 'major')
+       ORDER BY created_at DESC LIMIT 5`
+    )
+    .all(ticketId) as Array<{ severity: string; category: string; description: string }>;
+  const findingLines = openBlocking.map(
+    (f) => `- [${f.severity}] ${f.category}: ${f.description.split("\n", 1)[0]?.slice(0, 200)}`
+  );
+
+  try {
+    addComment(db, {
+      ticketId,
+      author: "brain-dump",
+      type: "comment",
+      content: [
+        "## Needs Attention — review loop stopped",
+        "",
+        reason,
+        ...(findingLines.length > 0 ? ["", "Open blocking findings:", ...findingLines] : []),
+        "",
+        "The ticket is blocked in `in_progress`. A person should review the remaining findings and either:",
+        '1. Close disputed or hypothetical findings (`review` tool, `action: "mark-fixed"`, `fixStatus: "wont_fix"`), unblock the ticket, and let the loop finish, or',
+        "2. Fix the real issues manually, then unblock the ticket and re-run `complete-work`.",
+        "",
+        "Unblocking the ticket resets the review-round budget.",
+      ].join("\n"),
+      phase: "ai_review",
+      actorKind: "system",
+      provider: "brain-dump",
+    });
+  } catch {
+    // The block itself must not be undone by a failed comment; the thrown
+    // ValidationError below still carries the full explanation.
+  }
+
+  throw new ValidationError(
+    `${reason}${prdResult.success ? "" : ` (PRD sync warning: ${prdResult.message})`} The ticket is now blocked for human attention; unblocking it resets the review-round budget.`
+  );
+}
+
+/**
  * Complete work on a ticket: move to ai_review, gather git info, post work summary, suggest next ticket.
  *
  * Throws:
@@ -324,6 +389,18 @@ export function completeWork(
       "Cannot complete work: add a test_report comment for this implementation pass summarizing the project-specific validation commands you ran, their pass/fail/skipped results, and any manual smoke checks, then retry."
     );
   }
+
+  // 1a. Review-round circuit breaker. review_iteration increments on every
+  //     complete-work and survives verification bounces (start-work on an
+  //     in_progress ticket returns early without resetting workflow state), so
+  //     it counts implement → review → verify round-trips for this ticket.
+  //     Reviewer/implementer pairs have been observed re-litigating the same
+  //     ticket for hours — each fresh-context review pass minting new blocking
+  //     findings on code a previous pass already accepted. Verification has
+  //     3-strikes and non-convergence breakers; this is the review-side
+  //     equivalent. A human resets the budget via resolve-verification-failure
+  //     or by unblocking the ticket (both stamp verification_streak_reset_at).
+  enforceReviewRoundLimit(db, ticketId);
 
   // 2. Gather git info
   let commitsInfo = "";

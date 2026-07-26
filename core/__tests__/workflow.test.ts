@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import type Database from "better-sqlite3";
 import { createTestDatabase } from "../db.ts";
-import { startWork, completeWork, startEpicWork } from "../workflow.ts";
+import { startWork, completeWork, startEpicWork, MAX_REVIEW_ROUNDS } from "../workflow.ts";
 import {
   TicketNotFoundError,
   EpicNotFoundError,
@@ -397,6 +397,59 @@ describe("completeWork", () => {
     seedTicket("ticket-1", "proj-1", { status: "ai_review" });
 
     expect(() => completeWork(db, "ticket-1", createMockGit())).toThrow(InvalidStateError);
+  });
+
+  it("blocks the ticket for human attention after the review-round limit", () => {
+    seedProject();
+    seedTicket("ticket-1", "proj-1", { status: "in_progress" });
+    seedTestReport("ticket-1");
+    const now = new Date().toISOString();
+    db.prepare(
+      `INSERT INTO ticket_workflow_state (id, ticket_id, current_phase, review_iteration, findings_count, findings_fixed, demo_generated, created_at, updated_at)
+       VALUES (?, ?, 'implementation', ?, 0, 0, 0, ?, ?)`
+    ).run("ws-1", "ticket-1", MAX_REVIEW_ROUNDS, now, now);
+
+    expect(() => completeWork(db, "ticket-1", createMockGit())).toThrow(ValidationError);
+
+    const row = db
+      .prepare("SELECT status, is_blocked, blocked_reason FROM tickets WHERE id = 'ticket-1'")
+      .get() as { status: string; is_blocked: number; blocked_reason: string | null };
+    expect(row.status).toBe("in_progress");
+    expect(row.is_blocked).toBe(1);
+    expect(row.blocked_reason).toContain("Review loop limit");
+
+    const attention = db
+      .prepare(
+        "SELECT content FROM ticket_comments WHERE ticket_id = 'ticket-1' AND content LIKE '%review loop stopped%'"
+      )
+      .get() as { content: string } | undefined;
+    expect(attention).toBeDefined();
+    expect(attention!.content).toContain("resets the review-round budget");
+  });
+
+  it("allows complete-work again after a human resets the review-round budget", () => {
+    seedProject();
+    seedTicket("ticket-1", "proj-1", { status: "in_progress" });
+    seedTestReport("ticket-1");
+    const now = new Date().toISOString();
+    db.prepare(
+      `INSERT INTO ticket_workflow_state (id, ticket_id, current_phase, review_iteration, findings_count, findings_fixed, demo_generated, created_at, updated_at)
+       VALUES (?, ?, 'implementation', ?, 0, 0, 0, ?, ?)`
+    ).run("ws-1", "ticket-1", MAX_REVIEW_ROUNDS, now, now);
+
+    expect(() => completeWork(db, "ticket-1", createMockGit())).toThrow(ValidationError);
+
+    // Simulate the human reset performed by the unblock path.
+    db.prepare(
+      "UPDATE ticket_workflow_state SET review_iteration = 0 WHERE ticket_id = 'ticket-1'"
+    ).run();
+    db.prepare(
+      "UPDATE tickets SET is_blocked = 0, blocked_reason = NULL WHERE id = 'ticket-1'"
+    ).run();
+    seedTestReport("ticket-1");
+
+    const result = completeWork(db, "ticket-1", createMockGit(), "Repaired after human review");
+    expect(result.status).toBe("ai_review");
   });
 });
 

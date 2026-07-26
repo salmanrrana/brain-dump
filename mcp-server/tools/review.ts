@@ -18,6 +18,7 @@ import {
   markFixed,
   getFindings,
   checkComplete,
+  getReviewContext,
   validateGenerateDemo,
   generateDemo,
   getDemo,
@@ -44,6 +45,7 @@ import { updatePrdForDbTicketIfPresent } from "../../core/prd-sync.ts";
 import { WORKFLOW_SCHEMA_VERSION } from "../../core/workflow-schema.ts";
 
 const ACTIONS = [
+  "get-review-context",
   "submit-finding",
   "mark-fixed",
   "get-findings",
@@ -174,6 +176,7 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
     "review",
     `Manage review findings and demo scripts in Brain Dump.
 
+### get-review-context - One-call review packet: ticket requirements + acceptance criteria, work summaries/test reports, the exact in-scope file list (repair diff on re-review rounds), finding history, and the anti-loop budgets in effect. Call this FIRST when reviewing a ticket and review only the files it lists.
 ### submit-finding - Submit a review finding (ticket must be in ai_review)
 ### mark-fixed - Mark finding as fixed, wont_fix, or duplicate
 ### get-findings - Get findings for a ticket (filterable by status, severity, agent)
@@ -317,6 +320,16 @@ No MCP action uploads evidence or marks verification passed. The verification ru
               );
             }
 
+            if (finding.severityDowngradedFrom) {
+              log.info(
+                `Finding for ticket ${ticketId} downgraded from ${finding.severityDowngradedFrom} to ${finding.severity} by anti-spiral gate`
+              );
+              return formatResult(
+                finding,
+                `Finding recorded as ${finding.severity} (requested ${finding.severityDowngradedFrom}; see the [severity gate] note in the description). It does NOT block check-complete — do not re-submit it at higher severity.`
+              );
+            }
+
             log.info(`Submitted ${severity} finding for ticket ${ticketId} by ${findingAgent}`);
             return formatResult(finding, `Finding submitted (${severity})`);
           }
@@ -336,6 +349,21 @@ No MCP action uploads evidence or marks verification passed. The verification ru
 
             log.info(`Marked finding ${findingId} as ${fixStatus}`);
             return formatResult(finding, `Finding marked as ${fixStatus}`);
+          }
+
+          case "get-review-context": {
+            const ticketId = requireParam(params.ticketId, "ticketId", "get-review-context");
+            const context = getReviewContext(db, ticketId);
+            const scopeSummary =
+              context.scope.kind === "repair"
+                ? `repair scope: ${context.scope.changedFiles.length} file(s) since ${context.scope.reviewedThroughCommit?.slice(0, 12)}`
+                : context.scope.kind === "initial"
+                  ? `initial scope: ${context.scope.changedFiles.length} file(s) vs ${context.scope.baseRef}`
+                  : "scope unknown — derive from linked commits";
+            return formatResult(
+              context,
+              `Review context for ${context.ticket.title} (round ${context.reviewRules.reviewIteration}, ${scopeSummary}, ${context.openFindings.length} open finding(s), blocking budget ${context.reviewRules.blockingBudgetRemaining} remaining)`
+            );
           }
 
           case "get-findings": {

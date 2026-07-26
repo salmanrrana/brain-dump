@@ -195,11 +195,17 @@ describe("completeSession", () => {
     expect(() => completeSession(db, "nonexistent", "success")).toThrow(SessionNotFoundError);
   });
 
-  it("throws InvalidStateError when already completed", () => {
+  it("is idempotent when already completed and preserves the original outcome", () => {
+    // generate-demo completes active sessions itself; agents that follow up
+    // with an explicit session complete must get the recorded completion, not
+    // a trailing error at the end of a successful handoff.
     const session = createSession(db, "ticket-1");
-    completeSession(db, session.id, "success");
+    const first = completeSession(db, session.id, "success");
 
-    expect(() => completeSession(db, session.id, "failure")).toThrow(InvalidStateError);
+    const repeat = completeSession(db, session.id, "failure");
+    expect(repeat.outcome).toBe("success");
+    expect(repeat.completedAt).toBe(first.completedAt);
+    expect(repeat.currentState).toBe("done");
   });
 });
 

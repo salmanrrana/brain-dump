@@ -65,10 +65,10 @@ describe("generateRalphScript pi backend", () => {
 
     expect(script).toContain("Fresh Eyes Reviewer");
     expect(script).toContain("Do not stop because MCP tools are unavailable");
-    expect(script).toContain("brain-dump review get-findings --ticket <ticketId> --pretty");
+    expect(script).toContain("brain-dump review get-review-context --ticket <ticketId> --pretty");
     expect(script).toContain("brain-dump review submit-finding --ticket <ticketId>");
     expect(script).toContain(
-      "brain-dump session complete --session <sessionId> --outcome success --pretty"
+      "already completed the ticket's active sessions during the verification handoff"
     );
   });
 });

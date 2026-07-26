@@ -362,12 +362,14 @@ export {
   markFixed,
   getFindings,
   checkComplete,
+  getReviewContext,
   validateGenerateDemo,
   validateRepairLegacyHumanReviewHandoff,
   generateDemo,
   getDemo,
   repairLegacyHumanReviewHandoff,
   validateSubmitFeedback,
+  OPEN_BLOCKING_FINDINGS_BUDGET,
 } from "./review.ts";
 
 export type {
@@ -378,6 +380,10 @@ export type {
   RepairLegacyHumanReviewResult,
   DemoStepStatus,
   SubmitFeedbackParams,
+  ReviewContext,
+  ReviewContextCriterion,
+  ReviewContextFindingSummary,
+  ReviewContextComment,
 } from "./review.ts";
 
 // Verification runner business logic
@@ -642,7 +648,7 @@ export type {
 export { handleEpicCompletionAutoPr, handleEpicCompletionLearnings } from "./ship.ts";
 
 // Workflow business logic
-export { startWork, completeWork, startEpicWork } from "./workflow.ts";
+export { startWork, completeWork, startEpicWork, MAX_REVIEW_ROUNDS } from "./workflow.ts";
 
 // Git linking business logic
 export { linkCommit, linkPr, syncTicketLinks } from "./git.ts";

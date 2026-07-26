@@ -594,6 +594,10 @@ function initReviewWorkflowTables() {
     sqlite.exec(`CREATE INDEX idx_workflow_ticket ON ticket_workflow_state (ticket_id)`);
     console.log("ticket_workflow_state table created successfully");
   }
+  // Core-owned columns also used by the app server (review circuit breaker,
+  // repair-diff scope gate). Kept in sync with core/db.ts runMigrations.
+  ensureColumnExists("ticket_workflow_state", "verification_streak_reset_at", "TEXT");
+  ensureColumnExists("ticket_workflow_state", "reviewed_through_commit", "TEXT");
 
   const findingsExists = sqlite
     .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='review_findings'")
@@ -982,7 +986,7 @@ function runSchemaMigrations(): void {
  * Bump this whenever a new table/column migration is added to
  * `runSchemaMigrations()` so existing DBs re-run the checks once and re-stamp.
  */
-const CURRENT_SCHEMA_VERSION = 7;
+const CURRENT_SCHEMA_VERSION = 8;
 
 // Gate the migration checks behind PRAGMA user_version (standard SQLite
 // pattern). When the DB is already at the current version we skip all ~25

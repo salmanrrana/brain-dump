@@ -54,6 +54,8 @@ import {
   type WorkflowTransitionAction,
 } from "./workflow-steps.ts";
 import { safeJsonParse } from "./json.ts";
+import { runGitArgs } from "./git-utils.ts";
+import { MAX_REVIEW_ROUNDS } from "./workflow.ts";
 
 // ============================================
 // Internal Helpers
@@ -190,6 +192,65 @@ const FINDING_SEVERITY_RANK: Record<FindingSeverity, number> = {
   critical: 3,
 };
 
+/**
+ * Maximum simultaneously-open critical/major findings per ticket. Every open
+ * blocker forces another implement → review round, so an unbounded batch is an
+ * unbounded loop. Beyond the budget, new blocking findings are recorded as
+ * minor (visible, nonblocking) — the reviewer must prioritize, not carpet-bomb.
+ */
+export const OPEN_BLOCKING_FINDINGS_BUDGET = 5;
+
+/**
+ * Repair-diff scope for re-review rounds.
+ *
+ * `reviewed_through_commit` is stamped when the reviewer hands the ticket to
+ * verification (generate-demo). If the ticket bounces back (verification
+ * failure repair) the next review pass runs with fresh context and would
+ * otherwise re-litigate the whole ticket diff — the observed death-spiral
+ * pattern: each pass minting new blocking findings on lines a previous pass
+ * already accepted. Files changed since that commit are the only legitimate
+ * anchors for NEW blocking findings; everything else was already reviewed.
+ *
+ * `changedFiles: null` means scope is unknown (first review round, no project
+ * path, or the commit vanished after a rebase) — gating fails open so a git
+ * hiccup can never suppress a real defect report.
+ */
+interface ReviewScopeContext {
+  changedFiles: Set<string> | null;
+  reviewedThroughCommit: string | null;
+}
+
+function getReviewScopeContext(db: DbHandle, ticketId: string): ReviewScopeContext {
+  const state = db
+    .prepare("SELECT reviewed_through_commit FROM ticket_workflow_state WHERE ticket_id = ?")
+    .get(ticketId) as { reviewed_through_commit: string | null } | undefined;
+  const reviewedThroughCommit = state?.reviewed_through_commit ?? null;
+  if (!reviewedThroughCommit) return { changedFiles: null, reviewedThroughCommit: null };
+  const projectPath = getTicketProjectPath(db, ticketId);
+  if (!projectPath) return { changedFiles: null, reviewedThroughCommit };
+  const diff = runGitArgs(["diff", "--name-only", `${reviewedThroughCommit}..HEAD`], projectPath);
+  if (!diff.success) return { changedFiles: null, reviewedThroughCommit };
+  return {
+    changedFiles: new Set(diff.output.split("\n").filter(Boolean)),
+    reviewedThroughCommit,
+  };
+}
+
+function normalizeFindingPath(filePath: string): string {
+  return filePath.replace(/\\/g, "/").replace(/^\.\//, "");
+}
+
+function isPathInReviewScope(filePath: string, changedFiles: Set<string>): boolean {
+  const normalized = normalizeFindingPath(filePath);
+  if (changedFiles.has(normalized)) return true;
+  // Findings sometimes carry absolute paths or paths from a subdirectory;
+  // git emits repo-root-relative paths. Accept a suffix match either way.
+  for (const changed of changedFiles) {
+    if (normalized.endsWith(`/${changed}`) || changed.endsWith(`/${normalized}`)) return true;
+  }
+  return false;
+}
+
 function moreSevereFindingSeverity(
   existing: FindingSeverity,
   incoming: FindingSeverity
@@ -198,7 +259,9 @@ function moreSevereFindingSeverity(
 }
 
 function normalizeFindingDescription(value: string): string {
-  const canonicalDescription = value.split("\n\n[duplicate report merged ", 1)[0] ?? value;
+  const withoutMergeSuffix = value.split("\n\n[duplicate report merged ", 1)[0] ?? value;
+  const canonicalDescription =
+    withoutMergeSuffix.split("\n\n[severity gate] ", 1)[0] ?? withoutMergeSuffix;
   return canonicalDescription
     .toLowerCase()
     .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, "<id>")
@@ -222,6 +285,15 @@ function findDuplicateOpenFinding(
     description: string;
     filePath?: string | undefined;
     lineNumber?: number | undefined;
+    /**
+     * On re-review rounds (iteration >= 2), drop the description-identity
+     * requirement: an open finding with the same category + file + line
+     * neighborhood is the same defect. Fresh-context reviewers re-file the
+     * same issue re-worded every round; exact-description matching lets those
+     * resurrect as new blockers indefinitely. Only applies to findings with a
+     * file anchor — findings without one would over-merge per category.
+     */
+    widened: boolean;
   }
 ): DbReviewFindingRow | null {
   const rows = db
@@ -239,6 +311,9 @@ function findDuplicateOpenFinding(
       Math.abs(row.line_number - params.lineNumber) <= FINDING_DEDUP_LINE_NEIGHBORHOOD;
     const lineClose = bothLinesMissing || bothLinesClose;
     if (!lineClose) continue;
+    if (params.widened && row.file_path != null) {
+      return row;
+    }
     if (normalizeFindingDescription(row.description) === normalizedDescription) {
       return row;
     }
@@ -250,7 +325,7 @@ function submitFindingInTransaction(db: DbHandle, params: SubmitFindingParams): 
   const {
     ticketId,
     agent,
-    severity,
+    severity: requestedSeverity,
     category,
     description,
     filePath,
@@ -263,18 +338,24 @@ function submitFindingInTransaction(db: DbHandle, params: SubmitFindingParams): 
 
   assertTicketTransition(ticket.status, "ai_review", "submit-finding", "submit review finding");
 
+  const workflowStateForScope = db
+    .prepare("SELECT review_iteration FROM ticket_workflow_state WHERE ticket_id = ?")
+    .get(ticketId) as { review_iteration: number } | undefined;
+  const isReReviewRound = (workflowStateForScope?.review_iteration ?? 0) >= 2;
+
   const duplicate = findDuplicateOpenFinding(db, {
     ticketId,
     category,
     description,
     filePath,
     lineNumber,
+    widened: isReReviewRound,
   });
   if (duplicate) {
     const now = new Date().toISOString();
     const mergedSeverity = moreSevereFindingSeverity(
       duplicate.severity as FindingSeverity,
-      severity
+      requestedSeverity
     );
     db.prepare(
       `UPDATE review_findings
@@ -293,11 +374,58 @@ function submitFindingInTransaction(db: DbHandle, params: SubmitFindingParams): 
     return { ...toReviewFinding(merged), deduplicated: true };
   }
 
+  // Anti-spiral gates for NEW blocking findings. Both downgrade to minor
+  // instead of rejecting: the observation stays visible and auditable, it just
+  // stops forcing another implement → review round.
+  let severity = requestedSeverity;
+  const downgradeNotes: string[] = [];
+  if (severity === "critical" || severity === "major") {
+    if (isReReviewRound) {
+      // Scope gate: on repair rounds, blocking findings must anchor to a file
+      // changed since the last verification handoff. Unknown scope (no
+      // stamped commit, no file anchor, git failure) fails open.
+      const scope = getReviewScopeContext(db, ticketId);
+      if (
+        scope.changedFiles !== null &&
+        filePath &&
+        !isPathInReviewScope(filePath, scope.changedFiles)
+      ) {
+        severity = "minor";
+        downgradeNotes.push(
+          `Downgraded from ${requestedSeverity} to minor: ${filePath} has not changed since the last verification handoff (${scope.reviewedThroughCommit?.slice(0, 12)}). Re-review rounds are scoped to the repair diff; already-reviewed code is context, not a new blocker. If this is a genuine crash/data-loss defect, a human can re-raise it.`
+        );
+      }
+    }
+    if (severity === "critical" || severity === "major") {
+      // Budget gate: every open blocker forces another fix round, so cap the
+      // simultaneously-open blocking batch.
+      const openBlockingCount = (
+        db
+          .prepare(
+            `SELECT COUNT(*) as count FROM review_findings
+             WHERE ticket_id = ? AND status = 'open' AND severity IN ('critical', 'major')`
+          )
+          .get(ticketId) as { count: number }
+      ).count;
+      if (openBlockingCount >= OPEN_BLOCKING_FINDINGS_BUDGET) {
+        severity = "minor";
+        downgradeNotes.push(
+          `Downgraded from ${requestedSeverity} to minor: ${openBlockingCount} blocking findings are already open (budget: ${OPEN_BLOCKING_FINDINGS_BUDGET}). Fix the existing batch first; re-raise this if it is still blocking afterward.`
+        );
+      }
+    }
+  }
+
   const workflowState = getOrCreateWorkflowState(db, ticketId);
   const epicReviewRunId = findLatestActiveEpicReviewRunIdForTicket(db, ticketId);
 
   const findingId = randomUUID();
   const now = new Date().toISOString();
+
+  const storedDescription =
+    downgradeNotes.length > 0
+      ? `${description}\n\n[severity gate] ${downgradeNotes.join("\n[severity gate] ")}`
+      : description;
 
   db.prepare(
     `INSERT INTO review_findings (id, ticket_id, iteration, agent, severity, category, description, file_path, line_number, suggested_fix, epic_review_run_id, status, created_at)
@@ -309,7 +437,7 @@ function submitFindingInTransaction(db: DbHandle, params: SubmitFindingParams): 
     agent,
     severity,
     category,
-    description,
+    storedDescription,
     filePath ?? null,
     lineNumber ?? null,
     suggestedFix ?? null,
@@ -332,7 +460,7 @@ function submitFindingInTransaction(db: DbHandle, params: SubmitFindingParams): 
   const commentLines = [
     `Review finding: ${icon} [${severity}] ${category}`,
     "",
-    description,
+    storedDescription,
     ...(filePath ? ["", `File: ${filePath}${lineNumber ? `:${lineNumber}` : ""}`] : []),
     ...(suggestedFix ? ["", "Suggested fix:", suggestedFix] : []),
     ...(epicReviewRunId ? ["", `Epic review run: ${epicReviewRunId}`] : []),
@@ -347,7 +475,11 @@ function submitFindingInTransaction(db: DbHandle, params: SubmitFindingParams): 
   const row = db
     .prepare("SELECT * FROM review_findings WHERE id = ?")
     .get(findingId) as DbReviewFindingRow;
-  return toReviewFinding(row);
+  const finding = toReviewFinding(row);
+  if (downgradeNotes.length > 0) {
+    finding.severityDowngradedFrom = requestedSeverity;
+  }
+  return finding;
 }
 
 export function submitFinding(db: DbHandle, params: SubmitFindingParams): ReviewFinding {
@@ -512,6 +644,213 @@ export function checkComplete(db: DbHandle, ticketId: string): ReviewCompletionS
     totalFindings: rows.length,
     fixedFindings,
     message,
+  };
+}
+
+// ============================================
+// Public API – Review Context
+// ============================================
+
+export interface ReviewContextCriterion {
+  id: string;
+  text: string;
+  status: string;
+}
+
+export interface ReviewContextFindingSummary {
+  id: string;
+  severity: FindingSeverity;
+  category: string;
+  description: string;
+  filePath: string | null;
+  lineNumber: number | null;
+  agent: string;
+}
+
+export interface ReviewContextComment {
+  type: string;
+  author: string;
+  createdAt: string;
+  content: string;
+}
+
+export interface ReviewContext {
+  ticket: {
+    id: string;
+    title: string;
+    description: string | null;
+    status: string;
+    priority: string | null;
+  };
+  acceptanceCriteria: ReviewContextCriterion[];
+  /** Latest work_summary and test_report comments, oldest first. */
+  workHistory: ReviewContextComment[];
+  scope: {
+    /**
+     * "repair" when a reviewed-through commit is stamped (re-review round):
+     * blocking findings must anchor to changedFiles. "initial" on the first
+     * review: changedFiles is the ticket diff vs. the base branch, advisory.
+     * "unknown" when git could not produce a diff — review the ticket's
+     * commits/linked files by hand.
+     */
+    kind: "repair" | "initial" | "unknown";
+    reviewedThroughCommit: string | null;
+    changedFiles: string[];
+    baseRef: string | null;
+    note: string;
+  };
+  reviewRules: {
+    reviewIteration: number;
+    isReReviewRound: boolean;
+    openBlockingCount: number;
+    blockingBudgetRemaining: number;
+    maxReviewRounds: number;
+    roundsRemaining: number;
+  };
+  openFindings: ReviewContextFindingSummary[];
+  /** Closed findings (fixed / wont_fix / duplicate) — dedup context, not work. */
+  resolvedFindings: ReviewContextFindingSummary[];
+  completion: ReviewCompletionStatus;
+}
+
+function toContextFindingSummary(row: DbReviewFindingRow): ReviewContextFindingSummary {
+  return {
+    id: row.id,
+    severity: row.severity as FindingSeverity,
+    category: row.category,
+    description: row.description,
+    filePath: row.file_path,
+    lineNumber: row.line_number,
+    agent: row.agent,
+  };
+}
+
+/**
+ * One-call review packet for the fresh-eyes reviewer: what the ticket
+ * requires, what was done, exactly which files are in review scope, the
+ * finding history, and the anti-loop rules in effect. The reviewer prompt
+ * makes this its mandatory first step so scope arrives as data up front
+ * instead of being discovered through severity-gate downgrades.
+ *
+ * @throws TicketNotFoundError if the ticket doesn't exist
+ */
+export function getReviewContext(db: DbHandle, ticketId: string): ReviewContext {
+  const ticket = getTicketRow(db, ticketId);
+
+  const rawCriteria = safeJsonParse<
+    Array<{ id?: string; criterion?: string; text?: string; status?: string; completed?: boolean }>
+  >(ticket.subtasks, []);
+  const acceptanceCriteria: ReviewContextCriterion[] = rawCriteria.map((criterion, index) => ({
+    id: criterion.id ?? String(index + 1),
+    text: criterion.criterion ?? criterion.text ?? "",
+    status: criterion.status ?? (criterion.completed ? "passed" : "pending"),
+  }));
+
+  const workHistory = (
+    db
+      .prepare(
+        `SELECT type, author, created_at, content FROM ticket_comments
+         WHERE ticket_id = ? AND type IN ('work_summary', 'test_report')
+         ORDER BY created_at DESC LIMIT 6`
+      )
+      .all(ticketId) as Array<{ type: string; author: string; created_at: string; content: string }>
+  )
+    .reverse()
+    .map((row) => ({
+      type: row.type,
+      author: row.author,
+      createdAt: row.created_at,
+      content: row.content,
+    }));
+
+  const workflowState = db
+    .prepare(
+      "SELECT review_iteration, reviewed_through_commit FROM ticket_workflow_state WHERE ticket_id = ?"
+    )
+    .get(ticketId) as
+    | { review_iteration: number; reviewed_through_commit: string | null }
+    | undefined;
+  const reviewIteration = workflowState?.review_iteration ?? 0;
+  const isReReviewRound = reviewIteration >= 2;
+  const reviewedThroughCommit = workflowState?.reviewed_through_commit ?? null;
+
+  // Scope: repair diff when stamped, otherwise ticket diff vs. base branch.
+  const projectPath = getTicketProjectPath(db, ticketId);
+  let scope: ReviewContext["scope"] = {
+    kind: "unknown",
+    reviewedThroughCommit,
+    changedFiles: [],
+    baseRef: null,
+    note: "Could not compute a diff for this ticket. Identify the ticket-owned changes from its linked commits and work summaries before reviewing.",
+  };
+  if (projectPath) {
+    if (reviewedThroughCommit) {
+      const diff = runGitArgs(
+        ["diff", "--name-only", `${reviewedThroughCommit}..HEAD`],
+        projectPath
+      );
+      if (diff.success) {
+        scope = {
+          kind: "repair",
+          reviewedThroughCommit,
+          changedFiles: diff.output.split("\n").filter(Boolean),
+          baseRef: reviewedThroughCommit,
+          note: "Re-review round: everything up to the reviewed-through commit already passed a full review. Review ONLY the files listed here; blocking findings outside them are automatically downgraded to minor.",
+        };
+      }
+    } else {
+      const baseCandidates = ["main", "master"];
+      for (const base of baseCandidates) {
+        const merged = runGitArgs(["merge-base", base, "HEAD"], projectPath);
+        if (!merged.success) continue;
+        const diff = runGitArgs(["diff", "--name-only", `${merged.output}..HEAD`], projectPath);
+        if (!diff.success) continue;
+        scope = {
+          kind: "initial",
+          reviewedThroughCommit: null,
+          changedFiles: diff.output.split("\n").filter(Boolean),
+          baseRef: base,
+          note: `First review round: files changed on this branch since ${base}. On shared epic branches this may include sibling-ticket work — cross-check against the ticket's linked commits and review only changes belonging to this ticket.`,
+        };
+        break;
+      }
+    }
+  }
+
+  const findingRows = db
+    .prepare("SELECT * FROM review_findings WHERE ticket_id = ? ORDER BY created_at ASC")
+    .all(ticketId) as DbReviewFindingRow[];
+  const openFindings = findingRows.filter((f) => f.status === "open").map(toContextFindingSummary);
+  const resolvedFindings = findingRows
+    .filter((f) => f.status !== "open")
+    .map(toContextFindingSummary);
+
+  const openBlockingCount = openFindings.filter(
+    (f) => f.severity === "critical" || f.severity === "major"
+  ).length;
+
+  return {
+    ticket: {
+      id: ticket.id,
+      title: ticket.title,
+      description: ticket.description,
+      status: ticket.status,
+      priority: ticket.priority,
+    },
+    acceptanceCriteria,
+    workHistory,
+    scope,
+    reviewRules: {
+      reviewIteration,
+      isReReviewRound,
+      openBlockingCount,
+      blockingBudgetRemaining: Math.max(0, OPEN_BLOCKING_FINDINGS_BUDGET - openBlockingCount),
+      maxReviewRounds: MAX_REVIEW_ROUNDS,
+      roundsRemaining: Math.max(0, MAX_REVIEW_ROUNDS - reviewIteration),
+    },
+    openFindings,
+    resolvedFindings,
+    completion: checkComplete(db, ticketId),
   };
 }
 
@@ -1892,11 +2231,19 @@ export function generateDemo(db: DbHandle, params: GenerateDemoParams): DemoScri
       ).run(demoId, ticketId, JSON.stringify(steps), linkedEpicReviewRunId, now);
     }
 
-    // Update workflow state (ensure it exists first)
+    // Update workflow state (ensure it exists first). Stamp the repo HEAD as
+    // the reviewed-through commit: everything up to here has passed a full
+    // review, so if verification bounces the ticket back, the next review
+    // round only gets blocking authority over the repair diff.
     getOrCreateWorkflowState(db, ticketId);
+    const headCommit = projectPath
+      ? runGitArgs(["rev-parse", "HEAD"], projectPath)
+      : { success: false as const, output: "" };
     db.prepare(
-      `UPDATE ticket_workflow_state SET demo_generated = 1, updated_at = ? WHERE ticket_id = ?`
-    ).run(now, ticketId);
+      `UPDATE ticket_workflow_state
+       SET demo_generated = 1, reviewed_through_commit = ?, updated_at = ?
+       WHERE ticket_id = ?`
+    ).run(headCommit.success ? headCommit.output : null, now, ticketId);
 
     // Transition ticket to AI verification.
     db.prepare("UPDATE tickets SET status = 'ai_verification', updated_at = ? WHERE id = ?").run(

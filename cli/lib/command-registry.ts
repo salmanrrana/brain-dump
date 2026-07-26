@@ -593,6 +593,14 @@ export const COMMAND_REGISTRY: CommandDef[] = [
   // ── review ─────────────────────────────────────────────────
   {
     resource: "review",
+    action: "get-review-context",
+    description:
+      "One-call review packet: ticket requirements, work history, exact in-scope files, finding history, and anti-loop budgets. Run this FIRST when reviewing a ticket.",
+    flags: [ticketFlag, prettyFlag],
+    examples: ["brain-dump review get-review-context --ticket abc --pretty"],
+  },
+  {
+    resource: "review",
     action: "submit-finding",
     description: "Submit a review finding for a ticket",
     flags: [

@@ -1,6 +1,7 @@
 /**
- * Review commands: submit-finding, mark-fixed, check-complete, generate-demo, get-demo, get-findings,
- * get-verification-history, repair-legacy-handoff, resolve-verification-failure.
+ * Review commands: get-review-context, submit-finding, mark-fixed, check-complete, generate-demo,
+ * get-demo, get-findings, get-verification-history, repair-legacy-handoff,
+ * resolve-verification-failure.
  */
 
 import { readFileSync } from "fs";
@@ -8,6 +9,7 @@ import {
   submitFinding,
   markFixed,
   checkComplete,
+  getReviewContext,
   validateGenerateDemo,
   generateDemo,
   getDemo,
@@ -43,6 +45,7 @@ import { outputResult, outputError, showResourceHelp } from "../lib/output.ts";
 import { getDb } from "../lib/db.ts";
 
 const ACTIONS = [
+  "get-review-context",
   "submit-finding",
   "mark-fixed",
   "check-complete",
@@ -113,6 +116,13 @@ export function handle(action: string, args: string[]): void {
       case "check-complete": {
         const ticketId = requireFlag(flags, "ticket");
         const result = checkComplete(db, ticketId);
+        outputResult(result, pretty);
+        break;
+      }
+
+      case "get-review-context": {
+        const ticketId = requireFlag(flags, "ticket");
+        const result = getReviewContext(db, ticketId);
         outputResult(result, pretty);
         break;
       }

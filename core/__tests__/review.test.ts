@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import type Database from "better-sqlite3";
+import { spawnSync } from "child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
@@ -9,6 +10,7 @@ import {
   markFixed,
   getFindings,
   checkComplete,
+  getReviewContext,
   generateDemo,
   getDemo,
   repairLegacyHumanReviewHandoff,
@@ -2733,5 +2735,435 @@ describe("submitFinding deduplication", () => {
     });
 
     expect(unlocated.deduplicated).toBeUndefined();
+  });
+});
+
+describe("submitFinding anti-spiral gates", () => {
+  function setReviewIteration(iteration: number, ticketId = "ticket-1"): void {
+    const now = new Date().toISOString();
+    db.prepare(
+      `INSERT INTO ticket_workflow_state (id, ticket_id, current_phase, review_iteration, findings_count, findings_fixed, demo_generated, created_at, updated_at)
+       VALUES (?, ?, 'ai_review', ?, 0, 0, 0, ?, ?)
+       ON CONFLICT(ticket_id) DO UPDATE SET review_iteration = excluded.review_iteration`
+    ).run(`ws-${ticketId}`, ticketId, iteration, now, now);
+  }
+
+  it("downgrades blocking findings beyond the open-blocking budget to minor", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    for (let i = 0; i < 5; i++) {
+      const finding = submitFinding(db, {
+        ticketId: "ticket-1",
+        agent: "code-reviewer",
+        severity: "major",
+        category: `distinct-category-${i}`,
+        description: `Blocking defect number ${i} with its own reproduction`,
+        filePath: `src/file-${i}.ts`,
+        lineNumber: 10,
+      });
+      expect(finding.severity).toBe("major");
+    }
+
+    const overflow = submitFinding(db, {
+      ticketId: "ticket-1",
+      agent: "code-reviewer",
+      severity: "critical",
+      category: "distinct-category-overflow",
+      description: "A sixth blocking defect that exceeds the budget",
+      filePath: "src/file-overflow.ts",
+      lineNumber: 10,
+    });
+
+    expect(overflow.severity).toBe("minor");
+    expect(overflow.severityDowngradedFrom).toBe("critical");
+    expect(overflow.description).toContain("[severity gate]");
+    // The budgeted batch still blocks; the overflow does not add to it.
+    const completion = checkComplete(db, "ticket-1");
+    expect(completion.openMajor).toBe(5);
+    expect(completion.openCritical).toBe(0);
+  });
+
+  it("frees budget when findings are fixed so later blockers are accepted", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    const first = submitFinding(db, {
+      ticketId: "ticket-1",
+      agent: "code-reviewer",
+      severity: "major",
+      category: "cat-0",
+      description: "First blocking defect",
+      filePath: "src/a.ts",
+      lineNumber: 1,
+    });
+    for (let i = 1; i < 5; i++) {
+      submitFinding(db, {
+        ticketId: "ticket-1",
+        agent: "code-reviewer",
+        severity: "major",
+        category: `cat-${i}`,
+        description: `Blocking defect ${i}`,
+        filePath: `src/f${i}.ts`,
+        lineNumber: 1,
+      });
+    }
+    markFixed(db, first.id, "fixed");
+
+    const afterFix = submitFinding(db, {
+      ticketId: "ticket-1",
+      agent: "code-reviewer",
+      severity: "major",
+      category: "cat-later",
+      description: "New blocking defect after one was fixed",
+      filePath: "src/later.ts",
+      lineNumber: 1,
+    });
+    expect(afterFix.severity).toBe("major");
+    expect(afterFix.severityDowngradedFrom).toBeUndefined();
+  });
+
+  it("widens dedup on re-review rounds to same category/file/line regardless of wording", () => {
+    seedProject();
+    seedAiReviewTicket();
+    setReviewIteration(2);
+
+    const first = submitFinding(db, {
+      ticketId: "ticket-1",
+      agent: "code-reviewer",
+      severity: "major",
+      category: "state-management",
+      description: "Refresh state leaks between header and grid",
+      filePath: "src/components/Grid.tsx",
+      lineNumber: 73,
+    });
+    const reworded = submitFinding(db, {
+      ticketId: "ticket-1",
+      agent: "code-reviewer",
+      severity: "major",
+      category: "state-management",
+      description:
+        "The grid re-renders with stale results because the header shares its refresh flag",
+      filePath: "src/components/Grid.tsx",
+      lineNumber: 78,
+    });
+
+    expect(reworded.deduplicated).toBe(true);
+    expect(reworded.id).toBe(first.id);
+  });
+
+  it("keeps exact-description dedup semantics on the first review round", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    submitFinding(db, {
+      ticketId: "ticket-1",
+      agent: "code-reviewer",
+      severity: "major",
+      category: "state-management",
+      description: "Refresh state leaks between header and grid",
+      filePath: "src/components/Grid.tsx",
+      lineNumber: 73,
+    });
+    const differentDefect = submitFinding(db, {
+      ticketId: "ticket-1",
+      agent: "code-reviewer",
+      severity: "major",
+      category: "state-management",
+      description: "Grid drops its sort order when the API omits the field",
+      filePath: "src/components/Grid.tsx",
+      lineNumber: 75,
+    });
+
+    expect(differentDefect.deduplicated).toBeUndefined();
+  });
+});
+
+describe("submitFinding repair-diff scope gate", () => {
+  let repoDir: string;
+
+  function gitIn(args: string[]): void {
+    const result = spawnSync("git", args, { cwd: repoDir, encoding: "utf-8" });
+    if (result.status !== 0) {
+      throw new Error(`git ${args.join(" ")} failed: ${result.stderr}`);
+    }
+  }
+
+  function initRepoWithReviewedCommit(): string {
+    repoDir = mkdtempSync(join(tmpdir(), "bd-scope-gate-"));
+    gitIn(["init"]);
+    gitIn(["config", "user.email", "test@example.com"]);
+    gitIn(["config", "user.name", "Test"]);
+    writeFileSync(join(repoDir, "reviewed.ts"), "export const reviewed = 1;\n");
+    writeFileSync(join(repoDir, "repaired.ts"), "export const repaired = 1;\n");
+    gitIn(["add", "."]);
+    gitIn(["commit", "-m", "reviewed implementation"]);
+    const head = spawnSync("git", ["rev-parse", "HEAD"], { cwd: repoDir, encoding: "utf-8" });
+    // Repair commit touches only repaired.ts.
+    writeFileSync(join(repoDir, "repaired.ts"), "export const repaired = 2;\n");
+    gitIn(["add", "."]);
+    gitIn(["commit", "-m", "verification repair"]);
+    return head.stdout.trim();
+  }
+
+  function seedScopedTicket(reviewedCommit: string): void {
+    db.prepare("INSERT INTO projects (id, name, path, created_at) VALUES (?, ?, ?, ?)").run(
+      "proj-1",
+      "Scope Project",
+      repoDir,
+      new Date().toISOString()
+    );
+    seedAiReviewTicket();
+    const now = new Date().toISOString();
+    db.prepare(
+      `INSERT INTO ticket_workflow_state (id, ticket_id, current_phase, review_iteration, findings_count, findings_fixed, demo_generated, reviewed_through_commit, created_at, updated_at)
+       VALUES ('ws-1', 'ticket-1', 'ai_review', 2, 0, 0, 0, ?, ?, ?)`
+    ).run(reviewedCommit, now, now);
+  }
+
+  afterEach(() => {
+    if (repoDir) rmSync(repoDir, { recursive: true, force: true });
+  });
+
+  it("downgrades re-review blockers outside the repair diff to minor", () => {
+    const reviewedCommit = initRepoWithReviewedCommit();
+    seedScopedTicket(reviewedCommit);
+
+    const outOfScope = submitFinding(db, {
+      ticketId: "ticket-1",
+      agent: "code-reviewer",
+      severity: "major",
+      category: "correctness",
+      description: "Already-reviewed module has a subtle state bug",
+      filePath: "reviewed.ts",
+      lineNumber: 1,
+    });
+
+    expect(outOfScope.severity).toBe("minor");
+    expect(outOfScope.severityDowngradedFrom).toBe("major");
+    expect(outOfScope.description).toContain("has not changed since the last verification handoff");
+    expect(checkComplete(db, "ticket-1").canProceedToVerification).toBe(true);
+  });
+
+  it("accepts re-review blockers anchored to the repair diff", () => {
+    const reviewedCommit = initRepoWithReviewedCommit();
+    seedScopedTicket(reviewedCommit);
+
+    const inScope = submitFinding(db, {
+      ticketId: "ticket-1",
+      agent: "code-reviewer",
+      severity: "major",
+      category: "correctness",
+      description: "The repair breaks the exported constant contract",
+      filePath: "repaired.ts",
+      lineNumber: 1,
+    });
+
+    expect(inScope.severity).toBe("major");
+    expect(inScope.severityDowngradedFrom).toBeUndefined();
+  });
+
+  it("fails open when no reviewed-through commit is stamped", () => {
+    initRepoWithReviewedCommit();
+    db.prepare("INSERT INTO projects (id, name, path, created_at) VALUES (?, ?, ?, ?)").run(
+      "proj-1",
+      "Scope Project",
+      repoDir,
+      new Date().toISOString()
+    );
+    seedAiReviewTicket();
+    const now = new Date().toISOString();
+    db.prepare(
+      `INSERT INTO ticket_workflow_state (id, ticket_id, current_phase, review_iteration, findings_count, findings_fixed, demo_generated, created_at, updated_at)
+       VALUES ('ws-1', 'ticket-1', 'ai_review', 2, 0, 0, 0, ?, ?)`
+    ).run(now, now);
+
+    const finding = submitFinding(db, {
+      ticketId: "ticket-1",
+      agent: "code-reviewer",
+      severity: "major",
+      category: "correctness",
+      description: "Blocking defect with unknown review scope",
+      filePath: "reviewed.ts",
+      lineNumber: 1,
+    });
+
+    expect(finding.severity).toBe("major");
+  });
+});
+
+describe("generateDemo reviewed-through stamp", () => {
+  it("stamps repo HEAD as reviewed_through_commit at verification handoff", () => {
+    const repoDir = mkdtempSync(join(tmpdir(), "bd-stamp-"));
+    try {
+      const git = (args: string[]) => {
+        const result = spawnSync("git", args, { cwd: repoDir, encoding: "utf-8" });
+        if (result.status !== 0) throw new Error(`git ${args.join(" ")} failed: ${result.stderr}`);
+        return result.stdout.trim();
+      };
+      git(["init"]);
+      git(["config", "user.email", "test@example.com"]);
+      git(["config", "user.name", "Test"]);
+      writeFileSync(join(repoDir, "impl.ts"), "export const x = 1;\n");
+      git(["add", "."]);
+      git(["commit", "-m", "implementation"]);
+      const head = git(["rev-parse", "HEAD"]);
+
+      db.prepare("INSERT INTO projects (id, name, path, created_at) VALUES (?, ?, ?, ?)").run(
+        "proj-1",
+        "Stamp Project",
+        repoDir,
+        new Date().toISOString()
+      );
+      seedAiReviewTicket();
+
+      generateDemo(db, {
+        ticketId: "ticket-1",
+        steps: [
+          {
+            order: 1,
+            description: "Check the constant",
+            expectedOutcome: "impl.ts exists",
+            type: "automated",
+            automation: {
+              kind: "file",
+              path: "impl.ts",
+              assert: [{ type: "exists" }],
+            },
+          },
+        ],
+      });
+
+      const state = db
+        .prepare(
+          "SELECT reviewed_through_commit FROM ticket_workflow_state WHERE ticket_id = 'ticket-1'"
+        )
+        .get() as { reviewed_through_commit: string | null };
+      expect(state.reviewed_through_commit).toBe(head);
+    } finally {
+      rmSync(repoDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("getReviewContext", () => {
+  it("returns requirements, work history, findings, and rules in one packet", () => {
+    seedProject();
+    seedAiReviewTicket();
+    setTicketDescription("ticket-1", "Implement the widget toggle");
+    db.prepare("UPDATE tickets SET subtasks = ? WHERE id = 'ticket-1'").run(
+      JSON.stringify([
+        { id: "c1", criterion: "Toggle persists across reloads", status: "pending" },
+        { id: "c2", text: "Toggle is keyboard accessible", completed: true },
+      ])
+    );
+    const now = new Date().toISOString();
+    db.prepare(
+      `INSERT INTO ticket_comments (id, ticket_id, content, author, type, created_at)
+       VALUES ('c-ws', 'ticket-1', 'Implemented toggle with localStorage', 'ralph:claude', 'work_summary', ?)`
+    ).run(now);
+    db.prepare(
+      `INSERT INTO ticket_comments (id, ticket_id, content, author, type, created_at)
+       VALUES ('c-tr', 'ticket-1', 'pnpm check: pass', 'ralph:claude', 'test_report', ?)`
+    ).run(now);
+    const open = submitFinding(db, {
+      ticketId: "ticket-1",
+      agent: "code-reviewer",
+      severity: "major",
+      category: "correctness",
+      description: "Toggle loses state when storage is unavailable",
+      filePath: "src/toggle.ts",
+      lineNumber: 12,
+    });
+    const closed = submitFinding(db, {
+      ticketId: "ticket-1",
+      agent: "code-reviewer",
+      severity: "minor",
+      category: "style",
+      description: "Prefer the shared button component",
+      filePath: "src/toggle.ts",
+      lineNumber: 30,
+    });
+    markFixed(db, closed.id, "wont_fix");
+
+    const context = getReviewContext(db, "ticket-1");
+
+    expect(context.ticket.title).toBe("Ticket ticket-1");
+    expect(context.ticket.description).toBe("Implement the widget toggle");
+    expect(context.acceptanceCriteria).toEqual([
+      { id: "c1", text: "Toggle persists across reloads", status: "pending" },
+      { id: "c2", text: "Toggle is keyboard accessible", status: "passed" },
+    ]);
+    expect(context.workHistory.map((c) => c.type)).toContain("work_summary");
+    expect(context.workHistory.map((c) => c.type)).toContain("test_report");
+    expect(context.openFindings.map((f) => f.id)).toEqual([open.id]);
+    expect(context.resolvedFindings.map((f) => f.id)).toEqual([closed.id]);
+    expect(context.reviewRules.openBlockingCount).toBe(1);
+    expect(context.reviewRules.blockingBudgetRemaining).toBe(4);
+    expect(context.completion.canProceedToVerification).toBe(false);
+  });
+
+  it("reports repair scope with the changed-file list when a reviewed-through commit is stamped", () => {
+    const repoDir = mkdtempSync(join(tmpdir(), "bd-ctx-scope-"));
+    try {
+      const git = (args: string[]) => {
+        const result = spawnSync("git", args, { cwd: repoDir, encoding: "utf-8" });
+        if (result.status !== 0) throw new Error(`git ${args.join(" ")} failed: ${result.stderr}`);
+        return result.stdout.trim();
+      };
+      git(["init"]);
+      git(["config", "user.email", "test@example.com"]);
+      git(["config", "user.name", "Test"]);
+      writeFileSync(join(repoDir, "reviewed.ts"), "export const a = 1;\n");
+      git(["add", "."]);
+      git(["commit", "-m", "reviewed"]);
+      const reviewedCommit = git(["rev-parse", "HEAD"]);
+      writeFileSync(join(repoDir, "repaired.ts"), "export const b = 1;\n");
+      git(["add", "."]);
+      git(["commit", "-m", "repair"]);
+
+      db.prepare("INSERT INTO projects (id, name, path, created_at) VALUES (?, ?, ?, ?)").run(
+        "proj-1",
+        "Ctx Project",
+        repoDir,
+        new Date().toISOString()
+      );
+      seedAiReviewTicket();
+      const now = new Date().toISOString();
+      db.prepare(
+        `INSERT INTO ticket_workflow_state (id, ticket_id, current_phase, review_iteration, findings_count, findings_fixed, demo_generated, reviewed_through_commit, created_at, updated_at)
+         VALUES ('ws-1', 'ticket-1', 'ai_review', 2, 0, 0, 0, ?, ?, ?)`
+      ).run(reviewedCommit, now, now);
+
+      const context = getReviewContext(db, "ticket-1");
+
+      expect(context.scope.kind).toBe("repair");
+      expect(context.scope.changedFiles).toEqual(["repaired.ts"]);
+      expect(context.scope.reviewedThroughCommit).toBe(reviewedCommit);
+      expect(context.reviewRules.isReReviewRound).toBe(true);
+      expect(context.reviewRules.roundsRemaining).toBe(1);
+    } finally {
+      rmSync(repoDir, { recursive: true, force: true });
+    }
+  });
+
+  it("reports unknown scope when the project has no usable git diff", () => {
+    seedProject(); // project path = process.cwd() which is a repo, but no
+    // reviewed commit and merge-base of main..HEAD exists here — so instead
+    // point the ticket at a project path that does not exist.
+    db.prepare(
+      "UPDATE projects SET path = '/nonexistent/brain-dump-test' WHERE id = 'proj-1'"
+    ).run();
+    seedAiReviewTicket();
+
+    const context = getReviewContext(db, "ticket-1");
+
+    expect(context.scope.kind).toBe("unknown");
+    expect(context.scope.changedFiles).toEqual([]);
+    expect(context.scope.note).toContain("linked commits");
+  });
+
+  it("throws TicketNotFoundError for a nonexistent ticket", () => {
+    expect(() => getReviewContext(db, "nope")).toThrow(TicketNotFoundError);
   });
 });

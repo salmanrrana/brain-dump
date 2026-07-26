@@ -27,9 +27,9 @@ export const WORKFLOW_PHASES: readonly WorkflowPhaseSpec[] = [
   {
     title: "AI Review",
     summary:
-      "Review the ticket's own changed code for regressions, acceptance gaps, and maintainability (reuse existing patterns; keep junior-readable). Submit only concrete NEW blocking findings, fix critical/major findings, then check completion.",
+      "Start with get-review-context: it returns the acceptance criteria, work history, the exact in-scope changed-file list, prior findings (never re-file resolved ones), and the blocking-findings budget. Review only the in-scope files for regressions, acceptance gaps, and maintainability (reuse existing patterns; keep junior-readable). Submit only concrete NEW blocking findings, fix critical/major findings, then check completion.",
     toolCalls: [
-      'review({ action: "get-findings", ticketId })',
+      'review({ action: "get-review-context", ticketId })',
       'review({ action: "submit-finding", ticketId, agent, severity, category, description })',
       'review({ action: "mark-fixed", findingId, fixStatus: "fixed" })',
       'review({ action: "check-complete", ticketId })',
@@ -46,8 +46,8 @@ export const WORKFLOW_PHASES: readonly WorkflowPhaseSpec[] = [
   {
     title: "Stop",
     summary:
-      "Complete the Ralph session and stop. Never run verification or move the ticket to done yourself.",
-    toolCalls: ['session({ action: "complete", sessionId, outcome: "success" })'],
+      "STOP after generate-demo. generate-demo already completed the ticket's active sessions during the verification handoff — an explicit session complete afterwards is unnecessary (though harmless if called: it returns the recorded completion). Never run verification or move the ticket to done yourself.",
+    toolCalls: [],
   },
 ];
 
@@ -178,8 +178,7 @@ Use \`brain-dump session\` to keep progress and UI state accurate.
    If an active session already exists, reuse it with \`brain-dump session get --ticket ${ticketId} --pretty\` instead of creating another.
 2. Update state at each phase transition:
    \`brain-dump session update-state --session <sessionId> --state ${SESSION_STATES.join("|")} --message "..."\`
-3. Complete after demo generation, then STOP:
-   \`brain-dump session complete --session <sessionId> --outcome success --pretty\``;
+3. After demo generation, STOP. generate-demo completes the ticket's active sessions automatically; you do not need to call \`session complete\` yourself (calling it anyway is harmless — it returns the recorded completion).`;
 }
 
 export function renderHardGuards(): string {
@@ -264,9 +263,9 @@ Status flow: \`${getStatusFlowText()}\`
 4. Record validation before completion: \`brain-dump comment add --ticket <ticket-id> --type test_report --content "<commands and results>" --pretty\`. Stop if this command fails.
 5. Commit with \`feat(<ticket-id>): <description>\`.
 6. Complete work only after the test_report exists: \`brain-dump workflow complete-work --ticket <ticket-id> --summary "<summary>" --pretty\`.
-7. Review: use \`brain-dump review submit-finding\`, \`brain-dump review mark-fixed\`, and \`brain-dump review check-complete --ticket <ticket-id> --pretty\`.
-8. Demo: \`brain-dump review generate-demo --ticket <ticket-id> --steps-file <steps.json> --pretty\`; include automation specs for visual/automated UI, API, command, or file checks.
-9. Stop after demo handoff. Do not approve or move the ticket to done.
+7. Review: start with \`brain-dump review get-review-context --ticket <ticket-id> --pretty\` (criteria, in-scope files, prior findings, budgets), then use \`brain-dump review submit-finding\`, \`brain-dump review mark-fixed\`, and \`brain-dump review check-complete --ticket <ticket-id> --pretty\`.
+8. Demo: \`brain-dump review generate-demo --ticket <ticket-id> --steps-file <steps.json> --pretty\` with 3-7 visual/automated steps. Manual steps are rejected; every acceptance criterion must be proven by executable UI, API, command, or file automation via \`covers\` references — \`coverageRationale\` is rejected. UI/API steps require \`app.start\` argv discovered from the project's own docs/config with \`{port}\`/\`{host}\` tokens.
+9. Stop after demo handoff (sessions are completed automatically). Do not approve or move the ticket to done.
 
 ### Implementation Discipline
 
@@ -286,7 +285,8 @@ ${IMPLEMENTATION_DISCIPLINE_RULES.map((rule) => `- ${rule}`).join("\n")}
 - Run project validation discovered from docs/config before \`workflow complete-work\`.
 - Record validation with \`brain-dump comment add --ticket <ticket-id> --type test_report --content "<commands and results>" --pretty\` before \`workflow complete-work\`; stop if the comment command fails.
 - Use \`brain-dump review check-complete --ticket <ticket-id> --pretty\` before generating demo steps.
-- Stop after \`brain-dump review generate-demo\`; do not approve or move tickets to done.`;
+- Demo steps must be visual/automated with executable automation specs; manual steps and \`coverageRationale\` are rejected, every acceptance criterion needs a \`covers\` reference, and UI/API steps need \`app.start\` argv with \`{port}\`/\`{host}\` tokens from the project's own docs/config.
+- Stop after \`brain-dump review generate-demo\` (sessions are completed automatically); do not approve or move tickets to done.`;
 }
 
 export function renderMermaidStatusDiagram(): string {

@@ -80,6 +80,12 @@ export interface DbTicketWorkflowStateRow {
   findings_fixed: number;
   demo_generated: number;
   verification_streak_reset_at: string | null;
+  /**
+   * HEAD of the project repo when the reviewer handed the ticket to
+   * verification (generate-demo). Re-review rounds use it to bound blocking
+   * findings to the repair diff instead of re-litigating certified code.
+   */
+  reviewed_through_commit: string | null;
   created_at: string;
   updated_at: string;
 }

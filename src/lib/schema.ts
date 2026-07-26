@@ -698,6 +698,8 @@ export const ticketWorkflowState = sqliteTable(
     findingsCount: integer("findings_count").default(0), // Total findings reported
     findingsFixed: integer("findings_fixed").default(0), // Findings marked as fixed
     demoGenerated: integer("demo_generated", { mode: "boolean" }).default(false), // Whether demo script exists
+    verificationStreakResetAt: text("verification_streak_reset_at"), // Human resolution timestamp; resets verification failure streaks
+    reviewedThroughCommit: text("reviewed_through_commit"), // Repo HEAD at last verification handoff; bounds re-review scope
     createdAt: text("created_at")
       .notNull()
       .default(sql`(datetime('now'))`),

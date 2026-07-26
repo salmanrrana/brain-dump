@@ -250,9 +250,10 @@ describe("review-mode prompt builders", () => {
     expect(prompt).toContain("live ticket reports `isBlocked: true`");
     expect(prompt).toContain("perform exactly ONE bounded fresh-eyes pass");
     expect(prompt).toContain("currently OPEN critical/major findings");
-    expect(prompt).toContain("Fixed historical findings are deduplication context");
-    expect(prompt).toContain("review only the repair diff");
-    expect(prompt).toContain("submit the complete finding batch with");
+    expect(prompt).toContain("brain-dump review get-review-context --ticket <ticketId> --pretty");
+    expect(prompt).toContain("already litigated — never re-file these");
+    expect(prompt).toContain("scope.changedFiles");
+    expect(prompt).toContain("Submit the complete finding batch with");
     expect(prompt).toContain("Fix every open critical/major finding yourself");
     expect(prompt).toContain("`implementing`, `testing`, and `committing`");
     expect(prompt).toContain("If and only if you changed code for a blocking finding");

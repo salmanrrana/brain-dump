@@ -855,7 +855,7 @@ export function resolveVerificationFailure(
     db.prepare(
       `UPDATE ticket_workflow_state
        SET current_phase = 'ai_review', demo_generated = 0,
-           verification_streak_reset_at = ?, updated_at = ?
+           verification_streak_reset_at = ?, review_iteration = 0, updated_at = ?
        WHERE ticket_id = ?`
     ).run(now, now, params.ticketId);
     const prdResult = updatePrdForDbTicketIfPresent(db, params.ticketId, false, "ai_review");

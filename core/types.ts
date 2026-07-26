@@ -268,6 +268,12 @@ export interface ReviewFinding {
    * inserting a duplicate row.
    */
   deduplicated?: boolean;
+  /**
+   * Set when a requested critical/major was recorded as minor by an
+   * anti-spiral gate (out-of-scope on a re-review round, or the open blocking
+   * findings budget was reached). The reason is appended to the description.
+   */
+  severityDowngradedFrom?: FindingSeverity;
 }
 
 export interface ReviewCompletionStatus {

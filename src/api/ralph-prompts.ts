@@ -9,6 +9,7 @@ import {
   renderWorkflowRules,
   renderWorkflowToolAccess,
 } from "../../core/workflow-prompt-spec.ts";
+import { OPEN_BLOCKING_FINDINGS_BUDGET } from "../../core/review.ts";
 import {
   extractOverview,
   extractTypeDefinitions,
@@ -177,8 +178,8 @@ ${TOOL_ACCESS}
   PRD: \`${prdRelativePath}\`
 ${steeringSection}
 ## Review Workflow
-1. Read \`${prdRelativePath}\` plus the selected ticket implementation.
-2. Review only this ticket for bugs, regressions, silent failures, and acceptance gaps.
+1. Run \`brain-dump review get-review-context --ticket ${profile.selectedTicket.id} --pretty\` FIRST: it returns the acceptance criteria, work history, the exact in-scope file list, prior findings (never re-file resolved ones), and your blocking-findings budget. Then read \`${prdRelativePath}\` for additional context.
+2. Review only this ticket's in-scope files for bugs, regressions, silent failures, and acceptance gaps — verify each acceptance criterion against its actual implementation.
 3. Log findings with \`brain-dump review submit-finding --ticket ${profile.selectedTicket.id} --agent <agent> --severity <severity> --category <category> --description "<description>" --pretty\`.
 4. Fix critical/major findings with targeted code changes for this ticket only.
 5. Mark resolved findings with \`brain-dump review mark-fixed --finding <findingId> --status fixed --pretty\`.
@@ -188,7 +189,7 @@ ${steeringSection}
 ## Review Gates
 - Fix all critical/major findings before demo generation.
 - \`brain-dump review check-complete --ticket ${profile.selectedTicket.id} --pretty\` must allow verification handoff before demo generation.
-- Demo steps must include 3-7 verification steps with automation specs for visual/automated UI, API, command, or file checks when a demo is required.
+- Demo steps must include 3-7 verification steps with automation specs for visual/automated UI, API, command, or file checks when a demo is required. Manual steps and \`coverageRationale\` are rejected; every acceptance criterion must be covered via \`covers\` references.
 - API/UI demos must declare \`app.start\` argv after inspecting this project's actual docs and runtime config; use \`{port}\`/\`{host}\` tokens and never assume npm or pnpm.
 
 ${renderSessionStateTracking(profile.selectedTicket.id)}
@@ -231,16 +232,17 @@ ${TOOL_ACCESS}
 ## Review Workflow
 
 1. Reuse the ticket's active session (\`brain-dump session get --ticket <ticketId> --pretty\`) or create one (\`brain-dump session create --ticket <ticketId> --pretty\`), then \`brain-dump session update-state --session <sessionId> --state reviewing\`.
-2. Read the ticket description, acceptance criteria, latest \`test_report\`, ticket-owned diff, and every prior finding with \`brain-dump review get-findings --ticket <ticketId> --pretty\`. If currently OPEN critical/major findings exist, use them as the review batch and do not rescan the original implementation for more issues. Fixed historical findings are deduplication context, not open blockers.
-3. When no open blocking findings exist, perform exactly ONE bounded fresh-eyes pass over the unreviewed ticket-owned diff. For a verification repair, review only the repair diff and its affected behavior; do not reopen the already reviewed original implementation. Trace the applicable acceptance criteria through the real production entry point and submit the complete finding batch with \`brain-dump review submit-finding --ticket <ticketId> --agent <agent> --severity <severity> --category <category> --description "<description>" --pretty\`. Untouched code is context only; every critical/major must be caused by and anchored to a changed line, with a reproduction or failing path and concrete impact. Zero findings is valid.
+2. Run \`brain-dump review get-review-context --ticket <ticketId> --pretty\` FIRST. It returns the complete review packet: the ticket's requirements and acceptance criteria, the implementer's work summaries and test reports, \`scope.changedFiles\` (the exact files you may review), \`openFindings\` (your work batch if non-empty), \`resolvedFindings\` (already litigated — never re-file these), and \`reviewRules\` (your blocking-findings budget and remaining rounds). Treat \`scope.changedFiles\` as the review boundary: when \`scope.kind\` is "repair", blocking findings outside that list are automatically downgraded; when it is "initial" on a shared epic branch, cross-check against the ticket's linked commits. If currently OPEN critical/major findings exist, they are the review batch — do not rescan the implementation for more issues.
+3. When no open blocking findings exist, perform exactly ONE bounded fresh-eyes pass over \`scope.changedFiles\`. Verify each acceptance criterion from the context packet against how it is actually implemented — trace it through the real production entry point named in the code, not just the diff hunks. Submit the complete finding batch with \`brain-dump review submit-finding --ticket <ticketId> --agent <agent> --severity <severity> --category <category> --description "<description>" --pretty\`. Untouched code is context only; every critical/major must be caused by and anchored to a changed line, with a reproduction or failing path and concrete impact. Zero findings is valid.
 4. Apply a focused maintainability lens to changed code: reuse existing production components/helpers, avoid parallel logic, preserve existing features, and keep the code readable for a junior engineer. A blocking maintainability finding must cite the bypassed implementation and concrete cost. Style preferences, optional cleanup, test hardening, and speculative abstractions are nonblocking.
-5. Use strict severity: critical = crash, data loss, security failure, or a core acceptance criterion demonstrably broken; major = reproducible incorrect user-visible behavior in scope; minor = nonblocking edge case, test gap, or maintainability concern; suggestion = optional. “More robust” hypotheticals are not major. Compare with prior findings and never re-file the same defect.
+5. Use strict severity: critical = crash, data loss, security failure, or a core acceptance criterion demonstrably broken; major = reproducible incorrect user-visible behavior in scope; minor = nonblocking edge case, test gap, or maintainability concern; suggestion = optional. “More robust” hypotheticals are not major. Compare with prior findings and never re-file the same defect. If you cannot state a concrete reproduction or failing path for a critical/major, file it as minor or suggestion instead. When you conclude an OPEN finding is hypothetical, wrong, or not worth its fix cost, close it with \`brain-dump review mark-fixed --finding <findingId> --status wont_fix --pretty\` and say why — do not fix it just to clear the list and do not leave it open.
+   Brain Dump enforces anti-loop gates on submit-finding: at most ${OPEN_BLOCKING_FINDINGS_BUDGET} blocking (critical/major) findings may be open at once, and on repair rounds blocking findings must touch a file changed since the last verification handoff. A submission the gate downgrades is recorded as minor with a [severity gate] note — accept the downgrade and move on; never re-submit it re-worded or at a different line to escape the gate.
 6. Fix every open critical/major finding yourself with the smallest targeted change. Update the session through \`implementing\`, \`testing\`, and \`committing\`; reuse established code and do not address unrelated minors or refactor beyond the finding.
 7. If and only if you changed code for a blocking finding: run focused regression tests plus the project-required validation, add a \`test_report\` comment containing the exact commands and results, commit the review fixes, then mark each resolved finding fixed with \`brain-dump review mark-fixed --finding <findingId> --status fixed --pretty\`. If you made no code changes, do not create an empty commit; proceed directly to completion checking.
 8. Verify only that your filed/prior blockers are resolved. Do NOT begin a second broad review of your own repairs and do not invent a new critique after fixing the complete batch.
 9. Run \`brain-dump review check-complete --ticket <ticketId> --pretty\`. If a critical/major remains open, finish that same targeted repair before proceeding; do not hand it to another agent iteration.
 10. Once review is complete, inspect README, AGENTS.md/CLAUDE.md, Makefile/Justfile, package.json, pyproject.toml, go.mod, Cargo.toml, and relevant runtime config. Declare one \`app: { "start": ["<runtime>", "...", "{port}"], "cwd": "<optional-project-relative-dir>" }\` using the real startup command. Run \`brain-dump review generate-demo --ticket <ticketId> --steps-file <steps.json> --pretty\` with 3-7 criterion-linked automation steps. This hands the ticket directly to AI verification.
-11. Complete the session with \`brain-dump session complete --session <sessionId> --outcome success --pretty\`, then STOP.
+11. STOP. \`generate-demo\` already completed the ticket's active sessions during the verification handoff; do not call \`session complete\` afterwards (it is harmless if called, but unnecessary).
 
 ## Hard Guards
 
@@ -422,12 +424,12 @@ ${TOOL_ACCESS}
 
 ## Review Workflow
 
-1. Inspect the selected ticket context and implementation only.
+1. Run \`brain-dump review get-review-context --ticket ${profile.selectedTicket.id} --pretty\` first for the acceptance criteria, in-scope file list, prior findings, and blocking budget. Inspect only the selected ticket's implementation.
 2. Submit findings with \`brain-dump review submit-finding --ticket ${profile.selectedTicket.id} --agent <agent> --severity <severity> --category <category> --description "<description>" --pretty\`.
 3. Fix critical/major findings for this ticket only.
 4. Mark fixes with \`brain-dump review mark-fixed --finding <findingId> --status fixed --pretty\`.
 5. Verify \`brain-dump review check-complete --ticket ${profile.selectedTicket.id} --pretty\` allows verification handoff.
-6. Generate 3-7 verification steps with automation specs for visual/automated UI, API, command, or file checks, then STOP.
+6. Generate 3-7 verification steps with automation specs for visual/automated UI, API, command, or file checks, then STOP. Manual steps and \`coverageRationale\` are rejected; every acceptance criterion needs a \`covers\` reference, and UI/API steps need \`app: { "start": [...argv] }\` discovered from the project's own docs/config with \`{port}\`/\`{host}\` tokens — never assume npm or pnpm.
 
 ## Guardrails
 

@@ -381,6 +381,7 @@ function ensureBaseSchema(db: DbHandle, logger: Logger): void {
       findings_fixed INTEGER NOT NULL DEFAULT 0,
       demo_generated INTEGER NOT NULL DEFAULT 0,
       verification_streak_reset_at TEXT,
+      reviewed_through_commit TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -778,6 +779,7 @@ export function runMigrations(db: DbHandle, logger: Logger = silentLogger): void
     logger
   );
   addColumnIfMissing(db, "ticket_workflow_state", "verification_streak_reset_at", "TEXT", logger);
+  addColumnIfMissing(db, "ticket_workflow_state", "reviewed_through_commit", "TEXT", logger);
   addColumnIfMissing(
     db,
     "demo_scripts",
