@@ -60,6 +60,8 @@ Generate 3-7 test steps after review completion, including criterion coverage re
 
 STOP after generate-demo. generate-demo already completed the ticket's active sessions during the verification handoff — an explicit session complete afterwards is unnecessary (though harmless if called: it returns the recorded completion). Never run verification or move the ticket to done yourself.
 
+
+
 ### Implementation Discipline
 
 - Before editing, map each acceptance criterion to the existing production entry point and nearby tests. Search for components, helpers, services, and patterns that already own the behavior.
