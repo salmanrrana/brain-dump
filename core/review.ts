@@ -46,7 +46,7 @@ import {
   resolveCommentIdentity,
   type ResolveCommentIdentityParams,
 } from "./comment.ts";
-import { enqueueVerificationJob } from "./verification-queue.ts";
+import { enqueueVerificationJob } from "./verification/index.ts";
 import {
   assertTransition,
   isTicketStatus,

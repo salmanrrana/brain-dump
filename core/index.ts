@@ -386,85 +386,9 @@ export type {
   ReviewContextComment,
 } from "./review.ts";
 
-// Verification runner business logic
-export {
-  verifyTicket,
-  listVerificationRuns,
-  listVerificationRunSummaries,
-  computeManifestIntegrity,
-} from "./verification.ts";
-export { settleVerificationLifecycle } from "./verification-lifecycle.ts";
-export {
-  drainVerificationQueue,
-  getVerificationWorkerQueueStatus,
-  isVerificationExecutionAllowedFromEnv,
-  resolveBrainDumpRootFrom,
-  runNextVerificationJob,
-  shouldStartVerificationWorkerFromEnv,
-  spawnDetachedVerificationDrain,
-  startVerificationWorker,
-} from "./verification-worker.ts";
-export {
-  enqueueVerificationJob,
-  getActiveVerificationLease,
-  getVerificationJob,
-  isVerificationWorkerPaused,
-  listVerificationJobs,
-  claimNextVerificationJob,
-} from "./verification-queue.ts";
-export {
-  getVerificationOperationsStatus,
-  getVerificationSchemaHealth,
-  markVerificationJobDead,
-  requeueVerificationJob,
-  resolveVerificationFailure,
-  setVerificationWorkerPaused,
-  summarizeVerificationJobsForOps,
-} from "./verification-ops.ts";
+// Verification module — the curated interface lives in core/verification/index.ts
+export * from "./verification/index.ts";
 
-export type {
-  VerificationRunStatus,
-  VerificationStepStatus,
-  VerificationIntegrityStatus,
-  VerificationEvidenceFile,
-  VerificationStepVerdict,
-  VerificationManifest,
-  VerificationRun,
-  VerificationRunSummary,
-  VerifyTicketParams,
-} from "./verification.ts";
-
-export type {
-  VerificationJobLease,
-  SettleVerificationLifecycleParams,
-  SettleVerificationLifecycleResult,
-} from "./verification-lifecycle.ts";
-
-export type {
-  VerificationWorkerHandle,
-  VerificationWorkerOptions,
-  VerificationWorkerQueueStatus,
-  VerificationWorkerRunResult,
-} from "./verification-worker.ts";
-
-export type {
-  ActiveVerificationLease,
-  VerificationJob,
-  VerificationJobStatus,
-} from "./verification-queue.ts";
-export type {
-  MarkVerificationJobDeadParams,
-  RequeueVerificationJobParams,
-  ResolveVerificationFailureParams,
-  ResolveVerificationFailureResult,
-  SetVerificationWorkerPausedParams,
-  VerificationFailureResolutionClassification,
-  VerificationJobControlResult,
-  VerificationOperationsStatus,
-  VerificationOpsIssue,
-  VerificationSchemaHealth,
-  VerificationWorkerLastDrain,
-} from "./verification-ops.ts";
 export type {
   VerifierIdentity,
   VerifierLegacyRunColumns,

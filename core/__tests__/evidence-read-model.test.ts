@@ -26,7 +26,7 @@ import {
   listVerificationRunSummaries,
   verificationTestInternals,
   type VerificationManifest,
-} from "../verification.ts";
+} from "../verification/run.ts";
 import { loadTicketAttachments } from "../../mcp-server/lib/attachment-loader.ts";
 
 let db: Database.Database;

@@ -39,17 +39,17 @@ import {
   computeManifestIntegrity,
   listVerificationRuns,
   verifyTicket,
-} from "../core/verification.ts";
+} from "../core/verification/run.ts";
 import {
   claimNextVerificationJob,
   getVerificationJob,
   settleVerificationJob,
-} from "../core/verification-queue.ts";
+} from "../core/verification/queue.ts";
 import {
   drainVerificationQueue,
   getVerificationWorkerQueueStatus,
   runNextVerificationJob,
-} from "../core/verification-worker.ts";
+} from "../core/verification/worker.ts";
 import { getVerificationFailuresByTicketId } from "../src/lib/ralph-launch/change-request-context.ts";
 import { syncPrdBlockedStateForDbTicketIfPresent } from "../core/prd-sync.ts";
 import type { DemoStep, GitCommandResult, GitOperations } from "../core/types.ts";

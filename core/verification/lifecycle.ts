@@ -1,35 +1,35 @@
 import { randomUUID } from "crypto";
 import { existsSync } from "fs";
 import { join } from "path";
-import type { AttachmentType } from "./attachment-types.ts";
-import { writeAttachmentFromFile } from "./attachments.ts";
-import { addComment, addVerificationReportComment } from "./comment.ts";
-import { getStateDir } from "./db.ts";
-import type { DbTicketRow } from "./db-rows.ts";
-import { InvalidStateError, TicketNotFoundError, ValidationError } from "./errors.ts";
-import { updatePrdForDbTicketIfPresent } from "./prd-sync.ts";
+import type { AttachmentType } from "../attachment-types.ts";
+import { writeAttachmentFromFile } from "../attachments.ts";
+import { addComment, addVerificationReportComment } from "../comment.ts";
+import { getStateDir } from "../db.ts";
+import type { DbTicketRow } from "../db-rows.ts";
+import { InvalidStateError, TicketNotFoundError, ValidationError } from "../errors.ts";
+import { updatePrdForDbTicketIfPresent } from "../prd-sync.ts";
 import {
   execFileNoThrow as defaultExecFileNoThrow,
   handleEpicCompletionAutoPr,
   handleEpicCompletionLearnings,
   type HandleEpicCompletionAutoPrResult,
-} from "./ship.ts";
-import type { DbHandle, DemoStep, ExecFileNoThrowResult } from "./types.ts";
-import { MANUAL_STEP_SKIP_MESSAGE, UNCERTIFIED_TRIPWIRE_MESSAGE } from "./verification-messages.ts";
-import { settleVerificationJob, settleVerificationJobForTicket } from "./verification-queue.ts";
+} from "../ship.ts";
+import type { DbHandle, DemoStep, ExecFileNoThrowResult } from "../types.ts";
+import { MANUAL_STEP_SKIP_MESSAGE, UNCERTIFIED_TRIPWIRE_MESSAGE } from "./messages.ts";
+import { settleVerificationJob, settleVerificationJobForTicket } from "./queue.ts";
 import {
   enqueueEpicContinuationForTicket,
   setAutonomousEpicLaunchActive,
-} from "./epic-continuation.ts";
-import { refreshEpicWorkflowTicketCounts } from "./epic-progress.ts";
-import type { VerifierIdentity } from "./verifier-identity.ts";
+} from "../epic-continuation.ts";
+import { refreshEpicWorkflowTicketCounts } from "../epic-progress.ts";
+import type { VerifierIdentity } from "../verifier-identity.ts";
 import type {
   VerificationEvidenceFile,
   VerificationManifest,
   VerificationRun,
   VerificationStepVerdict,
-} from "./verification.ts";
-import { assertTransition, isTicketStatus, WorkflowTransitionError } from "./workflow-steps.ts";
+} from "./types.ts";
+import { assertTransition, isTicketStatus, WorkflowTransitionError } from "../workflow-steps.ts";
 
 export interface VerificationJobLease {
   jobId: string;

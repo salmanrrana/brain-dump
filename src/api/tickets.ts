@@ -22,7 +22,7 @@ import {
   isActiveTicketStatus,
   isDirectStatusUpdateStatus,
 } from "../../core/workflow-steps.ts";
-import type { VerificationJobStatus } from "../../core/verification-queue.ts";
+import type { VerificationJobStatus } from "../../core/verification/index.ts";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("tickets-api");

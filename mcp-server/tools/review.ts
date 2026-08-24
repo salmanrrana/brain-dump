@@ -26,16 +26,16 @@ import {
   validateRepairLegacyHumanReviewHandoff,
   repairLegacyHumanReviewHandoff,
 } from "../../core/review.ts";
-import { listVerificationRuns } from "../../core/verification.ts";
-import { getVerificationJob } from "../../core/verification-queue.ts";
+import { listVerificationRuns } from "../../core/verification/index.ts";
+import { getVerificationJob } from "../../core/verification/index.ts";
 import {
   resolveVerificationFailure,
   VERIFICATION_FAILURE_RESOLUTION_CLASSIFICATIONS,
-} from "../../core/verification-ops.ts";
+} from "../../core/verification/index.ts";
 import {
   resolveBrainDumpRootFrom,
   spawnDetachedVerificationDrain,
-} from "../../core/verification-worker.ts";
+} from "../../core/verification/index.ts";
 import type { MarkFixedStatus } from "../../core/review.ts";
 import type { DemoStep, FindingAgent, FindingSeverity, FindingStatus } from "../../core/types.ts";
 import type { CommentAuthor } from "../../core/comment.ts";

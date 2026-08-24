@@ -20,7 +20,7 @@ import {
   verifyTicket,
   type VerifyTicketParams,
   type VerificationRun,
-} from "../verification.ts";
+} from "../verification/run.ts";
 import {
   claimNextVerificationJob,
   enqueueVerificationJob,
@@ -30,7 +30,7 @@ import {
   listVerificationJobs,
   renewVerificationJobLease,
   settleVerificationJob,
-} from "../verification-queue.ts";
+} from "../verification/queue.ts";
 import {
   getVerificationOperationsStatus,
   markVerificationJobDead,
@@ -38,8 +38,8 @@ import {
   requeueVerificationJob,
   resolveVerificationFailure,
   setVerificationWorkerPaused,
-} from "../verification-ops.ts";
-import { classifyVerificationRunFailure } from "../verification-lifecycle.ts";
+} from "../verification/ops.ts";
+import { classifyVerificationRunFailure } from "../verification/lifecycle.ts";
 import {
   drainVerificationQueue,
   getVerificationWorkerQueueStatus,
@@ -50,7 +50,7 @@ import {
   spawnDetachedVerificationDrain,
   spawnDetachedVerificationDrainIfNeeded,
   type VerificationWorkerOptions,
-} from "../verification-worker.ts";
+} from "../verification/worker.ts";
 import { saveAutonomousEpicLaunch } from "../epic-continuation.ts";
 import type { DemoStep, ExecFileNoThrowOptions } from "../types.ts";
 

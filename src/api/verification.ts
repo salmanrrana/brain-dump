@@ -5,7 +5,7 @@ import {
   listVerificationRunSummaries,
   type VerificationManifest,
   type VerificationRunSummary,
-} from "../../core/verification.ts";
+} from "../../core/verification/index.ts";
 import {
   verifierFromLegacyRunColumns,
   type VerifierIdentity,
@@ -20,8 +20,8 @@ export type {
   VerificationRunSummary,
   VerificationStepStatus,
   VerificationStepVerdict,
-} from "../../core/verification.ts";
-export type { VerificationJob, VerificationJobStatus } from "../../core/verification-queue.ts";
+} from "../../core/verification/index.ts";
+export type { VerificationJob, VerificationJobStatus } from "../../core/verification/index.ts";
 
 type VerificationRunIdentityRow = Pick<
   typeof verificationRuns.$inferSelect,

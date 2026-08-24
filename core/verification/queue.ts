@@ -1,12 +1,12 @@
 import { randomUUID } from "crypto";
-import type { DbHandle } from "./types.ts";
-import { claimDurableJobLease, settleDurableJobLease } from "./durable-job-lease.ts";
-import { TicketNotFoundError, ValidationError } from "./errors.ts";
+import type { DbHandle } from "../types.ts";
+import { claimDurableJobLease, settleDurableJobLease } from "../durable-job-lease.ts";
+import { TicketNotFoundError, ValidationError } from "../errors.ts";
 import {
   resolveVerifierIdentity,
   type VerificationExecutionSurface,
   type VerificationProviderSource,
-} from "./verifier-identity.ts";
+} from "../verifier-identity.ts";
 
 export type VerificationJobStatus =
   | "queued"

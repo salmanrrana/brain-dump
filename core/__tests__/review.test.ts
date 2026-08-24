@@ -18,7 +18,7 @@ import {
   submitFeedback,
 } from "../review.ts";
 import { createEpicReviewRun, getEpicReviewRun } from "../epic-review-run.ts";
-import { getVerificationJob } from "../verification-queue.ts";
+import { getVerificationJob } from "../verification/queue.ts";
 import {
   TicketNotFoundError,
   FindingNotFoundError,

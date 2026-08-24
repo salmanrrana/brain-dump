@@ -1,23 +1,23 @@
-import type { DbHandle } from "./types.ts";
+import type { DbHandle } from "../types.ts";
 import {
   addComment,
   resolveCommentIdentity,
   type ResolveCommentIdentityParams,
-} from "./comment.ts";
-import { ValidationError } from "./errors.ts";
-import { updatePrdForDbTicketIfPresent } from "./prd-sync.ts";
-import { returnVerificationTicketForHumanAction } from "./verification-lifecycle.ts";
+} from "../comment.ts";
+import { ValidationError } from "../errors.ts";
+import { updatePrdForDbTicketIfPresent } from "../prd-sync.ts";
+import { returnVerificationTicketForHumanAction } from "./lifecycle.ts";
 import {
   enqueueVerificationJob,
   getVerificationJob,
   isVerificationWorkerPaused,
   listVerificationJobs,
   type VerificationJob,
-} from "./verification-queue.ts";
+} from "./queue.ts";
 import {
   isVerificationExecutionAllowedFromEnv,
   shouldStartVerificationWorkerFromEnv,
-} from "./verification-worker.ts";
+} from "./worker.ts";
 
 export interface VerificationSchemaHealth {
   ok: boolean;

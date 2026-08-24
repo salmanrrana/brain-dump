@@ -3,23 +3,23 @@ import { spawn, type SpawnOptions } from "child_process";
 import { existsSync } from "fs";
 import { join } from "path";
 import { fileURLToPath } from "url";
-import type { DbHandle, ExecFileNoThrowResult } from "./types.ts";
-import { addComment } from "./comment.ts";
-import { ValidationError } from "./errors.ts";
+import type { DbHandle, ExecFileNoThrowResult } from "../types.ts";
+import { addComment } from "../comment.ts";
+import { ValidationError } from "../errors.ts";
 import {
   addInfraErrorAttentionComment,
   infraErrorBlockedReason,
   returnVerificationTicketForHumanAction,
-} from "./verification-lifecycle.ts";
+} from "./lifecycle.ts";
 import {
   claimNextVerificationJob,
   getVerificationJob,
   hasClaimableVerificationJob,
   isVerificationWorkerPaused,
   renewVerificationJobLease,
-} from "./verification-queue.ts";
-import { verifyTicket, type VerificationRun, type VerifyTicketParams } from "./verification.ts";
-import type { VerificationExecutionSurface } from "./verifier-identity.ts";
+} from "./queue.ts";
+import { verifyTicket, type VerificationRun, type VerifyTicketParams } from "./run.ts";
+import type { VerificationExecutionSurface } from "../verifier-identity.ts";
 
 interface ClaimedJobLease {
   jobId: string;

@@ -15,9 +15,9 @@ import {
   shouldStartVerificationWorkerFromEnv,
   spawnDetachedVerificationDrainIfNeeded,
   startVerificationWorker,
-} from "../../core/verification-worker.ts";
+} from "../../core/verification/index.ts";
 import { drainEpicContinuations } from "../../core/epic-continuation.ts";
-import { reconcileVerificationTicketStates } from "../../core/verification-ops.ts";
+import { reconcileVerificationTicketStates } from "../../core/verification/index.ts";
 import { launchEpicContinuationHeadless } from "./ralph-launch/epic-continuation-adapter";
 import { execFileNoThrow } from "../utils/execFileNoThrow";
 

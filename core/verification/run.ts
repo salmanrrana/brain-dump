@@ -18,29 +18,33 @@ import type {
   DbHandle,
   DemoAppBoot,
   DemoStep,
-  DemoStepAutomationValue,
   ExecFileNoThrowOptions,
   ExecFileNoThrowResult,
+} from "../types.ts";
+import type { DbDemoScriptRow, DbTicketRow } from "../db-rows.ts";
+import { ValidationError, InvalidStateError, TicketNotFoundError } from "../errors.ts";
+import { assertTransition, isTicketStatus, WorkflowTransitionError } from "../workflow-steps.ts";
+import { getStateDir } from "../db.ts";
+import { execFileNoThrow as defaultExecFileNoThrow } from "../ship.ts";
+import type {
+  VerificationEvidenceFile,
+  VerificationIntegrityStatus,
+  VerificationManifest,
+  VerificationRun,
+  VerificationRunStatus,
+  VerificationStepVerdict,
 } from "./types.ts";
-import type { DbDemoScriptRow, DbTicketRow } from "./db-rows.ts";
-import { ValidationError, InvalidStateError, TicketNotFoundError } from "./errors.ts";
-import { assertTransition, isTicketStatus, WorkflowTransitionError } from "./workflow-steps.ts";
-import { getStateDir } from "./db.ts";
-import {
-  execFileNoThrow as defaultExecFileNoThrow,
-  type HandleEpicCompletionAutoPrResult,
-} from "./ship.ts";
 import {
   attachRunEvidenceAndReport,
   settleVerificationLifecycle,
   type VerificationJobLease,
-} from "./verification-lifecycle.ts";
+} from "./lifecycle.ts";
 import {
   MANUAL_STEP_SKIP_MESSAGE,
   UNCERTIFIED_COVERAGE_RATIONALE_MESSAGE,
   UNCERTIFIED_TRIPWIRE_MESSAGE,
-} from "./verification-messages.ts";
-import { getActiveVerificationLease } from "./verification-queue.ts";
+} from "./messages.ts";
+import { getActiveVerificationLease } from "./queue.ts";
 import {
   DEMO_COMMAND_MAX_TIMEOUT_MS,
   readProjectVerifyCommandTemplates,
@@ -48,98 +52,27 @@ import {
   validateNonShellArgv,
   validateProjectRelativePath,
   validateSafeAutomationFilePath,
-} from "./review.ts";
+} from "../review.ts";
 import {
   resolveVerifierIdentity,
   verifierFromLegacyRunColumns,
   type VerifierIdentity,
   type VerificationExecutionSurface,
   type VerificationProviderSource,
-} from "./verifier-identity.ts";
+} from "../verifier-identity.ts";
 
-export type VerificationRunStatus = "passed" | "failed" | "uncertified" | "infra_error";
-export type VerificationStepStatus = "passed" | "failed" | "skipped";
-export type VerificationIntegrityStatus = "valid" | "tampered" | "uncertified-tripwire";
+// Shared data contracts live in types.ts so the module graph stays acyclic.
+// Re-exported here for existing consumers of the run surface.
+export type {
+  VerificationEvidenceFile,
+  VerificationIntegrityStatus,
+  VerificationManifest,
+  VerificationRun,
+  VerificationRunStatus,
+  VerificationStepVerdict,
+};
 
 const VERIFIER_CODE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-
-export interface VerificationEvidenceFile {
-  path: string;
-  hash: string;
-}
-
-export interface VerificationStepVerdict {
-  order: number;
-  status: VerificationStepStatus;
-  message: string;
-  durationMs: number;
-  evidenceFiles: VerificationEvidenceFile[];
-  /** Stable identity for the assertion target across demo step renumbering. */
-  automationKey?: string;
-  /** Automation adapter that produced this verdict. */
-  automationKind?: "api" | "ui" | "command" | "file";
-  /** Stable identities for the assertion and non-assertion conditions that failed. */
-  failureKeys?: string[];
-  /** HMAC of a file step's inspected contents, used to bind generated artifacts to final state. */
-  verifiedFileHash?: string | null;
-  /** Internal assertion indexes, removed after stable failure keys are derived. */
-  failedAssertionIndexes?: number[];
-  request?: {
-    method: string;
-    url: string;
-    headers?: Record<string, string>;
-    // JSON-shaped (mirrors DemoStepApiAutomation.request.body) so run summaries
-    // stay serializable across the server-function boundary.
-    body?: DemoStepAutomationValue | undefined;
-  };
-  response?: {
-    status: number;
-    headers: Record<string, string>;
-    body: string;
-  };
-}
-
-export interface VerificationManifest {
-  runId: string;
-  ticketId: string;
-  round: number;
-  status: VerificationRunStatus;
-  certified: boolean;
-  gitSha: string | null;
-  dirty: boolean;
-  /**
-   * SHA-256 over the uncommitted diff plus untracked file names, modes, and
-   * contents when the
-   * worktree is dirty. gitSha alone cannot pin what a dirty run actually
-   * verified; this makes the sealed evidence reproducible or at least
-   * comparable across runs.
-   */
-  dirtyDiffHash?: string | null;
-  port: number;
-  bootCommand: string[];
-  bootCwd?: string;
-  bootLog: string;
-  startedAt: string;
-  finishedAt: string;
-  stepVerdicts: VerificationStepVerdict[];
-  evidenceFiles: VerificationEvidenceFile[];
-  verifier: VerifierIdentity;
-  manifestHash: string;
-}
-
-export interface VerificationRun {
-  id: string;
-  ticketId: string;
-  round: number;
-  status: VerificationRunStatus;
-  certified: boolean;
-  manifest: VerificationManifest;
-  gitSha: string | null;
-  identity: VerifierIdentity;
-  startedAt: string;
-  finishedAt: string;
-  epicAutoPr?: HandleEpicCompletionAutoPrResult;
-}
 
 export interface VerifyTicketParams {
   ticketId: string;
