@@ -26,6 +26,22 @@ pnpm brain-dump status --pretty # project dashboard
 
 Run `./install.sh --help` to pick environments interactively.
 
+### Choose your environment
+
+| Environment          | Install                   |
+| -------------------- | ------------------------- |
+| **Claude Code**      | `./install.sh --claude`   |
+| **VS Code**          | `./install.sh --vscode`   |
+| **OpenCode**         | `./install.sh --opencode` |
+| **Cursor Editor**    | `./install.sh --cursor`   |
+| **Cursor Agent CLI** | `./install.sh --cursor`   |
+| **Copilot CLI**      | `./install.sh --copilot`  |
+| **Codex**            | `./install.sh --codex`    |
+| **Pi**               | `./install.sh --pi`       |
+| **All**              | `./install.sh --all`      |
+
+Every environment shares the same MCP tools and quality workflow. Per-environment guides live in [docs/environments](docs/environments/).
+
 ## What it does
 
 |                       |                                                                                                           |

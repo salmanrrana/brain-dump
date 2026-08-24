@@ -207,21 +207,19 @@ describe("README.md environment table", () => {
     expect(readme).toContain("./install.sh --all");
   });
 
-  it("has Copilot CLI in the environment details section", () => {
-    expect(readme).toContain("### Copilot CLI");
-  });
-
-  it("has Codex in the environment details section", () => {
-    expect(readme).toContain("### Codex");
-  });
-
-  it("has Pi in the environment details section", () => {
-    expect(readme).toContain("### Pi");
-  });
-
-  it("has Cursor Editor and Cursor Agent CLI as separate sections", () => {
-    expect(readme).toContain("### Cursor Editor");
-    expect(readme).toContain("### Cursor Agent CLI");
+  // README keeps a compact install table; per-environment detail lives in docs/environments/.
+  it("has a setup guide for every environment in the table", () => {
+    for (const env of [
+      "claude-code",
+      "vscode",
+      "opencode",
+      "cursor",
+      "copilot-cli",
+      "codex",
+      "pi",
+    ]) {
+      expect(existsSync(resolve(ROOT, "docs", "environments", `${env}.md`))).toBe(true);
+    }
   });
 });
 
