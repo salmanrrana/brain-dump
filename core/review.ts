@@ -688,8 +688,9 @@ export interface ReviewContext {
   scope: {
     /**
      * "repair" when a reviewed-through commit is stamped (re-review round):
-     * blocking findings must anchor to changedFiles. "initial" on the first
-     * review: changedFiles is the ticket diff vs. the base branch, advisory.
+     * blocking findings must be caused by changedFiles. "initial" on the first
+     * review: changedFiles comes from ticket-linked commits when available,
+     * otherwise it is the branch diff vs. the base branch.
      * "unknown" when git could not produce a diff — review the ticket's
      * commits/linked files by hand.
      */
@@ -795,24 +796,57 @@ export function getReviewContext(db: DbHandle, ticketId: string): ReviewContext 
           reviewedThroughCommit,
           changedFiles: diff.output.split("\n").filter(Boolean),
           baseRef: reviewedThroughCommit,
-          note: "Re-review round: everything up to the reviewed-through commit already passed a full review. Review ONLY the files listed here; blocking findings outside them are automatically downgraded to minor.",
+          note: "Re-review round: these are the files changed since the last verification handoff. Review their changed behavior and inspect unchanged callers, callees, schemas, state, and cleanup paths for side effects. Every new blocker must identify a causal change in this repair diff; the visible failure may manifest in unchanged code.",
         };
       }
     } else {
-      const baseCandidates = ["main", "master"];
-      for (const base of baseCandidates) {
-        const merged = runGitArgs(["merge-base", base, "HEAD"], projectPath);
-        if (!merged.success) continue;
-        const diff = runGitArgs(["diff", "--name-only", `${merged.output}..HEAD`], projectPath);
-        if (!diff.success) continue;
-        scope = {
-          kind: "initial",
-          reviewedThroughCommit: null,
-          changedFiles: diff.output.split("\n").filter(Boolean),
-          baseRef: base,
-          note: `First review round: files changed on this branch since ${base}. On shared epic branches this may include sibling-ticket work — cross-check against the ticket's linked commits and review only changes belonging to this ticket.`,
-        };
-        break;
+      const linkedCommits = safeJsonParse<Array<{ hash?: string }>>(ticket.linked_commits, [])
+        .map((commit) => commit.hash?.trim())
+        .filter((hash): hash is string => Boolean(hash));
+      if (linkedCommits.length > 0) {
+        const ticketFiles = new Set<string>();
+        let allCommitsResolved = true;
+        for (const hash of linkedCommits) {
+          const diff = runGitArgs(
+            ["diff-tree", "--root", "--no-commit-id", "--name-only", "-r", hash],
+            projectPath
+          );
+          if (!diff.success) {
+            allCommitsResolved = false;
+            break;
+          }
+          for (const file of diff.output.split("\n").filter(Boolean)) ticketFiles.add(file);
+        }
+        if (allCommitsResolved) {
+          scope = {
+            kind: "initial",
+            reviewedThroughCommit: null,
+            changedFiles: [...ticketFiles].sort(),
+            baseRef: `ticket-linked commits (${linkedCommits.length})`,
+            note: "First review round: the primary diff is limited to this ticket's linked commits, even on a shared epic branch. Inspect adjacent unchanged code only to trace the impact of these changes. Report newly exposed defects only when a ticket change makes the failing path reachable or observably worse.",
+          };
+        }
+      }
+
+      if (scope.kind !== "unknown") {
+        // Ticket-linked commits provide a narrower and more reliable boundary
+        // than the shared branch diff.
+      } else {
+        const baseCandidates = ["main", "master"];
+        for (const base of baseCandidates) {
+          const merged = runGitArgs(["merge-base", base, "HEAD"], projectPath);
+          if (!merged.success) continue;
+          const diff = runGitArgs(["diff", "--name-only", `${merged.output}..HEAD`], projectPath);
+          if (!diff.success) continue;
+          scope = {
+            kind: "initial",
+            reviewedThroughCommit: null,
+            changedFiles: diff.output.split("\n").filter(Boolean),
+            baseRef: base,
+            note: `First review round fallback: files changed on this branch since ${base}. No usable ticket-linked commits were available, so this may include sibling-ticket work. Establish ticket ownership from work history before filing findings, then inspect the impact cone of only those owned changes.`,
+          };
+          break;
+        }
       }
     }
   }

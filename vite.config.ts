@@ -467,6 +467,17 @@ const config = defineConfig({
       },
     }),
   ],
+  // The vitest configs redirect XDG_DATA_HOME/XDG_STATE_HOME into .vitest-xdg/
+  // inside the repo, and verification tests write thousands of evidence files
+  // (screenshots, manifests) there. Without this ignore, the dev server's
+  // chokidar watcher registers an inotify watch per file/dir and eventually
+  // dies with "ENOSPC: System limit for number of file watchers reached".
+  // None of these paths can ever affect the app bundle, so never watch them.
+  server: {
+    watch: {
+      ignored: ["**/.vitest-xdg/**", "**/plans/archives/**", "**/.claude/**"],
+    },
+  },
   // Keep the browser dep optimizer from eagerly pre-bundling server-only packages.
   // Playwright is dynamically imported by the verification runner, but Vite's client
   // scanner still discovers the literal import and otherwise tries to bundle its

@@ -6,6 +6,8 @@ export default defineConfig({
   plugins: [react()],
   test: {
     setupFiles: ["./src/mocks/vitest.setup.ts"],
+    // Same sandbox cleanup as vitest.config.ts — see scripts/vitest-global-setup.ts.
+    globalSetup: ["./scripts/vitest-global-setup.ts"],
     globals: true,
     pool: "forks",
     poolOptions: {

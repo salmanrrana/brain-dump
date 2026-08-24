@@ -249,6 +249,10 @@ describe("review-mode prompt builders", () => {
     expect(prompt).toContain("PRD entry reports `blocked: true`");
     expect(prompt).toContain("live ticket reports `isBlocked: true`");
     expect(prompt).toContain("perform exactly ONE bounded fresh-eyes pass");
+    expect(prompt).toContain("The changed files are the cause boundary, not a reading boundary");
+    expect(prompt).toContain("Impact cone");
+    expect(prompt).toContain("Newly exposed defects");
+    expect(prompt).toContain("--file <causal-changed-file>");
     expect(prompt).toContain("currently OPEN critical/major findings");
     expect(prompt).toContain("brain-dump review get-review-context --ticket <ticketId> --pretty");
     expect(prompt).toContain("already litigated — never re-file these");

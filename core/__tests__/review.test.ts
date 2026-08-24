@@ -3147,6 +3147,52 @@ describe("getReviewContext", () => {
     }
   });
 
+  it("limits an initial review to ticket-linked commits on a shared branch", () => {
+    const repoDir = mkdtempSync(join(tmpdir(), "bd-ctx-linked-scope-"));
+    try {
+      const git = (args: string[]) => {
+        const result = spawnSync("git", args, { cwd: repoDir, encoding: "utf-8" });
+        if (result.status !== 0) throw new Error(`git ${args.join(" ")} failed: ${result.stderr}`);
+        return result.stdout.trim();
+      };
+      git(["init"]);
+      git(["config", "user.email", "test@example.com"]);
+      git(["config", "user.name", "Test"]);
+      writeFileSync(join(repoDir, "base.ts"), "export const base = 1;\n");
+      git(["add", "."]);
+      git(["commit", "-m", "base"]);
+      git(["branch", "-M", "main"]);
+      writeFileSync(join(repoDir, "ticket-a.ts"), "export const a = 1;\n");
+      git(["add", "."]);
+      git(["commit", "-m", "ticket a"]);
+      const ticketCommit = git(["rev-parse", "HEAD"]);
+      writeFileSync(join(repoDir, "sibling.ts"), "export const sibling = 1;\n");
+      git(["add", "."]);
+      git(["commit", "-m", "sibling ticket"]);
+
+      db.prepare("INSERT INTO projects (id, name, path, created_at) VALUES (?, ?, ?, ?)").run(
+        "proj-1",
+        "Linked Scope Project",
+        repoDir,
+        new Date().toISOString()
+      );
+      seedAiReviewTicket();
+      db.prepare("UPDATE tickets SET linked_commits = ? WHERE id = 'ticket-1'").run(
+        JSON.stringify([{ hash: ticketCommit, message: "ticket a" }])
+      );
+
+      const context = getReviewContext(db, "ticket-1");
+
+      expect(context.scope.kind).toBe("initial");
+      expect(context.scope.changedFiles).toEqual(["ticket-a.ts"]);
+      expect(context.scope.changedFiles).not.toContain("sibling.ts");
+      expect(context.scope.baseRef).toBe("ticket-linked commits (1)");
+      expect(context.scope.note).toContain("impact");
+    } finally {
+      rmSync(repoDir, { recursive: true, force: true });
+    }
+  });
+
   it("reports unknown scope when the project has no usable git diff", () => {
     seedProject(); // project path = process.cwd() which is a repo, but no
     // reviewed commit and merge-base of main..HEAD exists here — so instead
