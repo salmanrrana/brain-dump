@@ -2,7 +2,10 @@
 
 Deepening opportunities surfaced from commit-history hot spots (verification, review scope, workflow handoffs). Vocabulary: **module**, **interface**, **depth**, **seam**, **adapter**, **leverage**, **locality**.
 
-> Status: #1 completed — `core/verification/` module with a curated `index.ts` interface; adapters import only from it.
+> Status: #1, #2, and #3 completed.
+> — #1: `core/verification/` module with a curated `index.ts` interface; adapters import only from it.
+> — #2: single `launchProviderInTerminal` server fn keyed by launch mode; dispatcher dependencies collapsed to one `launchProvider` seam; per-component Ralph glue replaced by `createRalphLaunchDependencies`.
+> — #3: `core/ticket-briefing.ts` assembles the structured ticket packet; UI context and MCP start-work render it instead of re-querying.
 
 ## 1 · Collapse the Verification lifecycle knot
 
