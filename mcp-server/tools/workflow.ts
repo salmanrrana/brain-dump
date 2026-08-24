@@ -18,6 +18,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type Database from "better-sqlite3";
 import { CoreError, ValidationError } from "../../core/errors.ts";
 import { startWork, completeWork, startEpicWork } from "../../core/workflow.ts";
+import { getTicketBriefing } from "../../core/ticket-briefing.ts";
 import { linkCommit, linkPr, syncTicketLinks, checkUnlinkedItems } from "../../core/git.ts";
 import type { PrStatus } from "../../core/types.ts";
 import type { CommentAuthor } from "../../core/comment.ts";
@@ -325,17 +326,16 @@ function handleStartWork(
   // Check for unlinked commits/PRs on the branch (absorbs check-pending-links.sh hook)
   const unlinkedItemsInfo = formatUnlinkedItems(db, ticketId, ticket.project.path);
 
-  // Parse acceptance criteria from subtasks
+  // Shared briefing packet: structured ticket context assembled once in core.
+  const briefing = getTicketBriefing(db, ticketId);
+
   let acceptanceCriteria: string[] = ["Complete the implementation as described"];
-  if (ticket.subtasks && ticket.subtasks.length > 0) {
-    acceptanceCriteria = ticket.subtasks.map((s) => {
-      if (typeof s === "string") return s;
-      return (s as { title?: string }).title || String(s);
-    });
+  if (briefing.ticket.subtasks.length > 0) {
+    acceptanceCriteria = briefing.ticket.subtasks.map((s) => s.text);
   }
 
-  const description = ticket.description || "No description provided";
-  const priority = ticket.priority || "medium";
+  const description = briefing.ticket.description || "No description provided";
+  const priority = briefing.ticket.priority || "medium";
 
   // Fetch previous comments for context
   const { comments, totalCount, truncated } = fetchTicketComments(db, ticketId);
@@ -385,12 +385,10 @@ function handleStartWork(
   // Build epic info if available
   let epicInfo: { title: string; branchName: string; prUrl?: string | undefined } | undefined;
   if (result.usingEpicBranch && ticket.epicId) {
-    const epic = db.prepare("SELECT title FROM epics WHERE id = ?").get(ticket.epicId) as
-      | { title: string }
-      | undefined;
-    if (epic) {
+    const epicTitle = briefing.epic?.title;
+    if (epicTitle) {
       epicInfo = {
-        title: epic.title,
+        title: epicTitle,
         branchName: result.branch,
       };
     }
