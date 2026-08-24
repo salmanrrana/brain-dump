@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import type Database from "better-sqlite3";
+import { randomUUID } from "node:crypto";
 import { createTestDatabase } from "../db.ts";
 import { startWork, completeWork, startEpicWork, MAX_REVIEW_ROUNDS } from "../workflow.ts";
 import {
@@ -53,10 +54,17 @@ function seedEpic(id = "epic-1", projectId = "proj-1") {
 
 function seedTestReport(ticketId = "ticket-1", author = "ralph:claude") {
   const now = new Date().toISOString();
+  // randomUUID keeps the primary key unique when two seeds land in the same millisecond
   db.prepare(
     `INSERT INTO ticket_comments (id, ticket_id, content, author, type, created_at)
      VALUES (?, ?, ?, ?, 'test_report', ?)`
-  ).run(`comment-${ticketId}-${now}`, ticketId, "make check: pass\nmake test: pass", author, now);
+  ).run(
+    `comment-${ticketId}-${randomUUID()}`,
+    ticketId,
+    "make check: pass\nmake test: pass",
+    author,
+    now
+  );
 }
 
 /**
