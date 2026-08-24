@@ -23,7 +23,7 @@ import type { EpicDetailResult } from "../../api/epics";
 import type { RalphAutonomousUiLaunchProvider } from "../../lib/launch-provider-contract";
 import type { LaunchModelSelection } from "../../lib/launch-model-catalog";
 import {
-  defaultRalphLaunchDependencies,
+  createRalphLaunchDependencies,
   dispatchInteractiveUiLaunch,
   dispatchRalphAutonomousUiLaunch,
 } from "../../lib/ui-launch-dispatcher";
@@ -217,14 +217,10 @@ export function EpicDetailHeader({
             ...(reviewerProvider ? { reviewerProvider } : {}),
             ...(reviewerModelSelection ? { reviewerModelSelection } : {}),
           },
-          {
-            ...defaultRalphLaunchDependencies,
-            launchTicketRalph: async () => ({
-              success: false,
-              message: "Ticket Ralph launch is not available from the epic header.",
-            }),
-            launchEpicRalph: (payload) => launchRalphMutation.mutateAsync(payload),
-          }
+          createRalphLaunchDependencies(
+            { launchEpic: (payload) => launchRalphMutation.mutateAsync(payload) },
+            "the epic header."
+          )
         );
 
         if ("warnings" in result && result.warnings) {
@@ -277,14 +273,10 @@ export function EpicDetailHeader({
             ...(reviewerProvider ? { reviewerProvider } : {}),
             ...(reviewerModelSelection ? { reviewerModelSelection } : {}),
           },
-          {
-            ...defaultRalphLaunchDependencies,
-            launchTicketRalph: async () => ({
-              success: false,
-              message: "Ticket Ralph launch is not available from focused review.",
-            }),
-            launchEpicRalph: (payload) => launchRalphMutation.mutateAsync(payload),
-          }
+          createRalphLaunchDependencies(
+            { launchEpic: (payload) => launchRalphMutation.mutateAsync(payload) },
+            "focused review."
+          )
         );
 
         if ("warnings" in result && result.warnings) {

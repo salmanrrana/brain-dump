@@ -23,7 +23,7 @@ import { epicFormSchema } from "./epics/epic-form-schema";
 import type { RalphAutonomousUiLaunchProvider } from "../lib/launch-provider-contract";
 import type { LaunchModelSelection } from "../lib/launch-model-catalog";
 import {
-  defaultRalphLaunchDependencies,
+  createRalphLaunchDependencies,
   dispatchInteractiveUiLaunch,
   dispatchRalphAutonomousUiLaunch,
 } from "../lib/ui-launch-dispatcher";
@@ -227,14 +227,10 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
             ...(reviewerProvider ? { reviewerProvider } : {}),
             ...(reviewerModelSelection ? { reviewerModelSelection } : {}),
           },
-          {
-            ...defaultRalphLaunchDependencies,
-            launchTicketRalph: async () => ({
-              success: false,
-              message: "Ticket Ralph launch is not available from the epic modal.",
-            }),
-            launchEpicRalph: (payload) => launchRalphMutation.mutateAsync(payload),
-          }
+          createRalphLaunchDependencies(
+            { launchEpic: (payload) => launchRalphMutation.mutateAsync(payload) },
+            "the epic modal"
+          )
         );
 
         const warningMessage = result.warnings?.join(". ");

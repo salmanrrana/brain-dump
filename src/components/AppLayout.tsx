@@ -48,7 +48,7 @@ import { deleteEpic as deleteEpicFn } from "../api/epics";
 import { useKeyboardShortcuts } from "../lib/keyboard-shortcuts";
 import type { RalphAutonomousUiLaunchProvider } from "../lib/launch-provider-contract";
 import {
-  defaultRalphLaunchDependencies,
+  createRalphLaunchDependencies,
   dispatchRalphAutonomousUiLaunch,
   getDefaultRalphAutonomousProviderForWorkingMethod,
 } from "../lib/ui-launch-dispatcher";
@@ -535,14 +535,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
             preferredTerminal: settings?.terminalEmulator ?? null,
             useSandbox: settings?.ralphSandbox ?? false,
           },
-          {
-            ...defaultRalphLaunchDependencies,
-            launchTicketRalph: async () => ({
-              success: false,
-              message: "Ticket Ralph launch is not available from the projects panel.",
-            }),
-            launchEpicRalph: (payload) => launchRalphMutation.mutateAsync(payload),
-          }
+          createRalphLaunchDependencies(
+            { launchEpic: (payload) => launchRalphMutation.mutateAsync(payload) },
+            "the projects panel"
+          )
         );
 
         result.warnings?.forEach((warning) => showToast("info", warning));

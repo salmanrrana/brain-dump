@@ -20,7 +20,7 @@ import {
   useAppSampleData,
 } from "./AppLayoutContext";
 import {
-  defaultRalphLaunchDependencies,
+  createRalphLaunchDependencies,
   dispatchRalphAutonomousUiLaunch,
 } from "../lib/ui-launch-dispatcher";
 import { getEpicRalphProvider } from "../lib/epic-ralph-provider";
@@ -155,14 +155,10 @@ export function MobileSidebar({ onItemClick, activeSessions }: MobileSidebarProp
             preferredTerminal: settings?.terminalEmulator ?? null,
             useSandbox: settings?.ralphSandbox ?? false,
           },
-          {
-            ...defaultRalphLaunchDependencies,
-            launchTicketRalph: async () => ({
-              success: false,
-              message: "Ticket Ralph launch is not available from the sidebar.",
-            }),
-            launchEpicRalph: (payload) => launchRalphMutation.mutateAsync(payload),
-          }
+          createRalphLaunchDependencies(
+            { launchEpic: (payload) => launchRalphMutation.mutateAsync(payload) },
+            "the sidebar"
+          )
         );
 
         result.warnings?.forEach((warning) => showToast("info", warning));

@@ -54,7 +54,7 @@ import type { LaunchModelSelection } from "../lib/launch-model-catalog";
 import {
   dispatchInteractiveUiLaunch,
   dispatchRalphAutonomousUiLaunch,
-  defaultRalphLaunchDependencies,
+  createRalphLaunchDependencies,
 } from "../lib/ui-launch-dispatcher";
 import {
   getInteractiveUiLaunchProvider,
@@ -354,24 +354,10 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
               ...(reviewerProvider ? { reviewerProvider } : {}),
               ...(reviewerModelSelection ? { reviewerModelSelection } : {}),
             },
-            {
-              ...defaultRalphLaunchDependencies,
-              launchTicketRalph: async (payload) => {
-                const launchResult = await launchRalphMutation.mutateAsync(payload);
-                return {
-                  success: launchResult.success,
-                  message: launchResult.message,
-                  ...(launchResult.warnings ? { warnings: launchResult.warnings } : {}),
-                  ...("terminalUsed" in launchResult && launchResult.terminalUsed
-                    ? { terminalUsed: launchResult.terminalUsed }
-                    : {}),
-                };
-              },
-              launchEpicRalph: async () => ({
-                success: false,
-                message: "Epic Ralph launch is not available from the ticket modal.",
-              }),
-            }
+            createRalphLaunchDependencies(
+              { launchTicket: (payload) => launchRalphMutation.mutateAsync(payload) },
+              "the ticket modal"
+            )
           );
 
           if (result.warnings) {

@@ -17,7 +17,7 @@ import { useToast } from "../components/Toast";
 import {
   dispatchInteractiveUiLaunch,
   dispatchRalphAutonomousUiLaunch,
-  defaultRalphLaunchDependencies,
+  createRalphLaunchDependencies,
 } from "../lib/ui-launch-dispatcher";
 import {
   getInteractiveUiLaunchProvider,
@@ -494,24 +494,10 @@ function TicketDetailPage() {
               ...(reviewerProvider ? { reviewerProvider } : {}),
               ...(reviewerModelSelection ? { reviewerModelSelection } : {}),
             },
-            {
-              ...defaultRalphLaunchDependencies,
-              launchTicketRalph: async (payload) => {
-                const launchResult = await launchRalphMutation.mutateAsync(payload);
-                return {
-                  success: launchResult.success,
-                  message: launchResult.message,
-                  ...(launchResult.warnings ? { warnings: launchResult.warnings } : {}),
-                  ...("terminalUsed" in launchResult && launchResult.terminalUsed
-                    ? { terminalUsed: launchResult.terminalUsed }
-                    : {}),
-                };
-              },
-              launchEpicRalph: async () => ({
-                success: false,
-                message: "Epic Ralph launch is not available from ticket detail.",
-              }),
-            }
+            createRalphLaunchDependencies(
+              { launchTicket: (payload) => launchRalphMutation.mutateAsync(payload) },
+              "ticket detail"
+            )
           );
 
           if (result.warnings) {

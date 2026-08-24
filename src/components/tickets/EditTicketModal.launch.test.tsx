@@ -4,8 +4,9 @@ import userEvent from "@testing-library/user-event";
 import { EditTicketModal } from "./EditTicketModal";
 
 const mockShowToast = vi.hoisted(() => vi.fn());
-const mockLaunchCodexInTerminal = vi.hoisted(() => vi.fn());
-const mockLaunchPiInTerminal = vi.hoisted(() => vi.fn());
+const mockLaunchProviderInTerminal = vi.hoisted(() => vi.fn());
+const mockLaunchCodexInTerminal = mockLaunchProviderInTerminal;
+const mockLaunchPiInTerminal = mockLaunchProviderInTerminal;
 const mockLaunchRalphForTicket = vi.hoisted(() => vi.fn());
 const mockGetTicketContext = vi.hoisted(() => vi.fn());
 const mockNavigate = vi.hoisted(() => vi.fn(() => Promise.resolve()));
@@ -89,14 +90,7 @@ vi.mock("../../api/context", () => ({
 }));
 
 vi.mock("../../api/terminal", () => ({
-  launchClaudeInTerminal: vi.fn(),
-  launchCodexInTerminal: mockLaunchCodexInTerminal,
-  launchVSCodeInTerminal: vi.fn(),
-  launchCursorInTerminal: vi.fn(),
-  launchCursorAgentInTerminal: vi.fn(),
-  launchCopilotInTerminal: vi.fn(),
-  launchOpenCodeInTerminal: vi.fn(),
-  launchPiInTerminal: mockLaunchPiInTerminal,
+  launchProviderInTerminal: mockLaunchProviderInTerminal,
 }));
 
 vi.mock("../../api/workflow-server-fns", () => ({
@@ -167,10 +161,10 @@ describe("EditTicketModal launch behavior", () => {
     await waitFor(() => {
       expect(mockLaunchCodexInTerminal).toHaveBeenCalledWith({
         data: {
+          providerId: "codex-app",
           ticketId: "ticket-1",
           context: "# Task: Validate security tier",
           projectPath: "/Users/test/brain-dump",
-          launchMode: "app",
           preferredTerminal: null,
           projectName: "Brain Dump",
           epicName: "Core Epic",
@@ -244,6 +238,7 @@ describe("EditTicketModal launch behavior", () => {
     await waitFor(() => {
       expect(mockLaunchPiInTerminal).toHaveBeenCalledWith({
         data: {
+          providerId: "pi-terminal",
           ticketId: "ticket-1",
           context: "# Task: Validate security tier",
           projectPath: "/Users/test/brain-dump",
