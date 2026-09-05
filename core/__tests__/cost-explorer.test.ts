@@ -161,6 +161,7 @@ describe("cost model defaults", () => {
       "gpt-5.6-luna",
       "gpt-5.6-sol",
       "gpt-5.6-terra",
+      "gpt-6-astra",
     ]);
 
     const codex = listCostModels(db).find((model) => model.modelName === "gpt-5.3-codex");
@@ -176,14 +177,76 @@ describe("cost model defaults", () => {
       outputCostPerMtok: 30,
       cacheReadCostPerMtok: 0.5,
     });
+  });
 
-    const gpt56Sol = listCostModels(db).find((model) => model.modelName === "gpt-5.6-sol");
-    expect(gpt56Sol).toMatchObject({
+  it.each([
+    ["gpt-6-astra", 10, 50, 1, 12.5],
+    ["gpt-5.6-sol", 4, 20, 0.4, 5],
+    ["gpt-5.6-terra", 2, 12, 0.2, 2.5],
+    ["gpt-5.6-luna", 0.2, 1.2, 0.02, 0.25],
+  ] as const)(
+    "seeds API pricing and subscription routing for %s",
+    (
+      modelName,
+      inputCostPerMtok,
+      outputCostPerMtok,
+      cacheReadCostPerMtok,
+      cacheCreateCostPerMtok
+    ) => {
+      const models = listCostModels(db);
+      expect(
+        models.find((model) => model.provider === "openai" && model.modelName === modelName)
+      ).toMatchObject({
+        inputCostPerMtok,
+        outputCostPerMtok,
+        cacheReadCostPerMtok,
+        cacheCreateCostPerMtok,
+      });
+      expect(
+        models.find((model) => model.provider === "openai-codex" && model.modelName === modelName)
+      ).toMatchObject({ inputCostPerMtok: 0, outputCostPerMtok: 0, cacheReadCostPerMtok: 0 });
+    }
+  );
+
+  it("upgrades existing GPT catalogs while preserving custom prices", () => {
+    db.prepare(
+      "DELETE FROM cost_models WHERE model_name = 'gpt-6-astra' OR (provider = 'openai-codex' AND model_name LIKE 'gpt-5.6-%')"
+    ).run();
+    upsertCostModel(db, {
+      provider: "openai",
+      modelName: "gpt-5.6-sol",
       inputCostPerMtok: 5,
       outputCostPerMtok: 30,
       cacheReadCostPerMtok: 0.5,
       cacheCreateCostPerMtok: 6.25,
+      isDefault: true,
     });
+    upsertCostModel(db, {
+      provider: "openai",
+      modelName: "gpt-5.6-luna",
+      inputCostPerMtok: 7,
+      outputCostPerMtok: 9,
+      isDefault: false,
+    });
+    expect(syncDefaultCostModels(db)).toEqual({ inserted: 5, updated: 1, removed: 0 });
+    expect(syncDefaultCostModels(db)).toEqual({ inserted: 0, updated: 0, removed: 0 });
+    const models = listCostModels(db);
+    expect(
+      models.find((model) => model.provider === "openai" && model.modelName === "gpt-5.6-sol")
+    ).toMatchObject({
+      inputCostPerMtok: 4,
+      outputCostPerMtok: 20,
+      cacheReadCostPerMtok: 0.4,
+      cacheCreateCostPerMtok: 5,
+    });
+    expect(
+      models.find((model) => model.provider === "openai" && model.modelName === "gpt-5.6-luna")
+    ).toMatchObject({ inputCostPerMtok: 7, outputCostPerMtok: 9, isDefault: false });
+    for (const modelName of ["gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]) {
+      expect(
+        models.some((model) => model.provider === "openai-codex" && model.modelName === modelName)
+      ).toBe(true);
+    }
   });
 
   it("seeds the current open source pricing catalog", () => {
@@ -261,7 +324,7 @@ describe("cost model defaults", () => {
 
     const result = syncDefaultCostModels(db);
 
-    expect(result).toEqual({ inserted: 7, updated: 0, removed: 2 });
+    expect(result).toEqual({ inserted: 8, updated: 0, removed: 2 });
     expect(
       listCostModels(db)
         .filter((model) => model.provider === "openai")
@@ -276,6 +339,7 @@ describe("cost model defaults", () => {
       "gpt-5.6-luna",
       "gpt-5.6-sol",
       "gpt-5.6-terra",
+      "gpt-6-astra",
     ]);
   });
 
@@ -291,7 +355,7 @@ describe("cost model defaults", () => {
 
     const result = syncDefaultCostModels(db);
 
-    expect(result).toEqual({ inserted: 9, updated: 0, removed: 0 });
+    expect(result).toEqual({ inserted: 10, updated: 0, removed: 0 });
     expect(
       listCostModels(db).some(
         (model) =>

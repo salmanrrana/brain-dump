@@ -156,6 +156,10 @@ export const PI_MODEL_NAMES_BY_PROVIDER = {
     "gpt-5.4",
     "gpt-5.4-mini",
     "gpt-5.5",
+    "gpt-5.6-luna",
+    "gpt-5.6-sol",
+    "gpt-5.6-terra",
+    "gpt-6-astra",
   ],
   "opencode-go": [
     "deepseek-v4-flash",

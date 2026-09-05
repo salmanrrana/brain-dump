@@ -42,6 +42,28 @@ const CATALOG_FIXTURE: CostModel[] = [
 ];
 
 describe("getLaunchModelCatalog", () => {
+  it.each(["pi", "ralph-pi", "codex", "ralph-codex", "opencode", "ralph-opencode"] as const)(
+    "offers the new GPT models for %s",
+    (providerId) => {
+      const names = ["gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"];
+      const fixture = names.flatMap((name) => [
+        makeCostModel("openai", name),
+        makeCostModel("openai-codex", name),
+      ]);
+      const catalog = getLaunchModelCatalog(providerId, fixture);
+      const pricingProvider = providerId.includes("pi") ? "openai-codex" : "openai";
+      for (const modelName of names) {
+        expect(
+          findLaunchModelChoice(catalog, {
+            kind: "concrete",
+            provider: pricingProvider,
+            modelName,
+          })
+        ).toBeDefined();
+      }
+    }
+  );
+
   it("always returns Default as the first choice", () => {
     const catalog = getLaunchModelCatalog("claude", CATALOG_FIXTURE);
     expect(catalog.choices[0]).toMatchObject({

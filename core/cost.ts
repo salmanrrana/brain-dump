@@ -27,6 +27,7 @@ import type {
   CostExplorerParams,
 } from "./types.ts";
 import { ValidationError } from "./errors.ts";
+import { PI_MODEL_NAMES_BY_PROVIDER } from "./providers.ts";
 import type { DbCostModelRow, DbTokenUsageRow } from "./db-rows.ts";
 
 // ============================================
@@ -355,118 +356,60 @@ const DEFAULT_COST_MODELS: DefaultCostModelDefinition[] = [
     cacheReadCostPerMtok: 0.5,
     isDefault: true,
   },
-  // GPT-5.6 bills cache writes at 1.25x uncached input; cache reads keep the
-  // 90% cached-input discount.
+  // Published standard base-tier prices (2026-09-04):
+  // https://developers.openai.com/api/docs/models/gpt-6-astra
+  // https://developers.openai.com/api/docs/models/gpt-5.6-sol
+  // https://developers.openai.com/api/docs/models/gpt-5.6-terra
+  // https://developers.openai.com/api/docs/models/gpt-5.6-luna
+  // Sol's promotional rates last through at least 2026-11-21. Long-context
+  // surcharges are not represented by this single-rate pricing catalog.
+  {
+    provider: "openai",
+    modelName: "gpt-6-astra",
+    inputCostPerMtok: 10,
+    outputCostPerMtok: 50,
+    cacheReadCostPerMtok: 1,
+    cacheCreateCostPerMtok: 12.5,
+    isDefault: true,
+  },
   {
     provider: "openai",
     modelName: "gpt-5.6-sol",
-    inputCostPerMtok: 5,
-    outputCostPerMtok: 30,
-    cacheReadCostPerMtok: 0.5,
-    cacheCreateCostPerMtok: 6.25,
+    inputCostPerMtok: 4,
+    outputCostPerMtok: 20,
+    cacheReadCostPerMtok: 0.4,
+    cacheCreateCostPerMtok: 5,
     isDefault: true,
   },
   {
     provider: "openai",
     modelName: "gpt-5.6-terra",
-    inputCostPerMtok: 2.5,
-    outputCostPerMtok: 15,
-    cacheReadCostPerMtok: 0.25,
-    cacheCreateCostPerMtok: 3.125,
+    inputCostPerMtok: 2,
+    outputCostPerMtok: 12,
+    cacheReadCostPerMtok: 0.2,
+    cacheCreateCostPerMtok: 2.5,
     isDefault: true,
   },
   {
     provider: "openai",
     modelName: "gpt-5.6-luna",
-    inputCostPerMtok: 1,
-    outputCostPerMtok: 6,
-    cacheReadCostPerMtok: 0.1,
-    cacheCreateCostPerMtok: 1.25,
+    inputCostPerMtok: 0.2,
+    outputCostPerMtok: 1.2,
+    cacheReadCostPerMtok: 0.02,
+    cacheCreateCostPerMtok: 0.25,
     isDefault: true,
   },
   // Pi exposes Codex subscription-routed models under openai-codex. These are
   // included so the launch model picker can offer the same ids reported by
   // `pi --list-models`; subscription usage has no marginal API price here.
-  {
+  ...PI_MODEL_NAMES_BY_PROVIDER["openai-codex"].map((modelName) => ({
     provider: "openai-codex",
-    modelName: "gpt-5.1",
+    modelName,
     inputCostPerMtok: 0,
     outputCostPerMtok: 0,
     cacheReadCostPerMtok: 0,
     isDefault: true,
-  },
-  {
-    provider: "openai-codex",
-    modelName: "gpt-5.1-codex-max",
-    inputCostPerMtok: 0,
-    outputCostPerMtok: 0,
-    cacheReadCostPerMtok: 0,
-    isDefault: true,
-  },
-  {
-    provider: "openai-codex",
-    modelName: "gpt-5.1-codex-mini",
-    inputCostPerMtok: 0,
-    outputCostPerMtok: 0,
-    cacheReadCostPerMtok: 0,
-    isDefault: true,
-  },
-  {
-    provider: "openai-codex",
-    modelName: "gpt-5.2",
-    inputCostPerMtok: 0,
-    outputCostPerMtok: 0,
-    cacheReadCostPerMtok: 0,
-    isDefault: true,
-  },
-  {
-    provider: "openai-codex",
-    modelName: "gpt-5.2-codex",
-    inputCostPerMtok: 0,
-    outputCostPerMtok: 0,
-    cacheReadCostPerMtok: 0,
-    isDefault: true,
-  },
-  {
-    provider: "openai-codex",
-    modelName: "gpt-5.3-codex",
-    inputCostPerMtok: 0,
-    outputCostPerMtok: 0,
-    cacheReadCostPerMtok: 0,
-    isDefault: true,
-  },
-  {
-    provider: "openai-codex",
-    modelName: "gpt-5.3-codex-spark",
-    inputCostPerMtok: 0,
-    outputCostPerMtok: 0,
-    cacheReadCostPerMtok: 0,
-    isDefault: true,
-  },
-  {
-    provider: "openai-codex",
-    modelName: "gpt-5.4",
-    inputCostPerMtok: 0,
-    outputCostPerMtok: 0,
-    cacheReadCostPerMtok: 0,
-    isDefault: true,
-  },
-  {
-    provider: "openai-codex",
-    modelName: "gpt-5.4-mini",
-    inputCostPerMtok: 0,
-    outputCostPerMtok: 0,
-    cacheReadCostPerMtok: 0,
-    isDefault: true,
-  },
-  {
-    provider: "openai-codex",
-    modelName: "gpt-5.5",
-    inputCostPerMtok: 0,
-    outputCostPerMtok: 0,
-    cacheReadCostPerMtok: 0,
-    isDefault: true,
-  },
+  })),
   // Google
   {
     provider: "google",

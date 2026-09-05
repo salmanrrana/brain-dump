@@ -60,4 +60,22 @@ describe("provider registry", () => {
       /Invalid value for --model/
     );
   });
+
+  it.each(["gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"])(
+    "accepts %s for Pi and Codex launches",
+    (modelName) => {
+      const catalog = [
+        { provider: "openai", modelName },
+        { provider: "openai-codex", modelName },
+      ];
+      expect(resolveProviderModelSelection("pi", `openai-codex/${modelName}`, catalog)).toEqual({
+        provider: "openai-codex",
+        modelName,
+      });
+      expect(resolveProviderModelSelection("codex", modelName, catalog)).toEqual({
+        provider: "openai",
+        modelName,
+      });
+    }
+  );
 });
