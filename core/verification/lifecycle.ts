@@ -203,16 +203,15 @@ export interface VerificationFailureClassification {
 }
 
 const CONNECTIVITY_ERROR_PATTERN =
-  /err_connection_refused|econnrefused|econnreset|net::err_|cors|access-control-allow|connection refused|failed to fetch|networkerror|socket hang up/i;
+  /browser request failed|err_connection_refused|econnrefused|econnreset|net::err_|cors|access-control-allow|connection refused|failed to fetch|networkerror|socket hang up/i;
 
 export const CONNECTIVITY_FAILURE_GUIDANCE =
   "Verify the environment before changing product code: boot the app exactly as the runner does (random loopback {port}/{host}), confirm CORS allows any loopback origin, and read this run's boot log and screenshot evidence.";
 
 /**
- * A run where every widget-level assertion fails at once is almost never one
- * broken feature — it is the app unreachable from the runner's randomized
- * loopback origin (port, CORS, boot readiness). Say so in the failure record,
- * so agents check the environment before "fixing" working product code.
+ * Prefer captured network errors when suggesting environment repairs. Retain
+ * the many-widget heuristic for historical runs that executed every assertion;
+ * current runs stop at the first failure and capture browser request errors.
  */
 export function classifyVerificationRunFailure(
   run: VerificationRun
@@ -241,7 +240,10 @@ export function classifyVerificationRunFailure(
         "Several independent UI assertions failed in one step — typically the app was unreachable and every widget rendered its empty/error state.",
     };
   }
-  return { kind: "assertion", detail: "A specific assertion failed while sibling checks passed." };
+  return {
+    kind: "assertion",
+    detail: "A verification check failed without a captured network-layer error.",
+  };
 }
 
 function classificationLines(run: VerificationRun): string[] {
@@ -667,12 +669,12 @@ function addVerificationAttentionComment(
 }
 
 /**
- * Blocked reason for an infra_error run. Safe to read stepVerdicts[0]: the
- * runner's catch path replaces the verdict list with a single entry holding
- * the real error. Shared with the worker so the two never drift.
+ * Execution may fail after earlier steps passed; retain their evidence while
+ * identifying the failed step as the reason for blocking.
  */
 export function infraErrorBlockedReason(run: VerificationRun): string {
-  return `Verification infra_error: ${run.manifest.stepVerdicts[0]?.message ?? "see manifest"}`;
+  const failure = run.manifest.stepVerdicts.find((step) => step.status === "failed");
+  return `Verification infra_error: ${failure?.message ?? "see manifest"}`;
 }
 
 export const INFRA_ERROR_GUIDANCE =

@@ -605,6 +605,7 @@ createServer((request, response) => {
       chromium: {
         launch: vi.fn(async () => ({
           newPage: vi.fn(async () => ({
+            on: vi.fn(),
             addInitScript,
             goto,
             evaluate,
@@ -670,6 +671,7 @@ createServer((request, response) => {
       chromium: {
         launch: vi.fn(async () => ({
           newPage: vi.fn(async () => ({
+            on: vi.fn(),
             addInitScript: vi.fn(async () => {}),
             goto: vi.fn(async () => {}),
             evaluate: vi.fn(async () => ({ ok: true })),
@@ -688,6 +690,67 @@ createServer((request, response) => {
     const run = await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
 
     expect(run.status).toBe("passed");
+    expect(firstWaitFor).toHaveBeenCalled();
+    expect(firstClick).toHaveBeenCalled();
+  });
+
+  it("keeps a screenshot and skips dependent assertions after a UI action fails", async () => {
+    const step = uiTextStep();
+    if (step.automation?.kind !== "ui") throw new Error("Expected ui step");
+    step.automation.actions = [
+      { act: "waitFor", selector: "[data-testid^='portfolio-row-']" },
+      { act: "click", selector: "button[aria-label='Refresh dashboard data']" },
+    ];
+    seedDemo([step]);
+    const firstWaitFor = vi.fn(async () => {});
+    const firstClick = vi.fn(async () => {
+      throw new Error("navigation failed");
+    });
+    // Strict (multi-match) waitFor throws exactly like Playwright does when a
+    // prefix selector resolves to many populated rows; only the splash
+    // dismissal passes options and is allowed through.
+    const strictWaitFor = vi.fn(async (options?: unknown) => {
+      if (!options) throw new Error("strict mode violation: resolved to 26 elements");
+    });
+    const toContainText = vi.fn(async () => {});
+    const screenshot = vi.fn(async ({ path }: { path: string }) =>
+      writeFileSync(path, "fake image")
+    );
+    const locator = vi.fn(() => ({
+      first: () => ({
+        isVisible: vi.fn(async () => true),
+        waitFor: firstWaitFor,
+        click: firstClick,
+        fill: vi.fn(async () => {}),
+      }),
+      waitFor: strictWaitFor,
+    }));
+    vi.doMock("@playwright/test", () => ({
+      chromium: {
+        launch: vi.fn(async () => ({
+          newPage: vi.fn(async () => ({
+            on: vi.fn(),
+            addInitScript: vi.fn(async () => {}),
+            goto: vi.fn(async () => {}),
+            evaluate: vi.fn(async () => ({ ok: true })),
+            keyboard: { press: vi.fn(async () => {}) },
+            locator,
+            screenshot,
+            url: () => "http://127.0.0.1:4242/",
+          })),
+          close: vi.fn(async () => {}),
+        })),
+      },
+      expect: () => ({ toContainText }),
+    }));
+    const baseUrl = await startFixtureServer();
+
+    const run = await verifyTicket(db, { ticketId: "ticket-1", baseUrl });
+
+    expect(run.status).toBe("failed");
+    expect(toContainText).not.toHaveBeenCalled();
+    expect(screenshot).toHaveBeenCalled();
+    expect(run.manifest.evidenceFiles).toHaveLength(1);
     expect(firstWaitFor).toHaveBeenCalled();
     expect(firstClick).toHaveBeenCalled();
   });
@@ -720,6 +783,7 @@ createServer((request, response) => {
       chromium: {
         launch: vi.fn(async () => ({
           newPage: vi.fn(async () => ({
+            on: vi.fn(),
             addInitScript: vi.fn(async () => {}),
             goto: vi.fn(async () => {}),
             evaluate: vi.fn(async () => ({ ok: true })),
@@ -768,6 +832,7 @@ createServer((request, response) => {
       chromium: {
         launch: vi.fn(async () => ({
           newPage: vi.fn(async () => ({
+            on: vi.fn(),
             addInitScript: vi.fn(async () => {}),
             goto: vi.fn(async () => {}),
             evaluate: vi.fn(async () => ({ ok: true })),
@@ -815,6 +880,7 @@ createServer((request, response) => {
       chromium: {
         launch: vi.fn(async () => ({
           newPage: vi.fn(async () => ({
+            on: vi.fn(),
             addInitScript: vi.fn(async () => {}),
             goto,
             evaluate: vi.fn(async () => ({ ok: true })),
@@ -872,6 +938,7 @@ createServer((request, response) => {
       chromium: {
         launch: vi.fn(async () => ({
           newPage: vi.fn(async () => ({
+            on: vi.fn(),
             addInitScript: vi.fn(async () => {}),
             goto: vi.fn(async () => {}),
             evaluate: vi.fn(async () => ({ ok: false, error: "session storage disabled" })),
@@ -1285,7 +1352,7 @@ createServer((request, response) => {
     const previousSecret = process.env.BRAIN_DUMP_TEST_SECRET_TOKEN;
     process.env.BRAIN_DUMP_TEST_SECRET_TOKEN = "super-secret-token-value";
     seedDemo([
-      commandStep("missing super-secret-token-value"),
+      commandStep("super-secret-token-value"),
       fileStep("missing super-secret-token-value"),
     ]);
     writeFileSync(join(tempDir, "fixture.txt"), "file leaked super-secret-token-value\n");
@@ -1613,7 +1680,7 @@ createServer((request, response) => {
         "SELECT severity, category, description, status FROM review_findings WHERE ticket_id = 'ticket-1' ORDER BY created_at"
       )
       .all() as Array<{ severity: string; category: string; description: string; status: string }>;
-    expect(findings).toHaveLength(4);
+    expect(findings).toHaveLength(2);
     expect(findings[0]).toMatchObject({
       severity: "major",
       category: "verification",

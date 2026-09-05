@@ -261,7 +261,9 @@ export async function runNextVerificationJob(
         options.now ?? (() => new Date()),
         options.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS
       );
-      const message = run.manifest.stepVerdicts[0]?.message ?? "Verification infrastructure error";
+      const message =
+        run.manifest.stepVerdicts.find((step) => step.status === "failed")?.message ??
+        "Verification infrastructure error";
       return requeueInfraErrorResult(db, {
         ...lease,
         error: message,

@@ -16,6 +16,7 @@ import { spawn } from "child_process";
 import { fileURLToPath } from "url";
 import { createServer } from "net";
 import { isDeepStrictEqual } from "util";
+import { setTimeout as delay } from "node:timers/promises";
 import { resolveApiJsonAssertion } from "./json-assertions.ts";
 import type {
   DbHandle,
@@ -723,17 +724,28 @@ async function chooseFreePort(): Promise<number> {
   });
 }
 
-async function sleep(ms: number): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, ms));
+async function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  await delay(ms, undefined, signal ? { signal } : undefined);
 }
 
 /** Bound headers AND body reads, including injected clients that ignore abort. */
 async function withHttpTimeout<T>(
   timeoutMs: number,
-  operation: (signal: AbortSignal) => Promise<T>
+  operation: (signal: AbortSignal) => Promise<T>,
+  parentSignal?: AbortSignal
 ): Promise<T> {
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout>;
+  let cancel: () => void;
+  const cancelled = new Promise<never>((_, reject) => {
+    cancel = () => {
+      const reason = parentSignal?.reason ?? new ValidationError("Verification request cancelled.");
+      controller.abort(reason);
+      reject(reason);
+    };
+    if (parentSignal?.aborted) cancel();
+    else parentSignal?.addEventListener("abort", cancel, { once: true });
+  });
   const deadline = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
       const error = new ValidationError(
@@ -744,20 +756,23 @@ async function withHttpTimeout<T>(
     }, timeoutMs);
   });
   try {
-    return await Promise.race([operation(controller.signal), deadline]);
+    return await Promise.race([operation(controller.signal), deadline, cancelled]);
   } finally {
     clearTimeout(timer!);
+    parentSignal?.removeEventListener("abort", cancel!);
   }
 }
 
 async function waitForReady(
   baseUrl: string,
   fetchImpl: typeof fetch,
-  timeoutMs: number
+  timeoutMs: number,
+  signal?: AbortSignal
 ): Promise<void> {
   const start = Date.now();
   let lastError = "server did not respond";
   while (Date.now() - start < timeoutMs) {
+    signal?.throwIfAborted();
     try {
       const status = await withHttpTimeout(
         Math.max(1, timeoutMs - (Date.now() - start)),
@@ -765,14 +780,16 @@ async function waitForReady(
           const response = await fetchImpl(baseUrl, { method: "GET", signal });
           await response.body?.cancel();
           return response.status;
-        }
+        },
+        signal
       );
       if (status < 500) return;
       lastError = `HTTP ${status}`;
     } catch (error) {
+      signal?.throwIfAborted();
       lastError = error instanceof Error ? error.message : String(error);
     }
-    await sleep(250);
+    await sleep(250, signal);
   }
   throw new ValidationError(`Timed out waiting for app readiness at ${baseUrl}: ${lastError}`);
 }
@@ -891,14 +908,22 @@ async function bootApp(params: {
     });
   });
 
+  const readiness = new AbortController();
   try {
-    await Promise.race([waitForReady(baseUrl, params.fetchImpl, params.timeoutMs), childFailure]);
+    await Promise.race([
+      waitForReady(baseUrl, params.fetchImpl, params.timeoutMs, readiness.signal),
+      childFailure,
+    ]);
     ready = true;
   } catch (error) {
     killBootTree("SIGTERM");
     if (error instanceof VerificationBootError) throw error;
     const message = error instanceof Error ? error.message : String(error);
     throw new VerificationBootError(message, failedBootInfo());
+  } finally {
+    // The losing readiness promise must not keep polling a dead server or
+    // keep a one-shot worker alive until the full startup timeout expires.
+    readiness.abort();
   }
 
   return {
@@ -1165,25 +1190,64 @@ async function runExecutableSteps(params: {
   timeoutMs: number;
   steps: DemoStep[];
   runId: string;
-}): Promise<{ boot: BootedApp | null; verdicts: VerificationStepVerdict[] }> {
-  const needsApp = params.steps.some(stepNeedsApp);
-  if (!needsApp) {
+}): Promise<{
+  boot: BootedApp | null;
+  verdicts: VerificationStepVerdict[];
+  executionFailed: boolean;
+}> {
+  // Demos are ordered scenarios. Continuing after a failure adds cascading
+  // timeouts and can perform mutations whose prerequisites never succeeded.
+  async function runSequence(baseUrl: string | null): Promise<{
+    verdicts: VerificationStepVerdict[];
+    executionFailed: boolean;
+  }> {
     const verdicts: VerificationStepVerdict[] = [];
+    let failedOrder: number | null = null;
+    let executionFailed = false;
     for (const step of params.steps) {
-      verdicts.push(
-        await runStep(
+      if (failedOrder !== null) {
+        verdicts.push(
+          withAutomationKey(step, {
+            order: step.order,
+            status: "skipped",
+            message: `Not run because step ${failedOrder} failed. Repair the failure and rerun the complete demo.`,
+            durationMs: 0,
+            evidenceFiles: [],
+          })
+        );
+        continue;
+      }
+      const stepStartedAt = Date.now();
+      try {
+        const verdict = await runStep(
           step,
           params.runId,
-          null,
+          baseUrl,
           params.fetchImpl,
           params.projectPath,
           params.execFileNoThrow,
           params.timeoutMs
-        )
-      );
+        );
+        verdicts.push(verdict);
+        if (verdict.status === "failed") failedOrder = step.order;
+      } catch (error) {
+        executionFailed = true;
+        failedOrder = step.order;
+        verdicts.push(
+          withAutomationKey(step, {
+            order: step.order,
+            status: "failed",
+            message: error instanceof Error ? error.message : String(error),
+            durationMs: Date.now() - stepStartedAt,
+            evidenceFiles: [],
+          })
+        );
+      }
     }
-    return { boot: null, verdicts };
+    return { verdicts, executionFailed };
   }
+  const needsApp = params.steps.some(stepNeedsApp);
+  if (!needsApp) return { boot: null, ...(await runSequence(null)) };
 
   const demoBoot = readDemoAppBoot(params.steps);
   const bootCommand = params.bootCommand ?? demoBoot?.start;
@@ -1206,21 +1270,9 @@ async function runExecutableSteps(params: {
       if (params.baseUrl === undefined) {
         await warmUpUiRoutes(params.steps, boot.baseUrl);
       }
-      const verdicts: VerificationStepVerdict[] = [];
-      for (const step of params.steps) {
-        verdicts.push(
-          await runStep(
-            step,
-            params.runId,
-            boot.baseUrl,
-            params.fetchImpl,
-            params.projectPath,
-            params.execFileNoThrow,
-            params.timeoutMs
-          )
-        );
-      }
-      return { boot, verdicts };
+      // Execution failures are returned, not thrown into the boot retry loop.
+      // Rebooting here would replay already completed commands and POSTs.
+      return { boot, ...(await runSequence(boot.baseUrl)) };
     } catch (error) {
       if (boot && !(error instanceof VerificationBootError)) {
         const message = error instanceof Error ? error.message : String(error);
@@ -1404,6 +1456,15 @@ async function runUiStep(
     step.automation.viewport ? { viewport: step.automation.viewport } : {}
   );
   const failures: string[] = [];
+  const networkErrors = new Set<string>();
+  // Capture failures while the check runs; do not wait on more assertions to
+  // diagnose connectivity, or fail a passing check for optional background I/O.
+  page.on("requestfailed", (request) => {
+    if (!["document", "xhr", "fetch"].includes(request.resourceType())) return;
+    if (networkErrors.size < 3) {
+      networkErrors.add(request.failure()?.errorText ?? "unknown network error");
+    }
+  });
   const failedAssertionIndexes: number[] = [];
   const nonAssertionFailureKeys: string[] = [];
   const uiFailureKey = (type: string): string =>
@@ -1474,6 +1535,7 @@ async function runUiStep(
       // page rendered MORE data than required (observed: 26 populated
       // portfolio rows failing "wait for a portfolio row").
       for (const action of step.automation.actions ?? []) {
+        if (failures.length > 0) break;
         if (action.act === "click")
           await page
             .locator(action.selector ?? "")
@@ -1498,6 +1560,7 @@ async function runUiStep(
     }
 
     for (const [index, assertion] of step.automation.assert.entries()) {
+      if (failures.length > 0) break;
       try {
         if (assertion.type === "visible") {
           const visible = await page
@@ -1530,7 +1593,7 @@ async function runUiStep(
     const textAssertion = step.automation.assert.find(
       (assertion) => assertion.type === "text" && (assertion.expected ?? "").length > 0
     );
-    if (textAssertion) {
+    if (textAssertion && failures.length === 0) {
       try {
         const selector = textAssertion.selector ?? "body";
         const target =
@@ -1547,6 +1610,9 @@ async function runUiStep(
     const screenshotPath = join(evidenceDir(runId), `step-${step.order}-ui.png`);
     await page.screenshot({ path: screenshotPath, fullPage: true });
     const evidenceContent = readFileSync(screenshotPath).toString("base64");
+    if (failures.length > 0) {
+      for (const error of networkErrors) failures.push(`Browser request failed: ${error}`);
+    }
     return {
       order: step.order,
       status: failures.length === 0 ? "passed" : "failed",
@@ -2027,6 +2093,10 @@ async function buildRun(
       });
       boot = result.boot;
       verdicts = result.verdicts;
+      executionFailed = result.executionFailed;
+      // A command or request may have taken effect before it errored. Retain
+      // its evidence and require repair instead of replaying the whole demo.
+      if (executionFailed) retryable = false;
     }
   } catch (error) {
     executionFailed = true;
