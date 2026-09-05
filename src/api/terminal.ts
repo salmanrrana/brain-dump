@@ -1,5 +1,4 @@
 import { createServerFn } from "@tanstack/react-start";
-import { detectTerminal, isTerminalAvailable, buildTerminalCommand } from "./terminal-utils";
 import { buildCodexAppLaunchPlan } from "./codex-launch";
 import { sqlite } from "../lib/db";
 import type {
@@ -42,13 +41,14 @@ interface InstallCheck {
   error?: string;
 }
 
+// Discovery uses bounded argv calls so a looping CLI shim cannot hang the menu.
 async function isClaudeInstalled(): Promise<InstallCheck> {
-  const { exec } = await import("child_process");
+  const { execFile } = await import("child_process");
   const { promisify } = await import("util");
-  const execAsync = promisify(exec);
+  const execAsync = promisify(execFile);
 
   try {
-    await execAsync("claude --version");
+    await execAsync("claude", ["--version"], { timeout: 5000, killSignal: "SIGKILL" });
     return { installed: true, mode: "cli" };
   } catch (error) {
     const err = error as Error & { code?: string };
@@ -72,12 +72,12 @@ async function isClaudeInstalled(): Promise<InstallCheck> {
 
 // Check if OpenCode CLI is installed
 async function isOpenCodeInstalled(): Promise<InstallCheck> {
-  const { exec } = await import("child_process");
+  const { execFile } = await import("child_process");
   const { promisify } = await import("util");
-  const execAsync = promisify(exec);
+  const execAsync = promisify(execFile);
 
   try {
-    await execAsync("opencode --version");
+    await execAsync("opencode", ["--version"], { timeout: 5000, killSignal: "SIGKILL" });
     return { installed: true, mode: "cli" };
   } catch (error) {
     // Check if it's a "command not found" error
@@ -102,12 +102,12 @@ async function isOpenCodeInstalled(): Promise<InstallCheck> {
 
 // Check if Codex CLI is installed
 async function isCodexCliInstalled(): Promise<InstallCheck> {
-  const { exec } = await import("child_process");
+  const { execFile } = await import("child_process");
   const { promisify } = await import("util");
-  const execAsync = promisify(exec);
+  const execAsync = promisify(execFile);
 
   try {
-    await execAsync("codex --version");
+    await execAsync("codex", ["--version"], { timeout: 5000, killSignal: "SIGKILL" });
     return { installed: true, mode: "cli" };
   } catch (error) {
     const err = error as Error & { code?: string };
@@ -138,9 +138,9 @@ async function isCodexAppInstalled(): Promise<InstallCheck> {
     };
   }
 
-  const { exec } = await import("child_process");
+  const { execFile } = await import("child_process");
   const { promisify } = await import("util");
-  const execAsync = promisify(exec);
+  const execAsync = promisify(execFile);
   const { existsSync } = await import("fs");
   const { join } = await import("path");
   const { homedir } = await import("os");
@@ -158,12 +158,12 @@ async function isCodexAppInstalled(): Promise<InstallCheck> {
   }
 
   try {
-    await execAsync("open -Ra Codex");
+    await execAsync("open", ["-Ra", "Codex"], { timeout: 5000, killSignal: "SIGKILL" });
     return { installed: true, mode: "app" };
   } catch {
     // Try alternate name and continue to error handling below on failure.
     try {
-      await execAsync('open -Ra "Codex.app"');
+      await execAsync("open", ["-Ra", "Codex.app"], { timeout: 5000, killSignal: "SIGKILL" });
       return { installed: true, mode: "app" };
     } catch {
       return {
@@ -209,12 +209,12 @@ function codexLaunchErrorForMode(mode: "auto" | "cli" | "app", check: InstallChe
 
 // Check if Copilot CLI is installed
 async function isCopilotInstalled(): Promise<InstallCheck> {
-  const { exec } = await import("child_process");
+  const { execFile } = await import("child_process");
   const { promisify } = await import("util");
-  const execAsync = promisify(exec);
+  const execAsync = promisify(execFile);
 
   try {
-    await execAsync("copilot --version");
+    await execAsync("copilot", ["--version"], { timeout: 5000, killSignal: "SIGKILL" });
     return { installed: true, mode: "cli" };
   } catch (error) {
     const err = error as Error & { code?: string };
@@ -236,12 +236,12 @@ async function isCopilotInstalled(): Promise<InstallCheck> {
 }
 
 async function isPiInstalled(): Promise<InstallCheck> {
-  const { exec } = await import("child_process");
+  const { execFile } = await import("child_process");
   const { promisify } = await import("util");
-  const execAsync = promisify(exec);
+  const execAsync = promisify(execFile);
 
   try {
-    await execAsync("pi --version");
+    await execAsync("pi", ["--version"], { timeout: 5000, killSignal: "SIGKILL" });
     return { installed: true, mode: "cli" };
   } catch (error) {
     const err = error as Error & { code?: string };
@@ -264,12 +264,12 @@ async function isPiInstalled(): Promise<InstallCheck> {
 
 // Check if Cursor is installed (CLI or app)
 async function isCursorInstalled(): Promise<InstallCheck> {
-  const { exec } = await import("child_process");
+  const { execFile } = await import("child_process");
   const { promisify } = await import("util");
-  const execAsync = promisify(exec);
+  const execAsync = promisify(execFile);
 
   try {
-    await execAsync("cursor --version");
+    await execAsync("cursor", ["--version"], { timeout: 5000, killSignal: "SIGKILL" });
     return { installed: true, mode: "cli" };
   } catch (error) {
     const err = error as Error & { code?: string };
@@ -285,7 +285,7 @@ async function isCursorInstalled(): Promise<InstallCheck> {
       }
 
       try {
-        await execAsync("open -Ra Cursor");
+        await execAsync("open", ["-Ra", "Cursor"], { timeout: 5000, killSignal: "SIGKILL" });
         return { installed: true, mode: "app" };
       } catch {
         // Continue to error handling below.
@@ -327,12 +327,12 @@ export async function isCursorAgentInstalled(): Promise<InstallCheck> {
 
 // Check if VS Code is installed (CLI or app)
 async function isVSCodeInstalled(): Promise<InstallCheck> {
-  const { exec } = await import("child_process");
+  const { execFile } = await import("child_process");
   const { promisify } = await import("util");
-  const execAsync = promisify(exec);
+  const execAsync = promisify(execFile);
 
   try {
-    await execAsync("code --version");
+    await execAsync("code", ["--version"], { timeout: 5000, killSignal: "SIGKILL" });
     return { installed: true, mode: "cli" };
   } catch (error) {
     const err = error as Error & { code?: string };
@@ -367,12 +367,15 @@ async function isVSCodeInstalled(): Promise<InstallCheck> {
       }
 
       try {
-        await execAsync('open -Ra "Visual Studio Code"');
+        await execAsync("open", ["-Ra", "Visual Studio Code"], {
+          timeout: 5000,
+          killSignal: "SIGKILL",
+        });
         return { installed: true, mode: "app" };
       } catch {
         // Try alternate app name and continue to error handling below on failure.
         try {
-          await execAsync("open -Ra Code");
+          await execAsync("open", ["-Ra", "Code"], { timeout: 5000, killSignal: "SIGKILL" });
           return { installed: true, mode: "app" };
         } catch {
           // Continue to error handling below.
@@ -743,6 +746,9 @@ async function resolveLaunchTerminal(
   preferredTerminal: string | null | undefined,
   warnings: string[]
 ): Promise<string | null> {
+  // Exported launch helpers also survive Start's browser transform. Load
+  // terminal utilities only on invocation so their server logger stays server-side.
+  const { detectTerminal, isTerminalAvailable } = await import("./terminal-utils");
   if (preferredTerminal) {
     const result = await isTerminalAvailable(preferredTerminal);
     if (result.available) {
@@ -803,6 +809,7 @@ async function finishTerminalLaunch(
   }
 ): Promise<LaunchResult> {
   const { exec } = await import("child_process");
+  const { buildTerminalCommand } = await import("./terminal-utils");
   const windowTitle = buildWindowTitle(ctx.projectName, ctx.epicName, ctx.ticketTitle);
   const terminalCommand = buildTerminalCommand(
     ctx.terminal,
@@ -1482,6 +1489,7 @@ async function runCodexProviderLaunch(
 
     const scriptPath = await createCodexLaunchScript(projectPath, context, modelSelection);
     const windowTitle = buildWindowTitle(projectName, epicName, ticketTitle);
+    const { buildTerminalCommand } = await import("./terminal-utils");
     const terminalCommand = buildTerminalCommand(terminal, projectPath, scriptPath, windowTitle);
 
     try {

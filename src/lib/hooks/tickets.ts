@@ -513,6 +513,7 @@ export function useTicketSummaries(
 
   return {
     tickets: query.data ?? [],
+    hasData: query.data !== undefined,
     loading: query.isLoading,
     error: query.error?.message ?? null,
     refetch: query.refetch,

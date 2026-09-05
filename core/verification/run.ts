@@ -6,6 +6,7 @@ import {
   lstatSync,
   readFileSync,
   realpathSync,
+  readdirSync,
   statSync,
   writeFileSync,
 } from "fs";
@@ -14,6 +15,8 @@ import { dirname, isAbsolute, join, relative, resolve } from "path";
 import { spawn } from "child_process";
 import { fileURLToPath } from "url";
 import { createServer } from "net";
+import { isDeepStrictEqual } from "util";
+import { resolveApiJsonAssertion } from "./json-assertions.ts";
 import type {
   DbHandle,
   DemoAppBoot,
@@ -72,7 +75,7 @@ export type {
   VerificationStepVerdict,
 };
 
-const VERIFIER_CODE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const VERIFIER_CODE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 export interface VerifyTicketParams {
   ticketId: string;
@@ -171,10 +174,6 @@ const BOOT_ENV_ALLOWLIST = [
   "TEMP",
   "LANG",
   "LC_ALL",
-  "XDG_CACHE_HOME",
-  "XDG_CONFIG_HOME",
-  "XDG_DATA_HOME",
-  "XDG_STATE_HOME",
 ];
 const NON_SECRET_ENV_VALUES = new Set(["false", "none", "null", "true", "undefined"]);
 
@@ -219,13 +218,31 @@ function commandAutomationEnv(): NodeJS.ProcessEnv {
   );
 }
 
-function bootAutomationEnv(): NodeJS.ProcessEnv {
-  return Object.fromEntries(
-    BOOT_ENV_ALLOWLIST.flatMap((key) => {
-      const value = process.env[key];
-      return typeof value === "string" ? [[key, value]] : [];
-    })
-  );
+function bootAutomationEnv(runId: string): NodeJS.ProcessEnv {
+  const root = join(evidenceDir(runId), "app-data");
+  const directories = {
+    HOME: join(root, "home"),
+    USERPROFILE: join(root, "home"),
+    APPDATA: join(root, "roaming"),
+    LOCALAPPDATA: join(root, "local"),
+    XDG_CONFIG_HOME: join(root, "config"),
+    XDG_CACHE_HOME: join(root, "cache"),
+    XDG_DATA_HOME: join(root, "data"),
+    XDG_STATE_HOME: join(root, "state"),
+    BRAIN_DUMP_VERIFY_DATA_DIR: root,
+  };
+  for (const directory of Object.values(directories)) {
+    mkdirSync(directory, { recursive: true, mode: 0o700 });
+  }
+  return {
+    ...Object.fromEntries(
+      BOOT_ENV_ALLOWLIST.flatMap((key) => {
+        const value = process.env[key];
+        return typeof value === "string" ? [[key, value]] : [];
+      })
+    ),
+    ...directories,
+  };
 }
 
 function truncate(value: string, limit = BODY_LIMIT): string {
@@ -434,6 +451,7 @@ function assertCanVerify(status: string): void {
 }
 
 function resolveJsonPath(value: unknown, path: string): unknown {
+  if (path === "$") return value;
   const normalized = path.startsWith("$.") ? path.slice(2) : path;
   if (!normalized) return value;
   return normalized.split(".").reduce<unknown>((current, segment) => {
@@ -443,7 +461,7 @@ function resolveJsonPath(value: unknown, path: string): unknown {
 }
 
 function valuesEqual(actual: unknown, expected: unknown): boolean {
-  return JSON.stringify(actual) === JSON.stringify(expected);
+  return isDeepStrictEqual(actual, expected);
 }
 
 function normalizePath(path: string): string {
@@ -707,6 +725,29 @@ async function sleep(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** Bound headers AND body reads, including injected clients that ignore abort. */
+async function withHttpTimeout<T>(
+  timeoutMs: number,
+  operation: (signal: AbortSignal) => Promise<T>
+): Promise<T> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout>;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      const error = new ValidationError(
+        `Verification HTTP request timed out after ${timeoutMs}ms.`
+      );
+      controller.abort(error);
+      reject(error);
+    }, timeoutMs);
+  });
+  try {
+    return await Promise.race([operation(controller.signal), deadline]);
+  } finally {
+    clearTimeout(timer!);
+  }
+}
+
 async function waitForReady(
   baseUrl: string,
   fetchImpl: typeof fetch,
@@ -716,9 +757,16 @@ async function waitForReady(
   let lastError = "server did not respond";
   while (Date.now() - start < timeoutMs) {
     try {
-      const response = await fetchImpl(baseUrl, { method: "GET" });
-      if (response.status < 500) return;
-      lastError = `HTTP ${response.status}`;
+      const status = await withHttpTimeout(
+        Math.max(1, timeoutMs - (Date.now() - start)),
+        async (signal) => {
+          const response = await fetchImpl(baseUrl, { method: "GET", signal });
+          await response.body?.cancel();
+          return response.status;
+        }
+      );
+      if (status < 500) return;
+      lastError = `HTTP ${status}`;
     } catch (error) {
       lastError = error instanceof Error ? error.message : String(error);
     }
@@ -728,6 +776,7 @@ async function waitForReady(
 }
 
 async function bootApp(params: {
+  runId: string;
   projectPath: string;
   baseUrl?: string;
   bootCommand?: string[];
@@ -757,6 +806,20 @@ async function bootApp(params: {
     ? resolveProjectPath(params.projectPath, params.bootCwd, "Demo app.cwd")
     : params.projectPath;
   assertRealPathInsideProject(params.projectPath, cwd, "Demo app.cwd");
+  // A fresh HOME does not stop frameworks loading credentials from the source
+  // tree. Refuse dotenv-bearing boots instead of silently using live services.
+  for (let directory = resolve(cwd); ; directory = dirname(directory)) {
+    const envFile = readdirSync(directory).find(
+      (name) =>
+        (name === ".env" || name.startsWith(".env.")) && !/\.(example|sample|template)$/.test(name)
+    );
+    if (envFile) {
+      throw new ValidationError(
+        `Unsafe verification boot: ${join(directory, envFile)} could load live credentials. Use a separate verification checkout without dotenv files and configure storage through BRAIN_DUMP_VERIFY_DATA_DIR.`
+      );
+    }
+    if (directory === resolve(params.projectPath) || dirname(directory) === directory) break;
+  }
   // detached puts the boot in its own process group so stop() can kill the
   // whole tree: killing only the spawned wrapper (e.g. `pnpm exec vite dev`)
   // orphans the underlying dev server, which keeps serving AND keeps running
@@ -765,7 +828,7 @@ async function bootApp(params: {
   const child = spawn(command[0]!, command.slice(1), {
     cwd,
     env: {
-      ...bootAutomationEnv(),
+      ...bootAutomationEnv(params.runId),
       PORT: String(port),
       HOST: "127.0.0.1",
       PLAYWRIGHT_E2E: "1",
@@ -1112,7 +1175,8 @@ async function runExecutableSteps(params: {
           null,
           params.fetchImpl,
           params.projectPath,
-          params.execFileNoThrow
+          params.execFileNoThrow,
+          params.timeoutMs
         )
       );
     }
@@ -1128,6 +1192,7 @@ async function runExecutableSteps(params: {
     let boot: BootedApp | null = null;
     try {
       boot = await bootApp({
+        runId: params.runId,
         projectPath: params.projectPath,
         ...(params.baseUrl !== undefined ? { baseUrl: params.baseUrl } : {}),
         ...(bootCommand !== undefined ? { bootCommand } : {}),
@@ -1148,7 +1213,8 @@ async function runExecutableSteps(params: {
             boot.baseUrl,
             params.fetchImpl,
             params.projectPath,
-            params.execFileNoThrow
+            params.execFileNoThrow,
+            params.timeoutMs
           )
         );
       }
@@ -1176,7 +1242,8 @@ async function runApiStep(
   step: DemoStep,
   runId: string,
   baseUrl: string,
-  fetchImpl: typeof fetch
+  fetchImpl: typeof fetch,
+  timeoutMs: number
 ): Promise<VerificationStepVerdict> {
   if (!step.automation || step.automation.kind !== "api") {
     throw new ValidationError(`Step ${step.order} is missing API automation.`);
@@ -1190,8 +1257,10 @@ async function runApiStep(
     headers,
     ...(request.body === undefined ? {} : { body: JSON.stringify(request.body) }),
   };
-  const response = await fetchImpl(url, requestInit);
-  const body = truncate(await response.text());
+  const { response, body } = await withHttpTimeout(timeoutMs, async (signal) => {
+    const response = await fetchImpl(url, { ...requestInit, signal });
+    return { response, body: truncate(await response.text()) };
+  });
   const responseHeaders = Object.fromEntries(response.headers.entries());
   const failures: string[] = [];
   const failedAssertionIndexes: number[] = [];
@@ -1213,14 +1282,12 @@ async function runApiStep(
         failAssertion(index, "expected JSON body for jsonPath assertion");
         continue;
       }
-      const actual = resolveJsonPath(json, String(assertion.expected).split("=")[0] ?? "");
-      const expected = String(assertion.expected).includes("=")
-        ? String(assertion.expected).split("=").slice(1).join("=")
-        : assertion.expected;
+      const { path, expected } = resolveApiJsonAssertion(assertion);
+      const actual = resolveJsonPath(json, path);
       if (!valuesEqual(actual, expected)) {
         failAssertion(
           index,
-          `expected jsonPath ${String(assertion.expected)}, got ${JSON.stringify(actual)}`
+          `expected jsonPath ${path} to equal ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`
         );
       }
     }
@@ -1331,7 +1398,9 @@ async function runUiStep(
   }
 
   const browser = await playwright.chromium.launch();
-  const page = await browser.newPage();
+  const page = await browser.newPage(
+    step.automation.viewport ? { viewport: step.automation.viewport } : {}
+  );
   const failures: string[] = [];
   const failedAssertionIndexes: number[] = [];
   const nonAssertionFailureKeys: string[] = [];
@@ -1342,6 +1411,9 @@ async function runUiStep(
           target: {
             kind: "ui",
             route: step.automation?.kind === "ui" ? step.automation.route : "",
+            ...(step.automation?.kind === "ui" && step.automation.viewport
+              ? { viewport: step.automation.viewport }
+              : {}),
             actions: step.automation?.kind === "ui" ? (step.automation.actions ?? []) : [],
           },
           failure: { type },
@@ -1758,7 +1830,8 @@ async function runStep(
   baseUrl: string | null,
   fetchImpl: typeof fetch,
   projectPath: string,
-  execFileNoThrow: NonNullable<VerifyTicketParams["execFileNoThrow"]>
+  execFileNoThrow: NonNullable<VerifyTicketParams["execFileNoThrow"]>,
+  timeoutMs: number
 ): Promise<VerificationStepVerdict> {
   if (step.type === "manual") {
     return withAutomationKey(step, {
@@ -1772,7 +1845,7 @@ async function runStep(
   if (step.automation?.kind === "api") {
     if (baseUrl === null)
       throw new ValidationError(`Step ${step.order} API automation needs app boot.`);
-    return withAutomationKey(step, await runApiStep(step, runId, baseUrl, fetchImpl));
+    return withAutomationKey(step, await runApiStep(step, runId, baseUrl, fetchImpl, timeoutMs));
   }
   if (step.automation?.kind === "ui") {
     if (baseUrl === null)
@@ -1806,6 +1879,7 @@ function withAutomationKey(
       target = {
         kind: automation.kind,
         route: automation.route,
+        ...(automation.viewport ? { viewport: automation.viewport } : {}),
         actions: (automation.actions ?? []).filter((action) => action.act !== "waitFor"),
       };
       break;
@@ -1838,6 +1912,39 @@ function withAutomationKey(
   };
 }
 
+/** Never repair a source mismatch by checking out a branch in the user's worktree. */
+async function assertVerificationSource(
+  db: DbHandle,
+  ticket: DbTicketRow,
+  projectPath: string,
+  gitInfo: GitInfo,
+  execFileNoThrow: NonNullable<VerifyTicketParams["execFileNoThrow"]>
+): Promise<void> {
+  const reviewed = db
+    .prepare("SELECT reviewed_through_commit FROM ticket_workflow_state WHERE ticket_id = ?")
+    .get(ticket.id) as { reviewed_through_commit: string | null } | undefined;
+  if (
+    reviewed?.reviewed_through_commit &&
+    (reviewed.reviewed_through_commit !== gitInfo.sha || gitInfo.dirty)
+  ) {
+    throw new ValidationError(
+      `Verification source mismatch: expected clean reviewed ${reviewed.reviewed_through_commit}, but the project is at ${gitInfo.sha ?? "an unknown revision"}${gitInfo.dirty ? " with uncommitted changes" : ""}. Restore the reviewed checkout or commit and review the new revision and regenerate the demo.`
+    );
+  }
+  if (ticket.branch_name) {
+    const branch = await execFileNoThrow(
+      "git",
+      ["rev-parse", "--verify", `refs/heads/${ticket.branch_name}^{commit}`],
+      { cwd: projectPath }
+    );
+    if (!branch.success || !gitInfo.sha || branch.stdout.trim() !== gitInfo.sha) {
+      throw new ValidationError(
+        `Verification source mismatch: the project must be at ticket branch ${ticket.branch_name}'s revision. Restore that checkout and requeue verification; the runner will not switch your working branch.`
+      );
+    }
+  }
+}
+
 function summarizeStatus(verdicts: VerificationStepVerdict[]): VerificationRunStatus {
   if (verdicts.some((step) => step.status === "failed")) return "failed";
   if (verdicts.some((step) => step.status === "skipped")) return "uncertified";
@@ -1866,6 +1973,9 @@ async function buildRun(
   const startedAt = new Date().toISOString();
   const fetchImpl = params.fetchImpl ?? fetch;
   const timeoutMs = params.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) {
+    throw new ValidationError("Verification timeoutMs must be a positive integer.");
+  }
   const execFileNoThrow = params.execFileNoThrow ?? defaultExecFileNoThrow;
   const gitInfo = await getGitInfo(actualProjectPath, execFileNoThrow);
   const verifierGitInfo =
@@ -1898,6 +2008,7 @@ async function buildRun(
         },
       ];
     } else {
+      await assertVerificationSource(db, ticket, actualProjectPath, gitInfo, execFileNoThrow);
       const result = await runExecutableSteps({
         projectPath: actualProjectPath,
         ...(params.baseUrl !== undefined ? { baseUrl: params.baseUrl } : {}),
@@ -2124,17 +2235,21 @@ function runDurationMs(startedAt: string, finishedAt: string): number {
  */
 export function listVerificationRunSummaries(
   db: DbHandle,
-  ticketId: string
+  ticketId: string,
+  limit = -1
 ): VerificationRunSummary[] {
+  if (!Number.isSafeInteger(limit) || (limit !== -1 && limit < 1)) {
+    throw new ValidationError("Verification history limit must be a positive integer.");
+  }
   getTicketRow(db, ticketId);
   const rows = db
     .prepare(
       `SELECT id, ticket_id, round, status, certified, manifest, git_sha,
               started_at, finished_at, provider, actor, provider_source,
               execution_surface, worker_id, code_git_sha
-       FROM verification_runs WHERE ticket_id = ? ORDER BY round DESC`
+       FROM verification_runs WHERE ticket_id = ? ORDER BY round DESC LIMIT ?`
     )
-    .all(ticketId) as Array<{
+    .all(ticketId, limit) as Array<{
     id: string;
     ticket_id: string;
     round: number;

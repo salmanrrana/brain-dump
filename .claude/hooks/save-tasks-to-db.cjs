@@ -101,7 +101,23 @@ if (!ticket) {
 const insertStmt = db.prepare(`
   INSERT INTO claude_tasks (id, ticket_id, subject, description, status, active_form, position, status_history, session_id, created_at, updated_at, completed_at)
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ON CONFLICT(id) DO NOTHING
 `);
+
+// Harness IDs restart at 1. Adopt an old raw ID only within its original
+// ticket/Ralph session, retaining its history when a running session upgrades.
+// Called inside the write transaction, before replacement removes any rows.
+function resolveTaskId(externalId) {
+  if (externalId == null) return randomUUID();
+  const scope = process.env.BRAIN_DUMP_TASK_SESSION_ID || sessionId || "legacy";
+  const scopedId = JSON.stringify([ticketId, scope, String(externalId)]);
+  db.prepare(
+    `UPDATE claude_tasks SET id = ?
+    WHERE id = ? AND ticket_id = ? AND session_id IS ?
+      AND NOT EXISTS (SELECT 1 FROM claude_tasks WHERE id = ?)`
+  ).run(scopedId, String(externalId), ticketId, sessionId, scopedId);
+  return scopedId;
+}
 
 function parseHistory(raw, taskId) {
   if (!raw) return [];
@@ -121,130 +137,139 @@ function pushHistory(history, status) {
   return history;
 }
 
-if (mode === "replace") {
-  const tasks = Array.isArray(payload) ? payload : [payload];
-  const existingTasks = db
-    .prepare("SELECT id, status, status_history, created_at FROM claude_tasks WHERE ticket_id = ?")
-    .all(ticketId);
-  const existingTaskMap = new Map(existingTasks.map((t) => [t.id, t]));
+// A failed insert must never leave a partially replaced list behind.
+db.transaction(() => {
+  if (mode === "replace") {
+    const tasks = (Array.isArray(payload) ? payload : [payload]).map((task) => ({
+      ...task,
+      id: resolveTaskId(task.id),
+    }));
+    const existingTasks = db
+      .prepare(
+        "SELECT id, status, status_history, created_at, completed_at FROM claude_tasks WHERE ticket_id = ?"
+      )
+      .all(ticketId);
+    const existingTaskMap = new Map(existingTasks.map((t) => [t.id, t]));
 
-  db.prepare("DELETE FROM claude_tasks WHERE ticket_id = ?").run(ticketId);
+    db.prepare("DELETE FROM claude_tasks WHERE ticket_id = ?").run(ticketId);
 
-  for (let i = 0; i < tasks.length; i++) {
-    const task = tasks[i];
-    const taskId = task.id != null ? String(task.id) : randomUUID();
-    const existing = existingTaskMap.get(taskId);
-    const statusHistory = pushHistory(
-      parseHistory(existing?.status_history, taskId),
-      task.status
-    );
+    for (let i = 0; i < tasks.length; i++) {
+      const task = tasks[i];
+      const taskId = task.id;
+      const existing = existingTaskMap.get(taskId);
+      const statusHistory = pushHistory(
+        parseHistory(existing?.status_history, taskId),
+        task.status
+      );
+      insertStmt.run(
+        taskId,
+        ticketId,
+        task.subject,
+        task.description || null,
+        task.status,
+        task.activeForm || null,
+        i + 1,
+        JSON.stringify(statusHistory),
+        sessionId,
+        existing ? existing.created_at : now,
+        now,
+        task.status === "completed" ? existing?.completed_at || now : null
+      );
+    }
+    console.log(`Saved ${tasks.length} tasks for ticket ${ticketId.substring(0, 8)}...`);
+  } else if (mode === "create") {
+    const task = payload;
+    const taskId = resolveTaskId(task.id);
+    const maxPosition = db
+      .prepare("SELECT COALESCE(MAX(position), 0) as max FROM claude_tasks WHERE ticket_id = ?")
+      .get(ticketId).max;
     insertStmt.run(
       taskId,
       ticketId,
       task.subject,
       task.description || null,
-      task.status,
+      task.status || "pending",
       task.activeForm || null,
-      i + 1,
-      JSON.stringify(statusHistory),
+      maxPosition + 1,
+      JSON.stringify(pushHistory([], task.status || "pending")),
       sessionId,
-      existing ? existing.created_at : now,
+      now,
       now,
       task.status === "completed" ? now : null
     );
-  }
-  console.log(`Saved ${tasks.length} tasks for ticket ${ticketId.substring(0, 8)}...`);
-} else if (mode === "create") {
-  const task = payload;
-  const taskId = task.id != null ? String(task.id) : randomUUID();
-  const maxPosition = db
-    .prepare("SELECT COALESCE(MAX(position), 0) as max FROM claude_tasks WHERE ticket_id = ?")
-    .get(ticketId).max;
-  db.prepare("DELETE FROM claude_tasks WHERE ticket_id = ? AND id = ?").run(ticketId, taskId);
-  insertStmt.run(
-    taskId,
-    ticketId,
-    task.subject,
-    task.description || null,
-    task.status || "pending",
-    task.activeForm || null,
-    maxPosition + 1,
-    JSON.stringify(pushHistory([], task.status || "pending")),
-    sessionId,
-    now,
-    now,
-    null
-  );
-  console.log(`Created task ${taskId} for ticket ${ticketId.substring(0, 8)}...`);
-} else if (mode === "update") {
-  const task = payload;
-  const taskId = task.id != null ? String(task.id) : null;
-  if (!taskId) {
-    console.error("update mode requires a task id");
-    db.close();
-    process.exit(1);
-  }
-  if (task.status === "deleted") {
-    db.prepare("DELETE FROM claude_tasks WHERE ticket_id = ? AND id = ?").run(ticketId, taskId);
-    console.log(`Deleted task ${taskId} for ticket ${ticketId.substring(0, 8)}...`);
-  } else {
-    const existing = db
-      .prepare("SELECT * FROM claude_tasks WHERE ticket_id = ? AND id = ?")
-      .get(ticketId, taskId);
-    if (!existing) {
-      // TaskUpdate for a task created before this session started tracking:
-      // insert it rather than dropping the update on the floor.
-      const maxPosition = db
-        .prepare("SELECT COALESCE(MAX(position), 0) as max FROM claude_tasks WHERE ticket_id = ?")
-        .get(ticketId).max;
-      insertStmt.run(
-        taskId,
-        ticketId,
-        task.subject || `Task #${taskId}`,
-        task.description || null,
-        task.status || "pending",
-        task.activeForm || null,
-        maxPosition + 1,
-        JSON.stringify(pushHistory([], task.status || "pending")),
-        sessionId,
-        now,
-        now,
-        task.status === "completed" ? now : null
-      );
+    console.log(`Created task ${taskId} for ticket ${ticketId.substring(0, 8)}...`);
+  } else if (mode === "update") {
+    const task = payload;
+    const taskId = task.id != null ? resolveTaskId(task.id) : null;
+    if (!taskId) {
+      console.error("update mode requires a task id");
+      db.close();
+      process.exit(1);
+    }
+    if (task.status === "deleted") {
+      db.prepare("DELETE FROM claude_tasks WHERE ticket_id = ? AND id = ?").run(ticketId, taskId);
+      console.log(`Deleted task ${taskId} for ticket ${ticketId.substring(0, 8)}...`);
     } else {
-      const statusHistory = pushHistory(
-        parseHistory(existing.status_history, taskId),
-        task.status
-      );
-      db.prepare(
-        `UPDATE claude_tasks
+      const existing = db
+        .prepare("SELECT * FROM claude_tasks WHERE ticket_id = ? AND id = ?")
+        .get(ticketId, taskId);
+      if (!existing) {
+        // TaskUpdate for a task created before this session started tracking:
+        // insert it rather than dropping the update on the floor.
+        const maxPosition = db
+          .prepare("SELECT COALESCE(MAX(position), 0) as max FROM claude_tasks WHERE ticket_id = ?")
+          .get(ticketId).max;
+        insertStmt.run(
+          taskId,
+          ticketId,
+          task.subject || `Task #${taskId}`,
+          task.description || null,
+          task.status || "pending",
+          task.activeForm || null,
+          maxPosition + 1,
+          JSON.stringify(pushHistory([], task.status || "pending")),
+          sessionId,
+          now,
+          now,
+          task.status === "completed" ? now : null
+        );
+      } else {
+        const statusHistory = pushHistory(
+          parseHistory(existing.status_history, taskId),
+          task.status
+        );
+        db.prepare(
+          `UPDATE claude_tasks
          SET subject = COALESCE(?, subject),
              description = COALESCE(?, description),
              status = COALESCE(?, status),
              active_form = COALESCE(?, active_form),
              status_history = ?,
              updated_at = ?,
-             completed_at = CASE WHEN ? = 'completed' THEN ? ELSE completed_at END
+             completed_at = CASE WHEN ? IS NULL THEN completed_at
+               WHEN ? = 'completed' THEN COALESCE(completed_at, ?) ELSE NULL END
          WHERE ticket_id = ? AND id = ?`
-      ).run(
-        task.subject,
-        task.description,
-        task.status,
-        task.activeForm,
-        JSON.stringify(statusHistory),
-        now,
-        task.status,
-        now,
-        ticketId,
-        taskId
-      );
+        ).run(
+          task.subject,
+          task.description,
+          task.status,
+          task.activeForm,
+          JSON.stringify(statusHistory),
+          now,
+          task.status,
+          task.status,
+          now,
+          ticketId,
+          taskId
+        );
+      }
+      console.log(`Updated task ${taskId} for ticket ${ticketId.substring(0, 8)}...`);
     }
-    console.log(`Updated task ${taskId} for ticket ${ticketId.substring(0, 8)}...`);
+  } else {
+    console.error(`Unknown mode: ${mode}`);
+    db.close();
+    process.exit(1);
   }
-} else {
-  console.error(`Unknown mode: ${mode}`);
-  db.close();
-  process.exit(1);
-}
+})();
 
 db.close();

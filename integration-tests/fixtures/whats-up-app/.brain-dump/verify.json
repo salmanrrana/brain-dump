@@ -1,0 +1,3 @@
+{
+  "start": ["node", "server.mjs", "--port", "{port}", "--host", "{host}"]
+}

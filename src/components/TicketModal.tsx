@@ -425,7 +425,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
     const updates: Parameters<typeof updateTicketMutation.mutate>[0]["updates"] = {
       title: values.title.trim(),
       description: values.description.trim() || null,
-      status: values.status,
+      ...(values.status !== ticket.status ? { status: values.status } : {}),
       epicId: values.epicId || null,
       isBlocked: values.isBlocked,
       blockedReason: values.isBlocked ? values.blockedReason : null,
@@ -442,7 +442,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
     }
 
     updateTicketMutation.mutate({ id: ticket.id, updates }, { onSuccess: onUpdate });
-  }, [ticket.id, form, onUpdate, updateTicketMutation]);
+  }, [ticket.id, ticket.status, form, onUpdate, updateTicketMutation]);
 
   // Tag management functions
   const addTag = useCallback(

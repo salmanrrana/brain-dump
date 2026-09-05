@@ -70,6 +70,22 @@ function seedVerificationRun(
 }
 
 describe("execFileNoThrow", () => {
+  it("can bound a discovery process that ignores graceful termination", async () => {
+    const started = Date.now();
+    const result = await execFileNoThrow(
+      process.execPath,
+      [
+        "-e",
+        "process.on('SIGTERM', () => {}); process.stdout.write('ready'); setTimeout(() => process.exit(0), 2000)",
+      ],
+      { timeoutMs: 300, killSignal: "SIGKILL" }
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.stdout).toBe("ready");
+    expect(Date.now() - started).toBeLessThan(1500);
+  });
+
   it("returns a structured success result instead of throwing", async () => {
     const result = await execFileNoThrow("node", ["-e", "process.stdout.write('ok')"]);
 

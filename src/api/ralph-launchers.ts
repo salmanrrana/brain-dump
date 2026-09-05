@@ -21,7 +21,10 @@ export function isCursorAgentHelpOutput(output: string): boolean {
 }
 
 async function isCursorAgentCommand(command: string): Promise<boolean> {
-  const helpResult = await execFileNoThrow(command, ["--help"]);
+  const helpResult = await execFileNoThrow(command, ["--help"], {
+    timeoutMs: 5000,
+    killSignal: "SIGKILL",
+  });
   if (!helpResult.success) {
     return false;
   }

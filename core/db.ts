@@ -382,6 +382,7 @@ function ensureBaseSchema(db: DbHandle, logger: Logger): void {
       demo_generated INTEGER NOT NULL DEFAULT 0,
       verification_streak_reset_at TEXT,
       reviewed_through_commit TEXT,
+      implementation_started_at TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -780,6 +781,11 @@ export function runMigrations(db: DbHandle, logger: Logger = silentLogger): void
   );
   addColumnIfMissing(db, "ticket_workflow_state", "verification_streak_reset_at", "TEXT", logger);
   addColumnIfMissing(db, "ticket_workflow_state", "reviewed_through_commit", "TEXT", logger);
+  addColumnIfMissing(db, "ticket_workflow_state", "implementation_started_at", "TEXT", logger);
+  // Freeze the legacy cutoff once; later review bookkeeping must not advance it.
+  db.prepare(
+    "UPDATE ticket_workflow_state SET implementation_started_at = updated_at WHERE implementation_started_at IS NULL"
+  ).run();
   addColumnIfMissing(
     db,
     "demo_scripts",

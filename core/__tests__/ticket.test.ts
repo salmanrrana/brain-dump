@@ -216,6 +216,20 @@ describe("getTicket", () => {
 });
 
 describe("updateTicketStatus", () => {
+  it.each(["ai_review", "ai_verification", "done"] as const)(
+    "allows ordinary edits with unchanged %s status",
+    (status) => {
+      seedProject();
+      seedTicket("t1", "proj-1", { status });
+      const completedAt = status === "done" ? "2026-01-01T00:00:00.000Z" : null;
+      db.prepare("UPDATE tickets SET completed_at = ? WHERE id = 't1'").run(completedAt);
+      const updated = updateTicket(db, "t1", { title: "Renamed", status });
+      expect(updated).toMatchObject({ title: "Renamed", status, completedAt });
+      expect(updateTicket(db, "t1", { status })).toEqual(updated);
+      expect(updateTicketStatus(db, "t1", status).completedAt).toBe(completedAt);
+    }
+  );
+
   it("updates status and returns updated ticket", () => {
     seedProject();
     seedTicket("t1", "proj-1");

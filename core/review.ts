@@ -6,6 +6,7 @@
  */
 
 import { randomUUID } from "crypto";
+import { resolveApiJsonAssertion } from "./verification/json-assertions.ts";
 import { existsSync, readFileSync } from "fs";
 import { join, resolve } from "path";
 import type {
@@ -1129,7 +1130,10 @@ function collectAutomationProofText(automation: DemoStep["automation"]): string[
       automation.request.method,
       automation.request.path,
       JSON.stringify(automation.request.body ?? ""),
-      ...automation.assert.map((assertion) => JSON.stringify(assertion.expected)),
+      ...automation.assert.flatMap((assertion) => [
+        assertion.path ?? "",
+        JSON.stringify(assertion.expected),
+      ]),
     ];
   }
   if (automation.kind === "command") {
@@ -1616,6 +1620,22 @@ function validateUiAutomation(step: DemoStep, index: number): void {
     throw new ValidationError(`${label} UI automation route is required.`);
   }
   validateAppRelativePath(automation.route, `${label} UI automation route`);
+  if (automation.viewport !== undefined) {
+    if (
+      !isRecord(automation.viewport) ||
+      ![automation.viewport.width, automation.viewport.height].every(
+        (dimension) =>
+          typeof dimension === "number" &&
+          Number.isInteger(dimension) &&
+          dimension >= 1 &&
+          dimension <= 4096
+      )
+    ) {
+      throw new ValidationError(
+        `${label} UI automation viewport requires integer width and height from 1 to 4096 CSS pixels.`
+      );
+    }
+  }
   if (automation.screenshot !== true) {
     throw new ValidationError(`${label} UI automation screenshot must be true.`);
   }
@@ -1726,6 +1746,9 @@ function validateApiAutomation(step: DemoStep, index: number): void {
       assertion.expected,
       `${label} API automation assertion at index ${assertIndex} expected`
     );
+    if (assertion.type === "jsonPath") {
+      resolveApiJsonAssertion({ path: assertion.path, expected: assertion.expected });
+    }
   }
 }
 

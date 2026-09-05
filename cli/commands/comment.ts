@@ -69,7 +69,7 @@ export function handle(action: string, args: string[]): void {
           ticketId,
           content,
           type,
-          author,
+          author: resolvedAuthor,
           ...(implementationIdentity ?? {}),
         });
         outputResult(result, pretty);

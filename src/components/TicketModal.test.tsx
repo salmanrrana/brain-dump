@@ -178,6 +178,32 @@ describe("TicketModal", () => {
     });
   });
 
+  it.each(["ai_review", "ai_verification", "done"])(
+    "saves title edits without resubmitting unchanged %s status",
+    async (status) => {
+      mockFormStatus.value = status;
+      render(
+        <TicketModal
+          ticket={createTicket({ status })}
+          epics={[]}
+          onClose={vi.fn()}
+          onUpdate={vi.fn()}
+        />
+      );
+      const title = screen.getByDisplayValue("Board modal ticket");
+      await userEvent.clear(title);
+      await userEvent.type(title, "Renamed ticket");
+      await userEvent.click(screen.getByRole("button", { name: /save changes/i }));
+      expect(mockUpdateTicketMutation.mutate).toHaveBeenCalledWith(
+        { id: "ticket-1", updates: expect.objectContaining({ title: "Renamed ticket" }) },
+        expect.any(Object)
+      );
+      expect(mockUpdateTicketMutation.mutate.mock.calls[0]?.[0].updates).not.toHaveProperty(
+        "status"
+      );
+    }
+  );
+
   it("shows ticket save errors without requiring another submit", () => {
     mockUpdateTicketMutation.error = new Error("Unable to save ticket");
 

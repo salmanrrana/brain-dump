@@ -282,6 +282,7 @@ describe("EditTicketModal launch behavior", () => {
         preferredTerminal: null,
         useSandbox: false,
         aiBackend: "pi",
+        workingMethodOverride: "pi",
       });
     });
   });

@@ -223,13 +223,13 @@ export function startWork(
 
     if (!existingState) {
       db.prepare(
-        `INSERT INTO ticket_workflow_state (id, ticket_id, current_phase, review_iteration, findings_count, findings_fixed, demo_generated, created_at, updated_at)
-         VALUES (?, ?, 'implementation', 0, 0, 0, 0, ?, ?)`
-      ).run(randomUUID(), ticketId, now, now);
+        `INSERT INTO ticket_workflow_state (id, ticket_id, current_phase, review_iteration, findings_count, findings_fixed, demo_generated, created_at, updated_at, implementation_started_at)
+         VALUES (?, ?, 'implementation', 0, 0, 0, 0, ?, ?, ?)`
+      ).run(randomUUID(), ticketId, now, now, now);
     } else {
       db.prepare(
-        `UPDATE ticket_workflow_state SET current_phase = 'implementation', review_iteration = 0, findings_count = 0, findings_fixed = 0, demo_generated = 0, reviewed_through_commit = NULL, updated_at = ? WHERE ticket_id = ?`
-      ).run(now, ticketId);
+        `UPDATE ticket_workflow_state SET current_phase = 'implementation', review_iteration = 0, findings_count = 0, findings_fixed = 0, demo_generated = 0, reviewed_through_commit = NULL, updated_at = ?, implementation_started_at = ? WHERE ticket_id = ?`
+      ).run(now, now, ticketId);
     }
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : "Unknown error";
@@ -375,6 +375,13 @@ export function completeWork(
 
   assertTicketTransition(ticket.status, "ai_review", "complete-work", "complete work");
 
+  // Commit/PR linking updates tickets.updated_at after the prescribed
+  // validate → report → commit sequence. Those bookkeeping writes must not
+  // invalidate the report, nor may marking a review finding fixed. Only entering
+  // implementation (including a failed verification handback) advances the cutoff.
+  const workflowPass = db
+    .prepare("SELECT implementation_started_at FROM ticket_workflow_state WHERE ticket_id = ?")
+    .get(ticketId) as { implementation_started_at: string | null } | undefined;
   const latestTestReport = db
     .prepare(
       `SELECT id FROM ticket_comments
@@ -382,7 +389,9 @@ export function completeWork(
        ORDER BY created_at DESC
        LIMIT 1`
     )
-    .get(ticketId, ticket.updated_at) as { id: string } | undefined;
+    .get(ticketId, workflowPass?.implementation_started_at ?? ticket.updated_at) as
+    | { id: string }
+    | undefined;
 
   if (!latestTestReport) {
     throw new ValidationError(

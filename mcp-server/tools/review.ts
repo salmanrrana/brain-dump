@@ -74,6 +74,13 @@ const DEMO_STEP_AUTOMATION_SCHEMA = z.union([
   z.object({
     kind: z.literal("ui"),
     route: z.string(),
+    viewport: z
+      .object({
+        width: z.number().int().min(1).max(4096),
+        height: z.number().int().min(1).max(4096),
+      })
+      .optional()
+      .describe("Browser viewport in CSS pixels, e.g. 390x844 for a mobile layout screenshot."),
     actions: z
       .array(
         z.object({
@@ -103,6 +110,10 @@ const DEMO_STEP_AUTOMATION_SCHEMA = z.union([
     assert: z.array(
       z.object({
         type: z.enum(["status", "jsonPath", "bodyContains"]),
+        path: z
+          .string()
+          .optional()
+          .describe("For jsonPath: dot-separated path; $ selects the whole JSON response."),
         expected: DEFINED_UNKNOWN_SCHEMA,
       })
     ),

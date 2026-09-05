@@ -43,6 +43,9 @@ export const getTicketContext = createServerFn({ method: "GET" })
 
     // Build the context markdown
     const contextParts: string[] = [];
+    if (briefing.verificationWarning) {
+      contextParts.push(`> Warning: ${briefing.verificationWarning}`, "");
+    }
 
     // Task header
     contextParts.push(`# Task: ${ticket.title}`);

@@ -86,6 +86,7 @@ export interface DbTicketWorkflowStateRow {
    * findings to the repair diff instead of re-litigating certified code.
    */
   reviewed_through_commit: string | null;
+  implementation_started_at: string | null;
   created_at: string;
   updated_at: string;
 }

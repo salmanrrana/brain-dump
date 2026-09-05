@@ -925,6 +925,7 @@ export async function execFileNoThrow(
         cwd: options.cwd,
         env: options.env,
         timeout: options.timeoutMs,
+        killSignal: options.killSignal,
         maxBuffer: options.maxBuffer,
         encoding: "utf8",
       },

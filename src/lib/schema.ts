@@ -700,6 +700,7 @@ export const ticketWorkflowState = sqliteTable(
     demoGenerated: integer("demo_generated", { mode: "boolean" }).default(false), // Whether demo script exists
     verificationStreakResetAt: text("verification_streak_reset_at"), // Human resolution timestamp; resets verification failure streaks
     reviewedThroughCommit: text("reviewed_through_commit"), // Repo HEAD at last verification handoff; bounds re-review scope
+    implementationStartedAt: text("implementation_started_at"), // Stable test-report cutoff for this implementation/repair pass
     createdAt: text("created_at")
       .notNull()
       .default(sql`(datetime('now'))`),

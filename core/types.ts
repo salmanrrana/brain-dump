@@ -316,6 +316,8 @@ export interface DemoAppBoot {
 export interface DemoStepUiAutomation {
   kind: "ui";
   route: string;
+  /** CSS pixels, 1..4096 per dimension. Omit for Playwright's default viewport. */
+  viewport?: { width: number; height: number } | undefined;
   actions?:
     | Array<{
         act: "click" | "fill" | "press" | "waitFor";
@@ -341,6 +343,8 @@ export interface DemoStepApiAutomation {
   };
   assert: Array<{
     type: "status" | "jsonPath" | "bodyContains";
+    /** Dot-separated JSON path for jsonPath assertions; "$" selects the whole response. */
+    path?: string | undefined;
     expected: DemoStepAutomationValue;
   }>;
 }
@@ -656,6 +660,7 @@ export interface ExecFileNoThrowOptions {
   cwd?: string;
   env?: NodeJS.ProcessEnv;
   timeoutMs?: number;
+  killSignal?: NodeJS.Signals;
   maxBuffer?: number;
 }
 

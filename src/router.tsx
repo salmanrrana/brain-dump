@@ -1,5 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
+import { setupRouterSsrQueryIntegration } from "@tanstack/react-router-ssr-query";
 
 // Import the generated route tree
 import { routeTree } from "./routeTree.gen";
@@ -26,7 +27,8 @@ export interface RouterContext {
 //
 // gcTime (30m) is intentionally much longer than staleTime so revisited routes keep
 // their cached data warm well past the dev/work session, eliminating refetch-on-navigate.
-// MCP-driven external changes still surface via mutation invalidation + the manual Refresh.
+// Board/list summaries poll while mounted so external CLI/worker status changes
+// surface without manual Refresh; other snapshot queries use targeted invalidation.
 export function createQueryClient() {
   return new QueryClient({
     defaultOptions: {
@@ -55,6 +57,10 @@ export const getRouter = () => {
     defaultPreload: "intent",
     defaultPreloadStaleTime: 30_000, // 30s — allows hover-prefetch to serve cached data
   });
+
+  // Restore loader data before React hydrates, preserving the rendered board.
+  // RootDocument already provides this QueryClient to the component tree.
+  setupRouterSsrQueryIntegration({ router, queryClient, wrapQueryClient: false });
 
   return router;
 };

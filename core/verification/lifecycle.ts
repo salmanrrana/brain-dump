@@ -467,9 +467,9 @@ export function returnVerificationTicketForHumanAction(
   ).run(reason, now, ticketId);
   db.prepare(
     `UPDATE ticket_workflow_state
-     SET current_phase = 'implementation', demo_generated = 0, updated_at = ?
+     SET current_phase = 'implementation', demo_generated = 0, updated_at = ?, implementation_started_at = ?
      WHERE ticket_id = ?`
-  ).run(now, ticketId);
+  ).run(now, now, ticketId);
   updatePrdForDbTicketIfPresent(db, ticketId, false, "in_progress");
 }
 
@@ -726,8 +726,8 @@ function returnTicketToImplementationAfterVerificationFailure(
      WHERE id = ?`
   ).run(now, run.ticketId);
   db.prepare(
-    "UPDATE ticket_workflow_state SET current_phase = 'implementation', demo_generated = 0, updated_at = ? WHERE ticket_id = ?"
-  ).run(now, run.ticketId);
+    "UPDATE ticket_workflow_state SET current_phase = 'implementation', demo_generated = 0, updated_at = ?, implementation_started_at = ? WHERE ticket_id = ?"
+  ).run(now, now, run.ticketId);
   updatePrdForDbTicketIfPresent(db, run.ticketId, false, "in_progress");
   const continuation = enqueueEpicContinuationForTicket(db, run.ticketId, now);
   notifyWhenContinuationNotScheduled(db, run.ticketId, continuation, now);

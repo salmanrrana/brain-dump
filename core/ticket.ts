@@ -18,6 +18,7 @@ import { safeJsonParse } from "./json.ts";
 import { autoTagFromMentions } from "./platform-mention-parser.ts";
 import {
   canDirectlyUpdateTicketStatus,
+  recordDirectImplementationEntry,
   getDirectStatusUpdateErrorMessage,
   isActiveTicketStatus,
   TICKET_STATUSES,
@@ -293,16 +294,20 @@ export function updateTicketStatus(
   // Verify ticket exists
   const existing = getTicketRow(db, ticketId);
   assertDirectStatusUpdateAllowed(existing.status as TicketStatus, status);
+  if (existing.status === status) return getTicketWithProject(db, ticketId);
 
   const now = new Date().toISOString();
   const completedAt = null;
 
-  db.prepare("UPDATE tickets SET status = ?, updated_at = ?, completed_at = ? WHERE id = ?").run(
-    status,
-    now,
-    completedAt,
-    ticketId
-  );
+  db.transaction(() => {
+    db.prepare("UPDATE tickets SET status = ?, updated_at = ?, completed_at = ? WHERE id = ?").run(
+      status,
+      now,
+      completedAt,
+      ticketId
+    );
+    recordDirectImplementationEntry(db, ticketId, existing.status, status, now);
+  })();
 
   return getTicketWithProject(db, ticketId);
 }
@@ -347,10 +352,10 @@ export function updateTicket(
 
   if (params.status !== undefined) {
     assertDirectStatusUpdateAllowed(existing.status as TicketStatus, params.status);
-    setClauses.push("status = ?");
-    values.push(params.status);
-    setClauses.push("completed_at = ?");
-    values.push(null);
+    if (params.status !== existing.status) {
+      setClauses.push("status = ?", "completed_at = ?");
+      values.push(params.status, null);
+    }
   }
 
   if (params.priority !== undefined) {
@@ -380,16 +385,21 @@ export function updateTicket(
   }
 
   if (setClauses.length === 0) {
+    if (params.status === existing.status) return getTicketWithProject(db, ticketId);
     throw new ValidationError(
       "No fields to update. Provide at least one of: --title, --description, --status, --priority, --epic, --tags"
     );
   }
 
   setClauses.push("updated_at = ?");
-  values.push(new Date().toISOString());
+  const now = new Date().toISOString();
+  values.push(now);
   values.push(ticketId);
 
-  db.prepare(`UPDATE tickets SET ${setClauses.join(", ")} WHERE id = ?`).run(...values);
+  db.transaction(() => {
+    db.prepare(`UPDATE tickets SET ${setClauses.join(", ")} WHERE id = ?`).run(...values);
+    recordDirectImplementationEntry(db, ticketId, existing.status, params.status, now);
+  })();
 
   return getTicketWithProject(db, ticketId);
 }

@@ -69,9 +69,16 @@ if [[ "$TOOL_NAME" == "TodoWrite" ]]; then
   }]')
 elif [[ "$TOOL_NAME" == "TaskCreate" ]]; then
   MODE="create"
-  # tool_result reads like "Task #3 created successfully: <subject>" — the
-  # number is the harness task id for later TaskUpdate calls.
-  HARNESS_ID=$(echo "$INPUT" | jq -r '.tool_result // ""' | grep -oE 'Task #[0-9]+' | head -1 | tr -dc '0-9')
+  # Current hooks return tool_response.task.id; older hooks returned text.
+  HARNESS_ID=$(echo "$INPUT" | jq -r '
+    (.tool_response // .tool_result // "") |
+    if type == "object" then (.task.id // .id // "" | tostring)
+    elif type == "string" then (try capture("Task #(?<id>[0-9]+)").id catch "")
+    else "" end')
+  if [[ -z "$HARNESS_ID" ]]; then
+    echo "[$(date -Iseconds)] ERROR: TaskCreate response has no task id" >> "$LOG_FILE"
+    exit 1
+  fi
   PAYLOAD=$(echo "$INPUT" | jq -c --arg hid "$HARNESS_ID" '{
     id: (if $hid == "" then null else $hid end),
     subject: (.tool_input.subject // ""),
@@ -99,8 +106,10 @@ fi
 echo "[$(date -Iseconds)] CAPTURE ($MODE via $TOOL_NAME) for ticket $TICKET_ID" >> "$LOG_FILE"
 
 cd "$PROJECT_DIR"
-PROJECT_DIR="$PROJECT_DIR" node "$HELPER_SCRIPT" "$TICKET_ID" "$PAYLOAD" "$MODE" >> "$LOG_FILE" 2>&1
-SAVE_EXIT_CODE=$?
+HARNESS_SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // ""')
+SAVE_EXIT_CODE=0
+PROJECT_DIR="$PROJECT_DIR" BRAIN_DUMP_TASK_SESSION_ID="$HARNESS_SESSION_ID" \
+  node "$HELPER_SCRIPT" "$TICKET_ID" "$PAYLOAD" "$MODE" >> "$LOG_FILE" 2>&1 || SAVE_EXIT_CODE=$?
 
 if [ $SAVE_EXIT_CODE -eq 0 ]; then
   echo "[$(date -Iseconds)] SUCCESS: $MODE saved for ticket $TICKET_ID" >> "$LOG_FILE"

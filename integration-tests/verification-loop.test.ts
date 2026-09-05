@@ -95,7 +95,7 @@ function createExecStub(options: { dirtyFiles?: string } = {}) {
   const calls: ExecCall[] = [];
   const stub = async (command: string, args: string[]) => {
     calls.push([command, ...args]);
-    if (command === "git" && args.join(" ") === "rev-parse HEAD") {
+    if (command === "git" && args[0] === "rev-parse") {
       return { success: true, stdout: "e2e-sha-111\n", stderr: "", exitCode: 0 };
     }
     if (command === "git" && args.join(" ") === "status --short --untracked-files=all") {

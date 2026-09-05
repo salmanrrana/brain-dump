@@ -6,6 +6,8 @@
  * behavior is covered next to this module in `core/__tests__/workflow-steps.test.ts`.
  */
 
+import type { DbHandle } from "./types.ts";
+
 export const TICKET_STATUSES = [
   "backlog",
   "ready",
@@ -168,7 +170,24 @@ export function isDirectStatusUpdateStatus(
 }
 
 export function canDirectlyUpdateTicketStatus(from: string, to: string): boolean {
-  return isDirectStatusUpdateStatus(from) && isDirectStatusUpdateStatus(to);
+  return (
+    (from === to && isActiveTicketStatus(to)) ||
+    (isDirectStatusUpdateStatus(from) && isDirectStatusUpdateStatus(to))
+  );
+}
+
+/** Call inside the status-write transaction; edits and same-status saves keep the cutoff. */
+export function recordDirectImplementationEntry(
+  db: DbHandle,
+  ticketId: string,
+  from: string,
+  to: string | undefined,
+  now: string
+): void {
+  if (to !== "in_progress" || from === to) return;
+  db.prepare(
+    "UPDATE ticket_workflow_state SET implementation_started_at = ?, updated_at = ? WHERE ticket_id = ?"
+  ).run(now, now, ticketId);
 }
 
 export function getDirectStatusUpdateErrorMessage(from: string, to: string): string {

@@ -1542,7 +1542,7 @@ createServer((request, response) => {
       baseUrl,
       execFileNoThrow: async (command, args) => {
         calls.push([command, ...args]);
-        if (command === "git" && args.join(" ") === "rev-parse HEAD") {
+        if (command === "git" && args[0] === "rev-parse") {
           return { success: true, stdout: "sha111\n", stderr: "", exitCode: 0 };
         }
         if (command === "git" && args.join(" ") === "status --short --untracked-files=all") {

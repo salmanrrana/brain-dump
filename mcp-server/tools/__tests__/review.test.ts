@@ -223,6 +223,52 @@ function seedAiReviewTicketWithPr(ticketId: string): void {
 }
 
 describe("review tool generate-demo PR sync", () => {
+  it("preserves API JSON paths and UI viewports through MCP input parsing", () => {
+    const server = new McpServer({ name: "test", version: "1.0.0" });
+    registerReviewTool(server, db);
+    const tools = (
+      server as unknown as {
+        _registeredTools: Record<string, { inputSchema: { parse: (value: unknown) => unknown } }>;
+      }
+    )._registeredTools;
+    const parsed = tools.review!.inputSchema.parse({
+      action: "generate-demo",
+      ticketId: "ticket-1",
+      steps: [
+        {
+          order: 1,
+          description: "Check amount",
+          expectedOutcome: "800 dollars",
+          type: "automated",
+          automation: {
+            kind: "api",
+            request: { method: "GET", path: "/api/value" },
+            assert: [{ type: "jsonPath", path: "$.amount", expected: 800 }],
+          },
+        },
+        {
+          order: 2,
+          description: "Check mobile layout",
+          expectedOutcome: "Page is usable at phone width",
+          type: "visual",
+          automation: {
+            kind: "ui",
+            route: "/",
+            viewport: { width: 390, height: 844 },
+            assert: [{ type: "visible", selector: "h1" }],
+            screenshot: true,
+          },
+        },
+      ],
+    });
+    expect(parsed).toMatchObject({
+      steps: [
+        { automation: { assert: [{ type: "jsonPath", path: "$.amount", expected: 800 }] } },
+        { automation: { viewport: { width: 390, height: 844 } } },
+      ],
+    });
+  });
+
   it("advertises the workflow schema version to MCP clients", () => {
     const server = new McpServer({ name: "test", version: "1.0.0" });
     registerReviewTool(server, db);

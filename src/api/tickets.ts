@@ -17,10 +17,9 @@ import { syncPrdBlockedStateForDbTicketIfPresent } from "../../core/prd-sync.ts"
 import { normalizeUserWritableAttachmentFilenames } from "../../core/attachments.ts";
 import {
   canDirectlyUpdateTicketStatus,
-  DIRECT_STATUS_UPDATE_STATUSES,
+  recordDirectImplementationEntry,
   getDirectStatusUpdateErrorMessage,
   isActiveTicketStatus,
-  isDirectStatusUpdateStatus,
 } from "../../core/workflow-steps.ts";
 import type { VerificationJobStatus } from "../../core/verification/index.ts";
 import { createLogger } from "../lib/logger";
@@ -225,8 +224,12 @@ export const updateTicket = createServerFn({ method: "POST" })
       updateData.linkedFiles = safeJsonStringify(updates.linkedFiles);
 
     if (Object.keys(updateData).length > 0) {
-      updateData.updatedAt = new Date().toISOString();
-      db.update(tickets).set(updateData).where(eq(tickets.id, id)).run();
+      const now = new Date().toISOString();
+      updateData.updatedAt = now;
+      sqlite.transaction(() => {
+        db.update(tickets).set(updateData).where(eq(tickets.id, id)).run();
+        recordDirectImplementationEntry(sqlite, id, existing.status, updates.status, now);
+      })();
     }
 
     if (updates.isBlocked !== undefined || updates.blockedReason !== undefined) {
@@ -264,27 +267,27 @@ export const updateTicketStatus = createServerFn({ method: "POST" })
     if (!isActiveTicketStatus(input.status)) {
       throw new Error(`Invalid status: ${input.status}`);
     }
-    if (!isDirectStatusUpdateStatus(input.status)) {
-      throw new Error(
-        `Cannot directly set ticket status to ${input.status}. Use workflow/review/verification actions for ai_review, ai_verification, and done transitions. Direct status updates are limited to: ${DIRECT_STATUS_UPDATE_STATUSES.join(", ")}.`
-      );
-    }
     return input;
   })
   .handler(async ({ data: { id, status } }) => {
     const existingResult = db.select().from(tickets).where(eq(tickets.id, id)).get();
     const existing = ensureExists(existingResult, "Ticket", id);
 
+    const now = new Date().toISOString();
     const updateData: Partial<typeof tickets.$inferInsert> = {
       status,
-      updatedAt: new Date().toISOString(),
+      updatedAt: now,
     };
 
     if (!canDirectlyUpdateTicketStatus(existing.status, status)) {
       throw new Error(getDirectStatusUpdateErrorMessage(existing.status, status));
     }
 
-    db.update(tickets).set(updateData).where(eq(tickets.id, id)).run();
+    if (existing.status === status) return existing;
+    sqlite.transaction(() => {
+      db.update(tickets).set(updateData).where(eq(tickets.id, id)).run();
+      recordDirectImplementationEntry(sqlite, id, existing.status, status, now);
+    })();
 
     const updated = db.select().from(tickets).where(eq(tickets.id, id)).get();
 

@@ -7,7 +7,7 @@
  * tools) render the packet; they do not re-query these tables themselves.
  */
 import { getTicket } from "./ticket.ts";
-import { listVerificationRuns } from "./verification/index.ts";
+import { listVerificationRunSummaries } from "./verification/index.ts";
 import type { DbHandle, TicketWithProject } from "./types.ts";
 import type { VerificationEvidenceFile } from "./verification/types.ts";
 
@@ -46,6 +46,7 @@ export interface TicketBriefing {
    */
   unaddressedChangeRequest: string | null;
   failedVerification: FailedVerificationSummary | null;
+  verificationWarning: string | null;
 }
 
 export function getTicketBriefing(db: DbHandle, ticketId: string): TicketBriefing {
@@ -79,7 +80,7 @@ export function getTicketBriefing(db: DbHandle, ticketId: string): TicketBriefin
     epic: epicRow ? { ...epicRow, description: epicRow.description ?? null } : null,
     relatedDoneTickets,
     unaddressedChangeRequest,
-    failedVerification: findLatestFailedVerification(db, ticketId),
+    ...findLatestVerificationContext(db, ticketId),
   };
 }
 
@@ -107,37 +108,42 @@ function findUnaddressedChangeRequest(db: DbHandle, ticket: TicketWithProject): 
   return latestChangeRequest.content;
 }
 
-function findLatestFailedVerification(
+function findLatestVerificationContext(
   db: DbHandle,
   ticketId: string
-): FailedVerificationSummary | null {
-  if (!tableExists(db, "verification_runs")) return null;
-  const latestRun = listVerificationRuns(db, ticketId)[0];
-  if (!latestRun || latestRun.status !== "failed") return null;
+): Pick<TicketBriefing, "failedVerification" | "verificationWarning"> {
+  const empty = { failedVerification: null, verificationWarning: null };
+  // Old databases may not have verification yet. Other database errors must surface.
+  if (
+    !db
+      .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'verification_runs'")
+      .get()
+  ) {
+    return empty;
+  }
+  const latestRun = listVerificationRunSummaries(db, ticketId, 1)[0];
+  if (!latestRun) return empty;
+  if (!latestRun.manifest || latestRun.integrityStatus === "tampered") {
+    return {
+      failedVerification: null,
+      verificationWarning: `Verification run ${latestRun.id} has damaged or inconsistent evidence. Inspect verification history before relying on its verdict.`,
+    };
+  }
+  if (latestRun.status !== "failed") return empty;
 
   return {
-    runId: latestRun.manifest.runId,
-    round: latestRun.round,
-    finishedAt: latestRun.finishedAt,
-    failedSteps: latestRun.manifest.stepVerdicts
-      .filter((step) => step.status === "failed")
-      .map((step) => ({
-        order: step.order,
-        message: step.message,
-        evidenceFiles: step.evidenceFiles,
-      })),
+    verificationWarning: null,
+    failedVerification: {
+      runId: latestRun.id,
+      round: latestRun.round,
+      finishedAt: latestRun.finishedAt,
+      failedSteps: latestRun.manifest.stepVerdicts
+        .filter((step) => step.status === "failed")
+        .map((step) => ({
+          order: step.order,
+          message: step.message,
+          evidenceFiles: step.evidenceFiles,
+        })),
+    },
   };
-}
-
-/**
- * listVerificationRuns throws when the runs table is missing (fresh database);
- * briefings must tolerate that so they work before any verification ran.
- */
-function tableExists(db: DbHandle, table: string): boolean {
-  try {
-    db.prepare(`SELECT 1 FROM ${table} LIMIT 1`).get();
-    return true;
-  } catch {
-    return false;
-  }
 }

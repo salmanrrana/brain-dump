@@ -40,6 +40,22 @@ afterEach(() => {
 });
 
 describe("comment CLI provenance", () => {
+  it.each(["progress", "comment"])(
+    "attributes %s comments to the active Pi launch",
+    async (type) => {
+      process.env.BRAIN_DUMP_PROVIDER = "pi";
+      process.env.RALPH_SESSION = "1";
+      const { handle } = await import("../commands/comment.ts");
+      const { getDb } = await import("../lib/db.ts");
+
+      handle("add", ["--ticket", "ticket-1", "--content", "Reviewing the page", "--type", type]);
+
+      expect(getDb().db.prepare("SELECT author FROM ticket_comments").get()).toEqual({
+        author: "ralph:pi",
+      });
+    }
+  );
+
   it("passes the same implementation model provenance to the canonical writer", async () => {
     const { handle } = await import("../commands/comment.ts");
     const { getDb } = await import("../lib/db.ts");

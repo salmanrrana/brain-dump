@@ -364,7 +364,12 @@ function handleStartWork(
   const attachmentsSection = buildAttachmentsSection(attachmentBlocks);
 
   // Combine all warnings
-  const allWarnings = [...result.warnings, ...parseWarnings, ...attachmentWarnings];
+  const allWarnings = [
+    ...result.warnings,
+    ...parseWarnings,
+    ...attachmentWarnings,
+    ...(briefing.verificationWarning ? [briefing.verificationWarning] : []),
+  ];
   const warningsSection = buildWarningsSection(allWarnings);
 
   // Create conversation session for compliance logging
