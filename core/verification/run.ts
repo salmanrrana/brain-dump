@@ -452,7 +452,9 @@ function assertCanVerify(status: string): void {
 
 function resolveJsonPath(value: unknown, path: string): unknown {
   if (path === "$") return value;
-  const normalized = path.startsWith("$.") ? path.slice(2) : path;
+  // Support numeric array indices alongside the existing dotted property paths.
+  const dotted = path.replace(/\[(\d+)\]/g, ".$1");
+  const normalized = dotted.replace(/^\$?\./, "");
   if (!normalized) return value;
   return normalized.split(".").reduce<unknown>((current, segment) => {
     if (typeof current !== "object" || current === null) return undefined;
@@ -1912,6 +1914,8 @@ function withAutomationKey(
   };
 }
 
+class VerificationSourceError extends ValidationError {}
+
 /** Never repair a source mismatch by checking out a branch in the user's worktree. */
 async function assertVerificationSource(
   db: DbHandle,
@@ -1927,7 +1931,7 @@ async function assertVerificationSource(
     reviewed?.reviewed_through_commit &&
     (reviewed.reviewed_through_commit !== gitInfo.sha || gitInfo.dirty)
   ) {
-    throw new ValidationError(
+    throw new VerificationSourceError(
       `Verification source mismatch: expected clean reviewed ${reviewed.reviewed_through_commit}, but the project is at ${gitInfo.sha ?? "an unknown revision"}${gitInfo.dirty ? " with uncommitted changes" : ""}. Restore the reviewed checkout or commit and review the new revision and regenerate the demo.`
     );
   }
@@ -1938,7 +1942,7 @@ async function assertVerificationSource(
       { cwd: projectPath }
     );
     if (!branch.success || !gitInfo.sha || branch.stdout.trim() !== gitInfo.sha) {
-      throw new ValidationError(
+      throw new VerificationSourceError(
         `Verification source mismatch: the project must be at ticket branch ${ticket.branch_name}'s revision. Restore that checkout and requeue verification; the runner will not switch your working branch.`
       );
     }
@@ -1995,6 +1999,7 @@ async function buildRun(
   let verdicts: VerificationStepVerdict[] = [];
   let status = statusOverride ?? "infra_error";
   let executionFailed = false;
+  let retryable = true;
 
   try {
     if (statusOverride) {
@@ -2025,6 +2030,7 @@ async function buildRun(
     }
   } catch (error) {
     executionFailed = true;
+    retryable = !(error instanceof VerificationSourceError);
     if (error instanceof VerificationBootError) {
       failedBootInfo = error.bootInfo;
     }
@@ -2106,6 +2112,7 @@ async function buildRun(
   const safeVerdicts = redactVerificationValue(verdicts) as VerificationStepVerdict[];
   const evidenceFiles = safeVerdicts.flatMap((step) => step.evidenceFiles);
   const manifestBase = {
+    ...(!retryable ? { retryable: false } : {}),
     runId,
     ticketId: params.ticketId,
     round,

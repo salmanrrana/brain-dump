@@ -382,6 +382,46 @@ export const COMMAND_REGISTRY: CommandDef[] = [
   // ── workflow ────────────────────────────────────────────────
   {
     resource: "workflow",
+    action: "run-epic-script",
+    description: "Supervise an epic script with exclusive local process-group ownership",
+    flags: [
+      {
+        name: "sandbox",
+        type: "boolean",
+        required: false,
+        description: "Own and clean up the AI sandbox container",
+      },
+      {
+        name: "docker-host",
+        type: "string",
+        required: false,
+        description: "Docker daemon used by the sandbox",
+      },
+      { name: "epic", type: "string", required: true, description: "Epic ID" },
+      {
+        name: "script",
+        type: "string",
+        required: true,
+        description: "Generated Ralph script path",
+      },
+      { name: "max-iterations", type: "number", required: false, description: "Iteration limit" },
+      {
+        name: "resume-ticket",
+        type: "string",
+        required: false,
+        description: "Repair continuation target",
+      },
+      {
+        name: "timeout",
+        type: "number",
+        required: false,
+        description: "Maximum ownership wait and execution time in seconds",
+      },
+    ],
+    examples: ["brain-dump workflow run-epic-script --epic abc --script /tmp/ralph.sh"],
+  },
+  {
+    resource: "workflow",
     action: "start-work",
     description: "Start work on a ticket (creates branch, updates status)",
     flags: [ticketFlag, prettyFlag],
@@ -667,7 +707,7 @@ export const COMMAND_REGISTRY: CommandDef[] = [
         type: "string",
         required: true,
         description:
-          "JSON file with visual/automated demo steps, covers references (criterion:1, subtask:<id>), and UI/API/command/file automation specs. coverageRationale must name non-certifiable criterion ids and keeps the run uncertified.",
+          "JSON file with visual/automated demo steps, covers references (criterion:1, subtask:<id>), and executable UI/API/command/file checks for every criterion. coverageRationale is rejected. Keep untracked demo files outside the reviewed project.",
       },
       prettyFlag,
     ],
@@ -1158,6 +1198,21 @@ export const COMMAND_REGISTRY: CommandDef[] = [
     examples: [
       "brain-dump telemetry log-context --session abc --has-description --has-criteria --criteria-count 3",
     ],
+  },
+  {
+    resource: "telemetry",
+    action: "parse-transcript",
+    description: "Read deduplicated Claude transcript usage without database writes",
+    flags: [
+      {
+        name: "transcript",
+        type: "string",
+        required: true,
+        description: "Path to a Claude JSONL transcript",
+      },
+      prettyFlag,
+    ],
+    examples: ["brain-dump telemetry parse-transcript --transcript /logs/session.jsonl"],
   },
   {
     resource: "telemetry",

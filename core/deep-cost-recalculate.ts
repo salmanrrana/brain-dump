@@ -1,3 +1,8 @@
+import {
+  parseClaudeTranscript,
+  type ClaudeTranscript,
+  type TranscriptUsageCounts as UsageCounts,
+} from "./claude-transcript.ts";
 import Database from "better-sqlite3";
 import { createReadStream, existsSync, readdirSync, statSync } from "node:fs";
 import { randomUUID } from "node:crypto";
@@ -8,14 +13,6 @@ import { chunkIds, recalculateCosts, recordUsage, syncDefaultCostModels } from "
 import type { DbHandle } from "./types.ts";
 import type { RecalculateResult } from "./cost.ts";
 import type { Dirent } from "node:fs";
-
-interface UsageCounts {
-  model: string;
-  inputTokens: number;
-  outputTokens: number;
-  cacheReadTokens: number;
-  cacheCreationTokens: number;
-}
 
 interface BrainTelemetrySession {
   telemetrySessionId: string;
@@ -51,14 +48,6 @@ interface OpenCodeSession {
   projectId: string;
   timeCreated: number;
   timeUpdated: number;
-}
-
-interface ClaudeTranscript {
-  path: string;
-  mtimeMs: number;
-  usage: UsageCounts[];
-  firstEventMs: number | null;
-  lastEventMs: number | null;
 }
 
 interface CodexTranscript {
@@ -367,57 +356,6 @@ function backfillOpenCode(db: DbHandle): BackfillSourceResult {
 
 export function claudeProjectDir(projectPath: string): string {
   return join(homedir(), ".claude", "projects", projectPath.replace(/[/_]/g, "-"));
-}
-
-async function parseClaudeTranscript(filePath: string): Promise<ClaudeTranscript> {
-  const totals = new Map<string, Omit<UsageCounts, "model">>();
-  let firstEventMs: number | null = null;
-  let lastEventMs: number | null = null;
-
-  const rl = createInterface({ input: createReadStream(filePath), crlfDelay: Infinity });
-  for await (const line of rl) {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(line);
-    } catch {
-      continue;
-    }
-    if (!parsed || typeof parsed !== "object") continue;
-
-    const record = parsed as Record<string, unknown>;
-    const timestamp = typeof record.timestamp === "string" ? Date.parse(record.timestamp) : NaN;
-    if (!Number.isNaN(timestamp)) {
-      firstEventMs = firstEventMs == null ? timestamp : Math.min(firstEventMs, timestamp);
-      lastEventMs = lastEventMs == null ? timestamp : Math.max(lastEventMs, timestamp);
-    }
-
-    if (record.type !== "assistant") continue;
-    const message = record.message as Record<string, unknown> | undefined;
-    const usage = message?.usage as Record<string, unknown> | undefined;
-    const model = message?.model;
-    if (!usage || typeof model !== "string") continue;
-
-    const existing = totals.get(model) ?? {
-      inputTokens: 0,
-      outputTokens: 0,
-      cacheReadTokens: 0,
-      cacheCreationTokens: 0,
-    };
-    existing.inputTokens += Number(usage.input_tokens) || 0;
-    existing.outputTokens += Number(usage.output_tokens) || 0;
-    existing.cacheReadTokens += Number(usage.cache_read_input_tokens) || 0;
-    existing.cacheCreationTokens += Number(usage.cache_creation_input_tokens) || 0;
-    totals.set(model, existing);
-  }
-
-  const stat = statSync(filePath);
-  return {
-    path: filePath,
-    mtimeMs: stat.mtimeMs,
-    usage: Array.from(totals.entries()).map(([model, counts]) => ({ model, ...counts })),
-    firstEventMs,
-    lastEventMs,
-  };
 }
 
 async function backfillClaudeCode(db: DbHandle): Promise<BackfillSourceResult> {

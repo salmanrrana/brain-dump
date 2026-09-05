@@ -24,8 +24,10 @@ null to strings. Object property order does not affect equality.
 }
 ```
 
-Paths use dot-separated keys and numeric array indexes. An optional `$.` prefix
-is supported; `$` selects the entire response. This is a small path reader, not
+Paths use dot-separated keys and numeric array indexes, with either dotted
+(`annual.1`) or bracket (`annual[1]`) notation. Root arrays support `$[0].name`;
+an optional `$.` prefix is supported for objects, and `$` selects the entire response.
+This is a small path reader, not
 a full JSONPath expression engine. Missing values fail assertions, including
 when the expected value is null. Numbers compare exactly; use project tests
 for approximate floating-point comparisons.

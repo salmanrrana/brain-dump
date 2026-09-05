@@ -135,7 +135,14 @@ export function saveAutonomousEpicLaunch(
   db: DbHandle,
   profile: AutonomousEpicLaunchProfile,
   now = new Date().toISOString()
-): void {
+): () => void {
+  const previousLaunch = db
+    .prepare(
+      "SELECT profile_json, active, json_extract(profile_json, '$.runnerPid') AS runner_pid FROM autonomous_epic_launches WHERE epic_id = ?"
+    )
+    .get(profile.epicId) as
+    | { profile_json: string; active: number; runner_pid: number | null }
+    | undefined;
   const persistedProfile = {
     ...profile,
     expiresAt: profile.expiresAt ?? new Date(Date.parse(now) + 24 * 60 * 60 * 1000).toISOString(),
@@ -144,8 +151,34 @@ export function saveAutonomousEpicLaunch(
     `INSERT INTO autonomous_epic_launches (epic_id, profile_json, active, created_at, updated_at)
      VALUES (?, ?, 1, ?, ?)
      ON CONFLICT(epic_id) DO UPDATE SET
-       profile_json = excluded.profile_json, active = 1, updated_at = excluded.updated_at`
+       profile_json = CASE WHEN json_type(autonomous_epic_launches.profile_json, '$.runnerPid') = 'integer'
+         THEN json_set(excluded.profile_json,
+           '$.runnerPid', json_extract(autonomous_epic_launches.profile_json, '$.runnerPid'),
+           '$.runnerGroupPid', json_extract(autonomous_epic_launches.profile_json, '$.runnerGroupPid'),
+           '$.runnerContainerName', json_extract(autonomous_epic_launches.profile_json, '$.runnerContainerName'),
+           '$.runnerDockerDaemon', json_extract(autonomous_epic_launches.profile_json, '$.runnerDockerDaemon'))
+         ELSE excluded.profile_json END,
+       active = 1, updated_at = excluded.updated_at`
   ).run(profile.epicId, JSON.stringify(persistedProfile), now, now);
+  // A failed launch may restore its predecessor, but never overwrite a newer
+  // attempt or a process that acquired ownership after the launch began.
+  return () => {
+    if (previousLaunch) {
+      db.prepare(
+        "UPDATE autonomous_epic_launches SET profile_json = ?, active = ? WHERE epic_id = ? AND json_extract(profile_json, '$.scriptPath') = ? AND json_extract(profile_json, '$.runnerPid') IS ?"
+      ).run(
+        previousLaunch.profile_json,
+        previousLaunch.active,
+        profile.epicId,
+        profile.scriptPath,
+        previousLaunch.runner_pid
+      );
+    } else {
+      db.prepare(
+        "UPDATE autonomous_epic_launches SET active = 0 WHERE epic_id = ? AND json_extract(profile_json, '$.scriptPath') = ? AND json_extract(profile_json, '$.runnerPid') IS NULL"
+      ).run(profile.epicId, profile.scriptPath);
+    }
+  };
 }
 
 export function setAutonomousEpicLaunchActive(

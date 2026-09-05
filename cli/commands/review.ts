@@ -21,6 +21,7 @@ import {
   repairLegacyHumanReviewHandoff,
   resolveVerificationFailure,
   updatePrdForDbTicketIfPresent,
+  resolveCommentAuthor,
   InvalidActionError,
   ValidationError,
 } from "../../core/index.ts";
@@ -65,6 +66,15 @@ export function handle(action: string, args: string[]): void {
   const flags = parseFlags(args);
   const pretty = boolFlag(flags, "pretty");
   const { db } = getDb();
+  const callerAuthor = resolveCommentAuthor(
+    process.env.BRAIN_DUMP_PROVIDER ?? "",
+    process.env.RALPH_SESSION === "1"
+  );
+  // Dedicated reviewer launches supply their own identity. Otherwise this
+  // process is the reviewer, just as it is for CLI implementation comments.
+  const commentIdentity = process.env.BRAIN_DUMP_REVIEWER_AUTHOR?.trim()
+    ? {}
+    : { author: callerAuthor };
 
   try {
     switch (action) {
@@ -93,6 +103,7 @@ export function handle(action: string, args: string[]): void {
           agent,
           category,
           description,
+          commentIdentity,
           ...(filePath !== undefined ? { filePath } : {}),
           ...(lineNumber !== undefined ? { lineNumber } : {}),
           ...(suggestedFix !== undefined ? { suggestedFix } : {}),
@@ -108,7 +119,7 @@ export function handle(action: string, args: string[]): void {
           "wont_fix",
           "duplicate",
         ]);
-        const result = markFixed(db, findingId, status);
+        const result = markFixed(db, findingId, status, { commentIdentity });
         outputResult(result, pretty);
         break;
       }
@@ -138,7 +149,7 @@ export function handle(action: string, args: string[]): void {
           const msg = e instanceof Error ? e.message : String(e);
           throw new ValidationError(`Failed to read steps file "${stepsFile}": ${msg}`);
         }
-        const demoParams = { ticketId, steps };
+        const demoParams = { ticketId, steps, commentIdentity };
         validateGenerateDemo(db, demoParams);
         const prdSync = updatePrdForDbTicketIfPresent(db, ticketId, false, "ai_verification");
         if (prdSync.required && !prdSync.success) {
@@ -239,6 +250,7 @@ export function handle(action: string, args: string[]): void {
           rootCause,
           classification,
           validation,
+          commentIdentity: { author: callerAuthor },
           ...(fixCommitsValue
             ? { fixCommits: fixCommitsValue.split(",").map((value) => value.trim()) }
             : {}),

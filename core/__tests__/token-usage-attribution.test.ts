@@ -41,6 +41,34 @@ beforeEach(() => {
 });
 
 describe("resolveTokenUsageAttribution", () => {
+  it("uses a unique completed Ralph ticket window when CLI work has no MCP telemetry", () => {
+    db.prepare(
+      `INSERT INTO ralph_sessions
+      (id, ticket_id, project_id, started_at, completed_at)
+      VALUES ('ralph-1', 'ticket-1', 'proj-1', ?, ?)`
+    ).run("2026-01-01T10:00:00.000Z", "2026-01-01T10:10:00.000Z");
+    const context = {
+      projectPath: "/work/project",
+      eventStart: "2026-01-01T09:59:00.000Z",
+      eventEnd: "2026-01-01T10:11:00.000Z",
+    };
+    expect(resolveTokenUsageAttribution(db, context)).toEqual({
+      ticketId: "ticket-1",
+      source: "project-ralph-window",
+      skipped: false,
+    });
+    expect(
+      resolveTokenUsageAttribution(db, { ...context, projectPath: "/another/project" }).skipped
+    ).toBe(true);
+    expect(resolveTokenUsageAttribution(db, { projectPath: "/work/project" }).skipped).toBe(true);
+    db.prepare(
+      `INSERT INTO ralph_sessions
+      (id, ticket_id, project_id, started_at, completed_at)
+      VALUES ('ralph-2', 'ticket-2', 'proj-1', ?, ?)`
+    ).run("2026-01-01T10:09:00.000Z", "2026-01-01T10:20:00.000Z");
+    expect(resolveTokenUsageAttribution(db, context).skipped).toBe(true);
+  });
+
   it("prefers explicit session and ticket attribution", () => {
     const result = resolveTokenUsageAttribution(db, {
       telemetrySessionId: "session-explicit",

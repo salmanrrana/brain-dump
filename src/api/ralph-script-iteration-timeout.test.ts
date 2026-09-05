@@ -17,7 +17,7 @@ describe("generateRalphScript per-iteration timeout", () => {
       'ITER_TIMEOUT_CMD="timeout --signal=TERM --kill-after=30 $PER_ITERATION_TIMEOUT"'
     );
     // The actual AI invocation is prefixed with the timeout command.
-    expect(script).toContain("$ITER_TIMEOUT_CMD claude --dangerously-skip-permissions");
+    expect(script).toContain("run_ai_command claude --dangerously-skip-permissions");
   });
 
   it("writes a distinct ITERATION TIMEOUT warning to progress.txt when the timeout fires", () => {

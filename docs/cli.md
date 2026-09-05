@@ -15,13 +15,13 @@ All commands output JSON by default. Add `--pretty` for human-readable output.
 | `project`    | List, find, create, delete projects — _list, find, create, delete_                                                                                                                                                                       |
 | `ticket`     | Create, list, get, update, delete tickets — _create, list, get, update, update-status, update-criterion, update-attachment, list-by-epic, link-files, get-files, delete_                                                                 |
 | `epic`       | Create, list, update, delete epics — _create, list, update, delete, reconcile-learnings, get-learnings_                                                                                                                                  |
-| `workflow`   | Start work, complete work, start epic, launch Ralph — _start-work, complete-work, start-epic, launch-ticket, launch-epic_                                                                                                                |
+| `workflow`   | Start work, complete work, start epic, launch Ralph — _run-epic-script, start-work, complete-work, start-epic, launch-ticket, launch-epic_                                                                                               |
 | `comment`    | Add and list ticket comments — _add, list_                                                                                                                                                                                               |
 | `review`     | Submit findings, generate demos, manage reviews — _get-review-context, submit-finding, mark-fixed, check-complete, generate-demo, get-demo, get-findings, get-verification-history, repair-legacy-handoff, resolve-verification-failure_ |
 | `verify`     | Run AI verification and inspect verification history — _run, history, status, jobs, worker-status, pause, resume, requeue, dead, worker_                                                                                                 |
 | `session`    | Create, update, complete Ralph sessions — _create, update, complete, get, list, update-state, emit-event, get-events, clear-events_                                                                                                      |
 | `git`        | Link commits, PRs, sync ticket links — _link-commit, link-pr, sync_                                                                                                                                                                      |
-| `telemetry`  | Start, end, get, list telemetry sessions, record token usage — _start, end, get, list, log-tool, log-prompt, log-context, record-usage, recalculate-costs, deep-recalculate-costs_                                                       |
+| `telemetry`  | Start, end, get, list telemetry sessions, record token usage — _start, end, get, list, log-tool, log-prompt, log-context, parse-transcript, record-usage, recalculate-costs, deep-recalculate-costs_                                     |
 | `files`      | Link files to tickets, find tickets by file — _link, get-tickets_                                                                                                                                                                        |
 | `tasks`      | Save, get, clear Claude task lists — _save, get, clear, snapshots_                                                                                                                                                                       |
 | `compliance` | Conversation logging for compliance auditing — _start, log, end, list, export, archive_                                                                                                                                                  |
@@ -634,6 +634,30 @@ brain-dump epic get-learnings --epic abc --pretty
 
 Start work, complete work, start epic, launch Ralph
 
+### brain-dump workflow run-epic-script
+
+Supervise an epic script with exclusive local process-group ownership
+
+```bash
+brain-dump workflow run-epic-script [--sandbox] [--docker-host <value>] --epic <value> --script <value> [--max-iterations <n>] [--resume-ticket <value>] [--timeout <n>]
+```
+
+| Flag               | Type    | Required | Description                                          |
+| ------------------ | ------- | -------- | ---------------------------------------------------- |
+| `--sandbox`        | boolean | No       | Own and clean up the AI sandbox container            |
+| `--docker-host`    | string  | No       | Docker daemon used by the sandbox                    |
+| `--epic`           | string  | Yes      | Epic ID                                              |
+| `--script`         | string  | Yes      | Generated Ralph script path                          |
+| `--max-iterations` | number  | No       | Iteration limit                                      |
+| `--resume-ticket`  | string  | No       | Repair continuation target                           |
+| `--timeout`        | number  | No       | Maximum ownership wait and execution time in seconds |
+
+**Examples:**
+
+```bash
+brain-dump workflow run-epic-script --epic abc --script /tmp/ralph.sh
+```
+
 ### brain-dump workflow start-work
 
 Start work on a ticket (creates branch, updates status)
@@ -876,11 +900,11 @@ Generate a demo script for AI verification with criterion coverage and executabl
 brain-dump review generate-demo --ticket <value> --steps-file <value> [--pretty]
 ```
 
-| Flag           | Type    | Required | Description                                                                                                                                                                                                                   |
-| -------------- | ------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--ticket`     | string  | Yes      | Ticket ID                                                                                                                                                                                                                     |
-| `--steps-file` | string  | Yes      | JSON file with visual/automated demo steps, covers references (criterion:1, subtask:<id>), and UI/API/command/file automation specs. coverageRationale must name non-certifiable criterion ids and keeps the run uncertified. |
-| `--pretty`     | boolean | No       | Human-readable output (default: JSON)                                                                                                                                                                                         |
+| Flag           | Type    | Required | Description                                                                                                                                                                                                                                      |
+| -------------- | ------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--ticket`     | string  | Yes      | Ticket ID                                                                                                                                                                                                                                        |
+| `--steps-file` | string  | Yes      | JSON file with visual/automated demo steps, covers references (criterion:1, subtask:<id>), and executable UI/API/command/file checks for every criterion. coverageRationale is rejected. Keep untracked demo files outside the reviewed project. |
+| `--pretty`     | boolean | No       | Human-readable output (default: JSON)                                                                                                                                                                                                            |
 
 ### brain-dump review get-demo
 
@@ -1491,6 +1515,25 @@ brain-dump telemetry log-context --session <value> [--has-description] [--has-cr
 
 ```bash
 brain-dump telemetry log-context --session abc --has-description --has-criteria --criteria-count 3
+```
+
+### brain-dump telemetry parse-transcript
+
+Read deduplicated Claude transcript usage without database writes
+
+```bash
+brain-dump telemetry parse-transcript --transcript <value> [--pretty]
+```
+
+| Flag           | Type    | Required | Description                           |
+| -------------- | ------- | -------- | ------------------------------------- |
+| `--transcript` | string  | Yes      | Path to a Claude JSONL transcript     |
+| `--pretty`     | boolean | No       | Human-readable output (default: JSON) |
+
+**Examples:**
+
+```bash
+brain-dump telemetry parse-transcript --transcript /logs/session.jsonl
 ```
 
 ### brain-dump telemetry record-usage

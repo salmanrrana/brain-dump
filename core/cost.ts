@@ -66,7 +66,12 @@ export interface ResolveTokenUsageAttributionParams {
 export interface TokenUsageAttributionResult {
   telemetrySessionId?: string;
   ticketId?: string;
-  source: "explicit" | "project-event-window" | "project-active-session" | "skipped";
+  source:
+    | "explicit"
+    | "project-event-window"
+    | "project-active-session"
+    | "project-ralph-window"
+    | "skipped";
   skipped: boolean;
   warning?: string;
 }
@@ -908,6 +913,42 @@ function skippedAttribution(warning: string): TokenUsageAttributionResult {
   };
 }
 
+/** CLI-only Ralph work has session history even after handoff removes its state file. */
+function resolveRalphWindowAttribution(
+  db: DbHandle,
+  projectPath: string,
+  params: ResolveTokenUsageAttributionParams
+): TokenUsageAttributionResult | null {
+  const window = getAttributionWindow(params);
+  if (!window) return null;
+  const matches = db
+    .prepare(
+      `
+    SELECT DISTINCT rs.ticket_id AS ticketId
+    FROM ralph_sessions rs
+    JOIN tickets t ON t.id = rs.ticket_id
+    JOIN projects p ON p.id = t.project_id
+    WHERE p.path = ? AND rs.started_at <= ?
+      AND (rs.completed_at IS NULL OR rs.completed_at >= ?)
+    LIMIT 2
+  `
+    )
+    .all(
+      projectPath,
+      new Date(window.endMs).toISOString(),
+      new Date(window.startMs).toISOString()
+    ) as Array<{ ticketId: string }>;
+  if (matches.length === 1) {
+    return { ticketId: matches[0]!.ticketId, source: "project-ralph-window", skipped: false };
+  }
+  if (matches.length > 1) {
+    return skippedAttribution(
+      "Token usage attribution skipped: transcript overlaps multiple Ralph tickets; pass --ticket explicitly."
+    );
+  }
+  return null;
+}
+
 /**
  * Resolve token usage attribution without falling back to an arbitrary global
  * active session. Explicit session/ticket flags always win; otherwise callers
@@ -952,8 +993,11 @@ export function resolveTokenUsageAttribution(
         skipped: false,
       };
     }
-    return skippedAttribution(
-      `Token usage attribution skipped: no telemetry sessions found for project ${params.projectPath}.`
+    return (
+      resolveRalphWindowAttribution(db, params.projectPath, params) ??
+      skippedAttribution(
+        `Token usage attribution skipped: no telemetry sessions found for project ${params.projectPath}.`
+      )
     );
   }
 
@@ -986,8 +1030,11 @@ export function resolveTokenUsageAttribution(
     };
   }
 
-  return skippedAttribution(
-    `Token usage attribution skipped: no telemetry session window matched transcript ${params.transcriptPath ?? "<unknown>"} for project ${params.projectPath}.`
+  return (
+    resolveRalphWindowAttribution(db, params.projectPath, params) ??
+    skippedAttribution(
+      `Token usage attribution skipped: no telemetry session window matched transcript ${params.transcriptPath ?? "<unknown>"} for project ${params.projectPath}.`
+    )
   );
 }
 
@@ -1004,6 +1051,12 @@ export function resolveTokenUsageAttribution(
  * @throws ValidationError if model is empty or token counts are negative
  */
 export function recordUsage(db: DbHandle, params: RecordUsageParams): TokenUsageRecord {
+  // Ticket-only captures have no unique session index. Reserve the write lock
+  // before lookup so concurrent Stop hooks cannot both insert the same snapshot.
+  return db.transaction(() => recordUsageInTransaction(db, params)).immediate();
+}
+
+function recordUsageInTransaction(db: DbHandle, params: RecordUsageParams): TokenUsageRecord {
   const {
     telemetrySessionId,
     ticketId,
@@ -1037,15 +1090,51 @@ export function recordUsage(db: DbHandle, params: RecordUsageParams): TokenUsage
     }
   }
 
-  if (sourceRef && telemetrySessionId) {
-    const existing = db
-      .prepare(
-        `SELECT * FROM token_usage
-         WHERE telemetry_session_id = ? AND source_ref = ? AND model = ?
+  let existing: DbTokenUsageRow | undefined;
+  if (sourceRef && (telemetrySessionId || resolvedTicketId)) {
+    existing = (
+      telemetrySessionId
+        ? db
+            .prepare(
+              `SELECT * FROM token_usage
+         WHERE source_ref = ? AND model = ? AND
+           (telemetry_session_id = ? OR (telemetry_session_id IS NULL AND ticket_id = ?))
+         ORDER BY telemetry_session_id IS NULL
          LIMIT 1`
-      )
-      .get(telemetrySessionId, sourceRef, model) as DbTokenUsageRow | undefined;
-    if (existing) return parseTokenUsageRow(existing);
+            )
+            .get(sourceRef, model, telemetrySessionId, resolvedTicketId)
+        : db
+            .prepare(
+              `SELECT * FROM token_usage
+         WHERE ticket_id = ? AND source_ref = ? AND model = ?
+         LIMIT 1`
+            )
+            .get(resolvedTicketId, sourceRef, model)
+    ) as DbTokenUsageRow | undefined;
+    if (existing) {
+      // Deep recalculation can create telemetry after a CLI-only capture.
+      // Attach its existing row before applying any newer snapshot/deltas.
+      if (telemetrySessionId && !existing.telemetry_session_id) {
+        db.prepare("UPDATE token_usage SET telemetry_session_id = ? WHERE id = ?").run(
+          telemetrySessionId,
+          existing.id
+        );
+        db.prepare(
+          `UPDATE telemetry_sessions SET
+          total_input_tokens = COALESCE(total_input_tokens, 0) + ?,
+          total_output_tokens = COALESCE(total_output_tokens, 0) + ?,
+          total_cost_usd = COALESCE(total_cost_usd, 0) + ? WHERE id = ?`
+        ).run(existing.input_tokens, existing.output_tokens, existing.cost_usd, telemetrySessionId);
+        existing.telemetry_session_id = telemetrySessionId;
+      }
+      const previousEnd = parseAttributionTime(existing.provider_event_end);
+      const incomingEnd = parseAttributionTime(providerEventEnd);
+      // Untimed imports are immutable; older asynchronous captures must not
+      // replace a newer cumulative snapshot. Equal windows can correct parsing.
+      if (incomingEnd === null || (previousEnd !== null && incomingEnd < previousEnd)) {
+        return parseTokenUsageRow(existing);
+      }
+    }
   }
 
   const costUsd = computeCostFromTokens(db, model, {
@@ -1055,15 +1144,21 @@ export function recordUsage(db: DbHandle, params: RecordUsageParams): TokenUsage
     cacheCreationTokens,
   });
 
-  const id = randomUUID();
-  const now = recordedAt || new Date().toISOString();
+  const id = existing?.id ?? randomUUID();
+  const now = recordedAt || existing?.recorded_at || new Date().toISOString();
 
   db.prepare(
     `INSERT INTO token_usage
      (id, telemetry_session_id, ticket_id, model, input_tokens, output_tokens,
       cache_read_tokens, cache_creation_tokens, cost_usd, source, source_ref,
       provider_event_start, provider_event_end, recorded_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       input_tokens = excluded.input_tokens, output_tokens = excluded.output_tokens,
+       cache_read_tokens = excluded.cache_read_tokens,
+       cache_creation_tokens = excluded.cache_creation_tokens,
+       cost_usd = excluded.cost_usd, provider_event_start = excluded.provider_event_start,
+       provider_event_end = excluded.provider_event_end, recorded_at = excluded.recorded_at`
   ).run(
     id,
     telemetrySessionId || null,
@@ -1082,14 +1177,20 @@ export function recordUsage(db: DbHandle, params: RecordUsageParams): TokenUsage
   );
 
   // Update telemetry_sessions aggregates
-  if (telemetrySessionId) {
+  const aggregateSessionId = existing?.telemetry_session_id ?? telemetrySessionId;
+  if (aggregateSessionId) {
     db.prepare(
       `UPDATE telemetry_sessions
        SET total_input_tokens = COALESCE(total_input_tokens, 0) + ?,
            total_output_tokens = COALESCE(total_output_tokens, 0) + ?,
            total_cost_usd = COALESCE(total_cost_usd, 0) + ?
        WHERE id = ?`
-    ).run(inputTokens, outputTokens, costUsd, telemetrySessionId);
+    ).run(
+      inputTokens - (existing?.input_tokens ?? 0),
+      outputTokens - (existing?.output_tokens ?? 0),
+      costUsd - (existing?.cost_usd ?? 0),
+      aggregateSessionId
+    );
   }
 
   return parseTokenUsageRow(

@@ -14,6 +14,7 @@ import {
   resolveCommentAuthor,
 } from "../../core/index.ts";
 import { resolveReviewerSelection } from "../../core/providers.ts";
+import { runEpicScript } from "../../core/epic-runner.ts";
 import * as schema from "../../src/lib/schema.ts";
 import { launchRalphForTicketCore } from "../../src/lib/ralph-launch/launch-ticket.ts";
 import { launchRalphForEpicCore } from "../../src/lib/ralph-launch/launch-epic.ts";
@@ -35,7 +36,14 @@ import {
   translateProvider,
 } from "../lib/provider-translation.ts";
 
-const ACTIONS = ["start-work", "complete-work", "start-epic", "launch-ticket", "launch-epic"];
+const ACTIONS = [
+  "start-work",
+  "complete-work",
+  "start-epic",
+  "launch-ticket",
+  "launch-epic",
+  "run-epic-script",
+];
 
 interface SharedLaunchFlags {
   provider: LaunchProvider | undefined;
@@ -101,6 +109,31 @@ export async function handle(action: string, args: string[]): Promise<void> {
 
   try {
     switch (action) {
+      case "run-epic-script": {
+        const maxIterations = numericFlag(flags, "max-iterations") ?? 12;
+        const timeoutSeconds = numericFlag(flags, "timeout") ?? 3600;
+        if (
+          ![maxIterations, timeoutSeconds].every(
+            (value) => Number.isSafeInteger(value) && value > 0
+          )
+        )
+          throw new ValidationError("Iteration and timeout values must be positive integers.");
+        const exitCode = await runEpicScript(sqlite, {
+          epicId: requireFlag(flags, "epic"),
+          scriptPath: requireFlag(flags, "script"),
+          maxIterations,
+          timeoutSeconds,
+          useSandbox: boolFlag(flags, "sandbox"),
+          ...(optionalFlag(flags, "docker-host")
+            ? { dockerHost: optionalFlag(flags, "docker-host")! }
+            : {}),
+          ...(optionalFlag(flags, "resume-ticket")
+            ? { resumeTicketId: optionalFlag(flags, "resume-ticket")! }
+            : {}),
+        });
+        process.exitCode = exitCode;
+        break;
+      }
       case "start-work": {
         const ticketId = requireFlag(flags, "ticket");
         const result = startWork(sqlite, ticketId, git);

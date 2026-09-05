@@ -1,4 +1,6 @@
 import { execFileSync } from "child_process";
+import { join } from "node:path";
+import { resolveBrainDumpRootFrom } from "../../core/cli-entrypoint.ts";
 import {
   getFreshEyesReviewerPrompt,
   getRalphPrompt,
@@ -95,7 +97,7 @@ fi
 `,
     invocation: `  # Run Claude in print mode (-p) so it exits after completion
   # This allows the bash loop to continue to the next iteration
-  $ITER_TIMEOUT_CMD claude --dangerously-skip-permissions --output-format text -p "$(cat "$PROMPT_FILE")"`,
+  run_ai_command claude --dangerously-skip-permissions --output-format text -p "$(cat "$PROMPT_FILE")"`,
   },
   opencode: {
     displayName: "OpenCode",
@@ -132,7 +134,7 @@ fi
   if [ -n "\${BRAIN_DUMP_LAUNCH_MODEL_PROVIDER:-}" ] && [ -n "\${BRAIN_DUMP_LAUNCH_MODEL:-}" ]; then
     OPENCODE_MODEL_ARGS+=(--model "\${BRAIN_DUMP_LAUNCH_MODEL_PROVIDER}/\${BRAIN_DUMP_LAUNCH_MODEL}")
   fi
-  $ITER_TIMEOUT_CMD opencode run "\${OPENCODE_MODEL_ARGS[@]}" "$(cat "$PROMPT_FILE")"`,
+  run_ai_command opencode run "\${OPENCODE_MODEL_ARGS[@]}" "$(cat "$PROMPT_FILE")"`,
   },
   codex: {
     displayName: "Codex",
@@ -180,7 +182,7 @@ fi
   if [ -n "\${BRAIN_DUMP_LAUNCH_MODEL:-}" ]; then
     CODEX_MODEL_ARGS+=(--model "\${BRAIN_DUMP_LAUNCH_MODEL}")
   fi
-  $ITER_TIMEOUT_CMD codex exec "\${CODEX_MODEL_ARGS[@]}" --dangerously-bypass-approvals-and-sandbox "$(cat "$PROMPT_FILE")"`,
+  run_ai_command codex exec "\${CODEX_MODEL_ARGS[@]}" --dangerously-bypass-approvals-and-sandbox "$(cat "$PROMPT_FILE")"`,
   },
   "cursor-agent": {
     displayName: "Cursor Agent",
@@ -206,7 +208,7 @@ fi
   if [ -n "\${BRAIN_DUMP_LAUNCH_MODEL:-}" ]; then
     CURSOR_AGENT_MODEL_ARGS+=(--model "\${BRAIN_DUMP_LAUNCH_MODEL}")
   fi
-  $ITER_TIMEOUT_CMD "$CURSOR_AGENT_BIN" --force --approve-mcps --trust "\${CURSOR_AGENT_MODEL_ARGS[@]}" -p "$(cat "$PROMPT_FILE")"`,
+  run_ai_command "$CURSOR_AGENT_BIN" --force --approve-mcps --trust "\${CURSOR_AGENT_MODEL_ARGS[@]}" -p "$(cat "$PROMPT_FILE")"`,
   },
   pi: {
     displayName: "Pi",
@@ -238,7 +240,7 @@ fi
   if [ -n "\${BRAIN_DUMP_LAUNCH_MODEL_PROVIDER:-}" ] && [ -n "\${BRAIN_DUMP_LAUNCH_MODEL:-}" ]; then
     PI_MODEL_ARGS+=(--model "\${BRAIN_DUMP_LAUNCH_MODEL_PROVIDER}/\${BRAIN_DUMP_LAUNCH_MODEL}")
   fi
-  $ITER_TIMEOUT_CMD pi "\${PI_MODEL_ARGS[@]}" -p "$(cat "$PROMPT_FILE")"`,
+  run_ai_command pi "\${PI_MODEL_ARGS[@]}" -p "$(cat "$PROMPT_FILE")"`,
   },
 };
 
@@ -307,7 +309,7 @@ function buildNativeAiInvocation(
   # This allows the bash loop to continue to the next iteration.
   # Output is teed so the loop can distinguish provider usage-limit
   # rejections (never worth retrying) from real failures.
-  $ITER_TIMEOUT_CMD claude --dangerously-skip-permissions${claudeNativeModelArgument} --output-format text -p "$(cat "$PROMPT_FILE")" 2>&1 | tee "$AI_OUTPUT_FILE"`;
+  run_ai_command claude --dangerously-skip-permissions${claudeNativeModelArgument} --output-format text -p "$(cat "$PROMPT_FILE")" 2>&1 | tee "$AI_OUTPUT_FILE"`;
   }
 
   return AI_BACKEND_CONFIGS[aiBackend].invocation;
@@ -343,6 +345,37 @@ export function generateRalphScript(
   reviewer?: RalphReviewerConfig | undefined
 ): string {
   const imageName = "brain-dump-ralph-sandbox:latest";
+  const runnerEpicId = promptProfile.type === "implementation" ? projectOrigin?.epicId : undefined;
+  const brainDumpRoot = runnerEpicId ? resolveBrainDumpRootFrom(import.meta.url) : null;
+  if (runnerEpicId && !brainDumpRoot)
+    throw new Error("Cannot resolve the Brain Dump CLI for epic ownership.");
+  const runnerCli = brainDumpRoot
+    ? [
+        process.execPath,
+        join(brainDumpRoot, "node_modules/tsx/dist/cli.mjs"),
+        join(brainDumpRoot, "cli/brain-dump.ts"),
+      ]
+        .map((value) => `"${escapeForBashDoubleQuote(value)}"`)
+        .join(" ")
+    : "";
+  const runnerOwnership = runnerEpicId
+    ? `
+# The explicit checkout CLI supervises the whole process group, even without a global link.
+RUNNER_EPIC_ID="${escapeForBashDoubleQuote(runnerEpicId)}"
+if [ "\${BRAIN_DUMP_EPIC_RUNNER_CHILD:-}" != "$RUNNER_EPIC_ID:$$" ]; then
+  set +e
+  ${runnerCli} workflow run-epic-script --epic "$RUNNER_EPIC_ID" --script "$0" --max-iterations "$MAX_ITERATIONS" --resume-ticket "$RESUME_TICKET_ID" --timeout ${timeoutSeconds}${useSandbox ? " --sandbox" : ""}${dockerHostEnv ? ` --docker-host "${escapeForBashDoubleQuote(dockerHostEnv)}"` : ""}
+  RUNNER_EXIT_CODE=$?
+  set -e
+  # Terminal preservation is outside the supervised workload and owns no claim.
+  if [ "\${BRAIN_DUMP_EPIC_CONTINUATION:-0}" != "1" ]; then
+    echo "Ralph stopped. This terminal stays open so the log above is not lost; press Ctrl+D to close it."
+    exec bash
+  fi
+  exit "$RUNNER_EXIT_CODE"
+fi
+`
+    : "";
 
   // Per-iteration timeout can never usefully exceed the whole-session timeout.
   const perIterationTimeoutValue = Math.max(
@@ -572,8 +605,8 @@ fi
   # Labels:
   #   brain-dump.project-id/project-name: Tracks which project started this container
   #   brain-dump.epic-id/epic-title: Tracks which epic (if applicable)
-  $ITER_TIMEOUT_CMD docker run --rm -it \\
-    --name "ralph-\${SESSION_ID}" \\
+  run_ai_command docker run --rm -it \\
+    --name "\${BRAIN_DUMP_SUPERVISED_CONTAINER:-ralph-\${SESSION_ID}}" \\
     --network ralph-net \\
     --memory=${resourceLimits.memory} \\
     --memory-swap=${resourceLimits.memory} \\
@@ -681,7 +714,7 @@ handle_timeout() {
   # Stop Docker container if running
   if docker ps -q --filter "name=ralph-\${SESSION_ID}" | grep -q .; then
     echo -e "\\033[0;33m🐳 Stopping Ralph container...\\033[0m"
-    docker stop "ralph-\${SESSION_ID}" 2>/dev/null || true
+    docker stop "\${BRAIN_DUMP_SUPERVISED_CONTAINER:-ralph-\${SESSION_ID}}" 2>/dev/null || true
   fi
 
   # Log timeout to progress file
@@ -761,8 +794,14 @@ MAX_ITERATIONS=\${1:-${maxIterations}}
 RESUME_TICKET_ID=\${2:-}
 PROJECT_PATH="${escapeForBashDoubleQuote(projectPath)}"
 PRD_FILE="$PROJECT_PATH/plans/prd.json"
-PROGRESS_FILE="$PROJECT_PATH/plans/progress.txt"
 SESSION_ID="$(date +%s)-$$"
+PROGRESS_FILE="$PROJECT_PATH/plans/progress.txt"
+# Launcher diagnostics must never dirty reviewed project source after handoff.
+if git -C "$PROJECT_PATH" ls-files --error-unmatch -- plans/progress.txt >/dev/null 2>&1; then
+  RALPH_LOG_DIR="\${XDG_STATE_HOME:-$HOME/.local/state}/brain-dump/ralph"
+  mkdir -p "$RALPH_LOG_DIR"
+  PROGRESS_FILE="$RALPH_LOG_DIR/$SESSION_ID.progress.txt"
+fi
 MAX_RETRIES=3
 CONSECUTIVE_FAILURES=0
 MAX_CONSECUTIVE_FAILURES=5
@@ -778,6 +817,7 @@ PRD_STATUS_HIGH_WATER=$(node -e 'const p=require(process.argv[1]); const rank={b
 PER_ITERATION_TIMEOUT=${perIterationTimeoutValue}
 
 cd "$PROJECT_PATH"
+${runnerOwnership}
 ${ralphProviderEnvAssignments}
 ${launchModelEnvExports}
 ${dockerHostSetup}${dockerImageCheck}${sshAgentSetup}${aiPreflightCheck}
@@ -799,7 +839,7 @@ fi
 ITER_TIMEOUT_CMD=""
 if [ "$PER_ITERATION_TIMEOUT" -gt 0 ] 2>/dev/null; then
   if command -v timeout >/dev/null 2>&1; then
-    ITER_TIMEOUT_CMD="timeout --signal=TERM --kill-after=30 $PER_ITERATION_TIMEOUT"
+    ITER_TIMEOUT_CMD="timeout ${runnerEpicId ? "--foreground " : ""}--signal=TERM --kill-after=30 $PER_ITERATION_TIMEOUT"
   else
     echo "[$(date -Iseconds)] WARN: 'timeout' command not found; per-iteration AI timeout disabled" >> "$PROGRESS_FILE"
   fi
@@ -814,6 +854,17 @@ fi
 # transcripts of "You've hit your session limit"). Detect them so the loop can
 # stop honestly instead of burning quota-charged retries on a hard rejection.
 AI_PROVIDER_LIMIT_MSG=""
+# Notify outside the tee pipeline: a surviving provider child may keep its pipe open.
+run_ai_command() {
+  $ITER_TIMEOUT_CMD "$@"
+  COMMAND_EXIT_CODE=$?
+  if [ "\${BRAIN_DUMP_EPIC_RUNNER_CHILD:-}" = "\${RUNNER_EPIC_ID:-}:$$" ] && [ -n "\${BRAIN_DUMP_EPIC_SUPERVISOR_PID:-}" ] && { [ "$COMMAND_EXIT_CODE" -eq 124 ] || [ "$COMMAND_EXIT_CODE" -eq 137 ]; }; then
+    echo "[$(date -Iseconds)] ITERATION TIMEOUT: stopping the supervised run and its descendants" >> "$PROGRESS_FILE"
+    kill -USR2 "$BRAIN_DUMP_EPIC_SUPERVISOR_PID"
+  fi
+  return "$COMMAND_EXIT_CODE"
+}
+
 detect_provider_limit() {
   [ -n "$1" ] && [ -s "$1" ] || return 1
   AI_PROVIDER_LIMIT_MSG=$(grep -m1 -iE "(hit|reached) your (session|usage|weekly|5-hour) limit|(session|usage|weekly) limit (reached|exceeded)|out of extra usage" "$1" || true)
@@ -822,6 +873,9 @@ detect_provider_limit() {
 
 finish_ralph() {
   FINISH_CODE=\${1:-0}
+  if [ "\${BRAIN_DUMP_EPIC_RUNNER_CHILD:-}" = "\${RUNNER_EPIC_ID:-}:$$" ]; then
+    exit "$FINISH_CODE"
+  fi
   if [ "\${BRAIN_DUMP_EPIC_CONTINUATION:-0}" = "1" ]; then
     exit "$FINISH_CODE"
   fi
@@ -928,6 +982,10 @@ for i in $(seq 1 $MAX_ITERATIONS); do
   cat > "$PROMPT_FILE" << 'RALPH_PROMPT_EOF'
 ${getRalphPrompt(effectivePromptProfile)}
 RALPH_PROMPT_EOF
+  cat >> "$PROMPT_FILE" << RALPH_PROGRESS_EOF
+
+Launcher progress log: $PROGRESS_FILE. Use this path for runtime progress and blocker notes. Preserve any tracked plans/progress.txt as project context.
+RALPH_PROGRESS_EOF
   if [ -n "$RESUME_TICKET_ID" ]; then
     cat >> "$PROMPT_FILE" << RALPH_RESUME_EOF
 

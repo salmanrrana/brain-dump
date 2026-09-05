@@ -3614,6 +3614,15 @@ describe("verification drain (one-shot worker)", () => {
     expect(resolveBrainDumpRootFrom(nowhere)).toBeNull();
   });
 
+  it("resolves recovery workers from production server chunks", () => {
+    const bundledModuleUrl = pathToFileURL(
+      join(process.cwd(), ".output", "server", "chunks", "_", "db.mjs")
+    ).href;
+    expect(resolveBrainDumpRootFrom(bundledModuleUrl)).toBe(resolve(process.cwd()));
+    expect(resolveBrainDumpRootFrom("https://example.com/db.mjs")).toBeNull();
+    expect(resolveBrainDumpRootFrom("not a URL")).toBeNull();
+  });
+
   it("blocks execution in verifier boots and keeps the resident poller opt-in", () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("VITEST", "false");

@@ -1,8 +1,5 @@
 import { randomUUID } from "crypto";
 import { spawn, type SpawnOptions } from "child_process";
-import { existsSync } from "fs";
-import { join } from "path";
-import { fileURLToPath } from "url";
 import type { DbHandle, ExecFileNoThrowResult } from "../types.ts";
 import { addComment } from "../comment.ts";
 import { ValidationError } from "../errors.ts";
@@ -257,6 +254,7 @@ export async function runNextVerificationJob(
 
     if (
       run.status === "infra_error" &&
+      run.manifest.retryable !== false &&
       job.attemptCount < (options.maxInfraAttempts ?? DEFAULT_MAX_INFRA_ATTEMPTS)
     ) {
       const retryAt = retryAtIso(
@@ -275,7 +273,7 @@ export async function runNextVerificationJob(
     }
     let attentionCommentError: string | undefined;
     if (run.status === "infra_error") {
-      // Retries exhausted: the lifecycle already blocked the ticket; post the
+      // Retries exhausted or cannot help: the lifecycle already blocked the ticket; post the
       // loud notice it skipped for leased runs. The run is already settled, so
       // a comment failure must not fall into the outer catch — that path would
       // misreport it as a lost lease.
@@ -619,19 +617,4 @@ export function spawnDetachedVerificationDrainIfNeeded(
   return { needed: true, ...spawnDetachedVerificationDrain(options) };
 }
 
-/**
- * Resolve the Brain Dump repo root from a module URL by probing for the CLI
- * entrypoint. Works from source trees (cli/, mcp-server/tools/) and from the
- * bundled MCP server (mcp-server/dist/index.js) alike.
- */
-export function resolveBrainDumpRootFrom(moduleUrl: string): string | null {
-  for (const relative of ["..", "../..", "../../.."]) {
-    try {
-      const candidate = fileURLToPath(new URL(relative, moduleUrl));
-      if (existsSync(join(candidate, "cli", "brain-dump.ts"))) return candidate;
-    } catch {
-      // Invalid URL for this candidate depth; try the next one.
-    }
-  }
-  return null;
-}
+export { resolveBrainDumpRootFrom } from "../cli-entrypoint.ts";

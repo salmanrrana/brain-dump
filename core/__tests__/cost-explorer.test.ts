@@ -11,6 +11,7 @@ import {
   repairTokenUsageAttribution,
   seedCostModels,
   recordUsage,
+  getTicketCost,
   syncDefaultCostModels,
   upsertCostModel,
 } from "../cost.ts";
@@ -480,6 +481,106 @@ describe("cost model defaults", () => {
     expect(totals.inputTokens).toBe(1000);
     expect(totals.outputTokens).toBe(500);
   });
+
+  it("attaches existing ticket-only usage when backfill later creates telemetry", () => {
+    const ticketId = seedTicket();
+    const capture = {
+      ticketId,
+      model: "claude-sonnet-4-6",
+      inputTokens: 100,
+      outputTokens: 20,
+      source: "jsonl-hook",
+      sourceRef: "/logs/later-telemetry.jsonl",
+    };
+    const first = recordUsage(db, capture);
+    db.prepare(
+      `INSERT INTO telemetry_sessions (id, ticket_id, project_id, environment, started_at)
+      VALUES ('telemetry-later', ?, 'proj-1', 'claude-code', '2026-01-01T00:00:00.000Z')`
+    ).run(ticketId);
+    const attached = recordUsage(db, { ...capture, telemetrySessionId: "telemetry-later" });
+    expect(attached).toMatchObject({ id: first.id, telemetrySessionId: "telemetry-later" });
+    expect(db.prepare("SELECT count(*) AS n FROM token_usage").get()).toEqual({ n: 1 });
+    expect(
+      db
+        .prepare(
+          `SELECT total_input_tokens AS input, total_output_tokens AS output
+      FROM telemetry_sessions WHERE id='telemetry-later'`
+        )
+        .get()
+    ).toEqual({ input: 100, output: 20 });
+    expect(recordUsage(db, { ...capture, telemetrySessionId: "telemetry-later" }).id).toBe(
+      first.id
+    );
+    expect(recordUsage(db, capture)).toMatchObject({
+      id: first.id,
+      telemetrySessionId: "telemetry-later",
+    });
+    expect(
+      recordUsage(db, {
+        ...capture,
+        inputTokens: 120,
+        providerEventEnd: "2026-01-01T00:02:00.000Z",
+      })
+    ).toMatchObject({ id: first.id, telemetrySessionId: "telemetry-later" });
+    expect(
+      db
+        .prepare(
+          "SELECT total_input_tokens AS input FROM telemetry_sessions WHERE id='telemetry-later'"
+        )
+        .get()
+    ).toEqual({ input: 120 });
+    expect(getTicketCost(db, ticketId)).toMatchObject({
+      totalInputTokens: 120,
+      totalOutputTokens: 20,
+    });
+  });
+
+  it.each([false, true])(
+    "updates cumulative transcript captures without double counting (telemetry=%s)",
+    (withTelemetry) => {
+      const ticketId = seedTicket();
+      if (withTelemetry)
+        db.prepare(
+          `INSERT INTO telemetry_sessions
+      (id, ticket_id, project_id, environment, started_at)
+      VALUES ('telemetry-capture', ?, 'proj-1', 'claude-code', '2026-01-01T00:00:00.000Z')`
+        ).run(ticketId);
+      const params = {
+        ticketId,
+        ...(withTelemetry ? { telemetrySessionId: "telemetry-capture" } : {}),
+        model: "claude-sonnet-4-6",
+        inputTokens: 100,
+        outputTokens: 20,
+        source: "jsonl-hook",
+        sourceRef: "/logs/cumulative.jsonl",
+        providerEventEnd: "2026-01-01T00:01:00.000Z",
+      };
+      const first = recordUsage(db, params);
+      expect(recordUsage(db, params).id).toBe(first.id);
+      const updated = recordUsage(db, {
+        ...params,
+        inputTokens: 150,
+        outputTokens: 40,
+        providerEventEnd: "2026-01-01T00:02:00.000Z",
+      });
+      expect(updated).toMatchObject({ id: first.id, inputTokens: 150, outputTokens: 40 });
+      expect(recordUsage(db, params)).toEqual(updated);
+      expect(db.prepare("SELECT count(*) AS n FROM token_usage").get()).toEqual({ n: 1 });
+      expect(getTicketCost(db, ticketId)).toMatchObject({
+        totalInputTokens: 150,
+        totalOutputTokens: 40,
+      });
+      if (withTelemetry)
+        expect(
+          db
+            .prepare(
+              `SELECT total_input_tokens AS input, total_output_tokens AS output
+      FROM telemetry_sessions WHERE id = 'telemetry-capture'`
+            )
+            .get()
+        ).toEqual({ input: 150, output: 40 });
+    }
+  );
 
   it("repairs Notion-style transcript rows across seven matching ticket sessions", () => {
     const finalSessionId = "telemetry-7";

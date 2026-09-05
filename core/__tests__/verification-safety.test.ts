@@ -7,6 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type Database from "better-sqlite3";
 import { createTestDatabase } from "../db.ts";
 import { verifyTicket } from "../verification/run.ts";
+import { runNextVerificationJob } from "../verification/worker.ts";
+import { enqueueVerificationJob, getVerificationJob } from "../verification/queue.ts";
 import { getTicketBriefing } from "../ticket-briefing.ts";
 import type { DemoStep } from "../types.ts";
 
@@ -111,9 +113,29 @@ describe("verification execution safety", () => {
       ).run(reviewed);
       const run = await verifyTicket(db, { ticketId: "t" });
       expect(run.certified).toBe(false);
+      expect(run.manifest.retryable).toBe(false);
       expect(run.manifest.stepVerdicts[0]?.message).toContain(`reviewed ${reviewed}`);
     }
   );
+
+  it("requests attention immediately for a dirty reviewed checkout instead of waiting to retry", async () => {
+    git("init", "-b", "main");
+    git("config", "user.name", "Fixture");
+    git("config", "user.email", "fixture@example.invalid");
+    git("add", ".");
+    git("commit", "-m", "initial");
+    db.prepare(
+      "INSERT INTO ticket_workflow_state (id, ticket_id, reviewed_through_commit) VALUES ('w', 't', ?)"
+    ).run(git("rev-parse", "HEAD"));
+    writeFileSync(join(project, "demo.json"), "{}");
+    enqueueVerificationJob(db, "t");
+    const result = await runNextVerificationJob(db, { workerId: "fixture", maxInfraAttempts: 2 });
+    expect(result).toMatchObject({ claimed: true, attemptCount: 1, jobStatus: "blocked" });
+    expect(result.retryAt).toBeUndefined();
+    expect(getVerificationJob(db, "t")?.completedAt).not.toBeNull();
+    expect(db.prepare("SELECT COUNT(*) AS n FROM verification_runs").get()).toEqual({ n: 1 });
+    expect(readFileSync(join(project, "demo.json"), "utf8")).toBe("{}");
+  });
 
   it.each(["readiness", "headers", "body"])(
     "times out stalled HTTP %s and releases the connection",

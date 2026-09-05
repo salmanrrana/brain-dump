@@ -34,9 +34,13 @@ beforeEach(async () => {
   db.prepare(
     "INSERT INTO tickets (id, title, project_id, status) VALUES ('t', 'JSON fixture', 'p', 'ai_verification')"
   ).run();
-  server = createServer((_request, res) => {
+  server = createServer((request, res) => {
     res.setHeader("content-type", "application/json");
-    res.end(JSON.stringify(response));
+    res.end(
+      JSON.stringify(
+        request.url === "/presets" ? [{ name: "Recovery 45/15", intervals: [45, 15] }] : response
+      )
+    );
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
@@ -52,14 +56,14 @@ afterEach(async () => {
   rmSync(root, { recursive: true, force: true });
 });
 
-async function runAssertions(assert: DemoStepApiAutomation["assert"]) {
+async function runAssertions(assert: DemoStepApiAutomation["assert"], path = "/") {
   const steps = [
     {
       order: 1,
       description: "Check typed JSON",
       expectedOutcome: "Values match",
       type: "automated",
-      automation: { kind: "api", request: { method: "GET", path: "/" }, assert },
+      automation: { kind: "api", request: { method: "GET", path }, assert },
     },
   ];
   db.prepare(
@@ -77,12 +81,26 @@ it("compares typed JSON values from a real HTTP response without depending on ob
     { type: "jsonPath", path: "inputs", expected: { amount: 1000, years: 1 } },
     { type: "jsonPath", path: "annual", expected: [1000, 800] },
     { type: "jsonPath", path: "annual.1", expected: 800 },
+    { type: "jsonPath", path: "$.annual[1]", expected: 800 },
     { type: "jsonPath", path: "$", expected: response },
     { type: "jsonPath", expected: { path: "$.enabled", value: true } },
     { type: "jsonPath", expected: "label=a=b" },
   ]);
   expect(run.status).toBe("passed");
   expect(run.manifest.stepVerdicts[0]?.response?.status).toBe(200);
+});
+
+it("resolves bracket indices in root and nested arrays from a real HTTP response", async () => {
+  const run = await runAssertions(
+    [
+      { type: "jsonPath", path: "$[0].name", expected: "Recovery 45/15" },
+      { type: "jsonPath", path: "$[0].intervals[1]", expected: 15 },
+      { type: "jsonPath", path: "[0].intervals[0]", expected: 45 },
+      { type: "jsonPath", path: "0.name", expected: "Recovery 45/15" },
+    ],
+    "/presets"
+  );
+  expect(run.status).toBe("passed");
 });
 
 it("rejects wrong values and distinguishes numbers from strings", async () => {

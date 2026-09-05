@@ -647,14 +647,12 @@ export async function launchRalphForEpicCore(
     DEFAULT_RESOURCE_LIMITS,
     timeoutSeconds,
     dockerHostEnv,
-    useSandbox
-      ? {
-          projectId: project.id,
-          projectName: project.name,
-          epicId: epic.id,
-          epicTitle: epic.title,
-        }
-      : undefined,
+    {
+      projectId: project.id,
+      projectName: project.name,
+      epicId: epic.id,
+      epicTitle: epic.title,
+    },
     aiBackend,
     promptProfile,
     modelSelection,
@@ -775,13 +773,14 @@ export async function launchRalphForEpicCore(
   }
 
   console.log("[brain-dump] Using terminal launch path");
+  // The shell claims its ownership immediately, before any provider invocation.
+  const rollbackLaunchProfile = persistAutonomousLaunch();
   const launchResult = await launchInTerminal(project.path, scriptPath, preferredTerminal);
   if (!launchResult.success) {
+    rollbackLaunchProfile();
     rollbackEpicLaunchStatuses();
     return launchResult;
   }
-
-  persistAutonomousLaunch();
 
   return {
     success: true,

@@ -49,6 +49,8 @@ export interface VerificationStepVerdict {
 }
 
 export interface VerificationManifest {
+  /** False when retrying without repairing the checkout cannot make progress. */
+  retryable?: boolean;
   runId: string;
   ticketId: string;
   round: number;
