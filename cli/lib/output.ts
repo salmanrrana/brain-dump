@@ -5,7 +5,7 @@
  * `--pretty` for human-readable tables and formatted output.
  */
 
-import { CoreError } from "../../core/index.ts";
+import { CoreError } from "../../core/errors.ts";
 import { getCommandsForResource, getResourceDescription } from "./command-registry.ts";
 import { suggestClosest } from "./suggest.ts";
 

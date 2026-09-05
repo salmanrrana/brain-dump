@@ -5,7 +5,7 @@
  * No external dependencies — the grammar is simple enough for hand-rolled parsing.
  */
 
-import { ValidationError } from "../../core/index.ts";
+import { ValidationError } from "../../core/errors.ts";
 
 export interface ParsedFlags {
   [key: string]: string | boolean;

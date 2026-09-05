@@ -7,8 +7,8 @@ import {
   listComments,
   resolveCommentAuthor,
   resolveCommentIdentity,
-  InvalidActionError,
-} from "../../core/index.ts";
+} from "../../core/comment.ts";
+import { InvalidActionError } from "../../core/errors.ts";
 import type { CommentAuthor, CommentType } from "../../core/index.ts";
 import { parseFlags, requireFlag, boolFlag, optionalEnumFlag } from "../lib/args.ts";
 import { outputResult, outputError, showResourceHelp } from "../lib/output.ts";

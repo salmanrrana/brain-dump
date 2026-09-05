@@ -2,22 +2,13 @@
  * Workflow commands: start-work, complete-work, start-epic, launch-ticket, launch-epic.
  */
 
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import {
-  startWork,
-  completeWork,
-  startEpicWork,
-  createRealGitOperations,
-  InvalidActionError,
-  ValidationError,
-  listCostModels,
-  resolveCommentAuthor,
-} from "../../core/index.ts";
+import { startWork, completeWork, startEpicWork } from "../../core/workflow.ts";
+import { createRealGitOperations } from "../../core/git-utils.ts";
+import { InvalidActionError, ValidationError } from "../../core/errors.ts";
+import { listCostModels } from "../../core/cost.ts";
+import { resolveCommentAuthor } from "../../core/comment.ts";
 import { resolveReviewerSelection } from "../../core/providers.ts";
 import { runEpicScript } from "../../core/epic-runner.ts";
-import * as schema from "../../src/lib/schema.ts";
-import { launchRalphForTicketCore } from "../../src/lib/ralph-launch/launch-ticket.ts";
-import { launchRalphForEpicCore } from "../../src/lib/ralph-launch/launch-epic.ts";
 import type { LaunchEpicInput, LaunchTicketInput } from "../../src/lib/ralph-launch/types.ts";
 import {
   parseFlags,
@@ -167,6 +158,11 @@ export async function handle(action: string, args: string[]): Promise<void> {
         const ticketId = requireFlag(flags, "ticket");
         const shared = parseSharedLaunchFlags(flags, listCostModels(sqlite));
         const input = applySharedLaunchFlags<LaunchTicketInput>({ ticketId }, shared);
+        const [{ drizzle }, schema, { launchRalphForTicketCore }] = await Promise.all([
+          import("drizzle-orm/better-sqlite3"),
+          import("../../src/lib/schema.ts"),
+          import("../../src/lib/ralph-launch/launch-ticket.ts"),
+        ]);
         const drizzleDb = drizzle(sqlite, { schema });
         const result = await launchRalphForTicketCore(drizzleDb, input, { sqlite });
         outputResult({ ...result, provider: shared.provider ?? null }, pretty);
@@ -178,6 +174,11 @@ export async function handle(action: string, args: string[]): Promise<void> {
         const epicId = requireFlag(flags, "epic");
         const shared = parseSharedLaunchFlags(flags, listCostModels(sqlite));
         const input = applySharedLaunchFlags<LaunchEpicInput>({ epicId }, shared);
+        const [{ drizzle }, schema, { launchRalphForEpicCore }] = await Promise.all([
+          import("drizzle-orm/better-sqlite3"),
+          import("../../src/lib/schema.ts"),
+          import("../../src/lib/ralph-launch/launch-epic.ts"),
+        ]);
         const drizzleDb = drizzle(sqlite, { schema });
         const result = await launchRalphForEpicCore(drizzleDb, input, { sqlite });
         outputResult({ ...result, provider: shared.provider ?? null }, pretty);

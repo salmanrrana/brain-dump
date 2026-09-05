@@ -12,10 +12,9 @@ import {
   deleteTicket,
   updateAttachmentMetadata,
   listTicketsByEpic,
-  linkFiles,
-  getTicketsForFile,
-  InvalidActionError,
-} from "../../core/index.ts";
+} from "../../core/ticket.ts";
+import { linkFiles, getTicketsForFile } from "../../core/files.ts";
+import { InvalidActionError } from "../../core/errors.ts";
 import type { Priority, TicketStatus, CriterionStatus } from "../../core/index.ts";
 import {
   parseFlags,

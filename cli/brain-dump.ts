@@ -47,27 +47,6 @@ import { execFile } from "child_process";
 import { existsSync, readFileSync } from "fs";
 import { request } from "http";
 import { basename, resolve, join } from "path";
-import * as admin from "./commands/admin.ts";
-import * as project from "./commands/project.ts";
-import * as ticket from "./commands/ticket.ts";
-import * as epic from "./commands/epic.ts";
-import * as workflow from "./commands/workflow.ts";
-import * as comment from "./commands/comment.ts";
-import * as review from "./commands/review.ts";
-import * as verify from "./commands/verify.ts";
-import * as session from "./commands/session.ts";
-import * as git from "./commands/git.ts";
-import * as telemetry from "./commands/telemetry.ts";
-import * as files from "./commands/files.ts";
-import * as tasks from "./commands/tasks.ts";
-import * as compliance from "./commands/compliance.ts";
-import * as settings from "./commands/settings.ts";
-import * as transfer from "./commands/transfer.ts";
-import * as status from "./commands/status.ts";
-import * as search from "./commands/search.ts";
-import * as context from "./commands/context.ts";
-import * as log from "./commands/log.ts";
-import * as completions from "./commands/completions.ts";
 import { outputResult, outputError, showResourceHelp } from "./lib/output.ts";
 import {
   getResources,
@@ -76,8 +55,6 @@ import {
 } from "./lib/command-registry.ts";
 import { suggestClosest } from "./lib/suggest.ts";
 import { parseFlags, optionalFlag, boolFlag } from "./lib/args.ts";
-import { findProjectByPath, createProject } from "../core/index.ts";
-import { getDb } from "./lib/db.ts";
 
 const RESOURCES = getResources();
 
@@ -143,24 +120,6 @@ const resource = args[0];
 const action = args[1] ?? "";
 const rest = args.slice(2);
 
-function runSync(handler: (action: string, args: string[]) => void, a: string, r: string[]): void {
-  try {
-    handler(a, r);
-  } catch (e) {
-    outputError(e);
-  }
-}
-
-function runAsync(
-  handler: (action: string, args: string[]) => Promise<void>,
-  a: string,
-  r: string[]
-): void {
-  handler(a, r).catch((error: unknown) => {
-    outputError(error);
-  });
-}
-
 // Combine action and rest for backward compat (top-level commands pass action as first flag/arg)
 function backwardArgs(): string[] {
   return action ? [action, ...rest] : rest;
@@ -201,7 +160,11 @@ function openBrowser(url: string): void {
   });
 }
 
-function handleInit(): void {
+async function handleInit(): Promise<void> {
+  const [{ findProjectByPath, createProject }, { getDb }] = await Promise.all([
+    import("../core/project.ts"),
+    import("./lib/db.ts"),
+  ]);
   const initArgs = [action, ...rest].filter(Boolean);
   const flags = parseFlags(initArgs);
   const pretty = boolFlag(flags, "pretty");
@@ -241,157 +204,170 @@ function handleInit(): void {
   }
 }
 
-switch (resource) {
-  // ── Resource-based routing ──────────────────────────────────
-  case "project":
-    runSync(project.handle, action, rest);
-    break;
-  case "ticket":
-    runSync(ticket.handle, action, rest);
-    break;
-  case "epic":
-    runSync(epic.handle, action, rest);
-    break;
-  case "workflow":
-    runAsync(workflow.handle, action, rest);
-    break;
-  case "comment":
-    runSync(comment.handle, action, rest);
-    break;
-  case "review":
-    runSync(review.handle, action, rest);
-    break;
-  case "verify":
-    runAsync(verify.handle, action, rest);
-    break;
-  case "session":
-    runSync(session.handle, action, rest);
-    break;
-  case "git":
-    runSync(git.handle, action, rest);
-    break;
-  case "telemetry":
-    runAsync(telemetry.handle, action, rest);
-    break;
-  case "files":
-    runSync(files.handle, action, rest);
-    break;
-  case "tasks":
-    runSync(tasks.handle, action, rest);
-    break;
-  case "compliance":
-    runSync(compliance.handle, action, rest);
-    break;
-  case "settings":
-    runSync(settings.handle, action, rest);
-    break;
-  case "transfer":
-    runAsync(transfer.handle, action, rest);
-    break;
-  case "admin":
-    runAsync(admin.handle, action, rest);
-    break;
+async function main(): Promise<void> {
+  // Help and typo recovery must work without loading provider launchers or DB code.
+  if (
+    resource &&
+    RESOURCE_NAMES.includes(resource) &&
+    (!action || action === "--help" || action === "help")
+  ) {
+    showResourceHelp(resource);
+    return;
+  }
+  switch (resource) {
+    // ── Resource-based routing ──────────────────────────────────
+    case "project":
+      await (await import("./commands/project.ts")).handle(action, rest);
+      break;
+    case "ticket":
+      await (await import("./commands/ticket.ts")).handle(action, rest);
+      break;
+    case "epic":
+      await (await import("./commands/epic.ts")).handle(action, rest);
+      break;
+    case "workflow":
+      await (await import("./commands/workflow.ts")).handle(action, rest);
+      break;
+    case "comment":
+      await (await import("./commands/comment.ts")).handle(action, rest);
+      break;
+    case "review":
+      await (await import("./commands/review.ts")).handle(action, rest);
+      break;
+    case "verify":
+      await (await import("./commands/verify.ts")).handle(action, rest);
+      break;
+    case "session":
+      await (await import("./commands/session.ts")).handle(action, rest);
+      break;
+    case "git":
+      await (await import("./commands/git.ts")).handle(action, rest);
+      break;
+    case "telemetry":
+      await (await import("./commands/telemetry.ts")).handle(action, rest);
+      break;
+    case "files":
+      await (await import("./commands/files.ts")).handle(action, rest);
+      break;
+    case "tasks":
+      await (await import("./commands/tasks.ts")).handle(action, rest);
+      break;
+    case "compliance":
+      await (await import("./commands/compliance.ts")).handle(action, rest);
+      break;
+    case "settings":
+      await (await import("./commands/settings.ts")).handle(action, rest);
+      break;
+    case "transfer":
+      await (await import("./commands/transfer.ts")).handle(action, rest);
+      break;
+    case "admin":
+      await (await import("./commands/admin.ts")).handle(action, rest);
+      break;
 
-  // ── Top-level power commands ─────────────────────────────────
-  case "open":
-    handleOpen();
-    break;
-  case "init":
-    handleInit();
-    break;
-  case "status":
-    status.handle(action, rest);
-    break;
-  case "search":
-    search.handle(action, rest);
-    break;
-  case "context":
-    context.handle(action, rest);
-    break;
-  case "log":
-    log.handle(action, rest);
-    break;
-  case "completions":
-    completions.handle(action, rest);
-    break;
+    // ── Top-level power commands ─────────────────────────────────
+    case "open":
+      handleOpen();
+      break;
+    case "init":
+      await handleInit();
+      break;
+    case "status":
+      await (await import("./commands/status.ts")).handle(action, rest);
+      break;
+    case "search":
+      await (await import("./commands/search.ts")).handle(action, rest);
+      break;
+    case "context":
+      await (await import("./commands/context.ts")).handle(action, rest);
+      break;
+    case "log":
+      await (await import("./commands/log.ts")).handle(action, rest);
+      break;
+    case "completions":
+      await (await import("./commands/completions.ts")).handle(action, rest);
+      break;
 
-  // ── Backward compatibility (top-level commands) ─────────────
-  case "export":
-    // brain-dump export --epic <id>  → transfer export-epic
-    // brain-dump export --project <id> → transfer export-project
-    if (backwardArgs().some((a) => a === "--project")) {
-      runAsync(transfer.handle, "export-project", backwardArgs());
-    } else {
-      runAsync(transfer.handle, "export-epic", backwardArgs());
-    }
-    break;
-  case "import":
-    runAsync(transfer.handle, "import", backwardArgs());
-    break;
-  case "backup":
-    runAsync(admin.handle, "backup", backwardArgs());
-    break;
-  case "restore":
-    runAsync(admin.handle, "restore", backwardArgs());
-    break;
-  case "check":
-    runAsync(admin.handle, "check", backwardArgs());
-    break;
-  case "doctor":
-    runAsync(admin.handle, "doctor", backwardArgs());
-    break;
-
-  // ── Help ────────────────────────────────────────────────────
-  case "help":
-  case "--help":
-  case "-h":
-  case undefined:
-    // brain-dump help <resource> → show resource-specific help
-    if (resource === "help" && action && action !== "--help") {
-      if (RESOURCE_NAMES.includes(action)) {
-        showResourceHelp(action);
+    // ── Backward compatibility (top-level commands) ─────────────
+    case "export":
+      // brain-dump export --epic <id>  → transfer export-epic
+      // brain-dump export --project <id> → transfer export-project
+      if (backwardArgs().some((a) => a === "--project")) {
+        await (await import("./commands/transfer.ts")).handle("export-project", backwardArgs());
       } else {
-        const suggestion = suggestClosest(action, RESOURCE_NAMES);
-        console.error(`Unknown resource: ${action}`);
-        if (suggestion) {
-          console.error(`\nDid you mean: ${suggestion}?`);
-        }
-        console.error(`\nAvailable resources: ${RESOURCE_NAMES.join(", ")}`);
-        console.error(`Run 'brain-dump help' for usage information.`);
-        process.exit(1);
+        await (await import("./commands/transfer.ts")).handle("export-epic", backwardArgs());
       }
-    } else {
-      showHelp();
-    }
-    break;
+      break;
+    case "import":
+      await (await import("./commands/transfer.ts")).handle("import", backwardArgs());
+      break;
+    case "backup":
+      await (await import("./commands/admin.ts")).handle("backup", backwardArgs());
+      break;
+    case "restore":
+      await (await import("./commands/admin.ts")).handle("restore", backwardArgs());
+      break;
+    case "check":
+      await (await import("./commands/admin.ts")).handle("check", backwardArgs());
+      break;
+    case "doctor":
+      await (await import("./commands/admin.ts")).handle("doctor", backwardArgs());
+      break;
 
-  // ── Unknown ─────────────────────────────────────────────────
-  default: {
-    // Combine all known resource names and top-level command names for suggestions
-    const allKnown = [
-      ...RESOURCE_NAMES,
-      "open",
-      "init",
-      "status",
-      "search",
-      "context",
-      "log",
-      "completions",
-      "backup",
-      "restore",
-      "check",
-      "doctor",
-      "export",
-      "import",
-      "help",
-    ];
-    const suggestion = suggestClosest(resource!, allKnown);
-    console.error(`Unknown command: ${resource}`);
-    if (suggestion) {
-      console.error(`\nDid you mean: ${suggestion}?`);
+    // ── Help ────────────────────────────────────────────────────
+    case "help":
+    case "--help":
+    case "-h":
+    case undefined:
+      // brain-dump help <resource> → show resource-specific help
+      if (resource === "help" && action && action !== "--help") {
+        if (RESOURCE_NAMES.includes(action)) {
+          showResourceHelp(action);
+        } else {
+          const suggestion = suggestClosest(action, RESOURCE_NAMES);
+          console.error(`Unknown resource: ${action}`);
+          if (suggestion) {
+            console.error(`\nDid you mean: ${suggestion}?`);
+          }
+          console.error(`\nAvailable resources: ${RESOURCE_NAMES.join(", ")}`);
+          console.error(`Run 'brain-dump help' for usage information.`);
+          process.exit(1);
+        }
+      } else {
+        showHelp();
+      }
+      break;
+
+    // ── Unknown ─────────────────────────────────────────────────
+    default: {
+      // Combine all known resource names and top-level command names for suggestions
+      const allKnown = [
+        ...RESOURCE_NAMES,
+        "open",
+        "init",
+        "status",
+        "search",
+        "context",
+        "log",
+        "completions",
+        "backup",
+        "restore",
+        "check",
+        "doctor",
+        "export",
+        "import",
+        "help",
+      ];
+      const suggestion = suggestClosest(resource!, allKnown);
+      console.error(`Unknown command: ${resource}`);
+      if (suggestion) {
+        console.error(`\nDid you mean: ${suggestion}?`);
+      }
+      console.error(`\nAvailable resources: ${RESOURCE_NAMES.join(", ")}`);
+      console.error(`Run 'brain-dump help' for usage information.`);
+      process.exit(1);
     }
-    console.error(`\nAvailable resources: ${RESOURCE_NAMES.join(", ")}`);
-    console.error(`Run 'brain-dump help' for usage information.`);
-    process.exit(1);
   }
 }
+
+main().catch(outputError);

@@ -47,7 +47,7 @@ import {
   resolveCommentIdentity,
   type ResolveCommentIdentityParams,
 } from "./comment.ts";
-import { enqueueVerificationJob } from "./verification/index.ts";
+import { enqueueVerificationJob } from "./verification/queue.ts";
 import {
   assertTransition,
   isTicketStatus,
@@ -617,16 +617,29 @@ export function checkComplete(db: DbHandle, ticketId: string): ReviewCompletionS
   getTicketRow(db, ticketId);
 
   const rows = db
-    .prepare("SELECT * FROM review_findings WHERE ticket_id = ?")
-    .all(ticketId) as DbReviewFindingRow[];
+    .prepare("SELECT severity, status FROM review_findings WHERE ticket_id = ?")
+    .all(ticketId) as Pick<DbReviewFindingRow, "severity" | "status">[];
 
-  const openCritical = rows.filter((f) => f.severity === "critical" && f.status === "open").length;
-  const openMajor = rows.filter((f) => f.severity === "major" && f.status === "open").length;
-  const openMinor = rows.filter((f) => f.severity === "minor" && f.status === "open").length;
-  const openSuggestion = rows.filter(
-    (f) => f.severity === "suggestion" && f.status === "open"
-  ).length;
-  const fixedFindings = rows.filter((f) => f.status === "fixed").length;
+  return summarizeReviewCompletion(rows);
+}
+
+/** Reuse the finding snapshot already read by a review-context request. */
+function summarizeReviewCompletion(
+  rows: Pick<DbReviewFindingRow, "severity" | "status">[]
+): ReviewCompletionStatus {
+  let openCritical = 0;
+  let openMajor = 0;
+  let openMinor = 0;
+  let openSuggestion = 0;
+  let fixedFindings = 0;
+  for (const finding of rows) {
+    if (finding.status === "fixed") fixedFindings++;
+    if (finding.status !== "open") continue;
+    if (finding.severity === "critical") openCritical++;
+    else if (finding.severity === "major") openMajor++;
+    else if (finding.severity === "minor") openMinor++;
+    else if (finding.severity === "suggestion") openSuggestion++;
+  }
 
   const canProceed = openCritical === 0 && openMajor === 0;
 
@@ -885,7 +898,7 @@ export function getReviewContext(db: DbHandle, ticketId: string): ReviewContext 
     },
     openFindings,
     resolvedFindings,
-    completion: checkComplete(db, ticketId),
+    completion: summarizeReviewCompletion(findingRows),
   };
 }
 

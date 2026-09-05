@@ -6,7 +6,7 @@
  * produces the same effect as clicking the matching button in the browser.
  */
 
-import { ValidationError } from "../../core/index.ts";
+import { ValidationError } from "../../core/errors.ts";
 import {
   PROVIDER_IDS,
   resolveProviderModelSelection,

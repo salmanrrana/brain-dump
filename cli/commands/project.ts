@@ -7,8 +7,8 @@ import {
   findProjectByPath,
   createProject,
   deleteProject,
-  InvalidActionError,
-} from "../../core/index.ts";
+} from "../../core/project.ts";
+import { InvalidActionError } from "../../core/errors.ts";
 import { parseFlags, requireFlag, optionalFlag, boolFlag } from "../lib/args.ts";
 import { outputResult, outputError, showResourceHelp } from "../lib/output.ts";
 import { getDb } from "../lib/db.ts";

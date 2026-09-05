@@ -5,7 +5,7 @@
  * Each test gets an isolated data directory via XDG_DATA_HOME / XDG_STATE_HOME.
  */
 
-import { execFile } from "child_process";
+import { execFile, execFileSync } from "child_process";
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join, resolve } from "path";
@@ -53,6 +53,9 @@ function run(...args: string[]): Promise<RunResult> {
           XDG_STATE_HOME: join(tempDir, "state"),
           // Prevent legacy migration from touching real data
           HOME: tempDir,
+          // This suite tests dispatch and enqueueing. The dedicated real CLI
+          // workflow test owns detached workers and browser certification.
+          BRAIN_DUMP_DISABLE_VERIFICATION_WORKER: "1",
         },
         timeout: 30_000,
       },
@@ -549,9 +552,22 @@ describe("review", () => {
       "Review Ticket"
     )) as Record<string, unknown>;
 
-    // Move to ai_review so review actions work
+    // Enter review through the real validation gate; direct ai_review status
+    // updates are intentionally rejected by the workflow.
     await runOk("ticket", "update-status", "--ticket", t.id as string, "--status", "in_progress");
-    await runOk("ticket", "update-status", "--ticket", t.id as string, "--status", "ai_review");
+    writeFileSync(join(projPath, "fixture.mjs"), "export const ready = true;\n");
+    execFileSync(process.execPath, ["--check", "fixture.mjs"], { cwd: projPath });
+    await runOk(
+      "comment",
+      "add",
+      "--ticket",
+      t.id as string,
+      "--type",
+      "test_report",
+      "--content",
+      "node --check fixture.mjs: passed. CLI review fixture is ready."
+    );
+    await runOk("workflow", "complete-work", "--ticket", t.id as string);
 
     return { projectId: p.id as string, projectPath: projPath, ticketId: t.id as string };
   }

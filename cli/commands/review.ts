@@ -14,17 +14,18 @@ import {
   generateDemo,
   getDemo,
   getFindings,
-  listVerificationRuns,
-  resolveBrainDumpRootFrom,
-  spawnDetachedVerificationDrain,
   validateRepairLegacyHumanReviewHandoff,
   repairLegacyHumanReviewHandoff,
-  resolveVerificationFailure,
-  updatePrdForDbTicketIfPresent,
-  resolveCommentAuthor,
-  InvalidActionError,
-  ValidationError,
-} from "../../core/index.ts";
+} from "../../core/review.ts";
+import { listVerificationRuns } from "../../core/verification/run.ts";
+import {
+  resolveBrainDumpRootFrom,
+  spawnDetachedVerificationDrain,
+} from "../../core/verification/worker.ts";
+import { resolveVerificationFailure } from "../../core/verification/ops.ts";
+import { updatePrdForDbTicketIfPresent } from "../../core/prd-sync.ts";
+import { resolveCommentAuthor } from "../../core/comment.ts";
+import { InvalidActionError, ValidationError } from "../../core/errors.ts";
 import type {
   FindingSeverity,
   FindingAgent,
