@@ -17,8 +17,8 @@ import type {
 // The diff review surface pulls in the virtualized patch renderer, which is heavy
 // and only needed once the panel is opened. Lazy-loading it keeps the epic route
 // initial chunk lean (no diff renderer until the user reviews changes).
-// Import the surface module directly so this boundary does not wait on unrelated
-// code-change exports while modules are loading concurrently.
+// Import the surface module directly to avoid an extra barrel-module evaluation
+// at this lazy boundary.
 const CodeChangeReviewSurface = lazy(() =>
   import("../code-changes/CodeChangeReviewSurface").then((module) => ({
     default: module.CodeChangeReviewSurface,
