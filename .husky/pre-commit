@@ -1,8 +1,12 @@
-# Run lint-staged to format and lint staged files
-npx lint-staged
+#!/usr/bin/env sh
+set -eu
 
-# Run type-check on the entire codebase
-pnpm type-check
+# Format and lint only staged files. lint-staged preserves partially staged edits.
+pnpm exec lint-staged
 
-# Run tests
-pnpm test
+if ! git diff --cached --name-only --diff-filter=ACMRD | grep -Eq '\.(ts|tsx|js|jsx|mjs|cjs)$|(^|/)(package\.json|pnpm-lock\.yaml|tsconfig\.json|vite\.config\.ts|vitest[^/]*\.ts|eslint\.config\.js)$'; then
+  echo "pre-commit: no staged code or toolchain changes"
+  exit 0
+fi
+
+node scripts/check-staged.mjs

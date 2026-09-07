@@ -87,6 +87,7 @@ Add `--pretty` to any command for human-readable output; the default is JSON.
 | Command           | Description                                                        |
 | ----------------- | ------------------------------------------------------------------ |
 | `pnpm dev`        | Start the app on `localhost:4242`                                  |
+| `pnpm check:fast` | Lint, cached project types, and tests related to changed files     |
 | `pnpm check`      | Type-check + lint + tests (required before any ticket is complete) |
 | `pnpm test:e2e`   | Playwright end-to-end tests                                        |
 | `pnpm db:migrate` | Run database migrations                                            |

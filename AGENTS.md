@@ -22,6 +22,7 @@ When these priorities conflict with convenience, choose correctness, observabili
 ### Completion Requirements
 
 - For this Brain Dump repository, `pnpm check` must pass before a code ticket is considered complete.
+- Use `pnpm check:fast` while iterating. It runs lint, the cached project typecheck, and Node/DOM tests related to working-tree changes. Shared configuration and deletions fall back to both full Vitest projects. The pre-commit hook formats staged files, then runs the same checks against an exact index snapshot.
 - When Brain Dump is working on another project, discover that project's validation commands from its docs and config. Do not assume pnpm, npm, TypeScript, or lint/test scripts exist.
 - For this Brain Dump repository, run `pnpm build` when the change touches routing, bundling, build config, server/client boundaries, or package exports.
 - Run focused tests for the area changed. Brain Dump examples: `pnpm exec vitest run --project node src/api/search.test.ts`, `pnpm exec vitest run --project node core/__tests__/workflow.test.ts`, or `pnpm test:e2e` for browser flows. Do not use `pnpm test -- FILE`: its extra `--` prevents Vitest's file filter and runs the entire node suite.
