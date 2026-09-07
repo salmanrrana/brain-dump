@@ -4,7 +4,7 @@
 
 ## Overview
 
-The Universal Quality Workflow ensures consistent code quality by enforcing a structured review → fix → demo → approval flow in every AI coding environment (Claude Code, Cursor, VS Code, OpenCode).
+The Universal Quality Workflow ensures consistent code quality by enforcing a structured review -> fix -> demo -> AI verification flow in every AI coding environment (Claude Code, Cursor, VS Code, OpenCode, Copilot CLI, Codex, and Pi).
 
 This document is the authoritative guide to the workflow. For implementation details, see [plans/specs/universal-quality-workflow.md](../plans/specs/universal-quality-workflow.md).
 
@@ -31,38 +31,28 @@ pnpm dev    # http://localhost:4242
 # 6. Fix any issues the agents found
 # → Once all critical/major issues fixed, demo is ready
 
-# 7. Human (you) approves the demo
-# → Ticket moves to done
+# 7. AI verification runner executes the demo steps
+# → Certified passes move to done; failures loop back to in_progress
 ```
 
 ## The Status Flow
 
-```
-┌──────────┐
-│ backlog  │  Waiting to be picked up
-└────┬─────┘
-     │ (ready status, AI starts work)
-     ▼
-┌──────────────┐
-│ in_progress  │  AI is writing code
-└────┬─────────┘
-     │ (code done, tests pass)
-     ▼
-┌──────────┐        ┌────────────┐
-│ ai_review│───→    │ Fix Loop:  │
-└────┬─────┘        │ - Review   │
-     │              │ - Fix      │
-     │              │ - Repeat   │
-     ▼              └────────────┘
-┌──────────────┐     (All critical/major fixed)
-│ human_review │  AI generated demo, waiting for you
-└────┬─────────┘
-     │ (You ran demo, gave feedback)
-     ▼
-┌─────┐
-│ done│  Complete and approved
-└─────┘
-```
+<!-- BEGIN GENERATED: workflow-sequence -->
+
+The enforced ticket status specification lives in `core/workflow-steps.ts`. Run `pnpm workflow:prompts` after changing workflow statuses or transitions.
+
+Status flow: `backlog -> ready -> in_progress -> ai_review -> ai_verification -> done`
+
+| Status            | Label           | Active | Kanban column |
+| ----------------- | --------------- | ------ | ------------- |
+| `backlog`         | Backlog         | no     | yes           |
+| `ready`           | Ready           | no     | yes           |
+| `in_progress`     | In Progress     | yes    | yes           |
+| `ai_review`       | AI Review       | yes    | yes           |
+| `ai_verification` | AI Verification | yes    | yes           |
+| `done`            | Done            | no     | yes           |
+
+<!-- END GENERATED: workflow-sequence -->
 
 ## Detailed Workflow Phases
 
@@ -174,7 +164,7 @@ Requirements to call this:
 What happens:
 
 - Demo script created with step-by-step instructions
-- Ticket status: → `human_review`
+- Ticket status: → `ai_verification`
 - Ticket comment: "Demo script generated with {n} steps"
 
 **Demo steps include:**
@@ -184,32 +174,78 @@ What happens:
 - Edge case testing
 - Visual confirmation points
 
-### Phase 6: Human Review (Demo Approval)
+### Phase 6: AI Verification
 
-**You (the human) do:**
+**The verification runner does:**
 
-1. Open ticket detail
-2. Find "Demo Ready" badge
-3. Click "Start Demo Review"
-4. Run through each step
-5. Mark step as "Passed", "Failed", or "Skipped"
-6. Approve or request changes
+1. Boots the target project from the current code
+2. Executes generated demo steps
+3. Captures evidence and runner notes
+4. Moves certified passes to `done`
+5. Loops failed verification back to implementation
 
-**If Approved**: Ticket → `done` ✓
+**If Certified**: Ticket → `done` ✓
 
-**If Changes Requested**: Ticket stays in `human_review` with feedback
+**If Verification Fails**: Ticket → `in_progress` with findings and evidence
 
-- AI reads feedback comment
+- AI reads verification findings
 - AI fixes issues
 - Loop back to Phase 4: AI Review
 
 **Ticket comments show:**
 
-- Step 1 of 5: Setup database
-- Step 2 of 5: Create user account
-- ✓ Step 3 of 5: Login succeeds
-- ✗ Step 4 of 5: Profile page missing avatar field
-- "Requested changes: Add avatar support to user profile"
+- Demo script generated with 5 steps
+- Verification run failed: profile page missing avatar field
+- Verification evidence attached for failed step
+
+#### The runner is automatic
+
+Nobody runs a per-ticket verification command in the normal flow. Verification is queue-driven:
+
+1. `generate-demo` moves the ticket to `ai_verification`, clears superseded `verificationFailures` prompt text from the scoped PRD, and enqueues exactly one durable verification job (duplicate handoffs refresh the same job row). Durable run/finding history remains in SQLite.
+2. The enqueue surface (MCP tool or CLI) spawns a detached **one-shot drain** process (`brain-dump verify worker --drain`), and every Brain Dump server boot drains the queue once at startup. One-shot processes always load the **current on-disk code**, so a long-running server never verifies with its stale boot-time module graph.
+3. The running Brain Dump app also acts as a lightweight supervisor. Every 10 seconds it checks for claimable queued work or expired leases and launches a fresh current-code drain. It does not execute verification from the app's older module graph.
+4. The drain leases the job (one active runner per ticket), heartbeats that lease during long test/build steps, runs the full step suite, and settles the outcome: certified pass → `done` (plus epic auto-PR when the last epic ticket completes), assertion failure → findings filed and loop-back to `in_progress`, retryable infrastructure failure → automatic retry in `ai_verification`, and exhausted/unsafe/manual outcomes → blocked `in_progress` with the exact human action on the ticket.
+5. If a provider, MCP process, or drain dies mid-run, its lease expires and the app supervisor re-leases the same job. Queued work survives process exits and restarts without two healthy workers owning the same attempt.
+6. Command assertions use the complete captured stdout/stderr (up to the execution buffer); only persisted evidence is truncated. A required string after the evidence limit cannot false-fail, and a forbidden string after that limit cannot false-pass.
+
+**Operator controls (debugging and tests, not the normal path):**
+
+| Control                                    | Effect                                                                     |
+| ------------------------------------------ | -------------------------------------------------------------------------- |
+| `brain-dump verify status --ticket <id>`   | Inspect the ticket's queued/running job state                              |
+| `brain-dump verify worker-status`          | Queue health: depth by status, oldest queued age, stale leases, last error |
+| `brain-dump verify worker [--drain]`       | Manually run one worker iteration / drain the queue                        |
+| `brain-dump verify run --ticket <id>`      | Direct one-off run (respects an active worker lease)                       |
+| `BRAIN_DUMP_DISABLE_VERIFICATION_WORKER=1` | Disable all automatic verification execution                               |
+| `BRAIN_DUMP_VERIFICATION_WORKER_POLL=1`    | Opt in to a resident 10s poller (long-lived CI/ops boxes; off by default)  |
+
+Verification execution is automatically disabled inside test runs (`NODE_ENV=test`/Vitest), verifier-booted app instances (`BRAIN_DUMP_VERIFY_BOOT=1`), and Playwright E2E boots — a verification boot must never recurse into the queue or keep executing frozen code.
+
+**If tickets sit in `ai_verification`:** check `brain-dump verify worker-status` for queue depth, stale leases, and the last error, then `brain-dump doctor` for runner capability (Playwright, attachments dir, `gh` auth). While the Brain Dump app is running, queued jobs and expired leases are recovered automatically. In a headless/CLI-only environment with no app supervisor, run `brain-dump verify worker --drain --pretty` once to reclaim them.
+
+Ralph's no-progress guard tracks two high-water marks: the lowest incomplete-ticket count and the highest workflow phase each ticket has reached during the run. A first `ai_review → ai_verification` handoff resets the guard even though `passes` remains false; cycling the same ticket back through a phase it already reached does not reset it indefinitely.
+
+The shared core `start-work` and `complete-work` transitions synchronize `in_progress` and `ai_review` into the current scoped PRD for every adapter (CLI, MCP, and UI). That keeps phase tracking provider-independent instead of relying on one launch surface to patch the PRD.
+
+## Cross-Provider Workflow Parity
+
+Every provider class must have a non-empty way to fulfill each workflow step. MCP clients use the `workflow`, `review`, `session`, and `comment` tools directly; Pi uses the `brain-dump` CLI equivalents; hook-capable providers add local guardrails, but MCP/core preconditions remain authoritative.
+
+| Workflow step                | MCP providers: Claude Code, VS Code, Cursor, OpenCode, Copilot CLI, Codex   | CLI-only provider: Pi                                                                                                    | Hook/prompt enforcement                                                                                  |
+| ---------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| Start work                   | `workflow { action: "start-work" }`                                         | `brain-dump workflow start-work --ticket <id>`                                                                           | Claude/Copilot/Cursor-agent hooks guide state; prompt guardrails for hook-less providers                 |
+| Track session                | `session create`, `session get`, `session update-state`, `session complete` | `brain-dump session create`, `brain-dump session get`, `brain-dump session update-state`, `brain-dump session complete`  | State file is written by the session tool for all providers                                              |
+| Record validation            | `comment { action: "add", commentType: "test_report" }`                     | `brain-dump comment add --type test_report --ticket <id>`                                                                | `complete-work` requires a fresh test report                                                             |
+| Complete implementation      | `workflow { action: "complete-work" }`                                      | `brain-dump workflow complete-work --ticket <id>`                                                                        | Core transition requires `in_progress -> ai_review`                                                      |
+| Submit review findings       | `review { action: "submit-finding" }`                                       | `brain-dump review submit-finding --ticket <id> ...`                                                                     | Core transition requires `ai_review`                                                                     |
+| Mark findings fixed          | `review { action: "mark-fixed" }`                                           | `brain-dump review mark-fixed --finding <id> --status fixed`                                                             | `check-complete` blocks open critical/major findings                                                     |
+| Check review completion      | `review { action: "check-complete" }`                                       | `brain-dump review check-complete --ticket <id>`                                                                         | Result exposes `canProceedToVerification`                                                                |
+| Generate demo handoff        | `review { action: "generate-demo" }`                                        | `brain-dump review generate-demo --ticket <id> --steps-file <file>`                                                      | Core transition requires `ai_review -> ai_verification`; visual/automated steps require automation specs |
+| Inspect verification history | `review { action: "get-verification-history" }`                             | `brain-dump review get-verification-history --ticket <id>` or `brain-dump verify history --ticket <id>`                  | Read-only evidence/audit surface                                                                         |
+| Run verification             | Automatic: `generate-demo` enqueues a job; one-shot drains execute it       | Automatic (same queue); debugging entrypoints: `brain-dump verify worker --drain`, `brain-dump verify run --ticket <id>` | Runner owns evidence writes and `ai_verification -> done` or failure loop-back                           |
+
+`submit-feedback` is intentionally not part of any provider class. Manual approval is retired; hook-less providers cannot bypass verification because the core review path rejects manual demo feedback and only the verification runner performs certified completion.
 
 ### Phase 7: Reconcile Learnings (Optional)
 
@@ -333,16 +369,15 @@ brain-dump doctor
 
 These tools enforce the workflow in all environments:
 
-| Tool + Action                | Purpose                  | Preconditions               |
-| ---------------------------- | ------------------------ | --------------------------- |
-| `workflow` `start-work`      | Begin work               | No other ticket in_progress |
-| `workflow` `complete-work`   | Finish implementation    | Validation passed           |
-| `review` `submit-finding`    | Report issue from review | Ticket in ai_review         |
-| `review` `mark-fixed`        | Mark issue resolved      | Finding exists              |
-| `review` `check-complete`    | Check if review passed   | Findings submitted          |
-| `review` `generate-demo`     | Create test instructions | No critical/major findings  |
-| `review` `submit-feedback`   | Record human feedback    | Demo script exists          |
-| `epic` `reconcile-learnings` | Update project docs      | Ticket in done              |
+| Tool + Action                | Purpose                     | Preconditions               |
+| ---------------------------- | --------------------------- | --------------------------- |
+| `workflow` `start-work`      | Begin work                  | No other ticket in_progress |
+| `workflow` `complete-work`   | Finish implementation       | Validation passed           |
+| `review` `submit-finding`    | Report issue from review    | Ticket in ai_review         |
+| `review` `mark-fixed`        | Mark issue resolved         | Finding exists              |
+| `review` `check-complete`    | Check if review passed      | Findings submitted          |
+| `review` `generate-demo`     | Create verification handoff | No critical/major findings  |
+| `epic` `reconcile-learnings` | Update project docs         | Ticket in done              |
 
 ## Telemetry & Observability
 
@@ -359,7 +394,7 @@ Activity
 🤖 claude - Fixed: Missing validation [critical]
 🤖 claude - AI review passed after 2 iterations
 🤖 claude - Demo script generated with 5 steps
-👤 user - Approved. "Looks great!"
+🤖 runner - Verification passed with sealed evidence
 ```
 
 Plus detailed telemetry:
@@ -413,7 +448,7 @@ Finds cross-ticket patterns and consistency issues.
 
 ### `/demo`
 
-Generate demo script for human review.
+Generate demo script for AI verification.
 
 ```
 /demo
@@ -453,13 +488,13 @@ You tried to submit a finding for a ticket not in AI review.
 - This moves the ticket to `ai_review`
 - Then submit findings
 
-### "Cannot start ticket - previous ticket still in review"
+### "Cannot start ticket - previous ticket still in verification"
 
-A previous ticket is waiting for human feedback.
+A previous ticket is waiting for AI verification or review completion.
 
 **Fix:**
 
-- Review and approve/reject the previous ticket
+- Let the verification runner certify the previous ticket, or fix/review any loop-back findings
 - Then start the new one
 
 ### "Validation failed: 1 test failing"
@@ -528,9 +563,9 @@ Ralph:
 4. Calls `workflow` `complete-work`
 5. Runs AI review
 6. Generates demo
-7. Repeats until all tickets are in `human_review` or `done`
+7. Repeats until all tickets are in `ai_verification` or `done`
 
-Ralph respects the same workflow as interactive mode. All tickets are reviewed and demo-ready before Ralph stops.
+Ralph respects the same workflow as interactive mode. All tickets are reviewed and handed to AI verification before Ralph stops.
 
 ## Architecture
 

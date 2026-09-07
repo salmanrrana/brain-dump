@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { existsSync, rmSync, mkdirSync, writeFileSync } from "fs";
+import { chmodSync, existsSync, rmSync, mkdirSync, writeFileSync } from "fs";
 import { join } from "path";
 import Database from "better-sqlite3";
 import {
@@ -203,6 +203,52 @@ describe("Integrity Utilities", () => {
       expect(result.details.some((d) => d.includes("Journal mode"))).toBe(true);
     });
 
+    it("should verify an active WAL without a read-only checkpoint error", () => {
+      const dbPath = join(testBase, "active-wal.db");
+      const db = new Database(dbPath);
+      db.pragma("journal_mode = WAL");
+      db.pragma("wal_autocheckpoint = 0");
+      db.exec("CREATE TABLE test (id INTEGER PRIMARY KEY)");
+      db.exec("INSERT INTO test DEFAULT VALUES");
+
+      const result = walCheck(dbPath);
+
+      expect(result.success).toBe(true);
+      expect(result.status).toBe("ok");
+      expect(result.details.some((detail) => detail.includes("WAL pages"))).toBe(true);
+      db.close();
+    });
+
+    it.skipIf(process.platform === "win32")(
+      "should inspect a read-only WAL database when checkpointing is unavailable",
+      () => {
+        const dbDir = join(testBase, "read-only-wal");
+        const dbPath = join(dbDir, "database.db");
+        mkdirSync(dbDir, { recursive: true });
+        const db = new Database(dbPath);
+        db.pragma("journal_mode = WAL");
+        db.pragma("wal_autocheckpoint = 0");
+        db.exec("CREATE TABLE test (id INTEGER PRIMARY KEY)");
+        db.exec("INSERT INTO test DEFAULT VALUES");
+
+        const relatedPaths = [dbPath, `${dbPath}-wal`, `${dbPath}-shm`].filter(existsSync);
+        for (const path of relatedPaths) chmodSync(path, 0o444);
+        chmodSync(dbDir, 0o555);
+
+        try {
+          const result = walCheck(dbPath);
+
+          expect(result.success).toBe(true);
+          expect(result.status).toBe("warning");
+          expect(result.details).toContain("WAL checkpoint skipped: database is read-only");
+        } finally {
+          chmodSync(dbDir, 0o755);
+          for (const path of relatedPaths) chmodSync(path, 0o644);
+          db.close();
+        }
+      }
+    );
+
     it("should work for database not in WAL mode", () => {
       const dbPath = join(testBase, "delete.db");
       const db = new Database(dbPath);
@@ -213,7 +259,9 @@ describe("Integrity Utilities", () => {
       const result = walCheck(dbPath);
 
       expect(result.success).toBe(true);
-      expect(result.details.some((d) => d.includes("delete") || d.includes("Journal mode"))).toBe(true);
+      expect(result.details.some((d) => d.includes("delete") || d.includes("Journal mode"))).toBe(
+        true
+      );
     });
 
     it("should detect orphaned WAL file", () => {

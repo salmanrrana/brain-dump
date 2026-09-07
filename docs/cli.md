@@ -10,23 +10,24 @@ All commands output JSON by default. Add `--pretty` for human-readable output.
 
 ### Resources
 
-| Resource     | Description                                                                                                                                                                        |
-| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `project`    | List, find, create, delete projects — _list, find, create, delete_                                                                                                                 |
-| `ticket`     | Create, list, get, update, delete tickets — _create, list, get, update, update-status, update-criterion, update-attachment, list-by-epic, link-files, get-files, delete_           |
-| `epic`       | Create, list, update, delete epics — _create, list, update, delete, reconcile-learnings, get-learnings_                                                                            |
-| `workflow`   | Start work, complete work, start epic, launch Ralph — _start-work, complete-work, start-epic, launch-ticket, launch-epic_                                                          |
-| `comment`    | Add and list ticket comments — _add, list_                                                                                                                                         |
-| `review`     | Submit findings, generate demos, manage reviews — _submit-finding, mark-fixed, check-complete, generate-demo, get-demo, submit-feedback, update-demo-step, get-findings_           |
-| `session`    | Create, update, complete Ralph sessions — _create, update, complete, get, list, update-state, emit-event, get-events, clear-events_                                                |
-| `git`        | Link commits, PRs, sync ticket links — _link-commit, link-pr, sync_                                                                                                                |
-| `telemetry`  | Start, end, get, list telemetry sessions, record token usage — _start, end, get, list, log-tool, log-prompt, log-context, record-usage, recalculate-costs, deep-recalculate-costs_ |
-| `files`      | Link files to tickets, find tickets by file — _link, get-tickets_                                                                                                                  |
-| `tasks`      | Save, get, clear Claude task lists — _save, get, clear, snapshots_                                                                                                                 |
-| `compliance` | Conversation logging for compliance auditing — _start, log, end, list, export, archive_                                                                                            |
-| `settings`   | Get and update project settings — _get, update_                                                                                                                                    |
-| `transfer`   | Export and import .braindump archives — _export-epic, export-project, import, preview_                                                                                             |
-| `admin`      | Backup, restore, check, doctor, health — _backup, restore, check, doctor, health_                                                                                                  |
+| Resource     | Description                                                                                                                                                                                                                              |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `project`    | List, find, create, delete projects — _list, find, create, delete_                                                                                                                                                                       |
+| `ticket`     | Create, list, get, update, delete tickets — _create, list, get, update, update-status, update-criterion, update-attachment, list-by-epic, link-files, get-files, delete_                                                                 |
+| `epic`       | Create, list, update, delete epics — _create, list, update, delete, reconcile-learnings, get-learnings_                                                                                                                                  |
+| `workflow`   | Start work, complete work, start epic, launch Ralph — _run-epic-script, start-work, complete-work, start-epic, launch-ticket, launch-epic_                                                                                               |
+| `comment`    | Add and list ticket comments — _add, list_                                                                                                                                                                                               |
+| `review`     | Submit findings, generate demos, manage reviews — _get-review-context, submit-finding, mark-fixed, check-complete, generate-demo, get-demo, get-findings, get-verification-history, repair-legacy-handoff, resolve-verification-failure_ |
+| `verify`     | Run AI verification and inspect verification history — _run, history, status, jobs, worker-status, pause, resume, requeue, dead, worker_                                                                                                 |
+| `session`    | Create, update, complete Ralph sessions — _create, update, complete, get, list, update-state, emit-event, get-events, clear-events_                                                                                                      |
+| `git`        | Link commits, PRs, sync ticket links — _link-commit, link-pr, sync_                                                                                                                                                                      |
+| `telemetry`  | Start, end, get, list telemetry sessions, record token usage — _start, end, get, list, log-tool, log-prompt, log-context, parse-transcript, record-usage, recalculate-costs, deep-recalculate-costs_                                     |
+| `files`      | Link files to tickets, find tickets by file — _link, get-tickets_                                                                                                                                                                        |
+| `tasks`      | Save, get, clear Claude task lists — _save, get, clear, snapshots_                                                                                                                                                                       |
+| `compliance` | Conversation logging for compliance auditing — _start, log, end, list, export, archive_                                                                                                                                                  |
+| `settings`   | Get and update project settings — _get, update_                                                                                                                                                                                          |
+| `transfer`   | Export and import .braindump archives — _export-epic, export-project, import, preview_                                                                                                                                                   |
+| `admin`      | Backup, restore, check, doctor, health — _backup, restore, check, doctor, health_                                                                                                                                                        |
 
 ### Top-Level Commands
 
@@ -140,15 +141,15 @@ brain-dump init --pretty
 Full-text ticket search with FTS5 and LIKE fallback
 
 ```bash
-brain-dump search [--project <value>] [--status <backlog|ready|in_progress|ai_review|human_review|done>] [--limit <n>] [--pretty]
+brain-dump search [--project <value>] [--status <backlog|ready|in_progress|ai_review|ai_verification|done>] [--limit <n>] [--pretty]
 ```
 
-| Flag        | Type    | Required | Description                                                                          |
-| ----------- | ------- | -------- | ------------------------------------------------------------------------------------ |
-| `--project` | string  | No       | Project ID                                                                           |
-| `--status`  | enum    | No       | Filter by ticket status (backlog, ready, in_progress, ai_review, human_review, done) |
-| `--limit`   | number  | No       | Max results                                                                          |
-| `--pretty`  | boolean | No       | Human-readable output (default: JSON)                                                |
+| Flag        | Type    | Required | Description                                                                             |
+| ----------- | ------- | -------- | --------------------------------------------------------------------------------------- |
+| `--project` | string  | No       | Project ID                                                                              |
+| `--status`  | enum    | No       | Filter by ticket status (backlog, ready, in_progress, ai_review, ai_verification, done) |
+| `--limit`   | number  | No       | Max results                                                                             |
+| `--pretty`  | boolean | No       | Human-readable output (default: JSON)                                                   |
 
 **Examples:**
 
@@ -359,24 +360,24 @@ brain-dump ticket get --ticket abc --pretty
 Update ticket fields (title, description, status, priority, tags, epic)
 
 ```bash
-brain-dump ticket update --ticket <value> [--title <value>] [--description <value>] [--status <backlog|ready|in_progress|ai_review|human_review|done>] [--priority <low|medium|high>] [--epic <value>] [--tags <value>] [--pretty]
+brain-dump ticket update --ticket <value> [--title <value>] [--description <value>] [--status <backlog|ready|in_progress>] [--priority <low|medium|high>] [--epic <value>] [--tags <value>] [--pretty]
 ```
 
-| Flag            | Type    | Required | Description                                                                |
-| --------------- | ------- | -------- | -------------------------------------------------------------------------- |
-| `--ticket`      | string  | Yes      | Ticket ID                                                                  |
-| `--title`       | string  | No       | New title                                                                  |
-| `--description` | string  | No       | New description                                                            |
-| `--status`      | enum    | No       | Ticket status (backlog, ready, in_progress, ai_review, human_review, done) |
-| `--priority`    | enum    | No       | Priority (low, medium, high)                                               |
-| `--epic`        | string  | No       | Epic ID                                                                    |
-| `--tags`        | string  | No       | Comma-separated tags                                                       |
-| `--pretty`      | boolean | No       | Human-readable output (default: JSON)                                      |
+| Flag            | Type    | Required | Description                                                   |
+| --------------- | ------- | -------- | ------------------------------------------------------------- |
+| `--ticket`      | string  | Yes      | Ticket ID                                                     |
+| `--title`       | string  | No       | New title                                                     |
+| `--description` | string  | No       | New description                                               |
+| `--status`      | enum    | No       | Directly editable ticket status (backlog, ready, in_progress) |
+| `--priority`    | enum    | No       | Priority (low, medium, high)                                  |
+| `--epic`        | string  | No       | Epic ID                                                       |
+| `--tags`        | string  | No       | Comma-separated tags                                          |
+| `--pretty`      | boolean | No       | Human-readable output (default: JSON)                         |
 
 **Examples:**
 
 ```bash
-brain-dump ticket update --ticket abc --status done
+brain-dump ticket update --ticket abc --status in_progress
 brain-dump ticket update --ticket abc --title "New Title" --priority high
 ```
 
@@ -385,14 +386,14 @@ brain-dump ticket update --ticket abc --title "New Title" --priority high
 Update ticket status (MCP naming alias)
 
 ```bash
-brain-dump ticket update-status --ticket <value> --status <backlog|ready|in_progress|ai_review|human_review|done> [--pretty]
+brain-dump ticket update-status --ticket <value> --status <backlog|ready|in_progress> [--pretty]
 ```
 
-| Flag       | Type    | Required | Description                                                                |
-| ---------- | ------- | -------- | -------------------------------------------------------------------------- |
-| `--ticket` | string  | Yes      | Ticket ID                                                                  |
-| `--status` | enum    | Yes      | Ticket status (backlog, ready, in_progress, ai_review, human_review, done) |
-| `--pretty` | boolean | No       | Human-readable output (default: JSON)                                      |
+| Flag       | Type    | Required | Description                                                   |
+| ---------- | ------- | -------- | ------------------------------------------------------------- |
+| `--ticket` | string  | Yes      | Ticket ID                                                     |
+| `--status` | enum    | Yes      | Directly editable ticket status (backlog, ready, in_progress) |
+| `--pretty` | boolean | No       | Human-readable output (default: JSON)                         |
 
 ### brain-dump ticket update-criterion
 
@@ -433,16 +434,16 @@ brain-dump ticket update-attachment --ticket <value> --attachment <value> [--att
 List tickets in an epic
 
 ```bash
-brain-dump ticket list-by-epic --epic <value> [--project <value>] [--status <backlog|ready|in_progress|ai_review|human_review|done>] [--limit <n>] [--pretty]
+brain-dump ticket list-by-epic --epic <value> [--project <value>] [--status <backlog|ready|in_progress|ai_review|ai_verification|done>] [--limit <n>] [--pretty]
 ```
 
-| Flag        | Type    | Required | Description                                                                   |
-| ----------- | ------- | -------- | ----------------------------------------------------------------------------- |
-| `--epic`    | string  | Yes      | Epic ID                                                                       |
-| `--project` | string  | No       | Project ID                                                                    |
-| `--status`  | enum    | No       | Filter by status (backlog, ready, in_progress, ai_review, human_review, done) |
-| `--limit`   | number  | No       | Max results                                                                   |
-| `--pretty`  | boolean | No       | Human-readable output (default: JSON)                                         |
+| Flag        | Type    | Required | Description                                                                      |
+| ----------- | ------- | -------- | -------------------------------------------------------------------------------- |
+| `--epic`    | string  | Yes      | Epic ID                                                                          |
+| `--project` | string  | No       | Project ID                                                                       |
+| `--status`  | enum    | No       | Filter by status (backlog, ready, in_progress, ai_review, ai_verification, done) |
+| `--limit`   | number  | No       | Max results                                                                      |
+| `--pretty`  | boolean | No       | Human-readable output (default: JSON)                                            |
 
 **Examples:**
 
@@ -633,6 +634,30 @@ brain-dump epic get-learnings --epic abc --pretty
 
 Start work, complete work, start epic, launch Ralph
 
+### brain-dump workflow run-epic-script
+
+Supervise an epic script with exclusive local process-group ownership
+
+```bash
+brain-dump workflow run-epic-script [--sandbox] [--docker-host <value>] --epic <value> --script <value> [--max-iterations <n>] [--resume-ticket <value>] [--timeout <n>]
+```
+
+| Flag               | Type    | Required | Description                                          |
+| ------------------ | ------- | -------- | ---------------------------------------------------- |
+| `--sandbox`        | boolean | No       | Own and clean up the AI sandbox container            |
+| `--docker-host`    | string  | No       | Docker daemon used by the sandbox                    |
+| `--epic`           | string  | Yes      | Epic ID                                              |
+| `--script`         | string  | Yes      | Generated Ralph script path                          |
+| `--max-iterations` | number  | No       | Iteration limit                                      |
+| `--resume-ticket`  | string  | No       | Repair continuation target                           |
+| `--timeout`        | number  | No       | Maximum ownership wait and execution time in seconds |
+
+**Examples:**
+
+```bash
+brain-dump workflow run-epic-script --epic abc --script /tmp/ralph.sh
+```
+
 ### brain-dump workflow start-work
 
 Start work on a ticket (creates branch, updates status)
@@ -697,17 +722,20 @@ brain-dump workflow start-epic --epic abc --create-pr
 Launch Ralph for a single ticket in the chosen provider (parity with UI)
 
 ```bash
-brain-dump workflow launch-ticket --ticket <value> [--provider <claude-code|vscode|cursor|cursor-agent|copilot-cli|codex|pi|opencode>] [--terminal <value>] [--max-iterations <n>] [--sandbox] [--pretty]
+brain-dump workflow launch-ticket --ticket <value> [--provider <claude-code|vscode|cursor|cursor-agent|copilot-cli|codex|pi|opencode>] [--terminal <value>] [--model <value>] [--review-provider <claude-code|cursor-agent|codex|pi|opencode>] [--review-model <value>] [--max-iterations <n>] [--sandbox] [--pretty]
 ```
 
-| Flag               | Type    | Required | Description                                                                                                                   |
-| ------------------ | ------- | -------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `--ticket`         | string  | Yes      | Ticket ID                                                                                                                     |
-| `--provider`       | enum    | No       | AI backend to launch (default: project setting) (claude-code, vscode, cursor, cursor-agent, copilot-cli, codex, pi, opencode) |
-| `--terminal`       | string  | No       | Preferred terminal emulator (e.g. ghostty, kitty, iterm2)                                                                     |
-| `--max-iterations` | number  | No       | Override Ralph loop iteration cap                                                                                             |
-| `--sandbox`        | boolean | No       | Run inside the Docker sandbox (claude-code only)                                                                              |
-| `--pretty`         | boolean | No       | Human-readable output (default: JSON)                                                                                         |
+| Flag                | Type    | Required | Description                                                                                                                   |
+| ------------------- | ------- | -------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `--ticket`          | string  | Yes      | Ticket ID                                                                                                                     |
+| `--provider`        | enum    | No       | AI backend to launch (default: project setting) (claude-code, vscode, cursor, cursor-agent, copilot-cli, codex, pi, opencode) |
+| `--terminal`        | string  | No       | Preferred terminal emulator (e.g. ghostty, kitty, iterm2)                                                                     |
+| `--model`           | string  | No       | Provider model id to pass to Ralph (requires --provider)                                                                      |
+| `--review-provider` | enum    | No       | Fresh-eyes reviewer backend for ai_review (headless Ralph providers only) (claude-code, cursor-agent, codex, pi, opencode)    |
+| `--review-model`    | string  | No       | Reviewer model id to pass to the fresh-eyes reviewer (requires --review-provider)                                             |
+| `--max-iterations`  | number  | No       | Override Ralph loop iteration cap                                                                                             |
+| `--sandbox`         | boolean | No       | Run inside the Docker sandbox (claude-code only)                                                                              |
+| `--pretty`          | boolean | No       | Human-readable output (default: JSON)                                                                                         |
 
 **Examples:**
 
@@ -722,17 +750,20 @@ brain-dump workflow launch-ticket --ticket abc --provider claude-code --sandbox
 Launch Ralph for an entire epic in the chosen provider (parity with UI)
 
 ```bash
-brain-dump workflow launch-epic --epic <value> [--provider <claude-code|vscode|cursor|cursor-agent|copilot-cli|codex|pi|opencode>] [--terminal <value>] [--max-iterations <n>] [--sandbox] [--pretty]
+brain-dump workflow launch-epic --epic <value> [--provider <claude-code|vscode|cursor|cursor-agent|copilot-cli|codex|pi|opencode>] [--terminal <value>] [--model <value>] [--review-provider <claude-code|cursor-agent|codex|pi|opencode>] [--review-model <value>] [--max-iterations <n>] [--sandbox] [--pretty]
 ```
 
-| Flag               | Type    | Required | Description                                                                                                                   |
-| ------------------ | ------- | -------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `--epic`           | string  | Yes      | Epic ID                                                                                                                       |
-| `--provider`       | enum    | No       | AI backend to launch (default: project setting) (claude-code, vscode, cursor, cursor-agent, copilot-cli, codex, pi, opencode) |
-| `--terminal`       | string  | No       | Preferred terminal emulator (e.g. ghostty, kitty, iterm2)                                                                     |
-| `--max-iterations` | number  | No       | Override Ralph loop iteration cap                                                                                             |
-| `--sandbox`        | boolean | No       | Run inside the Docker sandbox (claude-code only)                                                                              |
-| `--pretty`         | boolean | No       | Human-readable output (default: JSON)                                                                                         |
+| Flag                | Type    | Required | Description                                                                                                                   |
+| ------------------- | ------- | -------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `--epic`            | string  | Yes      | Epic ID                                                                                                                       |
+| `--provider`        | enum    | No       | AI backend to launch (default: project setting) (claude-code, vscode, cursor, cursor-agent, copilot-cli, codex, pi, opencode) |
+| `--terminal`        | string  | No       | Preferred terminal emulator (e.g. ghostty, kitty, iterm2)                                                                     |
+| `--model`           | string  | No       | Provider model id to pass to Ralph (requires --provider)                                                                      |
+| `--review-provider` | enum    | No       | Fresh-eyes reviewer backend for ai_review (headless Ralph providers only) (claude-code, cursor-agent, codex, pi, opencode)    |
+| `--review-model`    | string  | No       | Reviewer model id to pass to the fresh-eyes reviewer (requires --review-provider)                                             |
+| `--max-iterations`  | number  | No       | Override Ralph loop iteration cap                                                                                             |
+| `--sandbox`         | boolean | No       | Run inside the Docker sandbox (claude-code only)                                                                              |
+| `--pretty`          | boolean | No       | Human-readable output (default: JSON)                                                                                         |
 
 **Examples:**
 
@@ -794,6 +825,25 @@ brain-dump comment list --ticket abc --pretty
 
 Submit findings, generate demos, manage reviews
 
+### brain-dump review get-review-context
+
+One-call review packet: ticket requirements, work history, exact in-scope files, finding history, and anti-loop budgets. Run this FIRST when reviewing a ticket.
+
+```bash
+brain-dump review get-review-context --ticket <value> [--pretty]
+```
+
+| Flag       | Type    | Required | Description                           |
+| ---------- | ------- | -------- | ------------------------------------- |
+| `--ticket` | string  | Yes      | Ticket ID                             |
+| `--pretty` | boolean | No       | Human-readable output (default: JSON) |
+
+**Examples:**
+
+```bash
+brain-dump review get-review-context --ticket abc --pretty
+```
+
 ### brain-dump review submit-finding
 
 Submit a review finding for a ticket
@@ -844,17 +894,17 @@ brain-dump review check-complete --ticket <value> [--pretty]
 
 ### brain-dump review generate-demo
 
-Generate a demo script for human review
+Generate a demo script for AI verification with criterion coverage and executable step specs
 
 ```bash
 brain-dump review generate-demo --ticket <value> --steps-file <value> [--pretty]
 ```
 
-| Flag           | Type    | Required | Description                           |
-| -------------- | ------- | -------- | ------------------------------------- |
-| `--ticket`     | string  | Yes      | Ticket ID                             |
-| `--steps-file` | string  | Yes      | JSON file with demo steps             |
-| `--pretty`     | boolean | No       | Human-readable output (default: JSON) |
+| Flag           | Type    | Required | Description                                                                                                                                                                                                                                      |
+| -------------- | ------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--ticket`     | string  | Yes      | Ticket ID                                                                                                                                                                                                                                        |
+| `--steps-file` | string  | Yes      | JSON file with visual/automated demo steps, covers references (criterion:1, subtask:<id>), and executable UI/API/command/file checks for every criterion. coverageRationale is rejected. Keep untracked demo files outside the reviewed project. |
+| `--pretty`     | boolean | No       | Human-readable output (default: JSON)                                                                                                                                                                                                            |
 
 ### brain-dump review get-demo
 
@@ -868,43 +918,6 @@ brain-dump review get-demo --ticket <value> [--pretty]
 | ---------- | ------- | -------- | ------------------------------------- |
 | `--ticket` | string  | Yes      | Ticket ID                             |
 | `--pretty` | boolean | No       | Human-readable output (default: JSON) |
-
-### brain-dump review submit-feedback
-
-Submit demo feedback (human reviewer only)
-
-```bash
-brain-dump review submit-feedback --ticket <value> --passed --feedback <value> [--pretty]
-```
-
-| Flag         | Type    | Required | Description                           |
-| ------------ | ------- | -------- | ------------------------------------- |
-| `--ticket`   | string  | Yes      | Ticket ID                             |
-| `--passed`   | boolean | Yes      | Whether demo passed                   |
-| `--feedback` | string  | Yes      | Reviewer feedback                     |
-| `--pretty`   | boolean | No       | Human-readable output (default: JSON) |
-
-### brain-dump review update-demo-step
-
-Update a demo step status during human review
-
-```bash
-brain-dump review update-demo-step --demo-script <value> --step-order <n> --step-status <pending|passed|failed|skipped> [--step-notes <value>] [--pretty]
-```
-
-| Flag            | Type    | Required | Description                                    |
-| --------------- | ------- | -------- | ---------------------------------------------- |
-| `--demo-script` | string  | Yes      | Demo script ID                                 |
-| `--step-order`  | number  | Yes      | Step order number                              |
-| `--step-status` | enum    | Yes      | Step status (pending, passed, failed, skipped) |
-| `--step-notes`  | string  | No       | Reviewer notes                                 |
-| `--pretty`      | boolean | No       | Human-readable output (default: JSON)          |
-
-**Examples:**
-
-```bash
-brain-dump review update-demo-step --demo-script abc --step-order 1 --step-status passed
-```
 
 ### brain-dump review get-findings
 
@@ -921,6 +934,270 @@ brain-dump review get-findings --ticket <value> [--status <open|fixed|wont_fix|d
 | `--severity` | enum    | No       | Filter by severity (critical, major, minor, suggestion)                 |
 | `--agent`    | enum    | No       | Filter by agent (code-reviewer, silent-failure-hunter, code-simplifier) |
 | `--pretty`   | boolean | No       | Human-readable output (default: JSON)                                   |
+
+### brain-dump review get-verification-history
+
+Read verification run history for a ticket
+
+```bash
+brain-dump review get-verification-history --ticket <value> [--pretty]
+```
+
+| Flag       | Type    | Required | Description                           |
+| ---------- | ------- | -------- | ------------------------------------- |
+| `--ticket` | string  | Yes      | Ticket ID                             |
+| `--pretty` | boolean | No       | Human-readable output (default: JSON) |
+
+**Examples:**
+
+```bash
+brain-dump review get-verification-history --ticket abc --pretty
+```
+
+### brain-dump review repair-legacy-handoff
+
+Repair a legacy human_review ticket into the active AI verification flow
+
+```bash
+brain-dump review repair-legacy-handoff --ticket <value> [--pretty]
+```
+
+| Flag       | Type    | Required | Description                           |
+| ---------- | ------- | -------- | ------------------------------------- |
+| `--ticket` | string  | Yes      | Ticket ID                             |
+| `--pretty` | boolean | No       | Human-readable output (default: JSON) |
+
+**Examples:**
+
+```bash
+brain-dump review repair-legacy-handoff --ticket abc --pretty
+```
+
+### brain-dump review resolve-verification-failure
+
+Resolve a verified failure blocker and return the ticket to AI review
+
+```bash
+brain-dump review resolve-verification-failure --ticket <value> --root-cause <value> --classification <connectivity|environment|demo-spec|product-defect|other> --validation <value> [--fix-commits <value>] [--why-next-attempt-will-pass <value>] [--operator <value>] [--pretty]
+```
+
+| Flag                           | Type    | Required | Description                                                                          |
+| ------------------------------ | ------- | -------- | ------------------------------------------------------------------------------------ |
+| `--ticket`                     | string  | Yes      | Ticket ID                                                                            |
+| `--root-cause`                 | string  | Yes      | Confirmed root cause                                                                 |
+| `--classification`             | enum    | Yes      | Failure classification (connectivity, environment, demo-spec, product-defect, other) |
+| `--validation`                 | string  | Yes      | Evidence that validates the fix                                                      |
+| `--fix-commits`                | string  | No       | Comma-separated fix commit SHAs                                                      |
+| `--why-next-attempt-will-pass` | string  | No       | Why the regenerated demo should pass                                                 |
+| `--operator`                   | string  | No       | Operator identity                                                                    |
+| `--pretty`                     | boolean | No       | Human-readable output (default: JSON)                                                |
+
+**Examples:**
+
+```bash
+brain-dump review resolve-verification-failure --ticket abc --root-cause "CORS rejected random loopback ports" --classification connectivity --validation "Random-port smoke test passes"
+```
+
+---
+
+## verify
+
+Run AI verification and inspect verification history
+
+### brain-dump verify run
+
+Run AI verification for a ticket
+
+```bash
+brain-dump verify run --ticket <value> [--base-url <value>] [--provider <value>] [--pretty]
+```
+
+| Flag         | Type    | Required | Description                                                            |
+| ------------ | ------- | -------- | ---------------------------------------------------------------------- |
+| `--ticket`   | string  | Yes      | Ticket ID                                                              |
+| `--base-url` | string  | No       | Use an already-running app instead of booting the project              |
+| `--provider` | string  | No       | Provider attribution for runner evidence, stored as '<provider> ralph' |
+| `--pretty`   | boolean | No       | Human-readable output (default: JSON)                                  |
+
+**Examples:**
+
+```bash
+brain-dump verify --ticket abc --pretty
+brain-dump verify --ticket abc --base-url http://127.0.0.1:4242 --pretty
+```
+
+### brain-dump verify history
+
+List verification run history for a ticket
+
+```bash
+brain-dump verify history --ticket <value> [--history] [--pretty]
+```
+
+| Flag        | Type    | Required | Description                           |
+| ----------- | ------- | -------- | ------------------------------------- |
+| `--ticket`  | string  | Yes      | Ticket ID                             |
+| `--history` | boolean | No       | Show history                          |
+| `--pretty`  | boolean | No       | Human-readable output (default: JSON) |
+
+**Examples:**
+
+```bash
+brain-dump verify --ticket abc --history --pretty
+```
+
+### brain-dump verify status
+
+Show queued/running verification job state for a ticket
+
+```bash
+brain-dump verify status --ticket <value> [--pretty]
+```
+
+| Flag       | Type    | Required | Description                           |
+| ---------- | ------- | -------- | ------------------------------------- |
+| `--ticket` | string  | Yes      | Ticket ID                             |
+| `--pretty` | boolean | No       | Human-readable output (default: JSON) |
+
+**Examples:**
+
+```bash
+brain-dump verify status --ticket abc --pretty
+```
+
+### brain-dump verify jobs
+
+List verification jobs for operator diagnostics
+
+```bash
+brain-dump verify jobs [--pretty]
+```
+
+| Flag       | Type    | Required | Description                           |
+| ---------- | ------- | -------- | ------------------------------------- |
+| `--pretty` | boolean | No       | Human-readable output (default: JSON) |
+
+**Examples:**
+
+```bash
+brain-dump verify jobs --pretty
+```
+
+### brain-dump verify worker-status
+
+Show automatic verification worker operations health
+
+```bash
+brain-dump verify worker-status [--pretty]
+```
+
+| Flag       | Type    | Required | Description                           |
+| ---------- | ------- | -------- | ------------------------------------- |
+| `--pretty` | boolean | No       | Human-readable output (default: JSON) |
+
+**Examples:**
+
+```bash
+brain-dump verify worker-status --pretty
+```
+
+### brain-dump verify pause
+
+Pause automatic verification job claims without changing evidence or verdicts
+
+```bash
+brain-dump verify pause [--reason <value>] [--pretty]
+```
+
+| Flag       | Type    | Required | Description                           |
+| ---------- | ------- | -------- | ------------------------------------- |
+| `--reason` | string  | No       | Audit reason                          |
+| `--pretty` | boolean | No       | Human-readable output (default: JSON) |
+
+**Examples:**
+
+```bash
+brain-dump verify pause --reason "playwright outage" --pretty
+```
+
+### brain-dump verify resume
+
+Resume automatic verification job claims after an operator pause
+
+```bash
+brain-dump verify resume [--reason <value>] [--pretty]
+```
+
+| Flag       | Type    | Required | Description                           |
+| ---------- | ------- | -------- | ------------------------------------- |
+| `--reason` | string  | No       | Audit reason                          |
+| `--pretty` | boolean | No       | Human-readable output (default: JSON) |
+
+**Examples:**
+
+```bash
+brain-dump verify resume --reason "playwright fixed" --pretty
+```
+
+### brain-dump verify requeue
+
+Requeue a blocked, dead, failed, queued, or stale verification job after repair
+
+```bash
+brain-dump verify requeue --ticket <value> [--reason <value>] [--pretty]
+```
+
+| Flag       | Type    | Required | Description                           |
+| ---------- | ------- | -------- | ------------------------------------- |
+| `--ticket` | string  | Yes      | Ticket ID                             |
+| `--reason` | string  | No       | Audit reason                          |
+| `--pretty` | boolean | No       | Human-readable output (default: JSON) |
+
+**Examples:**
+
+```bash
+brain-dump verify requeue --ticket abc --reason "fixed browser deps" --pretty
+```
+
+### brain-dump verify dead
+
+Mark an unrecoverable verification job dead with an audit comment
+
+```bash
+brain-dump verify dead --ticket <value> --reason <value> [--pretty]
+```
+
+| Flag       | Type    | Required | Description                           |
+| ---------- | ------- | -------- | ------------------------------------- |
+| `--ticket` | string  | Yes      | Ticket ID                             |
+| `--reason` | string  | Yes      | Audit reason                          |
+| `--pretty` | boolean | No       | Human-readable output (default: JSON) |
+
+**Examples:**
+
+```bash
+brain-dump verify dead --ticket abc --reason "fixture removed" --pretty
+```
+
+### brain-dump verify worker
+
+Run one automatic verification worker iteration for debugging
+
+```bash
+brain-dump verify worker [--drain] [--provider <value>] [--pretty]
+```
+
+| Flag         | Type    | Required | Description                                                                |
+| ------------ | ------- | -------- | -------------------------------------------------------------------------- |
+| `--drain`    | boolean | No       | Drain all currently runnable verification jobs instead of claiming one job |
+| `--provider` | string  | No       | Provider attribution for runner evidence, stored as '<provider> ralph'     |
+| `--pretty`   | boolean | No       | Human-readable output (default: JSON)                                      |
+
+**Examples:**
+
+```bash
+brain-dump verify worker --pretty
+```
 
 ---
 
@@ -1238,6 +1515,25 @@ brain-dump telemetry log-context --session <value> [--has-description] [--has-cr
 
 ```bash
 brain-dump telemetry log-context --session abc --has-description --has-criteria --criteria-count 3
+```
+
+### brain-dump telemetry parse-transcript
+
+Read deduplicated Claude transcript usage without database writes
+
+```bash
+brain-dump telemetry parse-transcript --transcript <value> [--pretty]
+```
+
+| Flag           | Type    | Required | Description                           |
+| -------------- | ------- | -------- | ------------------------------------- |
+| `--transcript` | string  | Yes      | Path to a Claude JSONL transcript     |
+| `--pretty`     | boolean | No       | Human-readable output (default: JSON) |
+
+**Examples:**
+
+```bash
+brain-dump telemetry parse-transcript --transcript /logs/session.jsonl
 ```
 
 ### brain-dump telemetry record-usage
@@ -1664,17 +1960,18 @@ brain-dump admin check --full
 Diagnose configuration issues
 
 ```bash
-brain-dump admin doctor [--pretty]
+brain-dump admin doctor [--verification]
 ```
 
-| Flag       | Type    | Required | Description                           |
-| ---------- | ------- | -------- | ------------------------------------- |
-| `--pretty` | boolean | No       | Human-readable output (default: JSON) |
+| Flag             | Type    | Required | Description                                                                                              |
+| ---------------- | ------- | -------- | -------------------------------------------------------------------------------------------------------- |
+| `--verification` | boolean | No       | Run only the Verification Runner & Epic Auto-PR capability checks; exit code reflects those checks alone |
 
 **Examples:**
 
 ```bash
 brain-dump admin doctor
+brain-dump doctor --verification
 ```
 
 ### brain-dump admin health

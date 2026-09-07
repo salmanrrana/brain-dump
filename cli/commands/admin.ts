@@ -7,7 +7,8 @@
  */
 
 import { execFileSync } from "child_process";
-import { existsSync, readFileSync } from "fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "fs";
+import { createRequire } from "module";
 import { join } from "path";
 import { createInterface } from "readline";
 import { getDatabasePath, getBackupsDir, ensureDirectoriesSync } from "../../src/lib/xdg";
@@ -21,12 +22,22 @@ import {
 } from "../../src/lib/backup";
 import { fullDatabaseCheck, quickIntegrityCheck } from "../../src/lib/integrity";
 import { createCliLogger } from "../../src/lib/logger";
-import { getDatabaseHealth } from "../../core/index.ts";
+import {
+  getAttachmentsDir,
+  getDatabaseHealth,
+  getVerificationOperationsStatus,
+} from "../../core/index.ts";
 import type { HealthDependencies } from "../../core/index.ts";
 import { parseFlags, boolFlag } from "../lib/args.ts";
 import { outputResult, outputError, showResourceHelp } from "../lib/output.ts";
 import { getDb } from "../lib/db.ts";
-import { InvalidActionError } from "../../core/index.ts";
+import {
+  InvalidActionError,
+  WORKFLOW_SCHEMA_VERSION,
+  getMcpRuntimeWorkflowSchemaDriftReport,
+  getMcpServerWorkflowSchemaDriftReport,
+} from "../../core/index.ts";
+import { isProcessRunning, readLockFile } from "../../src/lib/lockfile";
 
 const logger = createCliLogger();
 ensureDirectoriesSync();
@@ -269,11 +280,22 @@ interface DoctorIssue {
   fix?: string;
 }
 
-function handleDoctorAction(): void {
+function handleDoctorAction(args: string[] = []): void {
+  const issues: DoctorIssue[] = [];
+
+  // Scoped capability probe: report ONLY verification runner + epic auto-PR
+  // capability, with an exit code that ignores unrelated environment issues.
+  if (args.includes("--verification")) {
+    console.log("\nBrain Dump Environment Doctor (verification capability)\n");
+    console.log("=".repeat(63) + "\n");
+    checkVerificationCapability(issues);
+    reportDoctorIssues(issues);
+    return;
+  }
+
   console.log("\nBrain Dump Environment Doctor\n");
   console.log("=".repeat(63) + "\n");
 
-  const issues: DoctorIssue[] = [];
   const home = process.env.HOME || "";
 
   // Claude Code
@@ -608,6 +630,186 @@ function handleDoctorAction(): void {
 
   console.log();
 
+  checkVerificationCapability(issues);
+
+  runRemainingDoctorChecks(issues);
+}
+
+/**
+ * Verification Runner & Epic Auto-PR capability checks. Kept as a standalone
+ * section so `brain-dump doctor --verification` can report runner capability
+ * with an exit code scoped to THESE issues only — unrelated machine issues
+ * (missing optional hooks, editor integrations) must not fail a verification
+ * capability probe.
+ */
+function checkVerificationCapability(issues: DoctorIssue[]): void {
+  console.log("Verification Runner & Epic Auto-PR");
+  console.log("-".repeat(50));
+
+  // UI demo steps only certify when @playwright/test resolves from the runner's install.
+  try {
+    const nodeRequire = createRequire(import.meta.url);
+    nodeRequire.resolve("@playwright/test");
+    console.log("  ✓ Playwright available (UI verification steps certifiable)");
+  } catch {
+    console.log(
+      "  ✗ Playwright not available: UI verification steps will be skipped (runs stay uncertified)"
+    );
+    issues.push({
+      environment: "Verification",
+      component: "Playwright",
+      message: "@playwright/test is not installed; UI demo steps cannot produce certified evidence",
+      fix: "pnpm add -D @playwright/test && npx playwright install chromium",
+    });
+  }
+
+  // Evidence files + sealed manifests are written under the attachments directory.
+  try {
+    const attachmentsDir = getAttachmentsDir();
+    const probePath = join(attachmentsDir, `.doctor-probe-${process.pid}`);
+    writeFileSync(probePath, "probe");
+    rmSync(probePath, { force: true });
+    console.log(`  ✓ Attachments directory writable (${attachmentsDir})`);
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.log(`  ✗ Attachments directory not writable: ${errorMsg}`);
+    issues.push({
+      environment: "Verification",
+      component: "Attachments Directory",
+      message: `Verification evidence cannot be stored: ${errorMsg}`,
+      fix: "Fix ownership/permissions of the Brain Dump data directory reported above",
+    });
+  }
+
+  // Epic completion shells out to gh (pr list/create/edit/ready).
+  try {
+    execFileSync("gh", ["auth", "status"], { stdio: "pipe" });
+    console.log("  ✓ GitHub CLI authenticated (epic auto-PR ready)");
+  } catch (error) {
+    const err = error as NodeJS.ErrnoException;
+    if (err.code === "ENOENT") {
+      console.log("  ✗ GitHub CLI (gh) not installed: epic auto-PR cannot create PRs");
+      issues.push({
+        environment: "Verification",
+        component: "GitHub CLI",
+        message: "gh binary not found on PATH; epic completion cannot create or ready PRs",
+        fix: "Install GitHub CLI (https://cli.github.com), then run: gh auth login",
+      });
+    } else {
+      console.log("  ✗ GitHub CLI not authenticated: epic auto-PR cannot create PRs");
+      issues.push({
+        environment: "Verification",
+        component: "GitHub CLI Auth",
+        message:
+          "gh is installed but not authenticated; epic completion cannot create or ready PRs",
+        fix: "gh auth login",
+      });
+    }
+  }
+
+  try {
+    const { db } = getDb();
+    const status = getVerificationOperationsStatus(db);
+    console.log(
+      `  ✓ Queue depth: ${status.queue.depth} pending / ${status.queue.runnableDepth} runnable / ${status.queue.byStatus.running ?? 0} running`
+    );
+    console.log(
+      `  ${status.worker.paused ? "!" : "✓"} Worker pause: ${status.worker.paused ? "paused" : "not paused"}`
+    );
+    console.log(
+      `  ✓ Resident poller: ${status.worker.residentPollingEnabled ? "enabled" : "not enabled (one-shot drains expected)"}`
+    );
+    if (status.lastDrain) {
+      console.log(`  ✓ Last drain: ${status.lastDrain.workerId} at ${status.lastDrain.finishedAt}`);
+    } else {
+      console.log("  o Last drain: none recorded yet");
+    }
+    if (status.queue.staleRunningLeases > 0) {
+      console.log(`  ! Stale running leases: ${status.queue.staleRunningLeases}`);
+    } else {
+      console.log("  ✓ Stale running leases: 0");
+    }
+    if (
+      status.queue.deadCount > 0 ||
+      status.queue.blockedCount > 0 ||
+      status.queue.retryingCount > 0
+    ) {
+      console.log(
+        `  ! Recovery states: ${status.queue.retryingCount} retrying / ${status.queue.blockedCount} blocked / ${status.queue.deadCount} dead`
+      );
+    } else {
+      console.log("  ✓ Recovery states: none retrying, blocked, or dead");
+    }
+    if (status.schema.ok) {
+      console.log("  ✓ Verification queue schema current");
+    } else {
+      console.log("  ✗ Verification queue schema drift detected");
+    }
+    for (const issue of status.issues) {
+      console.log(`  ${issue.severity === "error" ? "✗" : "!"} ${issue.message}`);
+      console.log(`    Fix: ${issue.remediation}`);
+      issues.push({
+        environment: "Verification",
+        component: "Worker Queue",
+        message: issue.message,
+        fix: issue.remediation,
+      });
+    }
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.log(`  ✗ Verification worker queue health check failed: ${errorMsg}`);
+    issues.push({
+      environment: "Verification",
+      component: "Worker Queue",
+      message: `Queue health check failed: ${errorMsg}`,
+      fix: "Run `brain-dump verify worker-status --pretty` after fixing database access.",
+    });
+  }
+
+  console.log();
+}
+
+function runRemainingDoctorChecks(issues: DoctorIssue[]): void {
+  // MCP workflow schema drift. This catches stale installed MCP bundles before they
+  // move tickets through retired workflow states or drop automation fields.
+  console.log("Workflow Schema");
+  console.log("-".repeat(50));
+  const projectRoot = join(import.meta.dirname, "..", "..");
+  const schemaReport = getMcpServerWorkflowSchemaDriftReport(projectRoot);
+  console.log(`  Source schema: ${WORKFLOW_SCHEMA_VERSION}`);
+  if (schemaReport.status === "current") {
+    console.log(`  ✓ MCP server build schema current (${schemaReport.distPath})`);
+  } else {
+    console.log(`  ✗ ${schemaReport.message}`);
+    console.log(`    ${schemaReport.remediation}`);
+    issues.push({
+      environment: "MCP Server",
+      component: "Workflow Schema",
+      message: schemaReport.message,
+      fix: schemaReport.remediation,
+    });
+  }
+
+  const runtimeReport = getMcpRuntimeWorkflowSchemaDriftReport(readLockFile(), isProcessRunning);
+  if (runtimeReport.status === "current") {
+    console.log(
+      `  ✓ Active MCP server schema current (PID ${runtimeReport.pid}, ${runtimeReport.runningVersion})`
+    );
+  } else if (runtimeReport.status === "not-running") {
+    console.log("  o No active MCP server process found; restart MCP clients after rebuilding.");
+  } else {
+    console.log(`  ✗ ${runtimeReport.message}`);
+    console.log(`    ${runtimeReport.remediation}`);
+    issues.push({
+      environment: "MCP Server",
+      component: "Active Workflow Schema",
+      message: runtimeReport.message,
+      fix: runtimeReport.remediation,
+    });
+  }
+
+  console.log();
+
   // Database
   console.log("Database");
   console.log("-".repeat(50));
@@ -644,6 +846,10 @@ function handleDoctorAction(): void {
   }
 
   console.log();
+  reportDoctorIssues(issues);
+}
+
+function reportDoctorIssues(issues: DoctorIssue[]): void {
   console.log("=".repeat(63) + "\n");
 
   if (issues.length === 0) {
@@ -696,7 +902,7 @@ export async function handle(action: string, args: string[]): Promise<void> {
         handleCheckAction(args);
         break;
       case "doctor":
-        handleDoctorAction();
+        handleDoctorAction(args);
         break;
       case "health":
         handleHealthAction(args);

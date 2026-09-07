@@ -249,13 +249,6 @@ export function cleanupOldBackups(keepDays = 7): CleanupResult {
   };
 }
 
-export async function performDailyBackup(keepDays = 7): Promise<{
-  backup: BackupResult;
-  cleanup: CleanupResult;
-}> {
-  return performDailyBackupSync(keepDays);
-}
-
 export function performDailyBackupSync(keepDays = 7): {
   backup: BackupResult;
   cleanup: CleanupResult;

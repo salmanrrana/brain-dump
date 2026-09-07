@@ -1,18 +1,16 @@
 FROM node:20-slim
 
 # Install pnpm and build dependencies for better-sqlite3
-RUN corepack enable && corepack prepare pnpm@latest --activate && \
+RUN corepack enable && corepack prepare pnpm@10.14.0 --activate && \
     apt-get update && apt-get install -y python3 make g++ && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy package files and install dependencies
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
-
-# Copy source and build
+# The root prepare hook installs and builds the MCP server, whose imports reach
+# into core and src. Copy the source before installing so that build can run.
 COPY . .
+RUN pnpm install --frozen-lockfile
 RUN pnpm build
 
 # Create data directory

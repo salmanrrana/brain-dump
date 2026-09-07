@@ -1,14 +1,18 @@
 #!/usr/bin/env node
 /**
- * save-tasks-to-db.js
+ * save-tasks-to-db.cjs
  * Helper script called by capture-claude-tasks.sh hook
  *
  * Saves Claude tasks directly to the Brain Dump database.
  *
- * Usage: node save-tasks-to-db.js <ticketId> <tasksJson>
+ * Usage: node save-tasks-to-db.cjs <ticketId> <payloadJson> [mode]
+ *   mode "replace" (default): payload is the FULL task array -> replace all
+ *   mode "create":            payload is ONE task -> insert
+ *   mode "update":            payload is ONE task delta keyed by id -> merge
  *
  * Environment:
- *   PROJECT_DIR - Project directory (for Ralph state)
+ *   PROJECT_DIR   - Project directory (for Ralph state)
+ *   XDG_DATA_HOME - Respected for the database location (matches src/lib/xdg.ts)
  */
 
 const { join } = require("path");
@@ -17,14 +21,15 @@ const { randomUUID } = require("crypto");
 
 // Parse command line args
 const ticketId = process.argv[2];
-const tasksJson = process.argv[3];
+const payloadJson = process.argv[3];
+const mode = process.argv[4] || "replace";
 
-if (!ticketId || !tasksJson) {
-  console.error("Usage: node save-tasks-to-db.js <ticketId> <tasksJson>");
+if (!ticketId || !payloadJson) {
+  console.error("Usage: node save-tasks-to-db.cjs <ticketId> <payloadJson> [mode]");
   process.exit(1);
 }
 
-// Find the database path based on platform
+// Find the database path (mirror src/lib/xdg.ts: XDG_DATA_HOME wins on Linux)
 const homeDir = process.env.HOME || process.env.USERPROFILE;
 const platform = process.platform;
 let dbPath;
@@ -34,7 +39,8 @@ if (platform === "darwin") {
 } else if (platform === "win32") {
   dbPath = join(process.env.APPDATA || "", "brain-dump/brain-dump.db");
 } else {
-  dbPath = join(homeDir, ".local/share/brain-dump/brain-dump.db");
+  const dataHome = process.env.XDG_DATA_HOME || join(homeDir, ".local/share");
+  dbPath = join(dataHome, "brain-dump/brain-dump.db");
 }
 
 if (!existsSync(dbPath)) {
@@ -48,8 +54,8 @@ try {
   Database = require("better-sqlite3");
 } catch (err) {
   // Try loading from the mcp-server directory
-  const projectDir = process.env.PROJECT_DIR || process.cwd();
-  const mcpNodeModules = join(projectDir, "mcp-server/node_modules/better-sqlite3");
+  const projectDirForRequire = process.env.PROJECT_DIR || process.cwd();
+  const mcpNodeModules = join(projectDirForRequire, "mcp-server/node_modules/better-sqlite3");
   if (existsSync(mcpNodeModules)) {
     Database = require(mcpNodeModules);
   } else {
@@ -59,11 +65,11 @@ try {
 }
 
 const db = new Database(dbPath);
-let tasks;
+let payload;
 try {
-  tasks = JSON.parse(tasksJson);
+  payload = JSON.parse(payloadJson);
 } catch (err) {
-  console.error("Failed to parse tasks JSON:", err.message);
+  console.error("Failed to parse payload JSON:", err.message);
   db.close();
   process.exit(1);
 }
@@ -79,7 +85,6 @@ try {
     sessionId = state.sessionId || null;
   }
 } catch (err) {
-  // Log non-ENOENT errors (file not found is expected)
   if (err.code !== "ENOENT") {
     console.warn("Failed to read Ralph state:", err.message);
   }
@@ -93,61 +98,178 @@ if (!ticket) {
   process.exit(1);
 }
 
-// Get existing tasks to preserve history
-const existingTasks = db.prepare(
-  "SELECT id, status, status_history, created_at FROM claude_tasks WHERE ticket_id = ?"
-).all(ticketId);
-const existingTaskMap = new Map(existingTasks.map(t => [t.id, t]));
-
-// Delete existing tasks
-db.prepare("DELETE FROM claude_tasks WHERE ticket_id = ?").run(ticketId);
-
-// Insert new tasks
 const insertStmt = db.prepare(`
   INSERT INTO claude_tasks (id, ticket_id, subject, description, status, active_form, position, status_history, session_id, created_at, updated_at, completed_at)
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ON CONFLICT(id) DO NOTHING
 `);
 
-for (let i = 0; i < tasks.length; i++) {
-  const task = tasks[i];
-  const taskId = task.id || randomUUID();
-  const position = i + 1;
-
-  // Preserve or initialize status history
-  let statusHistory = [];
-  const existing = existingTaskMap.get(taskId);
-  if (existing?.status_history) {
-    try {
-      statusHistory = JSON.parse(existing.status_history);
-    } catch (err) {
-      console.warn(`Failed to parse status history for task ${taskId}:`, err.message);
-      statusHistory = [];
-    }
-  }
-
-  // Add status entry if changed
-  const lastStatus = statusHistory.length > 0 ? statusHistory[statusHistory.length - 1].status : null;
-  if (task.status !== lastStatus) {
-    statusHistory.push({ status: task.status, timestamp: now });
-  }
-
-  const completedAt = task.status === "completed" ? now : null;
-
-  insertStmt.run(
-    taskId,
-    ticketId,
-    task.subject,
-    task.description || null,
-    task.status,
-    task.activeForm || null,
-    position,
-    JSON.stringify(statusHistory),
-    sessionId,
-    existing ? existing.created_at : now,
-    now,
-    completedAt
-  );
+// Harness IDs restart at 1. Adopt an old raw ID only within its original
+// ticket/Ralph session, retaining its history when a running session upgrades.
+// Called inside the write transaction, before replacement removes any rows.
+function resolveTaskId(externalId) {
+  if (externalId == null) return randomUUID();
+  const scope = process.env.BRAIN_DUMP_TASK_SESSION_ID || sessionId || "legacy";
+  const scopedId = JSON.stringify([ticketId, scope, String(externalId)]);
+  db.prepare(
+    `UPDATE claude_tasks SET id = ?
+    WHERE id = ? AND ticket_id = ? AND session_id IS ?
+      AND NOT EXISTS (SELECT 1 FROM claude_tasks WHERE id = ?)`
+  ).run(scopedId, String(externalId), ticketId, sessionId, scopedId);
+  return scopedId;
 }
 
+function parseHistory(raw, taskId) {
+  if (!raw) return [];
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    console.warn(`Failed to parse status history for task ${taskId}:`, err.message);
+    return [];
+  }
+}
+
+function pushHistory(history, status) {
+  const last = history.length > 0 ? history[history.length - 1].status : null;
+  if (status && status !== last) {
+    history.push({ status, timestamp: now });
+  }
+  return history;
+}
+
+// A failed insert must never leave a partially replaced list behind.
+db.transaction(() => {
+  if (mode === "replace") {
+    const tasks = (Array.isArray(payload) ? payload : [payload]).map((task) => ({
+      ...task,
+      id: resolveTaskId(task.id),
+    }));
+    const existingTasks = db
+      .prepare(
+        "SELECT id, status, status_history, created_at, completed_at FROM claude_tasks WHERE ticket_id = ?"
+      )
+      .all(ticketId);
+    const existingTaskMap = new Map(existingTasks.map((t) => [t.id, t]));
+
+    db.prepare("DELETE FROM claude_tasks WHERE ticket_id = ?").run(ticketId);
+
+    for (let i = 0; i < tasks.length; i++) {
+      const task = tasks[i];
+      const taskId = task.id;
+      const existing = existingTaskMap.get(taskId);
+      const statusHistory = pushHistory(
+        parseHistory(existing?.status_history, taskId),
+        task.status
+      );
+      insertStmt.run(
+        taskId,
+        ticketId,
+        task.subject,
+        task.description || null,
+        task.status,
+        task.activeForm || null,
+        i + 1,
+        JSON.stringify(statusHistory),
+        sessionId,
+        existing ? existing.created_at : now,
+        now,
+        task.status === "completed" ? existing?.completed_at || now : null
+      );
+    }
+    console.log(`Saved ${tasks.length} tasks for ticket ${ticketId.substring(0, 8)}...`);
+  } else if (mode === "create") {
+    const task = payload;
+    const taskId = resolveTaskId(task.id);
+    const maxPosition = db
+      .prepare("SELECT COALESCE(MAX(position), 0) as max FROM claude_tasks WHERE ticket_id = ?")
+      .get(ticketId).max;
+    insertStmt.run(
+      taskId,
+      ticketId,
+      task.subject,
+      task.description || null,
+      task.status || "pending",
+      task.activeForm || null,
+      maxPosition + 1,
+      JSON.stringify(pushHistory([], task.status || "pending")),
+      sessionId,
+      now,
+      now,
+      task.status === "completed" ? now : null
+    );
+    console.log(`Created task ${taskId} for ticket ${ticketId.substring(0, 8)}...`);
+  } else if (mode === "update") {
+    const task = payload;
+    const taskId = task.id != null ? resolveTaskId(task.id) : null;
+    if (!taskId) {
+      console.error("update mode requires a task id");
+      db.close();
+      process.exit(1);
+    }
+    if (task.status === "deleted") {
+      db.prepare("DELETE FROM claude_tasks WHERE ticket_id = ? AND id = ?").run(ticketId, taskId);
+      console.log(`Deleted task ${taskId} for ticket ${ticketId.substring(0, 8)}...`);
+    } else {
+      const existing = db
+        .prepare("SELECT * FROM claude_tasks WHERE ticket_id = ? AND id = ?")
+        .get(ticketId, taskId);
+      if (!existing) {
+        // TaskUpdate for a task created before this session started tracking:
+        // insert it rather than dropping the update on the floor.
+        const maxPosition = db
+          .prepare("SELECT COALESCE(MAX(position), 0) as max FROM claude_tasks WHERE ticket_id = ?")
+          .get(ticketId).max;
+        insertStmt.run(
+          taskId,
+          ticketId,
+          task.subject || `Task #${taskId}`,
+          task.description || null,
+          task.status || "pending",
+          task.activeForm || null,
+          maxPosition + 1,
+          JSON.stringify(pushHistory([], task.status || "pending")),
+          sessionId,
+          now,
+          now,
+          task.status === "completed" ? now : null
+        );
+      } else {
+        const statusHistory = pushHistory(
+          parseHistory(existing.status_history, taskId),
+          task.status
+        );
+        db.prepare(
+          `UPDATE claude_tasks
+         SET subject = COALESCE(?, subject),
+             description = COALESCE(?, description),
+             status = COALESCE(?, status),
+             active_form = COALESCE(?, active_form),
+             status_history = ?,
+             updated_at = ?,
+             completed_at = CASE WHEN ? IS NULL THEN completed_at
+               WHEN ? = 'completed' THEN COALESCE(completed_at, ?) ELSE NULL END
+         WHERE ticket_id = ? AND id = ?`
+        ).run(
+          task.subject,
+          task.description,
+          task.status,
+          task.activeForm,
+          JSON.stringify(statusHistory),
+          now,
+          task.status,
+          task.status,
+          now,
+          ticketId,
+          taskId
+        );
+      }
+      console.log(`Updated task ${taskId} for ticket ${ticketId.substring(0, 8)}...`);
+    }
+  } else {
+    console.error(`Unknown mode: ${mode}`);
+    db.close();
+    process.exit(1);
+  }
+})();
+
 db.close();
-console.log(`Saved ${tasks.length} tasks for ticket ${ticketId.substring(0, 8)}...`);

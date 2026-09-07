@@ -1,9 +1,25 @@
 import { createServerFn } from "@tanstack/react-start";
-import { db } from "../lib/db";
-import { demoScripts, ticketComments, tickets, projects, epics } from "../lib/schema";
-import { eq, and, not, desc, gt } from "drizzle-orm";
-import type { Subtask } from "./tickets";
-import { safeJsonParse } from "../lib/utils";
+import { db, sqlite } from "../lib/db";
+import { epics, projects } from "../lib/schema";
+import { eq } from "drizzle-orm";
+import { getTicketBriefing, type FailedVerificationSummary } from "../../core/ticket-briefing.ts";
+
+function formatVerificationFailureContext(failure: FailedVerificationSummary): string {
+  const lines = [
+    `Verification run ${failure.runId} failed at ${failure.finishedAt} (round ${failure.round}).`,
+    "",
+  ];
+
+  for (const step of failure.failedSteps) {
+    const evidence = step.evidenceFiles.length
+      ? step.evidenceFiles.map((file) => `${file.path} (${file.hash})`).join(", ")
+      : "none";
+    lines.push(`- Step ${step.order}: ${step.message}`);
+    lines.push(`  Evidence: ${evidence}`);
+  }
+
+  return lines.join("\n");
+}
 
 // Get formatted context for Claude Code
 export const getTicketContext = createServerFn({ method: "GET" })
@@ -14,47 +30,22 @@ export const getTicketContext = createServerFn({ method: "GET" })
     return ticketId;
   })
   .handler(({ data: ticketId }) => {
-    // Get the ticket first (required for dependent queries)
-    const ticket = db.select().from(tickets).where(eq(tickets.id, ticketId)).get();
-    if (!ticket) {
-      throw new Error(`Ticket not found: ${ticketId}`);
-    }
+    const briefing = getTicketBriefing(sqlite, ticketId);
+    const { ticket, epic, relatedDoneTickets, unaddressedChangeRequest, failedVerification } =
+      briefing;
 
-    // Get related data - better-sqlite3 is synchronous so no parallelization needed
-    const project = db.select().from(projects).where(eq(projects.id, ticket.projectId)).get();
-
-    const epic = ticket.epicId
-      ? db.select().from(epics).where(eq(epics.id, ticket.epicId)).get()
-      : null;
-
-    const relatedTickets = ticket.epicId
-      ? db
-          .select()
-          .from(tickets)
-          .where(
-            and(
-              eq(tickets.epicId, ticket.epicId),
-              eq(tickets.status, "done"),
-              not(eq(tickets.id, ticket.id))
-            )
-          )
-          .orderBy(tickets.completedAt)
-          .limit(5)
-          .all()
-      : [];
-
+    const project = ticket.project;
     if (!project) {
       throw new Error(`Project not found: ${ticket.projectId}`);
     }
-
-    // Parse subtasks
-    const subtasks = safeJsonParse<Subtask[]>(ticket.subtasks, []);
-
-    // Parse linked files
-    const linkedFiles = safeJsonParse<string[]>(ticket.linkedFiles, []);
+    const subtasks = ticket.subtasks;
+    const linkedFiles = ticket.linkedFiles;
 
     // Build the context markdown
     const contextParts: string[] = [];
+    if (briefing.verificationWarning) {
+      contextParts.push(`> Warning: ${briefing.verificationWarning}`, "");
+    }
 
     // Task header
     contextParts.push(`# Task: ${ticket.title}`);
@@ -78,39 +69,19 @@ export const getTicketContext = createServerFn({ method: "GET" })
     }
 
     if (ticket.status !== "done") {
-      const latestChangeRequest = db
-        .select()
-        .from(ticketComments)
-        .where(
-          and(eq(ticketComments.ticketId, ticket.id), eq(ticketComments.type, "change_request"))
-        )
-        .orderBy(desc(ticketComments.createdAt))
-        .limit(1)
-        .get();
-
-      const newerApproval = latestChangeRequest
-        ? db
-            .select()
-            .from(demoScripts)
-            .where(
-              and(
-                eq(demoScripts.ticketId, ticket.id),
-                eq(demoScripts.passed, true),
-                gt(demoScripts.completedAt, latestChangeRequest.createdAt)
-              )
-            )
-            .limit(1)
-            .get()
-        : null;
-
-      if (latestChangeRequest && !newerApproval) {
+      if (unaddressedChangeRequest) {
         contextParts.push("## Human Requested Changes - Fix This First");
-        contextParts.push(latestChangeRequest.content);
+        contextParts.push(unaddressedChangeRequest);
+        contextParts.push("");
+      }
+
+      if (failedVerification) {
+        contextParts.push("## Verification Failures - Fix This First");
+        contextParts.push(formatVerificationFailureContext(failedVerification));
         contextParts.push("");
       }
     }
 
-    // Description
     if (ticket.description) {
       contextParts.push("## Description");
       contextParts.push(ticket.description);
@@ -137,9 +108,9 @@ export const getTicketContext = createServerFn({ method: "GET" })
     }
 
     // Related completed work
-    if (relatedTickets.length > 0) {
+    if (relatedDoneTickets.length > 0) {
       contextParts.push("## Related Completed Work");
-      for (const related of relatedTickets) {
+      for (const related of relatedDoneTickets) {
         const summary = related.description
           ? `${related.title}: ${related.description.slice(0, 100)}${related.description.length > 100 ? "..." : ""}`
           : related.title;
@@ -197,7 +168,7 @@ export const getTicketContext = createServerFn({ method: "GET" })
       '5. Self-review → `review({ action: "submit-finding", ... })` for each issue → fix → `review({ action: "mark-fixed", ... })` → verify `review({ action: "check-complete", ticketId: "..." })`'
     );
     contextParts.push(
-      `6. \`review({ action: "generate-demo", ticketId: "${ticket.id}", steps: [...] })\` → then STOP for human approval`
+      `6. \`review({ action: "generate-demo", ticketId: "${ticket.id}", steps: [...] })\` → then STOP for AI verification runner certification`
     );
     contextParts.push("");
     contextParts.push(

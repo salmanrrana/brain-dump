@@ -57,9 +57,13 @@ export interface EnhancedPRDItem {
   id: string;
   title: string;
   passes: boolean;
+  status?: string;
 
   /** Latest unresolved human review rejection details that AI should fix first */
   humanRequestedChanges?: string;
+
+  /** Latest unresolved verification failure details that AI should fix first */
+  verificationFailures?: string;
 
   /** WHY this feature exists (extracted from Context/Problem sections) */
   overview: string;
@@ -108,6 +112,16 @@ export interface ProjectContext {
 /**
  * Enhanced PRD document with Loom-style structure
  */
+/**
+ * Fresh-eyes reviewer recorded in the PRD so agents and audit trails can see
+ * which backend/model owns the ai_review phase for this launch.
+ */
+export interface EnhancedPRDReviewer {
+  aiBackend: string;
+  modelProvider?: string;
+  modelName?: string;
+}
+
 export interface EnhancedPRDDocument {
   projectName: string;
   projectPath: string;
@@ -117,6 +131,7 @@ export interface EnhancedPRDDocument {
   userStories: EnhancedPRDItem[];
   projectContext: ProjectContext;
   generatedAt: string;
+  reviewer?: EnhancedPRDReviewer;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

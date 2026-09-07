@@ -119,6 +119,9 @@ export function SplashScreen({ ready, onComplete }: SplashScreenProps) {
       <div
         role="status"
         aria-label="Loading Brain Dump"
+        // Contract with core/verification.ts: the runner waits for this
+        // element to detach before capturing UI evidence.
+        data-testid="app-splash"
         style={{ ...style, ...spinnerContainerStyle }}
       >
         <Loader2
@@ -131,7 +134,7 @@ export function SplashScreen({ ready, onComplete }: SplashScreenProps) {
   }
 
   return (
-    <div role="status" aria-label="Loading Brain Dump" style={style}>
+    <div role="status" aria-label="Loading Brain Dump" data-testid="app-splash" style={style}>
       <LetterGlitch
         glitchColors={glitchColors}
         glitchSpeed={10}

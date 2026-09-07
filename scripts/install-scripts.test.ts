@@ -55,6 +55,11 @@ describe("install.sh (root)", () => {
     expect(script).toContain("Pi");
   });
 
+  it("delegates claude setup to scripts/setup-claude-code.sh", () => {
+    expect(script).toContain("setup-claude-code.sh");
+    expect(script).toContain("setup_claude_code || true");
+  });
+
   it("delegates copilot setup to scripts/setup-copilot-cli.sh", () => {
     expect(script).toContain("setup-copilot-cli.sh");
   });
@@ -161,6 +166,13 @@ describe("setup-claude-code.sh hook merge behavior", () => {
     );
     expect(script).toContain("config.hooks = {");
   });
+
+  it("reconfigures the MCP server across scopes before adding a user-scoped entry", () => {
+    const script = readScript("scripts/setup-claude-code.sh");
+    expect(script).toContain("for scope in local user project");
+    expect(script).toContain('claude mcp remove brain-dump --scope "$scope"');
+    expect(script).toContain("claude mcp add --scope user --transport stdio brain-dump");
+  });
 });
 
 describe("Linux/sudo install hardening", () => {
@@ -195,21 +207,19 @@ describe("README.md environment table", () => {
     expect(readme).toContain("./install.sh --all");
   });
 
-  it("has Copilot CLI in the environment details section", () => {
-    expect(readme).toContain("### Copilot CLI");
-  });
-
-  it("has Codex in the environment details section", () => {
-    expect(readme).toContain("### Codex");
-  });
-
-  it("has Pi in the environment details section", () => {
-    expect(readme).toContain("### Pi");
-  });
-
-  it("has Cursor Editor and Cursor Agent CLI as separate sections", () => {
-    expect(readme).toContain("### Cursor Editor");
-    expect(readme).toContain("### Cursor Agent CLI");
+  // README keeps a compact install table; per-environment detail lives in docs/environments/.
+  it("has a setup guide for every environment in the table", () => {
+    for (const env of [
+      "claude-code",
+      "vscode",
+      "opencode",
+      "cursor",
+      "copilot-cli",
+      "codex",
+      "pi",
+    ]) {
+      expect(existsSync(resolve(ROOT, "docs", "environments", `${env}.md`))).toBe(true);
+    }
   });
 });
 

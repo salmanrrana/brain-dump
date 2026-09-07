@@ -176,19 +176,18 @@ MCP tool:
 You: Fix findings, commit, repeat until clean
 ```
 
-### Phase 4: Demo & Approval
+### Phase 4: Demo & AI Verification
 
 ```
 You: @brain-dump /demo
 
 MCP tool:
 ✓ Generates demo steps
-✓ Sets status to human_review
+✓ Sets status to ai_verification
 
 You: Go to Brain Dump UI
-     Click "Start Demo Review"
-     Run through steps
-     Approve or request changes
+     Confirm the ticket is ready for the verification runner
+     Wait for evidence-backed certification or verification findings
 ```
 
 ## Commands in Copilot Chat

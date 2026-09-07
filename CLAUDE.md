@@ -46,7 +46,6 @@ Architecture rules:
 # Development
 pnpm dev                    # Start dev server on port 4242
 pnpm build                  # Build for production
-pnpm start                  # Start production server
 
 # Quality checks
 pnpm check                  # Run all checks (type-check, lint, test)
@@ -125,21 +124,21 @@ Legacy migration from `~/.brain-dump/` is automatic on first run.
 
 ### MCP Server
 
-The `mcp-server/` directory is a standalone TypeScript MCP server (runs with `tsx`) that provides **9 action-dispatched tools** (65 total actions) for Claude to manage tickets from any project. It connects to the same SQLite database.
+The `mcp-server/` directory is a standalone TypeScript MCP server (runs with `tsx`) that provides **9 action-dispatched tools** (76 total actions) for Claude to manage tickets from any project. It connects to the same SQLite database.
 
 Architecture: `core/` (pure functions) → `mcp-server/tools/` (MCP layer) → skills (progressive disclosure).
 
-| Tool        | Actions | Purpose                            |
-| ----------- | ------- | ---------------------------------- |
-| `workflow`  | 6       | Ticket/epic lifecycle, git linking |
-| `ticket`    | 10      | CRUD, status, criteria, files      |
-| `session`   | 12      | Ralph sessions, events, tasks      |
-| `review`    | 8       | Findings, demos, feedback          |
-| `telemetry` | 7       | AI interaction metrics             |
-| `comment`   | 2       | Ticket comments                    |
-| `epic`      | 6       | Epic CRUD, learnings               |
-| `project`   | 4       | Project CRUD                       |
-| `admin`     | 10      | Health, settings, compliance       |
+| Tool        | Actions | Purpose                                               |
+| ----------- | ------- | ----------------------------------------------------- |
+| `workflow`  | 8       | Ticket/epic lifecycle, launches, git linking          |
+| `ticket`    | 11      | CRUD, status, criteria, attachments, files            |
+| `session`   | 12      | Ralph sessions, events, tasks                         |
+| `review`    | 11      | Review context, findings, demos, verification handoff |
+| `telemetry` | 10      | AI interaction metrics, cost                          |
+| `comment`   | 2       | Ticket comments                                       |
+| `epic`      | 6       | Epic CRUD, learnings                                  |
+| `project`   | 4       | Project CRUD                                          |
+| `admin`     | 12      | Health, settings, compliance, cost models             |
 
 See [docs/mcp-tools.md](docs/mcp-tools.md) for the full reference.
 
@@ -160,16 +159,40 @@ load the `brain-dump-workflow` skill for the complete tool call sequence.
 ### Status Flow
 
 ```
-backlog → ready → in_progress → ai_review → human_review → done
+backlog → ready → in_progress → ai_review → ai_verification → done
 ```
 
 ### Quick Reference
 
 1. `workflow` tool, `action: "start-work"`, `ticketId` → before writing code
 2. Implement + project-specific validation (`pnpm check` for this Brain Dump repo)
-3. `workflow` tool, `action: "complete-work"`, `ticketId`, `summary` → after committing
-4. Self-review + `review` tool, `action: "submit-finding"` → for each issue
-5. `review` tool, `action: "generate-demo"`, `ticketId`, `steps` → then STOP
+3. `comment` tool, `action: "add"`, `commentType: "test_report"` with exact command results → REQUIRED; `complete-work` rejects without a fresh test_report
+4. `workflow` tool, `action: "complete-work"`, `ticketId`, `summary` → after committing (posts the work_summary comment automatically)
+5. `review` tool, `action: "get-review-context"`, `ticketId` → the review packet (criteria, in-scope files, prior findings, budgets)
+6. Review + `review` tool, `action: "submit-finding"` → for each concrete issue; fix critical/major, then `action: "mark-fixed"`
+7. `review` tool, `action: "check-complete"`, `ticketId` → must allow verification handoff
+8. `review` tool, `action: "generate-demo"`, `ticketId`, `steps` → then STOP (sessions are completed automatically)
+
+### Anti-Loop Gates (enforced in core, not just prompts)
+
+- **Review-round circuit breaker**: after 3 implement → review rounds (`MAX_REVIEW_ROUNDS`), `complete-work` blocks the ticket for human attention instead of entering another review. Unblocking the ticket (UI) or `resolve-verification-failure` resets the budget.
+- **Blocking-findings budget**: at most 5 open critical/major findings per ticket; overflow submissions are recorded as `minor` with a `[severity gate]` note. Fixing findings frees budget.
+- **Repair-diff scope gate**: `generate-demo` stamps the repo HEAD as `reviewed_through_commit`. On re-review rounds, blocking findings outside the diff since that commit are downgraded to `minor` — already-reviewed code is context, not a new blocker.
+- **Widened dedup**: on re-review rounds, same category + file + ±10 lines is a duplicate regardless of wording.
+- Agents: accept downgrades (do not re-submit re-worded), and close hypothetical findings with `mark-fixed` → `wont_fix` rather than leaving them open.
+
+<!-- BEGIN GENERATED: workflow-sequence -->
+
+## Adding Or Changing A Workflow Step
+
+The workflow source of truth is executable data, not hand-written prompt text.
+
+1. Edit `core/workflow-steps.ts` for status order, metadata, and transition guards.
+2. Edit `core/workflow-prompt-spec.ts` for provider-facing workflow phases, gates, or stop conditions.
+3. Run `pnpm workflow:prompts` to regenerate provider skills/prompts and docs diagrams.
+4. Run `pnpm check`. The drift gate fails if generated sections were hand-edited or not regenerated.
+
+<!-- END GENERATED: workflow-sequence -->
 
 ### Skills (Workflow Shortcuts)
 
@@ -219,20 +242,20 @@ This project uses Claude Code hooks to enforce Ralph's workflow. Hooks provide g
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-#### Hook Scripts (10 hooks)
+#### Hook Scripts (8 hooks)
 
-| Hook                          | Event        | Purpose                                                                       |
-| ----------------------------- | ------------ | ----------------------------------------------------------------------------- |
-| enforce-state-before-write.sh | PreToolUse   | Must be in 'implementing', 'testing', or 'committing' state before Write/Edit |
-| enforce-review-before-push.sh | PreToolUse   | Blocks git push/gh pr create until review is completed                        |
-| link-commit-to-ticket.sh      | PostToolUse  | Outputs commit/PR link commands after each git commit                         |
-| spawn-next-ticket.sh          | PostToolUse  | Spawns next ticket after `workflow` `complete-work` (env-gated)               |
-| spawn-after-pr.sh             | PostToolUse  | Spawns next ticket after successful PR creation (env-gated)                   |
-| capture-claude-tasks.sh       | PostToolUse  | Syncs TodoWrite tasks to Brain Dump                                           |
-| chain-extended-review.sh      | SubagentStop | Triggers extended review after pr-review-toolkit agents complete              |
-| check-for-code-changes.sh     | Stop         | Reminds AI to run review if uncommitted source changes exist                  |
-| mark-review-completed.sh      | Stop         | Creates `.review-completed` marker after review                               |
-| detect-libraries.sh           | Utility      | Extracts significant libraries from package.json for context7                 |
+| Hook                          | Event        | Purpose                                                                           |
+| ----------------------------- | ------------ | --------------------------------------------------------------------------------- |
+| enforce-state-before-write.sh | PreToolUse   | Must be in 'implementing', 'testing', or 'committing' state before Write/Edit     |
+| enforce-review-before-push.sh | PreToolUse   | Blocks git push/gh pr create until review is completed (uncommitted AND unpushed) |
+| link-commit-to-ticket.sh      | PostToolUse  | Outputs commit/PR link commands after each git commit                             |
+| capture-claude-tasks.sh       | PostToolUse  | Syncs Claude tasks (TodoWrite/TaskCreate/TaskUpdate) to Brain Dump                |
+| chain-extended-review.sh      | SubagentStop | Triggers extended review after all 3 pr-review-toolkit agents complete            |
+| check-for-code-changes.sh     | Stop         | Reminds AI to run review if uncommitted source changes exist                      |
+| capture-token-usage.sh        | Stop         | Records token usage from JSONL transcripts into telemetry                         |
+| detect-libraries.sh           | Utility      | Extracts significant libraries from package.json for context7                     |
+
+The `.review-completed` marker is created by the `/review` skill itself when the pipeline finishes (see `.claude/skills/review/SKILL.md`), not by a Stop hook — so its existence actually means a review ran.
 
 #### State File
 
@@ -309,28 +332,6 @@ Do NOT try to work around state enforcement - it ensures work is properly tracke
 **To enable hooks**, run `scripts/setup-claude-code.sh` which installs hooks globally to `~/.claude/hooks/` and configures `~/.claude/settings.json`.
 
 **Note:** Using `$HOME/.claude/hooks/` (not `$CLAUDE_PROJECT_DIR`) ensures hooks work from any directory, not just within the brain-dump project.
-
-#### Auto-Spawn Next Ticket (Experimental)
-
-When enabled, completing a ticket or creating a PR can automatically spawn a new terminal window with Claude ready to work on the next suggested ticket. This provides:
-
-- **Automatic context reset** - Fresh Claude session for each ticket
-- **Seamless workflow** - No manual context clearing needed
-- **Pipeline feel** - Tickets flow naturally from one to the next
-
-**To enable:**
-
-```bash
-export AUTO_SPAWN_NEXT_TICKET=1
-```
-
-The hooks will:
-
-1. Parse the next ticket ID from `workflow` `complete-work` output or PRD file
-2. Spawn a new terminal (Ghostty, iTerm2, or Terminal.app on macOS; Ghostty, Kitty, or GNOME Terminal on Linux)
-3. Start Claude with a prompt to begin the next ticket
-
-**Note:** This is opt-in because spawning new windows can be surprising if unexpected.
 
 #### MCP Self-Telemetry
 
@@ -675,7 +676,7 @@ Brain Dump is local-first and must feel instant. Any change to a hot path
 ### Before Marking Complete
 
 - [ ] All acceptance criteria from ticket met
-- [ ] Work summary added via `comment` tool, `action: "add"` (for Ralph sessions)
+- [ ] test_report comment added via `comment` tool, `action: "add"`, `commentType: "test_report"` (the work_summary is posted automatically by `complete-work`)
 - [ ] Session completed with appropriate outcome (for Ralph sessions)
 - [ ] Committed with proper message format: `feat(<ticket-id>): <description>`
 

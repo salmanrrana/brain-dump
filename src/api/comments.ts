@@ -1,9 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
-import { db } from "../lib/db";
+import { db, sqlite } from "../lib/db";
 import { ticketComments } from "../lib/schema";
 import type { TicketComment } from "../lib/schema";
 import { eq, desc, and, lt, sql } from "drizzle-orm";
-import { randomUUID } from "crypto";
+import { addComment as addCoreComment } from "../../core/comment";
 import {
   BASE_COMMENT_AUTHORS,
   isValidCommentAuthor,
@@ -32,29 +32,6 @@ const VALID_TYPES: CommentType[] = [
   "progress",
   "change_request",
 ];
-
-// Get comments for a ticket
-export const getComments = createServerFn({ method: "GET" })
-  .inputValidator((data: string) => {
-    if (!data || typeof data !== "string") {
-      throw new Error("Ticket ID is required");
-    }
-    // Basic UUID format validation
-    if (!/^[a-zA-Z0-9-]+$/.test(data)) {
-      throw new Error("Invalid ticket ID format");
-    }
-    return data;
-  })
-  .handler(async ({ data: ticketId }): Promise<Comment[]> => {
-    const comments = db
-      .select()
-      .from(ticketComments)
-      .where(eq(ticketComments.ticketId, ticketId))
-      .orderBy(desc(ticketComments.createdAt))
-      .all();
-
-    return comments;
-  });
 
 // ─── Paginated Comments ──────────────────────────────────────────────────────
 
@@ -149,41 +126,12 @@ export const createComment = createServerFn({ method: "POST" })
   })
   .handler(async ({ data }): Promise<Comment> => {
     const { ticketId, content, author, type = "comment" } = data;
-
-    const id = randomUUID();
-
-    db.insert(ticketComments)
-      .values({
-        id,
-        ticketId,
-        content,
-        author,
-        type,
-      })
-      .run();
-
-    const comment = db.select().from(ticketComments).where(eq(ticketComments.id, id)).get();
-
-    if (!comment) {
-      throw new Error("Failed to create comment");
-    }
-
-    return comment;
+    return addCoreComment(sqlite, {
+      ticketId,
+      content,
+      author,
+      type,
+    });
   });
 
 // Delete a comment
-export const deleteComment = createServerFn({ method: "POST" })
-  .inputValidator((data: string) => {
-    if (!data || typeof data !== "string") {
-      throw new Error("Comment ID is required");
-    }
-    // Basic UUID format validation
-    if (!/^[a-zA-Z0-9-]+$/.test(data)) {
-      throw new Error("Invalid comment ID format");
-    }
-    return data;
-  })
-  .handler(async ({ data: commentId }): Promise<{ success: boolean }> => {
-    db.delete(ticketComments).where(eq(ticketComments.id, commentId)).run();
-    return { success: true };
-  });

@@ -137,25 +137,6 @@ export interface UpdateEpicInput {
   color?: string;
 }
 
-// Get all epics for a project
-export const getEpicsByProject = createServerFn({ method: "GET" })
-  .inputValidator((projectId: string) => {
-    if (!projectId) {
-      throw new Error("Project ID is required");
-    }
-    return projectId;
-  })
-  .handler(async ({ data: projectId }) => {
-    const project = db.select().from(projects).where(eq(projects.id, projectId)).get();
-    ensureExists(project, "Project", projectId);
-    return db
-      .select()
-      .from(epics)
-      .where(eq(epics.projectId, projectId))
-      .orderBy(desc(epics.createdAt))
-      .all();
-  });
-
 // Create a new epic
 export const createEpic = createServerFn({ method: "POST" })
   .inputValidator((input: CreateEpicInput) => {
@@ -466,7 +447,7 @@ export const getEpicDetail = createServerFn({ method: "GET" })
             title: row.ticketTitle,
             status:
               row.ticketRunStatus === "running" &&
-              (row.ticketStatus === "human_review" || row.ticketStatus === "done")
+              (row.ticketStatus === "ai_verification" || row.ticketStatus === "done")
                 ? "completed"
                 : (row.ticketRunStatus ?? "queued"),
             summary: row.ticketRunSummary,
@@ -493,7 +474,7 @@ export const getEpicDetail = createServerFn({ method: "GET" })
                   title: row.ticketTitle,
                   status:
                     row.ticketRunStatus === "running" &&
-                    (row.ticketStatus === "human_review" || row.ticketStatus === "done")
+                    (row.ticketStatus === "ai_verification" || row.ticketStatus === "done")
                       ? "completed"
                       : (row.ticketRunStatus ?? "queued"),
                   summary: row.ticketRunSummary,

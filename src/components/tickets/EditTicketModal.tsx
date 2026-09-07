@@ -17,12 +17,13 @@ import { useToast } from "../Toast";
 import { TagInput } from "./TagInput";
 import { EpicSelect } from "./EpicSelect";
 import { LaunchActions, type LaunchType } from "./LaunchActions";
+import type { RalphAutonomousUiLaunchProvider } from "../../lib/launch-provider-contract";
 import type { LaunchModelSelection } from "../../lib/launch-model-catalog";
 import { CreateEpicModal } from "../epics/CreateEpicModal";
 import {
   dispatchInteractiveUiLaunch,
   dispatchRalphAutonomousUiLaunch,
-  defaultRalphLaunchDependencies,
+  createRalphLaunchDependencies,
 } from "../../lib/ui-launch-dispatcher";
 import {
   getInteractiveUiLaunchProvider,
@@ -30,6 +31,7 @@ import {
 } from "../../lib/ui-launch-registry";
 import type { TicketStatus } from "../../api/tickets";
 import { safeJsonParse } from "../../lib/utils";
+import { TICKET_STATUS_METADATA, TICKET_STATUSES } from "../../../core/workflow-steps.ts";
 
 /** Priority options for ticket editing */
 const PRIORITY_OPTIONS = [
@@ -40,14 +42,23 @@ const PRIORITY_OPTIONS = [
 ] as const;
 
 /** Status options with colors for the status dropdown */
-const STATUS_OPTIONS: { value: TicketStatus; label: string; color: string }[] = [
-  { value: "backlog", label: "Backlog", color: "#6b7280" }, // gray
-  { value: "ready", label: "Ready", color: "#3b82f6" }, // blue
-  { value: "in_progress", label: "In Progress", color: "#eab308" }, // yellow
-  { value: "ai_review", label: "AI Review", color: "#06b6d4" }, // cyan
-  { value: "human_review", label: "Human Review", color: "#ec4899" }, // pink
-  { value: "done", label: "Done", color: "#22c55e" }, // green
-];
+const STATUS_COLOR_HEX: Record<TicketStatus, string> = {
+  backlog: "#6b7280",
+  ready: "#3b82f6",
+  in_progress: "#eab308",
+  ai_review: "#06b6d4",
+  ai_verification: "#8b5cf6",
+  human_review: "#ec4899",
+  done: "#22c55e",
+};
+
+const STATUS_OPTIONS: { value: TicketStatus; label: string; color: string }[] = TICKET_STATUSES.map(
+  (status) => ({
+    value: status,
+    label: TICKET_STATUS_METADATA[status].label,
+    color: STATUS_COLOR_HEX[status],
+  })
+);
 
 export interface EditTicketModalProps {
   /** Whether the modal is open */
@@ -371,7 +382,12 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
 
   // Handle launch action through the shared ticket launch dispatcher.
   const handleLaunch = useCallback(
-    async (type: LaunchType, modelSelection: LaunchModelSelection) => {
+    async (
+      type: LaunchType,
+      modelSelection: LaunchModelSelection,
+      reviewerProvider?: RalphAutonomousUiLaunchProvider,
+      reviewerModelSelection?: LaunchModelSelection
+    ) => {
       setIsLaunching(true);
       setLaunchingType(type);
 
@@ -410,25 +426,13 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
               ticketId: ticket.id,
               preferredTerminal: settings?.terminalEmulator ?? null,
               modelSelection,
+              ...(reviewerProvider ? { reviewerProvider } : {}),
+              ...(reviewerModelSelection ? { reviewerModelSelection } : {}),
             },
-            {
-              ...defaultRalphLaunchDependencies,
-              launchTicketRalph: async (payload) => {
-                const launchResult = await launchRalphMutation.mutateAsync(payload);
-                return {
-                  success: launchResult.success,
-                  message: launchResult.message,
-                  ...(launchResult.warnings ? { warnings: launchResult.warnings } : {}),
-                  ...("terminalUsed" in launchResult && launchResult.terminalUsed
-                    ? { terminalUsed: launchResult.terminalUsed }
-                    : {}),
-                };
-              },
-              launchEpicRalph: async () => ({
-                success: false,
-                message: "Epic Ralph launch is not available from ticket edit modal.",
-              }),
-            }
+            createRalphLaunchDependencies(
+              { launchTicket: (payload) => launchRalphMutation.mutateAsync(payload) },
+              "ticket edit modal"
+            )
           );
 
           if (result.warnings) {

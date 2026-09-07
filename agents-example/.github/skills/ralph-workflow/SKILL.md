@@ -1,11 +1,11 @@
 ---
 name: ralph-workflow
-description: Autonomous backlog processing workflow for Brain Dump. Use when working through multiple tickets autonomously or when asked to process a backlog like Ralph.
+description: Autonomous backlog processing workflow for Brain Dump using the Universal Quality Workflow. Use when working through multiple tickets autonomously or when asked to process a backlog like Ralph.
 ---
 
 # Ralph Workflow Skill
 
-This skill provides the autonomous backlog processing workflow used by Ralph.
+This skill provides the autonomous backlog processing workflow used by Ralph, following the Universal Quality Workflow for consistent code quality.
 
 ## When to Use This Skill
 
@@ -14,94 +14,72 @@ This skill provides the autonomous backlog processing workflow used by Ralph.
 - Implementing features from a PRD file
 - Running in background agent mode
 
-## The Ralph Workflow
+<!-- BEGIN GENERATED: workflow-sequence -->
 
-### 1. Read Context Files
+## Generated Workflow
 
-```
-plans/prd.json     - Product requirements (auto-generated from tickets)
-plans/progress.txt - Notes from previous iterations
-```
+Status flow: `backlog -> ready -> in_progress -> ai_review -> ai_verification -> done`
 
-### 2. Set Up Git Branch
+### Step 1: Implementation
 
-Before any code changes:
+start-work -> create or reuse a session -> implement -> validate -> commit -> complete-work. Skip this phase only when the selected ticket is already in ai_review.
 
-```bash
-git fetch origin
-git checkout -b ralph/<ticket-id>-<description> origin/dev
-# or origin/main if no dev branch
-```
+- `workflow({ action: "start-work", ticketId })`
+- `session({ action: "create", ticketId }) or session({ action: "get", ticketId })`
+- `comment({ action: "add", ticketId, content, commentType: "test_report" })`
+- `workflow({ action: "complete-work", ticketId, summary })`
 
-### 3. Pick ONE Task
+### Step 2: AI Review
 
-From `prd.json`, find a user story where `passes: false`:
+Start with get-review-context: it returns the acceptance criteria, work history, the exact in-scope changed-file list, prior findings (never re-file resolved ones), and the blocking-findings budget. Review only the in-scope files for regressions, acceptance gaps, and maintainability (reuse existing patterns; keep junior-readable). Submit only concrete NEW blocking findings, fix critical/major findings, then check completion.
 
-- Prioritize by priority field (high > medium > low)
-- Only work on ONE task per iteration
+- `review({ action: "get-review-context", ticketId })`
+- `review({ action: "submit-finding", ticketId, agent, severity, category, description })`
+- `review({ action: "mark-fixed", findingId, fixStatus: "fixed" })`
+- `review({ action: "check-complete", ticketId })`
 
-### 4. Post Progress Update
+### Step 3: Demo
 
-```javascript
-comment "add"({
-  ticketId: "story-id",
-  content: "Starting work on user authentication. Will implement login form and API endpoint.",
-  author: "ralph",
-  type: "comment"
-})
-```
+Generate 3-7 test steps after review completion, including criterion coverage references plus automation specs for visual/automated UI, API, command, or file checks. Before API/UI steps, inspect the target project's docs and build/runtime config and declare app.start as spawn-safe argv (with {port}/{host} tokens and optional project-relative cwd); never assume npm or pnpm. Every acceptance criterion must be proven by executable automation — coverageRationale is rejected at generate-demo. If a required command is outside the default allowlist (make, go, npx, ...), declare its exact argv in the project's .brain-dump/verify.json commands array; if a criterion cannot be automated, reword the criterion to match what automation can prove. This moves the ticket to ai_verification for runner certification.
 
-### 5. Implement Feature
+- `review({ action: "generate-demo", ticketId, steps }) with covers references and automation specs on visual/automated steps`
 
-- Write the code
-- Run type checks: `pnpm type-check` or `npm run type-check`
-- Run tests: `pnpm test` or `npm test`
-- Verify acceptance criteria
+### Step 4: Stop
 
-### 6. Commit Changes
+STOP after generate-demo. generate-demo already completed the ticket's active sessions during the verification handoff — an explicit session complete afterwards is unnecessary (though harmless if called: it returns the recorded completion). Never run verification or move the ticket to done yourself.
 
-```bash
-git add -A
-git commit -m "feat(<ticket-id>): <description>"
-```
+### Implementation Discipline
 
-### 7. Update PRD
+- Before editing, map each acceptance criterion to the existing production entry point and nearby tests. Search for components, helpers, services, and patterns that already own the behavior.
+- Extend or reuse the established implementation instead of adding a parallel path. New shared logic must be wired through the real production caller; replace superseded ticket-owned logic rather than leaving two competing implementations.
+- Keep the diff minimal and match the codebase's existing style. Prefer explicit code a junior engineer can trace; use the smallest local or established abstraction that removes concrete duplication, never a speculative framework or dependency.
+- Preserve existing behavior outside the ticket and add focused regression coverage at the changed boundary. Before handoff, inspect the final diff for dead code, duplicate logic, and acceptance criteria implemented only in tests but not reachable in production.
 
-Edit `plans/prd.json` to set `passes: true` for the completed story.
+### Validation Gates
 
-### 8. Update Progress File
+- Before complete-work: Discover and run this project's validation commands from docs/config.
+- Read AGENTS.md, CLAUDE.md, README, CONTRIBUTING, package scripts, pyproject.toml, go.mod, Makefile/Justfile, and CI files before choosing commands.
+- Use the project's own commands, not Brain Dump's commands. Do not assume pnpm, npm, TypeScript, lint, or test scripts exist.
+- If no automated validation command is discoverable, perform a targeted manual smoke check and record that no project validation command was found.
+- Before complete-work, add a test_report comment with exact pass/fail/skipped command results and omit author so Brain Dump auto-detects the provider.
+- Before demo, all critical/major findings must be fixed and check-complete must allow verification handoff.
+- For API/UI demo steps, inspect README/AGENTS/CLAUDE docs plus native build files and declare one app.start argv that actually boots this project on {port}; do not infer every app is Node-based.
+- Before authoring a demo, read the project's .brain-dump/verify.json (if present) and reuse its exact start command and declared commands; never hardcode a port or loopback origin — the runner boots on a random free port.
+- In UI demo steps, waitFor a selector that only exists once real data has rendered (a populated row, not a static heading) before clicking or asserting; a mutation fired against a still-loading page settles every widget into an error state.
+- Do not assert live third-party data (e.g. a fresh 'Last fetched' timestamp) unless the verification environment seeds it; assert the honest empty/error copy or an API-level contract instead.
+- To prove a file was deleted, use a file step with a notExists assertion — never contains/notContains against a missing file; for grep-style command steps, set expectedExitCode to what the command actually returns.
+- Before session completion, generate-demo must have been called and the ticket must be in ai_verification.
+- If verification blocked the ticket and you have fixed and validated the cause, call review resolve-verification-failure (rootCause, classification, fixCommits, validation) to clear the blocker and return the ticket to ai_review. Then mark each open verification finding addressed by the fix as fixed before check-complete — never leave a fixed ticket blocked.
 
-Append to `plans/progress.txt`:
+### Hard Guards
 
-```
-## Iteration N - [timestamp]
-- Completed: <ticket title>
-- Changes: <brief summary>
-- Notes: <any learnings or issues>
-```
+- Do not use local substitutes for Brain Dump MCP/CLI workflow actions.
+- Do not skip review check-complete before generate-demo.
+- Do not run verification yourself.
+- Do not move tickets to done yourself.
+- Do not continue to another ticket after demo handoff.
 
-### 9. Update Ticket Status
-
-```javascript
-ticket "update-status"({ ticketId: "ticket-id", status: "done" })
-
-comment "add"({
-  ticketId: "ticket-id",
-  content: "## Work Summary\n**Changes:**\n- ...\n**Tests:**\n- All passing",
-  author: "ralph",
-  type: "work_summary"
-})
-```
-
-### 10. Check Completion
-
-If ALL stories have `passes: true`:
-
-- Push branch: `git push -u origin <branch-name>`
-- Create PR using `gh pr create`
-- Output: `PRD_COMPLETE`
-
-Otherwise, the next iteration picks the next task.
+<!-- END GENERATED: workflow-sequence -->
 
 ## PRD File Format
 
@@ -136,19 +114,23 @@ Otherwise, the next iteration picks the next task.
 
 - Completed: Add login form
 - Changes: Created LoginForm.tsx, added validation
+- Review: 2 findings (1 major, 1 minor) - all fixed
 - Notes: Auth API returns different error format than expected
 
 ## Iteration 2 - 2024-01-01 10:30
 
 - Completed: Add auth API integration
 - Changes: Updated auth.ts, added error handling
+- Review: 1 finding (suggestion) - applied
 - Notes: All tests passing
 ```
 
 ## Important Rules
 
 1. **One task per iteration** - Keeps context focused
-2. **Always test** - Run tests before marking complete
-3. **Update status** - Use MCP tools to track progress
-4. **Document issues** - Add blockers to progress.txt
-5. **Never commit to main/dev** - Always use feature branches
+2. **Always validate** - Run project-specific validation before completing
+3. **Use workflow "complete-work"** - Never directly set status to "done"
+4. **Run all review agents** - Fix critical/major before demo
+5. **Stop at ai_verification** - Wait for runner certification
+6. **Document issues** - Add blockers to progress.txt
+7. **Never commit to main/dev** - Always use feature branches

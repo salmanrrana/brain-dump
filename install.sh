@@ -1084,6 +1084,35 @@ setup_claude_skills() {
     fi
 }
 
+# Setup Claude Code integration using the setup script
+setup_claude_code() {
+    print_step "Setting up Claude Code integration"
+
+    local setup_script="scripts/setup-claude-code.sh"
+
+    if [ ! -f "$setup_script" ]; then
+        print_warning "Claude Code setup script not found: $setup_script"
+        SKIPPED+=("Claude Code setup (script not found)")
+        return 1
+    fi
+
+    if [ ! -x "$setup_script" ]; then
+        print_info "Making setup script executable..."
+        chmod +x "$setup_script"
+    fi
+
+    print_info "Running Claude Code setup script..."
+    if bash "$setup_script"; then
+        print_success "Claude Code integration configured"
+        INSTALLED+=("Claude Code integration")
+        return 0
+    else
+        print_error "Claude Code setup script failed"
+        FAILED+=("Claude Code integration")
+        return 1
+    fi
+}
+
 # Setup project-specific Claude config
 setup_project_config() {
     print_step "Verifying project configuration"
@@ -1718,10 +1747,7 @@ main() {
 
     # Claude Code setup
     if [ "$SETUP_CLAUDE" = true ]; then
-        configure_mcp_server || true
-        install_claude_plugins || true
-        setup_claude_skills || true
-        setup_project_config || true
+        setup_claude_code || true
     fi
 
     # Claude sandbox setup (can be used with or without --claude)

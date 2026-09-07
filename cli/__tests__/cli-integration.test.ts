@@ -5,8 +5,8 @@
  * Each test gets an isolated data directory via XDG_DATA_HOME / XDG_STATE_HOME.
  */
 
-import { execFile } from "child_process";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
+import { execFile, execFileSync } from "child_process";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join, resolve } from "path";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
@@ -53,6 +53,9 @@ function run(...args: string[]): Promise<RunResult> {
           XDG_STATE_HOME: join(tempDir, "state"),
           // Prevent legacy migration from touching real data
           HOME: tempDir,
+          // This suite tests dispatch and enqueueing. The dedicated real CLI
+          // workflow test owns detached workers and browser certification.
+          BRAIN_DUMP_DISABLE_VERIFICATION_WORKER: "1",
         },
         timeout: 30_000,
       },
@@ -133,6 +136,26 @@ beforeEach(() => {
 
 afterEach(() => {
   rmSync(tempDir, { recursive: true, force: true });
+});
+
+// ── Verify Commands ─────────────────────────────────────────────
+
+describe("verify", () => {
+  it("prints help without initializing the database", async () => {
+    const result = await run("verify", "--help");
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("brain-dump verify <action> [flags]");
+    expect(existsSync(join(tempDir, "data"))).toBe(false);
+  });
+
+  it("rejects unknown actions without running verification", async () => {
+    const result = await run("verify", "histroy", "--ticket", "ticket-1");
+
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toContain("histroy");
+    expect(existsSync(join(tempDir, "data"))).toBe(false);
+  });
 });
 
 // ── Project Commands ────────────────────────────────────────────
@@ -529,9 +552,22 @@ describe("review", () => {
       "Review Ticket"
     )) as Record<string, unknown>;
 
-    // Move to ai_review so review actions work
+    // Enter review through the real validation gate; direct ai_review status
+    // updates are intentionally rejected by the workflow.
     await runOk("ticket", "update-status", "--ticket", t.id as string, "--status", "in_progress");
-    await runOk("ticket", "update-status", "--ticket", t.id as string, "--status", "ai_review");
+    writeFileSync(join(projPath, "fixture.mjs"), "export const ready = true;\n");
+    execFileSync(process.execPath, ["--check", "fixture.mjs"], { cwd: projPath });
+    await runOk(
+      "comment",
+      "add",
+      "--ticket",
+      t.id as string,
+      "--type",
+      "test_report",
+      "--content",
+      "node --check fixture.mjs: passed. CLI review fixture is ready."
+    );
+    await runOk("workflow", "complete-work", "--ticket", t.id as string);
 
     return { projectId: p.id as string, projectPath: projPath, ticketId: t.id as string };
   }
@@ -598,10 +634,10 @@ describe("review", () => {
       string,
       unknown
     >;
-    expect(result).toHaveProperty("canProceedToHumanReview");
+    expect(result).toHaveProperty("canProceedToVerification");
   });
 
-  it("generate-demo and rejected feedback keep the scoped PRD marker aligned", async () => {
+  it("generate-demo keeps the scoped PRD marker incomplete for verification", async () => {
     const { projectPath, ticketId } = await setupTicket();
     writePrd(projectPath, ticketId, false);
 
@@ -612,8 +648,13 @@ describe("review", () => {
         {
           order: 1,
           description: "Review the CLI demo",
-          expectedOutcome: "The reviewer can request changes.",
-          type: "manual",
+          expectedOutcome: "The verification runner can execute the demo.",
+          type: "automated",
+          automation: {
+            kind: "file",
+            path: "plans/prd.json",
+            assert: [{ type: "exists" }],
+          },
         },
       ])
     );
@@ -628,19 +669,6 @@ describe("review", () => {
     )) as Record<string, unknown>;
 
     expect((demo.prdSync as Record<string, unknown>).applied).toBe(true);
-    expect(readPrdPasses(projectPath)).toBe(true);
-
-    const feedback = (await runOk(
-      "review",
-      "submit-feedback",
-      "--ticket",
-      ticketId,
-      "--feedback",
-      "Please tighten the demo copy."
-    )) as Record<string, unknown>;
-
-    expect(feedback.newStatus).toBe("ready");
-    expect((feedback.prdSync as Record<string, unknown>).applied).toBe(true);
     expect(readPrdPasses(projectPath)).toBe(false);
   });
 
@@ -656,7 +684,12 @@ describe("review", () => {
           order: 1,
           description: "Review the CLI demo",
           expectedOutcome: "The reviewer can request changes.",
-          type: "manual",
+          type: "automated",
+          automation: {
+            kind: "file",
+            path: "plans/prd.json",
+            assert: [{ type: "exists" }],
+          },
         },
       ])
     );
@@ -710,6 +743,24 @@ describe("review", () => {
     );
     expect(err.error).toBe("VALIDATION_ERROR");
     expect(err.message).toMatch(/--agent/);
+  });
+
+  it("recognizes resolve-verification-failure as a review action", async () => {
+    const err = await runErr(
+      "review",
+      "resolve-verification-failure",
+      "--ticket",
+      "missing-ticket",
+      "--root-cause",
+      "App boot failed",
+      "--classification",
+      "environment",
+      "--validation",
+      "Worker smoke test passes"
+    );
+
+    expect(err.message).toContain("missing-ticket was not found");
+    expect(err.message).not.toContain("Unknown action");
   });
 });
 

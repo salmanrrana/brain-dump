@@ -355,28 +355,28 @@ describe("Universal Quality Workflow E2E", () => {
       // Update workflow state
       db.prepare(
         `UPDATE ticket_workflow_state SET demo_generated = 1, current_phase = ? WHERE ticket_id = ?`
-      ).run("human_review", ticketId);
+      ).run("ai_verification", ticketId);
 
       const state = db
         .prepare(`SELECT * FROM ticket_workflow_state WHERE ticket_id = ?`)
         .get(ticketId) as any;
       expect(state.demo_generated).toBe(1);
-      expect(state.current_phase).toBe("human_review");
+      expect(state.current_phase).toBe("ai_verification");
     });
 
-    it("should update ticket status to human_review when demo generated", () => {
-      db.prepare(`UPDATE tickets SET status = ? WHERE id = ?`).run("human_review", ticketId);
+    it("should update ticket status to ai_verification when demo generated", () => {
+      db.prepare(`UPDATE tickets SET status = ? WHERE id = ?`).run("ai_verification", ticketId);
 
       const ticket = db.prepare(`SELECT * FROM tickets WHERE id = ?`).get(ticketId) as any;
 
-      expect(ticket.status).toBe("human_review");
+      expect(ticket.status).toBe("ai_verification");
     });
 
-    it("should allow submitting demo feedback and marking as passed", () => {
-      // Update the existing demo script with feedback
+    it("should allow the verification runner to mark a certified pass done", () => {
+      // Update the existing demo script with runner result metadata.
       db.prepare(
         `UPDATE demo_scripts SET passed = ?, feedback = ?, completed_at = ? WHERE ticket_id = ?`
-      ).run(1, "All steps verified. Ready to ship!", new Date().toISOString(), ticketId);
+      ).run(1, "Verification runner certified all steps.", new Date().toISOString(), ticketId);
 
       // Update ticket status to done
       db.prepare(`UPDATE tickets SET status = ?, completed_at = ? WHERE id = ?`).run(
@@ -391,7 +391,7 @@ describe("Universal Quality Workflow E2E", () => {
         .get(ticketId) as any;
 
       expect(demo.passed).toBe(1);
-      expect(demo.feedback).toContain("Ready to ship");
+      expect(demo.feedback).toContain("certified");
 
       // Verify ticket is done
       const ticket = db.prepare(`SELECT * FROM tickets WHERE id = ?`).get(ticketId) as any;
@@ -410,7 +410,7 @@ describe("Universal Quality Workflow E2E", () => {
       ).run(
         commentId,
         ticketId,
-        "✅ Demo approved by human reviewer. Ticket marked as done.",
+        "✅ AI verification passed with sealed evidence. Ticket marked as done.",
         "system",
         "progress",
         now
@@ -423,7 +423,7 @@ describe("Universal Quality Workflow E2E", () => {
 
       expect(comment).toBeDefined();
       expect(comment.type).toBe("progress");
-      expect(comment.content).toContain("Demo approved");
+      expect(comment.content).toContain("AI verification passed");
     });
   });
 
@@ -535,7 +535,7 @@ describe("Universal Quality Workflow E2E", () => {
     });
   });
 
-  describe("Scenario 3: Demo Rejection", () => {
+  describe("Scenario 3: Verification Failure", () => {
     let rejectTicketId: string;
 
     beforeAll(() => {
@@ -549,7 +549,7 @@ describe("Universal Quality Workflow E2E", () => {
         rejectTicketId,
         "Rejection Test Ticket",
         "For testing demo rejection",
-        "human_review",
+        "ai_verification",
         "medium",
         3,
         projectId,
@@ -562,7 +562,7 @@ describe("Universal Quality Workflow E2E", () => {
         `INSERT INTO ticket_workflow_state
          (id, ticket_id, current_phase, review_iteration, findings_count, findings_fixed, demo_generated, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      ).run(randomUUID(), rejectTicketId, "human_review", 1, 1, 1, 1, now, now);
+      ).run(randomUUID(), rejectTicketId, "ai_verification", 1, 1, 1, 1, now, now);
 
       // Create a demo script
       const demoId = randomUUID();
@@ -574,21 +574,21 @@ describe("Universal Quality Workflow E2E", () => {
       ).run(demoId, rejectTicketId, steps, now);
     });
 
-    it("should move ticket to ready when demo rejected", () => {
-      // Submit rejection
+    it("should move ticket to in_progress when verification fails", () => {
+      // Record verification failure.
       db.prepare(
         `UPDATE demo_scripts SET passed = ?, feedback = ?, completed_at = ? WHERE ticket_id = ?`
       ).run(0, "Button does not work as expected", new Date().toISOString(), rejectTicketId);
 
-      // Requesting changes makes the ticket reworkable while preserving feedback.
-      db.prepare(`UPDATE tickets SET status = ? WHERE id = ?`).run("ready", rejectTicketId);
+      // Verification failure returns the ticket to implementation with evidence.
+      db.prepare(`UPDATE tickets SET status = ? WHERE id = ?`).run("in_progress", rejectTicketId);
 
       const ticket = db.prepare(`SELECT * FROM tickets WHERE id = ?`).get(rejectTicketId) as any;
 
-      expect(ticket.status).toBe("ready");
+      expect(ticket.status).toBe("in_progress");
     });
 
-    it("should create rejection comment with feedback", () => {
+    it("should create verification failure comment with feedback", () => {
       const commentId = randomUUID();
       const now = new Date().toISOString();
 
@@ -598,7 +598,7 @@ describe("Universal Quality Workflow E2E", () => {
       ).run(
         commentId,
         rejectTicketId,
-        "❌ Demo rejected: Button does not work as expected. Please fix and retest.",
+        "❌ AI verification failed: Button does not work as expected. Please fix and re-run verification.",
         "system",
         "progress",
         now
@@ -609,7 +609,7 @@ describe("Universal Quality Workflow E2E", () => {
         .get(rejectTicketId) as any;
 
       expect(comment).toBeDefined();
-      expect(comment.content).toContain("Demo rejected");
+      expect(comment.content).toContain("AI verification failed");
     });
   });
 
@@ -675,7 +675,7 @@ describe("Universal Quality Workflow E2E", () => {
       expect(state.current_phase).not.toBe("ai_review");
     });
 
-    it("should prevent demo feedback if not in human_review", () => {
+    it("should prevent runner completion if not in ai_verification", () => {
       const testTicketId = randomUUID();
       const now = new Date().toISOString();
 
@@ -697,8 +697,8 @@ describe("Universal Quality Workflow E2E", () => {
 
       const ticket = db.prepare(`SELECT status FROM tickets WHERE id = ?`).get(testTicketId) as any;
 
-      // Should fail - not in human_review
-      expect(ticket.status).not.toBe("human_review");
+      // Should fail - not in ai_verification
+      expect(ticket.status).not.toBe("ai_verification");
     });
   });
 });

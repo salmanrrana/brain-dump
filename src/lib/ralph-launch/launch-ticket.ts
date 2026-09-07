@@ -22,9 +22,18 @@ import {
   validateDockerSetup,
 } from "../../api/ralph-launchers";
 import { projects, settings, tickets } from "../schema";
-import type { LaunchTicketInput, RalphLaunchDb, RalphLaunchDependencies } from "./types";
-import { getHumanRequestedChangesByTicketId } from "./change-request-context";
+import type {
+  LaunchTicketInput,
+  RalphLaunchDb,
+  RalphLaunchDependencies,
+  RalphWorkingMethod,
+} from "./types";
+import {
+  getHumanRequestedChangesByTicketId,
+  getVerificationFailuresByTicketId,
+} from "./change-request-context";
 import { ensureRalphArtifactsIgnored } from "./gitignore";
+import { resolveLaunchReviewer, validateReviewerLaunchSupport } from "./reviewer";
 
 const coreGit = createRealGitOperations();
 
@@ -62,8 +71,9 @@ export async function launchRalphForTicketCore(
     aiBackend = "claude",
     workingMethodOverride,
     modelSelection,
+    reviewerAiBackend,
+    reviewerModelSelection,
   } = input;
-
   const appSettings = db.select().from(settings).where(eq(settings.id, "default")).get();
   const timeoutSeconds = appSettings?.ralphTimeout ?? DEFAULT_TIMEOUT_SECONDS;
   const effectiveMaxIterations = maxIterations ?? appSettings?.ralphMaxIterations ?? 10;
@@ -82,9 +92,41 @@ export async function launchRalphForTicketCore(
     return { success: false, message: `Project directory not found: ${project.path}` };
   }
 
+  const workingMethod = (workingMethodOverride ||
+    project.workingMethod ||
+    "auto") as RalphWorkingMethod;
+  const reviewerResult = resolveLaunchReviewer({
+    aiBackend,
+    reviewerAiBackend,
+    reviewerModelSelection,
+    projectDefaults: { provider: project.reviewerProvider, model: project.reviewerModel },
+    settingsDefaults: {
+      provider: appSettings?.defaultReviewerProvider,
+      model: appSettings?.defaultReviewerModel,
+    },
+    sqlite,
+  });
+  if (!reviewerResult.success) {
+    return reviewerResult;
+  }
+  const reviewer = reviewerResult.reviewer;
+
+  const reviewerSupport = validateReviewerLaunchSupport(reviewer, workingMethod, "Ticket launch");
+  if (!reviewerSupport.success) {
+    return reviewerSupport;
+  }
+
   let sshWarnings: string[] | undefined;
   let dockerHostEnv: string | null = null;
   if (useSandbox) {
+    if (reviewer) {
+      return {
+        success: false,
+        message:
+          "Fresh-eyes reviewer launches are only supported in native mode, not Docker sandbox mode.",
+      };
+    }
+
     if (aiBackend !== "claude") {
       return {
         success: false,
@@ -108,13 +150,26 @@ export async function launchRalphForTicketCore(
   mkdirSync(plansDir, { recursive: true });
 
   const humanRequestedChanges = getHumanRequestedChangesByTicketId(sqlite, [ticket.id]);
+  const verificationFailures = getVerificationFailuresByTicketId(sqlite, [ticket.id]);
   const prd = generateEnhancedPRD(
     project.name,
     project.path,
     [ticket],
     undefined,
     undefined,
-    humanRequestedChanges
+    humanRequestedChanges,
+    verificationFailures,
+    reviewer
+      ? {
+          aiBackend: reviewer.aiBackend,
+          ...(reviewer.modelSelection
+            ? {
+                modelProvider: reviewer.modelSelection.provider,
+                modelName: reviewer.modelSelection.modelName,
+              }
+            : {}),
+        }
+      : undefined
   );
   const prdPath = join(plansDir, "prd.json");
   writeFileSync(prdPath, JSON.stringify(prd, null, 2));
@@ -134,7 +189,9 @@ export async function launchRalphForTicketCore(
       : undefined,
     aiBackend,
     { type: "implementation" },
-    modelSelection
+    modelSelection,
+    undefined,
+    reviewer
   );
   const scriptDir = join(homedir(), ".brain-dump", "scripts");
   mkdirSync(scriptDir, { recursive: true });
@@ -153,7 +210,6 @@ export async function launchRalphForTicketCore(
     }
   }
 
-  const workingMethod = workingMethodOverride || project.workingMethod || "auto";
   console.log(
     `[brain-dump] Ralph ticket launch: workingMethod="${workingMethod}" for project "${project.name}", timeout=${timeoutSeconds}s`
   );

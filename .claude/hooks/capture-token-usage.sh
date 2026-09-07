@@ -2,7 +2,7 @@
 # Event: Stop
 # Parses Claude Code transcript JSONL for real token usage and records to Brain Dump.
 #
-# Reads transcript_path from stdin JSON, calls the TypeScript parser to extract
+# Reads transcript_path from stdin JSON, calls the Brain Dump CLI parser to extract
 # per-model token counts, then records each via the Brain Dump CLI.
 #
 # All errors exit 0 — this hook must never block Claude Code shutdown.
@@ -58,7 +58,7 @@ if command -v brain-dump &>/dev/null; then
 elif [ -x "$PROJECT_DIR/node_modules/.bin/brain-dump" ]; then
     BRAIN_DUMP_CMD=("$PROJECT_DIR/node_modules/.bin/brain-dump")
 elif [ -f "$PROJECT_DIR/package.json" ] && command -v pnpm &>/dev/null; then
-    BRAIN_DUMP_CMD=(pnpm --dir "$PROJECT_DIR" brain-dump)
+    BRAIN_DUMP_CMD=(pnpm --silent --dir "$PROJECT_DIR" brain-dump)
 fi
 
 if [ ${#BRAIN_DUMP_CMD[@]} -eq 0 ]; then
@@ -66,22 +66,8 @@ if [ ${#BRAIN_DUMP_CMD[@]} -eq 0 ]; then
     exit 0
 fi
 
-# --- Locate parser script (global install copies it alongside hook, else project) ---
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PARSER=""
-if [ -f "$SCRIPT_DIR/parse-transcript-tokens.ts" ]; then
-    PARSER="$SCRIPT_DIR/parse-transcript-tokens.ts"
-elif [ -f "$PROJECT_DIR/scripts/parse-transcript-tokens.ts" ]; then
-    PARSER="$PROJECT_DIR/scripts/parse-transcript-tokens.ts"
-fi
-
-if [ -z "$PARSER" ]; then
-    log "parse-transcript-tokens.ts not found, skipping"
-    exit 0
-fi
-
-# --- Parse the transcript ---
-PARSER_OUTPUT=$(npx tsx "$PARSER" "$TRANSCRIPT_PATH" 2>>"$LOG_FILE") || {
+# --- Parse with the shared core implementation; no project-local tsx or download ---
+PARSER_OUTPUT=$("${BRAIN_DUMP_CMD[@]}" telemetry parse-transcript --transcript "$TRANSCRIPT_PATH" 2>>"$LOG_FILE") || {
     log "Parser failed (exit $?), skipping"
     exit 0
 }
@@ -148,8 +134,13 @@ for i in $(seq 0 $((MODEL_COUNT - 1))); do
         ARGS+=(--cache-create "$CACHE_CREATE")
     fi
 
-    if "${BRAIN_DUMP_CMD[@]}" "${ARGS[@]}" >> "$LOG_FILE" 2>&1; then
-        RECORDED=$((RECORDED + 1))
+    if RECORD_OUTPUT=$("${BRAIN_DUMP_CMD[@]}" "${ARGS[@]}" 2>> "$LOG_FILE"); then
+        printf '%s\n' "$RECORD_OUTPUT" >> "$LOG_FILE"
+        if printf '%s\n' "$RECORD_OUTPUT" | jq -e '(.id | type == "string") and (.skipped != true)' >/dev/null 2>&1; then
+            RECORDED=$((RECORDED + 1))
+        else
+            log "Usage not recorded for model: $MODEL (CLI returned no usage record)"
+        fi
     else
         log "Failed to record usage for model: $MODEL"
     fi

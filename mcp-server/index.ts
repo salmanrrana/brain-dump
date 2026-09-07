@@ -30,6 +30,7 @@ import { registerReviewTool } from "./tools/review.js";
 import { registerSessionTool } from "./tools/session.js";
 import { registerTelemetryTool } from "./tools/telemetry.js";
 import { registerAdminTool } from "./tools/admin.js";
+import { WORKFLOW_SCHEMA_BUILD_MARKER, WORKFLOW_SCHEMA_VERSION } from "../core/workflow-schema.ts";
 
 // =============================================================================
 // DATABASE INITIALIZATION
@@ -52,9 +53,11 @@ try {
   }
 
   // Acquire lock file
-  acquireLock("mcp-server");
+  acquireLock("mcp-server", { workflowSchemaVersion: WORKFLOW_SCHEMA_VERSION });
 
   log.info("Brain Dump MCP server initialized");
+  log.info(`Workflow schema version: ${WORKFLOW_SCHEMA_VERSION}`);
+  log.info(`Workflow schema marker: ${WORKFLOW_SCHEMA_BUILD_MARKER}`);
 } catch (error) {
   log.error("Failed to initialize database", error as Error);
   process.exit(1);
@@ -97,7 +100,7 @@ setupGracefulShutdown();
 // =============================================================================
 const server = new McpServer({
   name: "brain-dump",
-  version: "1.0.0",
+  version: `1.0.0+workflow.${WORKFLOW_SCHEMA_VERSION}`,
 });
 
 // Instrument all tools with self-telemetry before registration

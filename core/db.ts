@@ -268,7 +268,12 @@ function shouldBackfillProjectPositions(db: DbHandle): boolean {
 }
 
 function ensureBaseSchema(db: DbHandle, logger: Logger): void {
-  if (tableExists(db, "projects") && tableExists(db, "tickets") && tableExists(db, "settings")) {
+  if (
+    tableExists(db, "projects") &&
+    tableExists(db, "tickets") &&
+    tableExists(db, "ticket_comments") &&
+    tableExists(db, "settings")
+  ) {
     return;
   }
 
@@ -281,6 +286,8 @@ function ensureBaseSchema(db: DbHandle, logger: Logger): void {
       path TEXT NOT NULL UNIQUE,
       color TEXT,
       working_method TEXT DEFAULT 'auto',
+      reviewer_provider TEXT,
+      reviewer_model TEXT,
       position REAL NOT NULL DEFAULT 0,
       default_isolation_mode TEXT,
       worktree_location TEXT DEFAULT 'sibling',
@@ -333,6 +340,11 @@ function ensureBaseSchema(db: DbHandle, logger: Logger): void {
       content TEXT NOT NULL,
       author TEXT NOT NULL DEFAULT 'user',
       type TEXT NOT NULL DEFAULT 'comment',
+      phase TEXT,
+      actor_kind TEXT,
+      provider TEXT,
+      model_provider TEXT,
+      model_name TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -343,9 +355,13 @@ function ensureBaseSchema(db: DbHandle, logger: Logger): void {
       ralph_timeout INTEGER DEFAULT 3600,
       ralph_max_iterations INTEGER DEFAULT 10,
       auto_create_pr INTEGER DEFAULT 1,
+      epic_auto_pr INTEGER DEFAULT 1,
+      verification_worker_paused INTEGER DEFAULT 0,
       pr_target_branch TEXT DEFAULT 'main',
       default_projects_directory TEXT,
       default_working_method TEXT DEFAULT 'auto',
+      default_reviewer_provider TEXT,
+      default_reviewer_model TEXT,
       docker_runtime TEXT,
       docker_socket_path TEXT,
       conversation_retention_days INTEGER DEFAULT 90,
@@ -364,6 +380,9 @@ function ensureBaseSchema(db: DbHandle, logger: Logger): void {
       findings_count INTEGER NOT NULL DEFAULT 0,
       findings_fixed INTEGER NOT NULL DEFAULT 0,
       demo_generated INTEGER NOT NULL DEFAULT 0,
+      verification_streak_reset_at TEXT,
+      reviewed_through_commit TEXT,
+      implementation_started_at TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -394,6 +413,24 @@ function ensureBaseSchema(db: DbHandle, logger: Logger): void {
       completed_at TEXT,
       feedback TEXT,
       passed INTEGER
+    );
+
+    CREATE TABLE IF NOT EXISTS verification_runs (
+      id TEXT PRIMARY KEY,
+      ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+      round INTEGER NOT NULL,
+      status TEXT NOT NULL,
+      certified INTEGER NOT NULL DEFAULT 0,
+      manifest TEXT NOT NULL,
+      git_sha TEXT,
+      provider TEXT,
+      actor TEXT,
+      provider_source TEXT,
+      execution_surface TEXT,
+      worker_id TEXT,
+      code_git_sha TEXT,
+      started_at TEXT NOT NULL,
+      finished_at TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS epic_workflow_state (
@@ -469,6 +506,8 @@ function ensureBaseSchema(db: DbHandle, logger: Logger): void {
     CREATE INDEX IF NOT EXISTS idx_epic_review_run_tickets_position ON epic_review_run_tickets(epic_review_run_id, position);
     CREATE INDEX IF NOT EXISTS idx_findings_ticket ON review_findings(ticket_id);
     CREATE INDEX IF NOT EXISTS idx_findings_status ON review_findings(status);
+    CREATE INDEX IF NOT EXISTS idx_verification_runs_ticket ON verification_runs(ticket_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_verification_runs_round ON verification_runs(ticket_id, round);
     CREATE INDEX IF NOT EXISTS idx_claude_tasks_ticket ON claude_tasks(ticket_id);
     CREATE INDEX IF NOT EXISTS idx_claude_task_snapshots_ticket ON claude_task_snapshots(ticket_id);
 
@@ -630,6 +669,15 @@ function initFts5(db: DbHandle, logger: Logger): void {
 }
 
 export function runMigrations(db: DbHandle, logger: Logger = silentLogger): void {
+  // Ticket comment provenance columns. Nullable by design so historical/manual rows remain unannotated.
+  if (tableExists(db, "ticket_comments")) {
+    addColumnIfMissing(db, "ticket_comments", "phase", "TEXT", logger);
+    addColumnIfMissing(db, "ticket_comments", "actor_kind", "TEXT", logger);
+    addColumnIfMissing(db, "ticket_comments", "provider", "TEXT", logger);
+    addColumnIfMissing(db, "ticket_comments", "model_provider", "TEXT", logger);
+    addColumnIfMissing(db, "ticket_comments", "model_name", "TEXT", logger);
+  }
+
   // Ticket columns
   addColumnIfMissing(db, "tickets", "linked_commits", "TEXT", logger);
   addColumnIfMissing(db, "tickets", "branch_name", "TEXT", logger);
@@ -639,6 +687,8 @@ export function runMigrations(db: DbHandle, logger: Logger = silentLogger): void
 
   // Project columns
   addColumnIfMissing(db, "projects", "working_method", "TEXT DEFAULT 'auto'", logger);
+  addColumnIfMissing(db, "projects", "reviewer_provider", "TEXT", logger);
+  addColumnIfMissing(db, "projects", "reviewer_model", "TEXT", logger);
 
   const positionExisted = columnExists(db, "projects", "position");
   addColumnIfMissing(db, "projects", "position", "REAL NOT NULL DEFAULT 0", logger);
@@ -729,6 +779,13 @@ export function runMigrations(db: DbHandle, logger: Logger = silentLogger): void
     "TEXT REFERENCES epic_review_runs(id) ON DELETE SET NULL",
     logger
   );
+  addColumnIfMissing(db, "ticket_workflow_state", "verification_streak_reset_at", "TEXT", logger);
+  addColumnIfMissing(db, "ticket_workflow_state", "reviewed_through_commit", "TEXT", logger);
+  addColumnIfMissing(db, "ticket_workflow_state", "implementation_started_at", "TEXT", logger);
+  // Freeze the legacy cutoff once; later review bookkeeping must not advance it.
+  db.prepare(
+    "UPDATE ticket_workflow_state SET implementation_started_at = updated_at WHERE implementation_started_at IS NULL"
+  ).run();
   addColumnIfMissing(
     db,
     "demo_scripts",
@@ -741,6 +798,122 @@ export function runMigrations(db: DbHandle, logger: Logger = silentLogger): void
   ).run();
   db.prepare(
     "CREATE INDEX IF NOT EXISTS idx_demo_scripts_run ON demo_scripts(epic_review_run_id)"
+  ).run();
+
+  if (!tableExists(db, "verification_runs")) {
+    db.prepare(
+      `
+      CREATE TABLE verification_runs (
+        id TEXT PRIMARY KEY,
+        ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+        round INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        certified INTEGER NOT NULL DEFAULT 0,
+        manifest TEXT NOT NULL,
+        git_sha TEXT,
+        provider TEXT,
+        actor TEXT,
+        provider_source TEXT,
+        execution_surface TEXT,
+        worker_id TEXT,
+        code_git_sha TEXT,
+        started_at TEXT NOT NULL,
+        finished_at TEXT NOT NULL
+      )
+    `
+    ).run();
+    logger.info("Created verification_runs table");
+  }
+  db.prepare(
+    "CREATE INDEX IF NOT EXISTS idx_verification_runs_ticket ON verification_runs(ticket_id)"
+  ).run();
+  db.prepare(
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_verification_runs_round ON verification_runs(ticket_id, round)"
+  ).run();
+  addColumnIfMissing(db, "verification_runs", "provider", "TEXT", logger);
+  addColumnIfMissing(db, "verification_runs", "actor", "TEXT", logger);
+  addColumnIfMissing(db, "verification_runs", "provider_source", "TEXT", logger);
+  addColumnIfMissing(db, "verification_runs", "execution_surface", "TEXT", logger);
+  addColumnIfMissing(db, "verification_runs", "worker_id", "TEXT", logger);
+  addColumnIfMissing(db, "verification_runs", "code_git_sha", "TEXT", logger);
+
+  if (!tableExists(db, "verification_jobs")) {
+    db.prepare(
+      `
+      CREATE TABLE verification_jobs (
+        id TEXT PRIMARY KEY,
+        ticket_id TEXT NOT NULL UNIQUE REFERENCES tickets(id) ON DELETE CASCADE,
+        demo_script_id TEXT NOT NULL REFERENCES demo_scripts(id) ON DELETE CASCADE,
+        status TEXT NOT NULL DEFAULT 'queued',
+        attempt_count INTEGER NOT NULL DEFAULT 0,
+        next_run_at TEXT NOT NULL,
+        last_error TEXT,
+        leased_by TEXT,
+        lease_expires_at TEXT,
+        provider TEXT,
+        actor TEXT,
+        provider_source TEXT,
+        execution_surface TEXT,
+        worker_id TEXT,
+        code_git_sha TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        completed_at TEXT
+      )
+    `
+    ).run();
+    logger.info("Created verification_jobs table");
+  }
+  db.prepare(
+    "CREATE INDEX IF NOT EXISTS idx_verification_jobs_status_next ON verification_jobs(status, next_run_at)"
+  ).run();
+  db.prepare(
+    "CREATE INDEX IF NOT EXISTS idx_verification_jobs_lease ON verification_jobs(status, lease_expires_at)"
+  ).run();
+  db.prepare(
+    "CREATE INDEX IF NOT EXISTS idx_verification_jobs_demo ON verification_jobs(demo_script_id)"
+  ).run();
+  addColumnIfMissing(db, "verification_jobs", "provider", "TEXT", logger);
+  addColumnIfMissing(db, "verification_jobs", "actor", "TEXT", logger);
+  addColumnIfMissing(db, "verification_jobs", "provider_source", "TEXT", logger);
+  addColumnIfMissing(db, "verification_jobs", "execution_surface", "TEXT", logger);
+  addColumnIfMissing(db, "verification_jobs", "worker_id", "TEXT", logger);
+  addColumnIfMissing(db, "verification_jobs", "code_git_sha", "TEXT", logger);
+
+  if (!tableExists(db, "autonomous_epic_launches")) {
+    db.prepare(
+      `CREATE TABLE autonomous_epic_launches (
+        epic_id TEXT PRIMARY KEY REFERENCES epics(id) ON DELETE CASCADE,
+        profile_json TEXT NOT NULL,
+        active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`
+    ).run();
+  }
+  if (!tableExists(db, "epic_continuation_jobs")) {
+    db.prepare(
+      `CREATE TABLE epic_continuation_jobs (
+        id TEXT PRIMARY KEY,
+        epic_id TEXT NOT NULL UNIQUE REFERENCES epics(id) ON DELETE CASCADE,
+        ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+        status TEXT NOT NULL DEFAULT 'queued',
+        attempt_count INTEGER NOT NULL DEFAULT 0,
+        next_run_at TEXT NOT NULL,
+        last_error TEXT,
+        leased_by TEXT,
+        lease_expires_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        completed_at TEXT
+      )`
+    ).run();
+  }
+  db.prepare(
+    "CREATE INDEX IF NOT EXISTS idx_epic_continuation_jobs_ready ON epic_continuation_jobs(status, next_run_at)"
+  ).run();
+  db.prepare(
+    "CREATE INDEX IF NOT EXISTS idx_epic_continuation_jobs_lease ON epic_continuation_jobs(status, lease_expires_at)"
   ).run();
 
   // Ralph events table
@@ -988,7 +1161,11 @@ export function runMigrations(db: DbHandle, logger: Logger = silentLogger): void
   // Settings columns added in various migrations
   addColumnIfMissing(db, "settings", "ralph_timeout", "INTEGER DEFAULT 3600", logger);
   addColumnIfMissing(db, "settings", "ralph_max_iterations", "INTEGER DEFAULT 10", logger);
+  addColumnIfMissing(db, "settings", "epic_auto_pr", "INTEGER DEFAULT 1", logger);
+  addColumnIfMissing(db, "settings", "verification_worker_paused", "INTEGER DEFAULT 0", logger);
   addColumnIfMissing(db, "settings", "default_working_method", "TEXT DEFAULT 'auto'", logger);
+  addColumnIfMissing(db, "settings", "default_reviewer_provider", "TEXT", logger);
+  addColumnIfMissing(db, "settings", "default_reviewer_model", "TEXT", logger);
   addColumnIfMissing(db, "settings", "default_projects_directory", "TEXT", logger);
   addColumnIfMissing(db, "settings", "docker_runtime", "TEXT", logger);
   addColumnIfMissing(db, "settings", "docker_socket_path", "TEXT", logger);

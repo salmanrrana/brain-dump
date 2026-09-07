@@ -12,6 +12,7 @@ import {
   useClickOutside,
   useAutoClearState,
   useCostModels,
+  useLaunchProviderAvailability,
 } from "../lib/hooks";
 import { useToast } from "./Toast";
 import ErrorAlert from "./ErrorAlert";
@@ -22,7 +23,7 @@ import { epicFormSchema } from "./epics/epic-form-schema";
 import type { RalphAutonomousUiLaunchProvider } from "../lib/launch-provider-contract";
 import type { LaunchModelSelection } from "../lib/launch-model-catalog";
 import {
-  defaultRalphLaunchDependencies,
+  createRalphLaunchDependencies,
   dispatchInteractiveUiLaunch,
   dispatchRalphAutonomousUiLaunch,
 } from "../lib/ui-launch-dispatcher";
@@ -79,6 +80,11 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
     isLoading: modelCatalogLoading,
     error: modelCatalogError,
   } = useCostModels();
+  const {
+    availabilityByProviderId,
+    loading: availabilityLoading,
+    error: availabilityError,
+  } = useLaunchProviderAvailability({ enabled: showActionMenu });
   const { tickets } = useTicketSummaries(epic ? { projectId, epicId: epic.id } : {}, {
     enabled: Boolean(epic?.id),
   });
@@ -198,7 +204,12 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
   // useSandbox param allows explicit choice at launch time, overriding settings default
   // aiBackend param allows choosing between supported Ralph CLI providers.
   const handleStartRalph = useCallback(
-    async (provider: RalphAutonomousUiLaunchProvider, modelSelection: LaunchModelSelection) => {
+    async (
+      provider: RalphAutonomousUiLaunchProvider,
+      modelSelection: LaunchModelSelection,
+      reviewerProvider?: RalphAutonomousUiLaunchProvider,
+      reviewerModelSelection?: LaunchModelSelection
+    ) => {
       if (!epic) return;
 
       setIsStartingRalph(true);
@@ -213,15 +224,13 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
             epicId: epic.id,
             preferredTerminal: settings?.terminalEmulator ?? null,
             modelSelection,
+            ...(reviewerProvider ? { reviewerProvider } : {}),
+            ...(reviewerModelSelection ? { reviewerModelSelection } : {}),
           },
-          {
-            ...defaultRalphLaunchDependencies,
-            launchTicketRalph: async () => ({
-              success: false,
-              message: "Ticket Ralph launch is not available from the epic modal.",
-            }),
-            launchEpicRalph: (payload) => launchRalphMutation.mutateAsync(payload),
-          }
+          createRalphLaunchDependencies(
+            { launchEpic: (payload) => launchRalphMutation.mutateAsync(payload) },
+            "the epic modal"
+          )
         );
 
         const warningMessage = result.warnings?.join(". ");
@@ -594,12 +603,25 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
                   onInteractiveLaunch={(provider, modelSelection) =>
                     void handleStartInteractive(provider, modelSelection)
                   }
-                  onRalphLaunch={(provider, modelSelection) =>
-                    void handleStartRalph(provider, modelSelection)
+                  onRalphLaunch={(
+                    provider,
+                    modelSelection,
+                    reviewerProvider,
+                    reviewerModelSelection
+                  ) =>
+                    void handleStartRalph(
+                      provider,
+                      modelSelection,
+                      reviewerProvider,
+                      reviewerModelSelection
+                    )
                   }
                   costModels={costModels ?? []}
                   modelCatalogLoading={modelCatalogLoading}
                   modelCatalogError={modelCatalogError}
+                  availabilityByProviderId={availabilityByProviderId}
+                  availabilityLoading={availabilityLoading}
+                  availabilityError={availabilityError}
                   exportAction={
                     <button
                       onClick={() => {

@@ -52,6 +52,13 @@ export type {
   ReviewFinding,
   ReviewCompletionStatus,
   DemoStepType,
+  DemoStepAutomation,
+  DemoStepAutomationValue,
+  DemoAppBoot,
+  DemoStepUiAutomation,
+  DemoStepApiAutomation,
+  DemoStepCommandAutomation,
+  DemoStepFileAutomation,
   DemoStep,
   DemoScript,
   FeedbackResult,
@@ -104,6 +111,76 @@ export type {
   InitDatabaseResult,
 } from "./types.ts";
 
+export {
+  WORKFLOW_SCHEMA_VERSION,
+  WORKFLOW_SCHEMA_CAPABILITIES,
+  WORKFLOW_SCHEMA_BUILD_MARKER,
+  getWorkflowSchemaInfo,
+  assertWorkflowSchemaSupportsCurrentFlow,
+  getMcpServerWorkflowSchemaDriftReport,
+  getMcpRuntimeWorkflowSchemaDriftReport,
+} from "./workflow-schema.ts";
+
+export type {
+  WorkflowSchemaInfo,
+  WorkflowSchemaDriftReport,
+  WorkflowSchemaRuntimeReport,
+} from "./workflow-schema.ts";
+
+export {
+  TICKET_STATUSES,
+  TICKET_STATUS_METADATA,
+  KANBAN_STATUSES,
+  OPEN_TICKET_STATUSES,
+  RALPH_PRD_TICKET_STATUSES,
+  STATUS_OPTIONS,
+  STATUS_ORDER,
+  WorkflowTransitionError,
+  isTicketStatus,
+  getTicketStatusLabel,
+  getTicketStatusColorToken,
+  getAllowedTransitionSources,
+  canTransition,
+  assertTransition,
+} from "./workflow-steps.ts";
+
+export type { WorkflowTransitionAction, TicketStatusMetadata } from "./workflow-steps.ts";
+
+export {
+  PROVIDER_IDS,
+  PROVIDER_REGISTRY,
+  INTERACTIVE_PROVIDER_DEFINITIONS,
+  RALPH_AUTONOMOUS_PROVIDER_DEFINITIONS,
+  INTERACTIVE_LAUNCH_PROVIDER_IDS,
+  RALPH_AUTONOMOUS_PROVIDER_IDS,
+  PROJECT_WORKING_METHOD_PROVIDER_IDS,
+  getProviderDefinition,
+  translateProviderForRalph,
+  getProviderIdForUiLaunchProviderId,
+  getProviderModelCatalogDefinition,
+  getProviderModelChoices,
+  resolveProviderModelSelection,
+} from "./providers.ts";
+
+export type {
+  ProviderId,
+  ProviderClass,
+  ProviderLaunchMode,
+  ProviderHookSupport,
+  RalphAiBackend,
+  RalphWorkingMethod,
+  PricingProviderId,
+  ProviderCliModelFlag,
+  ProviderModelCatalogDefinition,
+  ProviderDefinition,
+  UiInteractiveProviderDefinition,
+  UiRalphProviderDefinition,
+  InteractiveLaunchProviderId,
+  RalphAutonomousLaunchProviderId,
+  UiLaunchProviderId,
+  ProviderModelChoice,
+} from "./providers.ts";
+
 // Database initialization
 export {
   initDatabase,
@@ -119,6 +196,17 @@ export {
 } from "./db.ts";
 
 export type { InitDatabaseOptions, Logger } from "./db.ts";
+
+export {
+  claimNextEpicContinuation,
+  drainEpicContinuations,
+  enqueueEpicContinuationForTicket,
+  reconcileObsoleteEpicContinuations,
+  runNextEpicContinuation,
+  saveAutonomousEpicLaunch,
+  setAutonomousEpicLaunchActive,
+} from "./epic-continuation.ts";
+export type { AutonomousEpicLaunchProfile, EpicContinuationJob } from "./epic-continuation.ts";
 
 // Ticket business logic
 export {
@@ -177,15 +265,88 @@ export type {
 } from "./epic-review-run.ts";
 
 // Comment business logic
-export { addComment, listComments, getActivityLog } from "./comment.ts";
+export {
+  addComment,
+  addVerificationReportComment,
+  listComments,
+  getActivityLog,
+  resolveCommentAuthor,
+  resolveCommentIdentity,
+  resolveCommentProviderFromAuthor,
+  resolveCommentProvenance,
+} from "./comment.ts";
 
 export type {
   AddCommentParams,
   CommentAuthor,
   CommentType,
+  AddVerificationReportParams,
+  VerificationReportStep,
   ActivityLogEntry,
   GetActivityLogParams,
+  CommentIdentityRole,
+  CommentProvenanceInput,
+  ResolveCommentIdentityParams,
+  ResolvedCommentIdentity,
 } from "./comment.ts";
+
+export {
+  ATTACHMENT_TYPE_CONFIG,
+  ATTACHMENT_TYPES,
+  ALLOWED_MIME_TYPES,
+  MIME_TYPES,
+  IMAGE_EXTENSIONS,
+  createProviderRalphUploader,
+  isSafeAttachmentFilename,
+  normalizeAttachmentProvider,
+  normalizeAttachmentUploader,
+  normalizeAttachments,
+  serializeAttachments,
+} from "./attachment-types.ts";
+
+export type {
+  AttachmentType,
+  AttachmentPriority,
+  AttachmentProvider,
+  AttachmentUploader,
+  BaseAttachmentUploader,
+  ProviderRalphUploader,
+  LegacyRalphUploader,
+  TicketAttachment,
+} from "./attachment-types.ts";
+
+export {
+  getAttachmentsDir,
+  normalizeUserWritableAttachmentFilenames,
+  sanitizeAttachmentFilename,
+  uniqueAttachmentFilename,
+  writeAttachmentFromBuffer,
+  writeAttachmentFromFile,
+} from "./attachments.ts";
+
+export type {
+  AttachmentWriteMetadata,
+  WriteAttachmentFromBufferParams,
+  WriteAttachmentFromFileParams,
+} from "./attachments.ts";
+
+// Attachment/evidence read model (read-only; shared by UI, CLI, and MCP)
+export {
+  MAX_ATTACHMENT_UPLOAD_SIZE,
+  MAX_ATTACHMENT_INLINE_SIZE,
+  RECOMMENDED_ATTACHMENT_INLINE_SIZE,
+  getAttachmentsDirPath,
+  getTicketAttachmentsDirPath,
+  readTicketAttachments,
+  resolveTicketAttachmentFiles,
+} from "./attachments-read.ts";
+
+export type {
+  AttachmentFileStatus,
+  ResolvedTicketAttachment,
+  ResolveTicketAttachmentOptions,
+  TicketAttachmentReadModel,
+} from "./attachments-read.ts";
 
 export {
   updatePrdForTicket,
@@ -201,12 +362,14 @@ export {
   markFixed,
   getFindings,
   checkComplete,
+  getReviewContext,
   validateGenerateDemo,
+  validateRepairLegacyHumanReviewHandoff,
   generateDemo,
   getDemo,
-  updateDemoStep,
+  repairLegacyHumanReviewHandoff,
   validateSubmitFeedback,
-  submitFeedback,
+  OPEN_BLOCKING_FINDINGS_BUDGET,
 } from "./review.ts";
 
 export type {
@@ -214,9 +377,29 @@ export type {
   MarkFixedStatus,
   GetFindingsFilters,
   GenerateDemoParams,
+  RepairLegacyHumanReviewResult,
   DemoStepStatus,
   SubmitFeedbackParams,
+  ReviewContext,
+  ReviewContextCriterion,
+  ReviewContextFindingSummary,
+  ReviewContextComment,
 } from "./review.ts";
+
+// Verification module — the curated interface lives in core/verification/index.ts
+export * from "./verification/index.ts";
+
+export type {
+  VerifierIdentity,
+  VerifierLegacyRunColumns,
+  VerificationExecutionSurface,
+  VerificationProviderSource,
+} from "./verifier-identity.ts";
+export {
+  isVerificationExecutionSurface,
+  isVerificationProviderSource,
+  verifierFromLegacyRunColumns,
+} from "./verifier-identity.ts";
 
 // Session & event business logic
 export {
@@ -380,10 +563,16 @@ export type {
   SyncPrVerificationChecklistInput,
   SyncPrVerificationChecklistDeps,
   SyncPrVerificationChecklistResult,
+  HandleEpicCompletionAutoPrInput,
+  HandleEpicCompletionAutoPrDeps,
+  HandleEpicCompletionAutoPrResult,
+  HandleEpicCompletionLearningsResult,
 } from "./ship.ts";
 
+export { handleEpicCompletionAutoPr, handleEpicCompletionLearnings } from "./ship.ts";
+
 // Workflow business logic
-export { startWork, completeWork, startEpicWork } from "./workflow.ts";
+export { startWork, completeWork, startEpicWork, MAX_REVIEW_ROUNDS } from "./workflow.ts";
 
 // Git linking business logic
 export { linkCommit, linkPr, syncTicketLinks } from "./git.ts";

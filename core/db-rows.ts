@@ -7,6 +7,8 @@
  * NOT exported from core/index.ts — these are internal implementation details.
  */
 
+import type { CommentActorKind, CommentPhase } from "./types.ts";
+
 export interface DbProjectRow {
   id: string;
   name: string;
@@ -57,6 +59,11 @@ export interface DbCommentRow {
   content: string;
   author: string;
   type: string;
+  phase: CommentPhase | null;
+  actor_kind: CommentActorKind | null;
+  provider: string | null;
+  model_provider: string | null;
+  model_name: string | null;
   created_at: string;
 }
 
@@ -72,6 +79,14 @@ export interface DbTicketWorkflowStateRow {
   findings_count: number;
   findings_fixed: number;
   demo_generated: number;
+  verification_streak_reset_at: string | null;
+  /**
+   * HEAD of the project repo when the reviewer handed the ticket to
+   * verification (generate-demo). Re-review rounds use it to bound blocking
+   * findings to the repair diff instead of re-litigating certified code.
+   */
+  reviewed_through_commit: string | null;
+  implementation_started_at: string | null;
   created_at: string;
   updated_at: string;
 }

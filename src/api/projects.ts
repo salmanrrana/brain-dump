@@ -5,6 +5,7 @@ import { eq, sql, inArray } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { existsSync } from "fs";
 import { ensureExists } from "../lib/utils";
+import { isReviewerCapableProvider } from "../../core/providers.ts";
 
 // Types
 export interface CreateProjectInput {
@@ -18,6 +19,8 @@ export interface UpdateProjectInput {
   name?: string;
   path?: string;
   color?: string;
+  reviewerProvider?: string | null;
+  reviewerModel?: string | null;
   workingMethod?:
     | "auto"
     | "claude-code"
@@ -42,12 +45,6 @@ const VALID_WORKING_METHODS: Array<NonNullable<UpdateProjectInput["workingMethod
   "pi",
 ];
 
-// Get all projects
-export const getProjects = createServerFn({ method: "GET" }).handler(async () => {
-  const allProjects = db.select().from(projects).orderBy(projects.position, projects.name).all();
-  return allProjects;
-});
-
 // Get all projects with their epics in a single query (eliminates N+1)
 export const getProjectsWithEpics = createServerFn({ method: "GET" }).handler(async () => {
   const rows = db
@@ -57,6 +54,8 @@ export const getProjectsWithEpics = createServerFn({ method: "GET" }).handler(as
       projectPath: projects.path,
       projectColor: projects.color,
       projectWorkingMethod: projects.workingMethod,
+      projectReviewerProvider: projects.reviewerProvider,
+      projectReviewerModel: projects.reviewerModel,
       projectCreatedAt: projects.createdAt,
       projectPosition: projects.position,
       epicId: epics.id,
@@ -79,6 +78,8 @@ export const getProjectsWithEpics = createServerFn({ method: "GET" }).handler(as
       path: string;
       color: string | null;
       workingMethod: string | null;
+      reviewerProvider: string | null;
+      reviewerModel: string | null;
       position: number;
       createdAt: string;
       epics: Array<{
@@ -101,6 +102,8 @@ export const getProjectsWithEpics = createServerFn({ method: "GET" }).handler(as
         path: row.projectPath,
         color: row.projectColor,
         workingMethod: row.projectWorkingMethod,
+        reviewerProvider: row.projectReviewerProvider,
+        reviewerModel: row.projectReviewerModel,
         position: row.projectPosition,
         createdAt: row.projectCreatedAt,
         epics: [],
@@ -197,17 +200,36 @@ export const updateProject = createServerFn({ method: "POST" })
     ) {
       throw new Error(`Invalid working method: ${input.updates.workingMethod}`);
     }
+    if (
+      input.updates.reviewerProvider &&
+      !isReviewerCapableProvider(input.updates.reviewerProvider)
+    ) {
+      throw new Error(`Invalid reviewer provider: ${input.updates.reviewerProvider}`);
+    }
     return input;
   })
   .handler(async ({ data: { id, updates } }) => {
     const existing = db.select().from(projects).where(eq(projects.id, id)).get();
-    ensureExists(existing, "Project", id);
+    const existingProject = ensureExists(existing, "Project", id);
+
+    const effectiveReviewerProvider =
+      updates.reviewerProvider !== undefined
+        ? updates.reviewerProvider
+        : existingProject.reviewerProvider;
+    const effectiveReviewerModel =
+      updates.reviewerModel !== undefined ? updates.reviewerModel : existingProject.reviewerModel;
+    if (effectiveReviewerModel && !effectiveReviewerProvider) {
+      throw new Error("Reviewer model requires a reviewer provider.");
+    }
 
     const updateData: Partial<typeof projects.$inferInsert> = {};
     if (updates.name !== undefined) updateData.name = updates.name.trim();
     if (updates.path !== undefined) updateData.path = updates.path.trim();
     if (updates.color !== undefined) updateData.color = updates.color;
     if (updates.workingMethod !== undefined) updateData.workingMethod = updates.workingMethod;
+    if (updates.reviewerProvider !== undefined)
+      updateData.reviewerProvider = updates.reviewerProvider;
+    if (updates.reviewerModel !== undefined) updateData.reviewerModel = updates.reviewerModel;
 
     if (Object.keys(updateData).length > 0) {
       db.update(projects).set(updateData).where(eq(projects.id, id)).run();

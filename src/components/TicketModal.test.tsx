@@ -51,6 +51,11 @@ vi.mock("../lib/hooks", () => ({
   useCreateComment: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
   useTags: vi.fn(() => ({ tags: [], loading: false, error: null })),
   useCostModels: vi.fn(() => ({ data: [], isLoading: false, error: null })),
+  useLaunchProviderAvailability: vi.fn(() => ({
+    availabilityByProviderId: {},
+    loading: false,
+    error: null,
+  })),
   useAutoClearState: vi.fn(() => [null, vi.fn()]),
   useProjectServices: vi.fn(() => ({ runningServices: [], error: null })),
   useProjects: vi.fn(() => ({
@@ -108,13 +113,7 @@ vi.mock("../api/context", () => ({
 }));
 
 vi.mock("../api/terminal", () => ({
-  launchClaudeInTerminal: vi.fn(),
-  launchCodexInTerminal: vi.fn(),
-  launchVSCodeInTerminal: vi.fn(),
-  launchCursorInTerminal: vi.fn(),
-  launchCursorAgentInTerminal: vi.fn(),
-  launchCopilotInTerminal: vi.fn(),
-  launchOpenCodeInTerminal: vi.fn(),
+  launchProviderInTerminal: vi.fn(),
 }));
 
 function createTicket(overrides: Record<string, unknown> = {}) {
@@ -178,6 +177,32 @@ describe("TicketModal", () => {
       params: { id: "epic-1" },
     });
   });
+
+  it.each(["ai_review", "ai_verification", "done"])(
+    "saves title edits without resubmitting unchanged %s status",
+    async (status) => {
+      mockFormStatus.value = status;
+      render(
+        <TicketModal
+          ticket={createTicket({ status })}
+          epics={[]}
+          onClose={vi.fn()}
+          onUpdate={vi.fn()}
+        />
+      );
+      const title = screen.getByDisplayValue("Board modal ticket");
+      await userEvent.clear(title);
+      await userEvent.type(title, "Renamed ticket");
+      await userEvent.click(screen.getByRole("button", { name: /save changes/i }));
+      expect(mockUpdateTicketMutation.mutate).toHaveBeenCalledWith(
+        { id: "ticket-1", updates: expect.objectContaining({ title: "Renamed ticket" }) },
+        expect.any(Object)
+      );
+      expect(mockUpdateTicketMutation.mutate.mock.calls[0]?.[0].updates).not.toHaveProperty(
+        "status"
+      );
+    }
+  );
 
   it("shows ticket save errors without requiring another submit", () => {
     mockUpdateTicketMutation.error = new Error("Unable to save ticket");

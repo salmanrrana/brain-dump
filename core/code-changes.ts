@@ -207,9 +207,33 @@ function getTicketRowsForScope(
       throw new TicketNotFoundError(scope.id);
     }
 
+    // Resolve the parent epic so the shared epic branch is recognized and not
+    // attributed to this ticket as a ticket-specific branch.
+    const parentEpic = ticket.epic_id
+      ? (db
+          .prepare(
+            `SELECT
+               e.id,
+               e.title,
+               e.project_id,
+               p.name AS project_name,
+               p.path AS project_path,
+               ews.epic_branch_name,
+               ews.pr_number,
+               ews.pr_url,
+               ews.pr_status
+             FROM epics e
+             JOIN projects p ON p.id = e.project_id
+             LEFT JOIN epic_workflow_state ews ON ews.epic_id = e.id
+             WHERE e.id = ?`
+          )
+          .get(ticket.epic_id) as EpicCodeChangeRow | undefined)
+      : undefined;
+
     return {
       project: { id: ticket.project_id, name: ticket.project_name, path: ticket.project_path },
       tickets: [ticket],
+      ...(parentEpic ? { epic: parentEpic } : {}),
     };
   }
 
@@ -574,15 +598,27 @@ function buildPrSource(
   };
 }
 
-function mergeFileSummaries(files: CodeChangeFileSummary[]): CodeChangeFileSummary[] {
+function fileSummaryKey(file: CodeChangeFileSummary): string {
+  return `${file.path}\0${file.previousPath ?? ""}`;
+}
+
+function mergeFileSummaries(
+  files: CodeChangeFileSummary[],
+  options: { dedupeOverlapping?: boolean } = {}
+): CodeChangeFileSummary[] {
   const merged = new Map<string, CodeChangeFileSummary>();
 
   for (const file of files) {
-    const key = `${file.path}\0${file.previousPath ?? ""}`;
+    const key = fileSummaryKey(file);
     const existing = merged.get(key);
 
     if (!existing) {
       merged.set(key, { ...file, sourceIds: [...file.sourceIds] });
+      continue;
+    }
+
+    if (options.dedupeOverlapping) {
+      existing.sourceIds = [...new Set([...existing.sourceIds, ...file.sourceIds])];
       continue;
     }
 
@@ -609,6 +645,16 @@ function getGroupState(
   );
   if (unavailableSource) {
     return unavailableSource.state;
+  }
+
+  if (
+    sources.some(
+      (source) => source.kind === "epic_branch" && source.state.kind === "available"
+    )
+  ) {
+    return metadataOnlyState(
+      "No commits are linked to this ticket; epic branch changes are viewable but not attributed to it."
+    );
   }
 
   if (sources.some((source) => source.state.kind === "metadata_only")) {
@@ -642,6 +688,7 @@ async function buildTicketGroup(
   projectPath: string,
   options: {
     epicBranchName?: string | null;
+    sharedEpicBranch?: SourceWithFiles | null;
     epicPr?: Pick<EpicCodeChangeRow, "pr_number" | "pr_url" | "pr_status">;
   }
 ): Promise<TicketCodeChangeGroup> {
@@ -650,7 +697,11 @@ async function buildTicketGroup(
     linkedCommits.map((commit) => readCommitSource(deps, ticket.id, projectPath, commit))
   );
 
-  if (ticket.branch_name) {
+  // A ticket working on the shared epic branch records that branch as its
+  // branch_name. That diff belongs to the whole epic, not this ticket, so it
+  // must never enter the ticket-scoped file totals — only a branch unique to
+  // this ticket does.
+  if (ticket.branch_name && ticket.branch_name !== options.epicBranchName) {
     sourceResults.push(
       await readBranchSource(deps, {
         ticketId: ticket.id,
@@ -661,18 +712,32 @@ async function buildTicketGroup(
     );
   }
 
-  if (options.epicBranchName) {
-    sourceResults.push(
-      await readBranchSource(deps, {
-        ticketId: ticket.id,
-        projectPath,
-        branchName: options.epicBranchName,
-        kind: "epic_branch",
-      })
-    );
+  let epicBranchResult: SourceWithFiles | null = null;
+  if (options.sharedEpicBranch && options.epicBranchName) {
+    const epicBranchSourceId = `ticket:${ticket.id}:branch:${options.epicBranchName}`;
+    epicBranchResult = {
+      source: {
+        ...options.sharedEpicBranch.source,
+        id: epicBranchSourceId,
+      },
+      files: options.sharedEpicBranch.files.map((file) => ({
+        ...file,
+        sourceIds: [epicBranchSourceId],
+      })),
+    };
+  } else if (options.epicBranchName) {
+    epicBranchResult = await readBranchSource(deps, {
+      ticketId: ticket.id,
+      projectPath,
+      branchName: options.epicBranchName,
+      kind: "epic_branch",
+    });
   }
 
   const sources = sourceResults.map((result) => result.source);
+  if (epicBranchResult) {
+    sources.push(epicBranchResult.source);
+  }
   const prSource = buildPrSource(ticket.id, ticket, "ticket_pr");
   if (prSource) {
     sources.push(prSource);
@@ -695,7 +760,13 @@ async function buildTicketGroup(
     });
   }
 
-  const files = mergeFileSummaries(sourceResults.flatMap((result) => result.files));
+  // Ticket totals come only from ticket-scoped sources. The epic branch stays
+  // available in `sources` for patch viewing, but a ticket without linked
+  // commits reports zero files instead of inheriting the whole epic diff.
+  const files = mergeFileSummaries(
+    sourceResults.flatMap((result) => result.files),
+    { dedupeOverlapping: true }
+  );
 
   return {
     ticketId: ticket.id,
@@ -763,8 +834,20 @@ export async function getCodeChangeSummary(
     };
   }
 
+  const firstTicket = tickets[0];
+  const sharedEpicBranch =
+    epic?.epic_branch_name && firstTicket
+      ? await readBranchSource(deps, {
+          ticketId: firstTicket.id,
+          projectPath: project.path,
+          branchName: epic.epic_branch_name,
+          kind: "epic_branch",
+        })
+      : null;
+
   const groupOptions = {
     ...(epic?.epic_branch_name ? { epicBranchName: epic.epic_branch_name } : {}),
+    ...(sharedEpicBranch ? { sharedEpicBranch } : {}),
     ...(epic
       ? {
           epicPr: {
@@ -779,11 +862,18 @@ export async function getCodeChangeSummary(
     tickets.map((ticket) => buildTicketGroup(deps, ticket, project.path, groupOptions))
   );
 
+  // The epic branch diff is the ground truth for the whole-epic aggregate.
+  // A single-ticket scope keeps its own commit-derived totals.
+  const scopeTotals =
+    scope.type === "epic" && sharedEpicBranch
+      ? createTotals(sharedEpicBranch.files)
+      : createTotals(mergeFileSummaries(groups.flatMap((group) => group.files)));
+
   return {
     scope,
     project: { id: project.id, name: project.name },
     groups,
-    totals: createTotals(mergeFileSummaries(groups.flatMap((group) => group.files))),
+    totals: scopeTotals,
     state: getSummaryState(groups),
   };
 }

@@ -9,26 +9,42 @@
  * @module tools/workflow
  */
 import { execFileSync } from "child_process";
+import { drizzle } from "drizzle-orm/better-sqlite3";
 import { z } from "zod";
 import { log } from "../lib/logging.js";
 import { mcpError } from "../lib/mcp-response.ts";
 import { requireParam, formatResult } from "../lib/mcp-format.ts";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type Database from "better-sqlite3";
-import { CoreError } from "../../core/errors.ts";
+import { CoreError, ValidationError } from "../../core/errors.ts";
 import { startWork, completeWork, startEpicWork } from "../../core/workflow.ts";
+import { getTicketBriefing } from "../../core/ticket-briefing.ts";
 import { linkCommit, linkPr, syncTicketLinks, checkUnlinkedItems } from "../../core/git.ts";
 import type { PrStatus } from "../../core/types.ts";
 import type { CommentAuthor } from "../../core/comment.ts";
 import { createRealGitOperations, shortId } from "../../core/git-utils.ts";
 import type { StartWorkResult, StartEpicWorkResult } from "../../core/types.ts";
+import {
+  PROVIDER_IDS,
+  REVIEWER_CAPABLE_PROVIDER_IDS,
+  resolveProviderModelSelection,
+  resolveReviewerSelection,
+  translateProviderForRalph,
+  type ProviderId,
+  type ReviewerCapableProviderId,
+} from "../../core/providers.ts";
+import { listCostModels } from "../../core/cost.ts";
+import * as schema from "../../src/lib/schema.ts";
+import { launchRalphForTicketCore } from "../../src/lib/ralph-launch/launch-ticket.ts";
+import { launchRalphForEpicCore } from "../../src/lib/ralph-launch/launch-epic.ts";
+import type { LaunchEpicInput, LaunchTicketInput } from "../../src/lib/ralph-launch/types.ts";
 
 // MCP-layer presentation imports
 import { loadTicketAttachments, buildAttachmentContextSection } from "../lib/attachment-loader.js";
 import { fetchTicketComments, buildCommentsSection } from "../lib/comment-utils.js";
-import { updatePrdForTicket } from "../lib/prd-utils.js";
 import { createConversationSession, endConversationSessions } from "../lib/conversation-session.js";
 import { detectAuthor } from "../lib/environment.js";
+import { WORKFLOW_SCHEMA_VERSION } from "../../core/workflow-schema.ts";
 import {
   buildTicketContextContent,
   buildWarningsSection,
@@ -39,6 +55,8 @@ const ACTIONS = [
   "start-work",
   "complete-work",
   "start-epic",
+  "launch-ticket",
+  "launch-epic",
   "link-commit",
   "link-pr",
   "sync-links",
@@ -76,6 +94,16 @@ Start working on an epic. Creates shared git branch for all tickets in the epic.
 Required params: epicId
 Optional params: createPr
 
+### launch-ticket
+Launch Ralph for a ticket through the shared launcher core.
+Required params: ticketId
+Optional params: provider, model, reviewProvider, reviewModel, preferredTerminal, maxIterations, useSandbox
+
+### launch-epic
+Launch Ralph for an epic through the shared launcher core.
+Required params: epicId
+Optional params: provider, model, reviewProvider, reviewModel, preferredTerminal, maxIterations, useSandbox
+
 ### link-commit
 Link a git commit to a ticket. Tracks which commits belong to which ticket.
 Required params: ticketId, commitHash
@@ -102,7 +130,11 @@ Optional params: projectPath
 - prNumber: GitHub PR number. Required for: link-pr
 - prUrl: Full PR URL. Optional for: link-pr
 - prStatus: PR status (draft, open, merged, closed). Optional for: link-pr
-- projectPath: Project path for auto-detection. Optional for: sync-links`,
+- projectPath: Project path for auto-detection. Optional for: sync-links
+- provider/model: Implementer provider and model override. Optional for: launch-ticket, launch-epic
+- reviewProvider/reviewModel: Fresh-eyes reviewer provider and model override. Optional for: launch-ticket, launch-epic
+
+Workflow schema: ${WORKFLOW_SCHEMA_VERSION}`,
     {
       action: z.enum(ACTIONS).describe("The operation to perform"),
       ticketId: z.string().optional().describe("Ticket ID"),
@@ -116,6 +148,28 @@ Optional params: projectPath
       prUrl: z.string().optional().describe("Full PR URL"),
       prStatus: z.enum(PR_STATUSES).optional().describe("PR status"),
       projectPath: z.string().optional().describe("Project path for auto-detection"),
+      provider: z
+        .enum(PROVIDER_IDS)
+        .optional()
+        .describe("AI provider for launch-ticket/launch-epic"),
+      model: z
+        .string()
+        .optional()
+        .describe("Provider-specific model id for launch-ticket/launch-epic"),
+      reviewProvider: z
+        .enum(REVIEWER_CAPABLE_PROVIDER_IDS)
+        .optional()
+        .describe("Fresh-eyes reviewer provider for launch-ticket/launch-epic"),
+      reviewModel: z
+        .string()
+        .optional()
+        .describe("Provider-specific reviewer model id for launch-ticket/launch-epic"),
+      preferredTerminal: z
+        .string()
+        .optional()
+        .describe("Preferred terminal emulator for launch actions"),
+      maxIterations: z.number().optional().describe("Maximum Ralph iterations for launch actions"),
+      useSandbox: z.boolean().optional().describe("Use Docker sandbox for launch actions"),
     },
     async (params: {
       action: (typeof ACTIONS)[number];
@@ -130,6 +184,13 @@ Optional params: projectPath
       prUrl?: string | undefined;
       prStatus?: (typeof PR_STATUSES)[number] | undefined;
       projectPath?: string | undefined;
+      provider?: ProviderId | undefined;
+      model?: string | undefined;
+      reviewProvider?: ReviewerCapableProviderId | undefined;
+      reviewModel?: string | undefined;
+      preferredTerminal?: string | undefined;
+      maxIterations?: number | undefined;
+      useSandbox?: boolean | undefined;
     }) => {
       try {
         switch (params.action) {
@@ -143,6 +204,14 @@ Optional params: projectPath
 
           case "start-epic": {
             return handleStartEpic(db, git, params);
+          }
+
+          case "launch-ticket": {
+            return handleLaunchTicket(db, params);
+          }
+
+          case "launch-epic": {
+            return handleLaunchEpic(db, params);
           }
 
           case "link-commit": {
@@ -257,17 +326,16 @@ function handleStartWork(
   // Check for unlinked commits/PRs on the branch (absorbs check-pending-links.sh hook)
   const unlinkedItemsInfo = formatUnlinkedItems(db, ticketId, ticket.project.path);
 
-  // Parse acceptance criteria from subtasks
+  // Shared briefing packet: structured ticket context assembled once in core.
+  const briefing = getTicketBriefing(db, ticketId);
+
   let acceptanceCriteria: string[] = ["Complete the implementation as described"];
-  if (ticket.subtasks && ticket.subtasks.length > 0) {
-    acceptanceCriteria = ticket.subtasks.map((s) => {
-      if (typeof s === "string") return s;
-      return (s as { title?: string }).title || String(s);
-    });
+  if (briefing.ticket.subtasks.length > 0) {
+    acceptanceCriteria = briefing.ticket.subtasks.map((s) => s.text);
   }
 
-  const description = ticket.description || "No description provided";
-  const priority = ticket.priority || "medium";
+  const description = briefing.ticket.description || "No description provided";
+  const priority = briefing.ticket.priority || "medium";
 
   // Fetch previous comments for context
   const { comments, totalCount, truncated } = fetchTicketComments(db, ticketId);
@@ -296,7 +364,12 @@ function handleStartWork(
   const attachmentsSection = buildAttachmentsSection(attachmentBlocks);
 
   // Combine all warnings
-  const allWarnings = [...result.warnings, ...parseWarnings, ...attachmentWarnings];
+  const allWarnings = [
+    ...result.warnings,
+    ...parseWarnings,
+    ...attachmentWarnings,
+    ...(briefing.verificationWarning ? [briefing.verificationWarning] : []),
+  ];
   const warningsSection = buildWarningsSection(allWarnings);
 
   // Create conversation session for compliance logging
@@ -317,12 +390,10 @@ function handleStartWork(
   // Build epic info if available
   let epicInfo: { title: string; branchName: string; prUrl?: string | undefined } | undefined;
   if (result.usingEpicBranch && ticket.epicId) {
-    const epic = db.prepare("SELECT title FROM epics WHERE id = ?").get(ticket.epicId) as
-      | { title: string }
-      | undefined;
-    if (epic) {
+    const epicTitle = briefing.epic?.title;
+    if (epicTitle) {
       epicInfo = {
-        title: epic.title,
+        title: epicTitle,
         branchName: result.branch,
       };
     }
@@ -367,39 +438,14 @@ function handleCompleteWork(
 ) {
   const ticketId = requireParam(params.ticketId, "ticketId", "complete-work");
   const commentAuthor = detectAuthor() as CommentAuthor;
-  const result = completeWork(db, ticketId, git, params.summary, commentAuthor);
+  const result = completeWork(db, ticketId, git, params.summary, { author: commentAuthor });
 
-  // Get project path for PRD update
+  // Re-fetch display fields after the core transition and PRD synchronization.
   const ticketRow = db
     .prepare(
-      "SELECT t.*, p.path as project_path, p.name as project_name FROM tickets t JOIN projects p ON t.project_id = p.id WHERE t.id = ?"
+      "SELECT t.*, p.name as project_name FROM tickets t JOIN projects p ON t.project_id = p.id WHERE t.id = ?"
     )
-    .get(ticketId) as { project_path: string; project_name: string; title: string } | undefined;
-
-  // Keep PRD incomplete until review.generate-demo moves the ticket to human_review.
-  // Otherwise Ralph sees passes:true after implementation and skips the required
-  // AI review/demo handoff in the next loop iteration.
-  let prdWarning = "";
-  if (ticketRow) {
-    const prdResult = updatePrdForTicket(ticketRow.project_path, ticketId, false);
-    if (!prdResult.success) {
-      log.error(`PRD sync failed for ticket ${ticketId}: ${prdResult.message}`);
-      prdWarning = `## WARNING: PRD Sync Failed
-
-**The PRD file was NOT synchronized.** This can cause Ralph's iteration loop to skip or repeat the wrong phase.
-
-**Problem:** \`${prdResult.message}\`
-
-**Action Required:** Manually update \`plans/prd.json\`:
-1. Find the ticket with ID containing \`${ticketId.substring(0, 8)}\`
-2. Keep \`"passes": false\` for that ticket while it is in \`ai_review\`
-3. Save the file
-
----
-
-`;
-    }
-  }
+    .get(ticketId) as { project_name: string; title: string } | undefined;
 
   // End conversation sessions
   const sessionEndResult = endConversationSessions(db, ticketId);
@@ -414,8 +460,7 @@ function handleCompleteWork(
 
   // Build response sections
   const sections: string[] = [
-    prdWarning +
-      `## Implementation Complete - Now in AI Review
+    `## Implementation Complete - Now in AI Review
 
 **Ticket:** ${ticketRow?.title || ticketId}
 **Status:** ai_review
@@ -469,7 +514,7 @@ review({ action: "mark-fixed", findingId: "...", fixStatus: "fixed", fixDescript
 \`\`\`
 review({ action: "check-complete", ticketId: "${ticketId}" })
 \`\`\`
-Must return \`canProceedToHumanReview: true\` (all critical/major fixed)
+Must allow verification handoff (all critical/major fixed)
 
 ### Step 5: Generate Demo Script
 \`\`\`
@@ -477,14 +522,15 @@ review({
   action: "generate-demo",
   ticketId: "${ticketId}",
   steps: [
-    { order: 1, description: "What to test", expectedOutcome: "What should happen", type: "manual" }
+    { order: 1, description: "Inspect the changed behavior", expectedOutcome: "The expected implementation is present", type: "automated", automation: { kind: "file", path: "path/to/changed-file", assert: [{ type: "contains", expected: "expected implementation" }] } }
   ]
 })
 \`\`\`
-This moves ticket to **human_review**.
+For API/UI steps, inspect this project's docs and runtime config and add \`app: { start: ["<runtime>", "...", "{port}"], cwd?: "<project-relative-dir>" }\`; never assume npm or pnpm.
+This moves ticket to **ai_verification**.
 
 ### Step 6: STOP
-**DO NOT proceed further.** The ticket requires human approval via \`review({ action: "submit-feedback", ... })\`.`);
+**DO NOT proceed further.** The verification runner owns evidence collection and completion.`);
 
   // Changed files for reference
   if (result.changedFiles.length > 0) {
@@ -602,6 +648,97 @@ Use \`workflow({ action: "start-work", ticketId: "..." })\` to begin work on any
       },
     ],
   };
+}
+
+type WorkflowLaunchParams = {
+  provider?: ProviderId | undefined;
+  model?: string | undefined;
+  reviewProvider?: ReviewerCapableProviderId | undefined;
+  reviewModel?: string | undefined;
+  preferredTerminal?: string | undefined;
+  maxIterations?: number | undefined;
+  useSandbox?: boolean | undefined;
+};
+
+function applyMcpLaunchParams<T extends LaunchTicketInput | LaunchEpicInput>(
+  input: T,
+  db: Database.Database,
+  params: WorkflowLaunchParams
+): T {
+  const costModels = listCostModels(db);
+
+  if (params.model !== undefined && params.provider === undefined) {
+    throw new ValidationError(
+      "model requires provider so Brain Dump can validate provider-specific model ids."
+    );
+  }
+  if (params.reviewModel !== undefined && params.reviewProvider === undefined) {
+    throw new ValidationError(
+      "reviewModel requires reviewProvider so Brain Dump can validate reviewer-specific model ids."
+    );
+  }
+
+  if (params.provider) {
+    Object.assign(input, translateProviderForRalph(params.provider));
+    if (params.model) {
+      input.modelSelection = {
+        kind: "concrete",
+        ...resolveProviderModelSelection(params.provider, params.model, costModels),
+      };
+    }
+  }
+
+  if (params.reviewProvider) {
+    const reviewer = resolveReviewerSelection(
+      params.reviewProvider,
+      params.reviewModel,
+      costModels
+    );
+    input.reviewerAiBackend = reviewer.aiBackend;
+    if (reviewer.modelSelection) {
+      input.reviewerModelSelection = { kind: "concrete", ...reviewer.modelSelection };
+    }
+  }
+
+  if (params.preferredTerminal !== undefined) input.preferredTerminal = params.preferredTerminal;
+  if (params.maxIterations !== undefined) input.maxIterations = params.maxIterations;
+  if (params.useSandbox !== undefined) input.useSandbox = params.useSandbox;
+
+  return input;
+}
+
+async function handleLaunchTicket(
+  db: Database.Database,
+  params: WorkflowLaunchParams & { ticketId?: string | undefined }
+) {
+  const ticketId = requireParam(params.ticketId, "ticketId", "launch-ticket");
+  const input = applyMcpLaunchParams<LaunchTicketInput>({ ticketId }, db, params);
+  const drizzleDb = drizzle(db, { schema });
+  const result = await launchRalphForTicketCore(drizzleDb, input, { sqlite: db });
+
+  if (!result.success) {
+    return mcpError(new ValidationError(result.message));
+  }
+
+  log.info(`Launched Ralph for ticket ${ticketId} via MCP workflow launch-ticket`);
+  return formatResult(result, result.message);
+}
+
+async function handleLaunchEpic(
+  db: Database.Database,
+  params: WorkflowLaunchParams & { epicId?: string | undefined }
+) {
+  const epicId = requireParam(params.epicId, "epicId", "launch-epic");
+  const input = applyMcpLaunchParams<LaunchEpicInput>({ epicId }, db, params);
+  const drizzleDb = drizzle(db, { schema });
+  const result = await launchRalphForEpicCore(drizzleDb, input, { sqlite: db });
+
+  if (!result.success) {
+    return mcpError(new ValidationError(result.message));
+  }
+
+  log.info(`Launched Ralph for epic ${epicId} via MCP workflow launch-epic`);
+  return formatResult(result, result.message);
 }
 
 // ============================================

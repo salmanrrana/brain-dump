@@ -1,11 +1,20 @@
-import { getRalphPrompt, type RalphPromptProfile } from "./ralph-prompts";
+import { execFileSync } from "child_process";
+import { join } from "node:path";
+import { resolveBrainDumpRootFrom } from "../../core/cli-entrypoint.ts";
+import {
+  getFreshEyesReviewerPrompt,
+  getRalphPrompt,
+  type RalphFreshEyesInfo,
+  type RalphPromptProfile,
+} from "./ralph-prompts";
+import { getProviderDefinitionForAiBackend, type RalphAiBackend } from "../../core/providers.ts";
 import type { ConcreteLaunchModelSelection } from "../lib/launch-model-catalog";
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
-export type RalphAiBackend = "claude" | "opencode" | "codex" | "cursor-agent" | "pi";
+export type { RalphAiBackend } from "../../core/providers.ts";
 
 // Resource limit configuration for Docker sandbox
 export interface DockerResourceLimits {
@@ -22,6 +31,16 @@ export interface ProjectOriginInfo {
   epicTitle?: string | undefined;
 }
 
+/**
+ * Fresh-eyes reviewer configuration: a DIFFERENT backend (and optionally a
+ * different model) executes the ai_review phase inside the Ralph loop, so the
+ * implementer's blind spots don't review themselves.
+ */
+export interface RalphReviewerConfig {
+  aiBackend: RalphAiBackend;
+  modelSelection?: ConcreteLaunchModelSelection | undefined;
+}
+
 // ============================================================================
 // CONSTANTS
 // ============================================================================
@@ -32,8 +51,6 @@ export const DEFAULT_RESOURCE_LIMITS: DockerResourceLimits = {
   pidsLimit: 256,
 };
 
-const RALPH_ENV_EXPORTS = `export RALPH_SESSION=1`;
-
 function escapeForBashDoubleQuote(value: string): string {
   return value
     .replace(/\\/g, "\\\\")
@@ -41,6 +58,13 @@ function escapeForBashDoubleQuote(value: string): string {
     .replace(/`/g, "\\`")
     .replace(/"/g, '\\"')
     .replace(/!/g, "\\!");
+}
+
+function buildRalphProviderEnvAssignments(aiBackend: RalphAiBackend): string {
+  const providerId = getProviderDefinitionForAiBackend(aiBackend).id;
+  return `export RALPH_SESSION=1
+export BRAIN_DUMP_PROVIDER="${escapeForBashDoubleQuote(providerId)}"
+export BRAIN_DUMP_RALPH_PROVIDER="${escapeForBashDoubleQuote(providerId)}"`;
 }
 
 function buildLaunchModelEnvExports(
@@ -73,7 +97,7 @@ fi
 `,
     invocation: `  # Run Claude in print mode (-p) so it exits after completion
   # This allows the bash loop to continue to the next iteration
-  $ITER_TIMEOUT_CMD claude --dangerously-skip-permissions --output-format text -p "$(cat "$PROMPT_FILE")"`,
+  run_ai_command claude --dangerously-skip-permissions --output-format text -p "$(cat "$PROMPT_FILE")"`,
   },
   opencode: {
     displayName: "OpenCode",
@@ -110,7 +134,7 @@ fi
   if [ -n "\${BRAIN_DUMP_LAUNCH_MODEL_PROVIDER:-}" ] && [ -n "\${BRAIN_DUMP_LAUNCH_MODEL:-}" ]; then
     OPENCODE_MODEL_ARGS+=(--model "\${BRAIN_DUMP_LAUNCH_MODEL_PROVIDER}/\${BRAIN_DUMP_LAUNCH_MODEL}")
   fi
-  $ITER_TIMEOUT_CMD opencode run "\${OPENCODE_MODEL_ARGS[@]}" "$(cat "$PROMPT_FILE")"`,
+  run_ai_command opencode run "\${OPENCODE_MODEL_ARGS[@]}" "$(cat "$PROMPT_FILE")"`,
   },
   codex: {
     displayName: "Codex",
@@ -158,7 +182,7 @@ fi
   if [ -n "\${BRAIN_DUMP_LAUNCH_MODEL:-}" ]; then
     CODEX_MODEL_ARGS+=(--model "\${BRAIN_DUMP_LAUNCH_MODEL}")
   fi
-  $ITER_TIMEOUT_CMD codex exec "\${CODEX_MODEL_ARGS[@]}" --dangerously-bypass-approvals-and-sandbox "$(cat "$PROMPT_FILE")"`,
+  run_ai_command codex exec "\${CODEX_MODEL_ARGS[@]}" --dangerously-bypass-approvals-and-sandbox "$(cat "$PROMPT_FILE")"`,
   },
   "cursor-agent": {
     displayName: "Cursor Agent",
@@ -184,7 +208,7 @@ fi
   if [ -n "\${BRAIN_DUMP_LAUNCH_MODEL:-}" ]; then
     CURSOR_AGENT_MODEL_ARGS+=(--model "\${BRAIN_DUMP_LAUNCH_MODEL}")
   fi
-  $ITER_TIMEOUT_CMD "$CURSOR_AGENT_BIN" --force --approve-mcps --trust "\${CURSOR_AGENT_MODEL_ARGS[@]}" -p "$(cat "$PROMPT_FILE")"`,
+  run_ai_command "$CURSOR_AGENT_BIN" --force --approve-mcps --trust "\${CURSOR_AGENT_MODEL_ARGS[@]}" -p "$(cat "$PROMPT_FILE")"`,
   },
   pi: {
     displayName: "Pi",
@@ -216,19 +240,90 @@ fi
   if [ -n "\${BRAIN_DUMP_LAUNCH_MODEL_PROVIDER:-}" ] && [ -n "\${BRAIN_DUMP_LAUNCH_MODEL:-}" ]; then
     PI_MODEL_ARGS+=(--model "\${BRAIN_DUMP_LAUNCH_MODEL_PROVIDER}/\${BRAIN_DUMP_LAUNCH_MODEL}")
   fi
-  $ITER_TIMEOUT_CMD pi "\${PI_MODEL_ARGS[@]}" -p "$(cat "$PROMPT_FILE")"`,
+  run_ai_command pi "\${PI_MODEL_ARGS[@]}" -p "$(cat "$PROMPT_FILE")"`,
   },
 };
+
+function stripAnsi(value: string): string {
+  const escapeChar = String.fromCharCode(27);
+  return value.replace(new RegExp(`${escapeChar}\\[[0-9;]*m`, "g"), "");
+}
+
+export function getFreshEyesReviewerAuthor(aiBackend: RalphAiBackend): `${string} ralph` {
+  return `${aiBackend} ralph`;
+}
+
+export function preflightNativeAiBackend(
+  aiBackend: RalphAiBackend
+): { success: true } | { success: false; message: string } {
+  const config = AI_BACKEND_CONFIGS[aiBackend];
+  try {
+    execFileSync("bash", ["-lc", config.preflightCheck], {
+      encoding: "utf8",
+      stdio: "pipe",
+      timeout: 10_000,
+    });
+    return { success: true };
+  } catch (error) {
+    const output =
+      error && typeof error === "object" && "stdout" in error
+        ? `${String(error.stdout ?? "")}${String("stderr" in error ? error.stderr : "")}`
+        : "";
+    const details = stripAnsi(output).trim();
+    return {
+      success: false,
+      message: details || `${config.displayName} CLI preflight failed.`,
+    };
+  }
+}
 
 // Default timeout for Ralph session (1 hour in seconds)
 export const DEFAULT_TIMEOUT_SECONDS = 3600;
 
-// Default per-iteration AI timeout (30 minutes in seconds). Wraps the single
+// Default per-iteration AI timeout (1 hour in seconds). Wraps the single
 // AI invocation inside the wrapper loop so an iteration whose AI process never
 // exits (hangs on the invocation line) is killed and surfaced, instead of
 // silently stalling the loop until the session-level timeout fires. Clamped to
 // never exceed the session timeout.
-export const DEFAULT_PER_ITERATION_TIMEOUT_SECONDS = 1800;
+export const DEFAULT_PER_ITERATION_TIMEOUT_SECONDS = 3600;
+
+function buildLaunchModelEnvAssignments(
+  modelSelection: ConcreteLaunchModelSelection | undefined
+): string {
+  if (!modelSelection) {
+    return `unset BRAIN_DUMP_LAUNCH_MODEL_PROVIDER
+  unset BRAIN_DUMP_LAUNCH_MODEL`;
+  }
+
+  return `export BRAIN_DUMP_LAUNCH_MODEL_PROVIDER="${escapeForBashDoubleQuote(modelSelection.provider)}"
+  export BRAIN_DUMP_LAUNCH_MODEL="${escapeForBashDoubleQuote(modelSelection.modelName)}"`;
+}
+
+function buildNativeAiInvocation(
+  aiBackend: RalphAiBackend,
+  modelSelection: ConcreteLaunchModelSelection | undefined
+): string {
+  if (aiBackend === "claude") {
+    const claudeNativeModelArgument = modelSelection ? ` --model "$BRAIN_DUMP_LAUNCH_MODEL"` : "";
+    return `  # Run Claude in print mode (-p) so it exits after completion
+  # This allows the bash loop to continue to the next iteration.
+  # Output is teed so the loop can distinguish provider usage-limit
+  # rejections (never worth retrying) from real failures.
+  run_ai_command claude --dangerously-skip-permissions${claudeNativeModelArgument} --output-format text -p "$(cat "$PROMPT_FILE")" 2>&1 | tee "$AI_OUTPUT_FILE"`;
+  }
+
+  return AI_BACKEND_CONFIGS[aiBackend].invocation;
+}
+
+function buildFreshEyesInfo(
+  implementerBackend: RalphAiBackend,
+  reviewer: RalphReviewerConfig
+): RalphFreshEyesInfo {
+  return {
+    implementerLabel: getProviderDefinitionForAiBackend(implementerBackend).displayName,
+    reviewerLabel: getProviderDefinitionForAiBackend(reviewer.aiBackend).displayName,
+  };
+}
 
 // ============================================================================
 // SCRIPT GENERATION
@@ -246,9 +341,41 @@ export function generateRalphScript(
   aiBackend: RalphAiBackend = "claude",
   promptProfile: RalphPromptProfile = { type: "implementation" },
   modelSelection?: ConcreteLaunchModelSelection,
-  perIterationTimeoutSeconds: number = DEFAULT_PER_ITERATION_TIMEOUT_SECONDS
+  perIterationTimeoutSeconds: number = DEFAULT_PER_ITERATION_TIMEOUT_SECONDS,
+  reviewer?: RalphReviewerConfig | undefined
 ): string {
   const imageName = "brain-dump-ralph-sandbox:latest";
+  const runnerEpicId = promptProfile.type === "implementation" ? projectOrigin?.epicId : undefined;
+  const brainDumpRoot = runnerEpicId ? resolveBrainDumpRootFrom(import.meta.url) : null;
+  if (runnerEpicId && !brainDumpRoot)
+    throw new Error("Cannot resolve the Brain Dump CLI for epic ownership.");
+  const runnerCli = brainDumpRoot
+    ? [
+        process.execPath,
+        join(brainDumpRoot, "node_modules/tsx/dist/cli.mjs"),
+        join(brainDumpRoot, "cli/brain-dump.ts"),
+      ]
+        .map((value) => `"${escapeForBashDoubleQuote(value)}"`)
+        .join(" ")
+    : "";
+  const runnerOwnership = runnerEpicId
+    ? `
+# The explicit checkout CLI supervises the whole process group, even without a global link.
+RUNNER_EPIC_ID="${escapeForBashDoubleQuote(runnerEpicId)}"
+if [ "\${BRAIN_DUMP_EPIC_RUNNER_CHILD:-}" != "$RUNNER_EPIC_ID:$$" ]; then
+  set +e
+  ${runnerCli} workflow run-epic-script --epic "$RUNNER_EPIC_ID" --script "$0" --max-iterations "$MAX_ITERATIONS" --resume-ticket "$RESUME_TICKET_ID" --timeout ${timeoutSeconds}${useSandbox ? " --sandbox" : ""}${dockerHostEnv ? ` --docker-host "${escapeForBashDoubleQuote(dockerHostEnv)}"` : ""}
+  RUNNER_EXIT_CODE=$?
+  set -e
+  # Terminal preservation is outside the supervised workload and owns no claim.
+  if [ "\${BRAIN_DUMP_EPIC_CONTINUATION:-0}" != "1" ]; then
+    echo "Ralph stopped. This terminal stays open so the log above is not lost; press Ctrl+D to close it."
+    exec bash
+  fi
+  exit "$RUNNER_EXIT_CODE"
+fi
+`
+    : "";
 
   // Per-iteration timeout can never usefully exceed the whole-session timeout.
   const perIterationTimeoutValue = Math.max(
@@ -306,9 +433,20 @@ fi
     exit 1
   fi`;
 
-  // Validate required local AI CLI is installed for native mode.
-  const aiPreflightCheck = useSandbox ? "" : AI_BACKEND_CONFIGS[aiBackend].preflightCheck;
+  // Validate required local AI CLIs are installed for native mode.
+  const reviewerPreflightCheck = reviewer
+    ? AI_BACKEND_CONFIGS[reviewer.aiBackend].preflightCheck
+    : "";
+  const aiPreflightCheck = useSandbox
+    ? ""
+    : `${AI_BACKEND_CONFIGS[aiBackend].preflightCheck}${reviewerPreflightCheck}`;
+  const ralphProviderEnvAssignments = buildRalphProviderEnvAssignments(aiBackend);
   const launchModelEnvExports = buildLaunchModelEnvExports(modelSelection);
+  const freshEyes = reviewer ? buildFreshEyesInfo(aiBackend, reviewer) : undefined;
+  const effectivePromptProfile: RalphPromptProfile =
+    freshEyes && promptProfile.type === "implementation"
+      ? { ...promptProfile, freshEyes }
+      : promptProfile;
 
   // SSH setup for Docker sandbox mode
   // This allows git push from inside container using host's SSH keys
@@ -425,19 +563,24 @@ fi
 
   // AI backend display name
   const aiName = AI_BACKEND_CONFIGS[aiBackend].displayName;
-  const claudeNativeModelArgument =
-    aiBackend === "claude" && modelSelection ? ` --model "$BRAIN_DUMP_LAUNCH_MODEL"` : "";
   const claudeDockerModelArgument =
     aiBackend === "claude" && modelSelection
       ? ` \\
     --model "${escapeForBashDoubleQuote(modelSelection.modelName)}"`
       : "";
-  const nativeAiInvocation =
-    aiBackend === "claude"
-      ? `  # Run Claude in print mode (-p) so it exits after completion
-  # This allows the bash loop to continue to the next iteration
-  $ITER_TIMEOUT_CMD claude --dangerously-skip-permissions${claudeNativeModelArgument} --output-format text -p "$(cat "$PROMPT_FILE")"`
-      : AI_BACKEND_CONFIGS[aiBackend].invocation;
+  const nativeAiInvocation = buildNativeAiInvocation(aiBackend, modelSelection);
+  const reviewerAiName = reviewer ? AI_BACKEND_CONFIGS[reviewer.aiBackend].displayName : "";
+  const reviewerAiInvocation = reviewer
+    ? buildNativeAiInvocation(reviewer.aiBackend, reviewer.modelSelection)
+    : "";
+  const reviewerModelEnvAssignments = reviewer
+    ? buildLaunchModelEnvAssignments(reviewer.modelSelection)
+    : "";
+  const reviewerProviderEnvAssignments = reviewer
+    ? buildRalphProviderEnvAssignments(reviewer.aiBackend)
+    : "";
+  const implementerProviderEnvAssignments = buildRalphProviderEnvAssignments(aiBackend);
+  const implementerModelEnvAssignments = buildLaunchModelEnvAssignments(modelSelection);
 
   // Generate the AI invocation command based on backend choice.
   // Sandbox mode always uses the Docker wrapper; native mode uses the backend config.
@@ -462,8 +605,8 @@ fi
   # Labels:
   #   brain-dump.project-id/project-name: Tracks which project started this container
   #   brain-dump.epic-id/epic-title: Tracks which epic (if applicable)
-  $ITER_TIMEOUT_CMD docker run --rm -it \\
-    --name "ralph-\${SESSION_ID}" \\
+  run_ai_command docker run --rm -it \\
+    --name "\${BRAIN_DUMP_SUPERVISED_CONTAINER:-ralph-\${SESSION_ID}}" \\
     --network ralph-net \\
     --memory=${resourceLimits.memory} \\
     --memory-swap=${resourceLimits.memory} \\
@@ -489,6 +632,69 @@ fi
 
   const iterationLabel = useSandbox ? "(Docker)" : "";
   const endMessage = useSandbox ? "" : `echo "Run again with: $0 <max_iterations>"`;
+  const reviewerBlock =
+    reviewer && freshEyes
+      ? `
+  if [ $AI_EXIT_CODE -eq 0 ]; then
+    REVIEW_PROMPT_FILE=""
+    REVIEW_PROMPT_FILE=$(mktemp "\${TMPDIR:-/tmp}/ralph-review-prompt.XXXXXX" 2>/dev/null || true)
+    if [ -z "$REVIEW_PROMPT_FILE" ]; then
+      REVIEW_PROMPT_FILE=$(mktemp -t ralph-review-prompt.XXXXXX 2>/dev/null || true)
+    fi
+    if [ -z "$REVIEW_PROMPT_FILE" ]; then
+      echo -e "\\033[0;31m❌ Failed to create reviewer prompt file\\033[0m"
+      echo "[$(date -Iseconds)] ERROR: Failed to create reviewer prompt file at iteration $i" >> "$PROGRESS_FILE"
+      AI_EXIT_CODE=1
+      AI_REVIEW_FAILED=true
+    else
+      cat > "$REVIEW_PROMPT_FILE" << 'RALPH_REVIEW_PROMPT_EOF'
+${getFreshEyesReviewerPrompt(freshEyes)}
+RALPH_REVIEW_PROMPT_EOF
+
+      if [ ! -s "$REVIEW_PROMPT_FILE" ]; then
+        echo -e "\\033[0;31m❌ Reviewer prompt file is empty.\\033[0m"
+        echo "[$(date -Iseconds)] ERROR: Empty reviewer prompt file at iteration $i" >> "$PROGRESS_FILE"
+        AI_EXIT_CODE=1
+        AI_REVIEW_FAILED=true
+      else
+        echo ""
+        echo -e "\\033[0;33m⏳ Starting ${reviewerAiName} fresh-eyes reviewer...\\033[0m"
+        echo ""
+        IMPLEMENTER_PROMPT_FILE="$PROMPT_FILE"
+        PROMPT_FILE="$REVIEW_PROMPT_FILE"
+        export BRAIN_DUMP_REVIEWER_AUTHOR="${getFreshEyesReviewerAuthor(reviewer.aiBackend)}"
+        export BRAIN_DUMP_REVIEWER_MODEL_PROVIDER="${reviewer.modelSelection ? escapeForBashDoubleQuote(reviewer.modelSelection.provider) : ""}"
+        export BRAIN_DUMP_REVIEWER_MODEL="${reviewer.modelSelection ? escapeForBashDoubleQuote(reviewer.modelSelection.modelName) : ""}"
+        ${reviewerProviderEnvAssignments}
+        ${reviewerModelEnvAssignments}
+        : > "$AI_OUTPUT_FILE" 2>/dev/null || true
+        set +e
+        set -o pipefail
+${reviewerAiInvocation}
+        REVIEW_EXIT_CODE=$?
+        set +o pipefail
+        set -e
+        unset BRAIN_DUMP_REVIEWER_AUTHOR
+        unset BRAIN_DUMP_REVIEWER_MODEL_PROVIDER
+        unset BRAIN_DUMP_REVIEWER_MODEL
+        PROMPT_FILE="$IMPLEMENTER_PROMPT_FILE"
+        ${implementerProviderEnvAssignments}
+        ${implementerModelEnvAssignments}
+        if [ $REVIEW_EXIT_CODE -ne 0 ]; then
+          echo -e "\\033[0;31m⚠️  ${reviewerAiName} reviewer exited with code $REVIEW_EXIT_CODE\\033[0m"
+          echo "[$(date -Iseconds)] REVIEW FAILURE: ${reviewerAiName} exited with code $REVIEW_EXIT_CODE on iteration $i" >> "$PROGRESS_FILE"
+          AI_EXIT_CODE=$REVIEW_EXIT_CODE
+          AI_REVIEW_FAILED=true
+          if detect_provider_limit "$AI_OUTPUT_FILE"; then
+            AI_PROVIDER_LIMIT=true
+          fi
+        fi
+      fi
+      rm -f "$REVIEW_PROMPT_FILE"
+    fi
+  fi
+`
+      : "";
 
   // Timeout trap handler - cleans up container and saves progress note
   const timeoutTrapHandler = useSandbox
@@ -508,7 +714,7 @@ handle_timeout() {
   # Stop Docker container if running
   if docker ps -q --filter "name=ralph-\${SESSION_ID}" | grep -q .; then
     echo -e "\\033[0;33m🐳 Stopping Ralph container...\\033[0m"
-    docker stop "ralph-\${SESSION_ID}" 2>/dev/null || true
+    docker stop "\${BRAIN_DUMP_SUPERVISED_CONTAINER:-ralph-\${SESSION_ID}}" 2>/dev/null || true
   fi
 
   # Log timeout to progress file
@@ -585,20 +791,34 @@ trap cleanup_on_exit EXIT
 set -e
 
 MAX_ITERATIONS=\${1:-${maxIterations}}
-PROJECT_PATH="${projectPath}"
+RESUME_TICKET_ID=\${2:-}
+PROJECT_PATH="${escapeForBashDoubleQuote(projectPath)}"
 PRD_FILE="$PROJECT_PATH/plans/prd.json"
-PROGRESS_FILE="$PROJECT_PATH/plans/progress.txt"
 SESSION_ID="$(date +%s)-$$"
+PROGRESS_FILE="$PROJECT_PATH/plans/progress.txt"
+# Launcher diagnostics must never dirty reviewed project source after handoff.
+if git -C "$PROJECT_PATH" ls-files --error-unmatch -- plans/progress.txt >/dev/null 2>&1; then
+  RALPH_LOG_DIR="\${XDG_STATE_HOME:-$HOME/.local/state}/brain-dump/ralph"
+  mkdir -p "$RALPH_LOG_DIR"
+  PROGRESS_FILE="$RALPH_LOG_DIR/$SESSION_ID.progress.txt"
+fi
 MAX_RETRIES=3
 CONSECUTIVE_FAILURES=0
 MAX_CONSECUTIVE_FAILURES=5
-LAST_INCOMPLETE_COUNT=-1
+# Best-ever (lowest) incomplete count this run; see the circuit breaker in
+# the loop body for why this is a floor rather than a last-value comparison.
+BEST_INCOMPLETE_COUNT=999999
 NO_PROGRESS_COUNT=0
 MAX_NO_PROGRESS=3
+# Track each ticket's best workflow phase for this run. A genuine forward
+# handoff (for example ai_review -> ai_verification) is progress even though
+# passes remains false, while replaying the same failure loop is not.
+PRD_STATUS_HIGH_WATER=$(node -e 'const p=require(process.argv[1]); const rank={backlog:0,ready:1,in_progress:2,ai_review:3,ai_verification:4,done:5}; process.stdout.write(JSON.stringify(Object.fromEntries(p.userStories.map(s=>[s.id,rank[s.status]??0]))))' "$PRD_FILE" 2>/dev/null) || PRD_STATUS_HIGH_WATER="{}"
 PER_ITERATION_TIMEOUT=${perIterationTimeoutValue}
 
 cd "$PROJECT_PATH"
-${RALPH_ENV_EXPORTS}
+${runnerOwnership}
+${ralphProviderEnvAssignments}
 ${launchModelEnvExports}
 ${dockerHostSetup}${dockerImageCheck}${sshAgentSetup}${aiPreflightCheck}
 # Ensure plans directory exists
@@ -619,11 +839,67 @@ fi
 ITER_TIMEOUT_CMD=""
 if [ "$PER_ITERATION_TIMEOUT" -gt 0 ] 2>/dev/null; then
   if command -v timeout >/dev/null 2>&1; then
-    ITER_TIMEOUT_CMD="timeout --signal=TERM --kill-after=30 $PER_ITERATION_TIMEOUT"
+    ITER_TIMEOUT_CMD="timeout ${runnerEpicId ? "--foreground " : ""}--signal=TERM --kill-after=30 $PER_ITERATION_TIMEOUT"
   else
     echo "[$(date -Iseconds)] WARN: 'timeout' command not found; per-iteration AI timeout disabled" >> "$PROGRESS_FILE"
   fi
 fi
+
+# Every stop path funnels through here. Headless epic continuations exit so
+# the parent can settle their durable job; interactive runs keep the terminal
+# open — a spawned window that closes on exit destroys the only explanation of
+# why Ralph stopped.
+# Provider usage/session-limit rejections are printed by the AI CLI as a
+# single message and fail every retry identically (observed: five byte-identical
+# transcripts of "You've hit your session limit"). Detect them so the loop can
+# stop honestly instead of burning quota-charged retries on a hard rejection.
+AI_PROVIDER_LIMIT_MSG=""
+# Notify outside the tee pipeline: a surviving provider child may keep its pipe open.
+run_ai_command() {
+  $ITER_TIMEOUT_CMD "$@"
+  COMMAND_EXIT_CODE=$?
+  if [ "\${BRAIN_DUMP_EPIC_RUNNER_CHILD:-}" = "\${RUNNER_EPIC_ID:-}:$$" ] && [ -n "\${BRAIN_DUMP_EPIC_SUPERVISOR_PID:-}" ] && { [ "$COMMAND_EXIT_CODE" -eq 124 ] || [ "$COMMAND_EXIT_CODE" -eq 137 ]; }; then
+    echo "[$(date -Iseconds)] ITERATION TIMEOUT: stopping the supervised run and its descendants" >> "$PROGRESS_FILE"
+    kill -USR2 "$BRAIN_DUMP_EPIC_SUPERVISOR_PID"
+  fi
+  return "$COMMAND_EXIT_CODE"
+}
+
+detect_provider_limit() {
+  [ -n "$1" ] && [ -s "$1" ] || return 1
+  AI_PROVIDER_LIMIT_MSG=$(grep -m1 -iE "(hit|reached) your (session|usage|weekly|5-hour) limit|(session|usage|weekly) limit (reached|exceeded)|out of extra usage" "$1" || true)
+  [ -n "$AI_PROVIDER_LIMIT_MSG" ]
+}
+
+finish_ralph() {
+  FINISH_CODE=\${1:-0}
+  if [ "\${BRAIN_DUMP_EPIC_RUNNER_CHILD:-}" = "\${RUNNER_EPIC_ID:-}:$$" ]; then
+    exit "$FINISH_CODE"
+  fi
+  if [ "\${BRAIN_DUMP_EPIC_CONTINUATION:-0}" = "1" ]; then
+    exit "$FINISH_CODE"
+  fi
+  # exec replaces the process without firing the EXIT trap, so run cleanup
+  # (kills the session-timeout timer, removes service files) explicitly —
+  # otherwise the leaked timer later SIGALRMs the kept-open shell dead.
+  if type cleanup_on_exit >/dev/null 2>&1; then
+    cleanup_on_exit || true
+    trap - EXIT
+  fi
+  echo ""
+  echo -e "\\033[0;36mRalph stopped. This terminal stays open so the log above is not lost; press Ctrl+D to close it.\\033[0m"
+  exec bash
+}
+
+# List tickets parked for human action so a stop never looks like a silent
+# stall. Reads the scoped PRD's blocked flags synced from Brain Dump. This
+# runs at the moment Ralph explains why it stopped, so a read failure must say
+# so instead of printing nothing.
+print_blocked_tickets() {
+  if ! node -e 'const p=require(process.argv[1]); const blocked=p.userStories.filter(s=>s.passes===false&&s.blocked===true); if(blocked.length===0)process.exit(0); console.log(""); console.log("\\u26d4 Tickets blocked for human action:"); for(const s of blocked){console.log("  - "+(s.title||s.id)); console.log("    "+(s.blockedReason||"See the ticket in Brain Dump for the blocking reason."))}' "$PRD_FILE" 2>/dev/null; then
+    echo "  (could not read blocked-ticket details from plans/prd.json — open the ticket in Brain Dump for the blocking reasons)"
+  fi
+}
 
 # Rotate progress file if it exceeds 500 lines
 rotate_progress_file() {
@@ -670,6 +946,30 @@ echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━
 echo ""
 
 for i in $(seq 1 $MAX_ITERATIONS); do
+  while [ -f "$PRD_FILE" ]; do
+    # "wait": every incomplete ticket is either with the verification runner or
+    # blocked, and at least one is with the runner (so something will move).
+    # "blocked": every incomplete ticket is parked for a human — no amount of
+    # waiting or iterating changes that, so stop with the reasons on screen.
+    INCOMPLETE_GATE=$(node -e 'const p=require(process.argv[1]); const x=p.userStories.filter(s=>s.passes===false); if(x.length===0){process.stdout.write("work");process.exit(0)} const parked=(s)=>s.blocked===true&&s.status!=="ai_verification"; if(x.every(parked)){process.stdout.write("blocked");process.exit(0)} process.stdout.write(x.every(s=>s.status==="ai_verification"||parked(s))?"wait":"work")' "$PRD_FILE" 2>/dev/null || echo prd-unreadable)
+    if [ "$INCOMPLETE_GATE" = "prd-unreadable" ]; then
+      echo -e "\\033[0;33m⚠️  Could not parse $PRD_FILE for the blocked/verification gate; proceeding with a normal iteration.\\033[0m"
+      break
+    fi
+    if [ "$INCOMPLETE_GATE" = "blocked" ]; then
+      echo ""
+      echo -e "\\033[0;33m⛔ Every remaining ticket is blocked for human action; Ralph cannot make further progress on its own.\\033[0m"
+      print_blocked_tickets
+      echo "[$(date -Iseconds)] BLOCKED: Every remaining ticket is blocked for human action. Resolve the blockers in Brain Dump, then relaunch." >> "$PROGRESS_FILE"
+      finish_ralph 0
+    fi
+    if [ "$INCOMPLETE_GATE" != "wait" ]; then
+      break
+    fi
+    echo -e "\\033[0;36m⏳ All incomplete tickets are awaiting AI verification; Ralph is waiting without spending an iteration.\\033[0m"
+    sleep 5
+  done
+
   echo ""
   echo -e "\\033[0;35m═══════════════════════════════════════════════════════════\\033[0m"
   echo -e "\\033[0;35m  Ralph Iteration $i of $MAX_ITERATIONS ${iterationLabel}\\033[0m"
@@ -680,8 +980,18 @@ for i in $(seq 1 $MAX_ITERATIONS); do
   # Create prompt file for this iteration
   ${promptFileSetup}
   cat > "$PROMPT_FILE" << 'RALPH_PROMPT_EOF'
-${getRalphPrompt(promptProfile)}
+${getRalphPrompt(effectivePromptProfile)}
 RALPH_PROMPT_EOF
+  cat >> "$PROMPT_FILE" << RALPH_PROGRESS_EOF
+
+Launcher progress log: $PROGRESS_FILE. Use this path for runtime progress and blocker notes. Preserve any tracked plans/progress.txt as project context.
+RALPH_PROGRESS_EOF
+  if [ -n "$RESUME_TICKET_ID" ]; then
+    cat >> "$PROMPT_FILE" << RALPH_RESUME_EOF
+
+Continuation target: resume ticket $RESUME_TICKET_ID. Work this existing in_progress ticket before considering any other epic ticket. Do not call start-work for another ticket while this continuation target remains in_progress.
+RALPH_RESUME_EOF
+  fi
 
   # Validate prompt file is non-empty before passing to Claude
   if [ ! -s "$PROMPT_FILE" ]; then
@@ -692,7 +1002,7 @@ RALPH_PROMPT_EOF
     if [ $CONSECUTIVE_FAILURES -ge $MAX_CONSECUTIVE_FAILURES ]; then
       echo -e "\\033[0;31m❌ Too many consecutive failures ($CONSECUTIVE_FAILURES). Stopping Ralph.\\033[0m"
       echo "[$(date -Iseconds)] ABORTED: $CONSECUTIVE_FAILURES consecutive failures" >> "$PROGRESS_FILE"
-      exit 1
+      finish_ralph 1
     fi
     sleep 2
     continue
@@ -705,10 +1015,16 @@ RALPH_PROMPT_EOF
   AI_EXIT_CODE=1
   AI_INTERRUPTED=false
   AI_ITER_TIMEOUT=false
+  AI_REVIEW_FAILED=false
+  AI_PROVIDER_LIMIT=false
+  AI_OUTPUT_FILE=$(mktemp "\${TMPDIR:-/tmp}/ralph-ai-output.XXXXXX" 2>/dev/null || echo "/dev/null")
   for RETRY in $(seq 1 $MAX_RETRIES); do
+    : > "$AI_OUTPUT_FILE" 2>/dev/null || true
     set +e
+    set -o pipefail
 ${aiInvocation}
     AI_EXIT_CODE=$?
+    set +o pipefail
     set -e
 
     # Per-iteration timeout fired: coreutils 'timeout' exits 124 (TERM) or 137
@@ -731,6 +1047,19 @@ ${aiInvocation}
       break
     fi
 
+    # A usage-limit rejection is terminal for this launch: every retry returns
+    # the same one-liner and each attempt still counts against the quota.
+    if [ $AI_EXIT_CODE -ne 0 ] && detect_provider_limit "$AI_OUTPUT_FILE"; then
+      AI_PROVIDER_LIMIT=true
+      break
+    fi
+
+${reviewerBlock}
+
+    if [ "$AI_REVIEW_FAILED" = "true" ]; then
+      break
+    fi
+
     if [ $AI_EXIT_CODE -eq 0 ]; then
       break
     fi
@@ -745,6 +1074,7 @@ ${aiInvocation}
   done
 
   rm -f "$PROMPT_FILE"
+  [ "$AI_OUTPUT_FILE" != "/dev/null" ] && rm -f "$AI_OUTPUT_FILE"
 
   echo ""
   echo -e "\\033[0;36m───────────────────────────────────────────────────────────\\033[0m"
@@ -757,6 +1087,18 @@ ${aiInvocation}
     echo -e "\\033[0;33m⏭️  Continuing to next iteration after user interrupt.\\033[0m"
     sleep 1
     continue
+  fi
+
+  if [ "$AI_PROVIDER_LIMIT" = "true" ]; then
+    echo ""
+    echo -e "\\033[0;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+    echo -e "\\033[0;31m⛔ ${aiName} usage limit reached — Ralph is stopping without retries.\\033[0m"
+    echo -e "\\033[0;33m   Provider message: $AI_PROVIDER_LIMIT_MSG\\033[0m"
+    echo -e "\\033[0;33m   This is NOT a code or workflow failure. Resume this launch after\\033[0m"
+    echo -e "\\033[0;33m   the limit resets, or relaunch with a different provider.\\033[0m"
+    echo -e "\\033[0;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+    echo "[$(date -Iseconds)] PROVIDER LIMIT: ${aiName} usage limit reached; stopped without retries. Provider message: $AI_PROVIDER_LIMIT_MSG" >> "$PROGRESS_FILE"
+    finish_ralph 1
   fi
 
   # Track consecutive failures to detect persistent issues
@@ -777,7 +1119,7 @@ ${aiInvocation}
       echo -e "\\033[0;31m   Check: API key, network, MCP server, or run the CLI with --help\\033[0m"
       echo -e "\\033[0;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
       echo "[$(date -Iseconds)] ABORTED: $CONSECUTIVE_FAILURES consecutive failures" >> "$PROGRESS_FILE"
-      exit 1
+      finish_ralph 1
     fi
   else
     # Reset on success
@@ -786,9 +1128,22 @@ ${aiInvocation}
 
   # Check if all tasks in PRD are complete (all have passes:true)
   if [ -f "$PRD_FILE" ]; then
-    INCOMPLETE=$(grep -c '"passes": false' "$PRD_FILE" 2>/dev/null || echo "0")
-    TOTAL=$(grep -c '"passes":' "$PRD_FILE" 2>/dev/null || echo "0")
+    # grep -c prints the count even when it exits 1 (zero matches), so an
+    # "|| echo 0" fallback would yield "0\\n0" and break comparisons below.
+    INCOMPLETE=$(grep -c '"passes": false' "$PRD_FILE" 2>/dev/null) || true
+    INCOMPLETE=\${INCOMPLETE:-0}
+    TOTAL=$(grep -c '"passes":' "$PRD_FILE" 2>/dev/null) || true
+    TOTAL=\${TOTAL:-0}
     COMPLETE=$((TOTAL - INCOMPLETE))
+    WAITING_FOR_VERIFICATION=$(node -e 'const p=require(process.argv[1]); const x=p.userStories.filter(s=>s.passes===false); process.stdout.write(x.length>0&&x.every(s=>s.status==="ai_verification")?"1":"0")' "$PRD_FILE" 2>/dev/null || echo 0)
+    WORKFLOW_PROGRESS=$(node -e 'const high=JSON.parse(process.argv[1]); const p=require(process.argv[2]); const rank={backlog:0,ready:1,in_progress:2,ai_review:3,ai_verification:4,done:5}; let advanced=false; for(const s of p.userStories){const current=rank[s.status]??0; if(current>(high[s.id]??-1)){high[s.id]=current; advanced=true} if(s.blocked===true && !high[s.id+"#blocked"]){high[s.id+"#blocked"]=1; advanced=true}} process.stdout.write((advanced?"1":"0")+" "+JSON.stringify(high))' "$PRD_STATUS_HIGH_WATER" "$PRD_FILE" 2>/dev/null) || WORKFLOW_PROGRESS="0 $PRD_STATUS_HIGH_WATER"
+    ALL_BLOCKED=$(node -e 'const p=require(process.argv[1]); const x=p.userStories.filter(s=>s.passes===false); process.stdout.write(x.length>0&&x.every(s=>s.blocked===true&&s.status!=="ai_verification")?"1":"0")' "$PRD_FILE" 2>/dev/null || echo error)
+    if [ "$ALL_BLOCKED" = "error" ]; then
+      echo -e "\\033[0;33m⚠️  Could not parse $PRD_FILE for the blocked check; treating tickets as workable this iteration.\\033[0m"
+      ALL_BLOCKED=0
+    fi
+    WORKFLOW_ADVANCED=\${WORKFLOW_PROGRESS%% *}
+    PRD_STATUS_HIGH_WATER=\${WORKFLOW_PROGRESS#* }
 
     echo ""
     echo -e "\\033[0;36m📊 Progress: $COMPLETE/$TOTAL tasks complete\\033[0m"
@@ -798,27 +1153,58 @@ ${aiInvocation}
       echo -e "\\033[0;32m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
       echo -e "\\033[0;32m✅ All tasks complete! Ralph is done.\\033[0m"
       echo -e "\\033[0;32m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
-      exit 0
+      finish_ralph 0
     fi
 
-    # Detect stuck state: if incomplete count hasn't changed for MAX_NO_PROGRESS iterations,
-    # all tickets are likely in human_review or blocked. Stop looping.
-    if [ "$INCOMPLETE" = "$LAST_INCOMPLETE_COUNT" ] && [ $AI_EXIT_CODE -eq 0 ]; then
+    # Circuit breaker: an iteration only counts as progress when it lowers the
+    # best-ever incomplete count. A ticket flipping passing -> repaired back to
+    # not-passing (same blocker re-hit every iteration) no longer resets the
+    # counter, so the loop stops instead of burning iterations for hours.
+    # TOTAL=0 means the PRD was unreadable or empty this iteration (a masked
+    # grep failure also reads as 0/0): skip tracking entirely so a bad read
+    # can't latch BEST_INCOMPLETE_COUNT=0 and poison progress detection.
+    if [ "$TOTAL" = "0" ]; then
+      echo -e "\\033[0;33m⚠️  PRD unreadable or empty this iteration; progress tracking skipped.\\033[0m"
+    elif [ "$ALL_BLOCKED" = "1" ]; then
+      # Checked before the progress resets: the same iteration that parks the
+      # last workable ticket also trips the blocked latch, and a "workflow
+      # advanced" reset must not defer this stop by a full AI iteration.
+      echo ""
+      echo -e "\\033[0;33m⛔ Every remaining ticket is blocked for human action; Ralph cannot make further progress on its own.\\033[0m"
+      print_blocked_tickets
+      echo "[$(date -Iseconds)] BLOCKED: Every remaining ticket is blocked for human action. Resolve the blockers in Brain Dump, then relaunch." >> "$PROGRESS_FILE"
+      finish_ralph 0
+    elif [ "$INCOMPLETE" -lt "$BEST_INCOMPLETE_COUNT" ]; then
+      BEST_INCOMPLETE_COUNT="$INCOMPLETE"
+      NO_PROGRESS_COUNT=0
+    elif [ "$WORKFLOW_ADVANCED" = "1" ]; then
+      NO_PROGRESS_COUNT=0
+      echo -e "\\033[0;36m⏩ A ticket reached a new workflow phase; no-progress tracking reset.\\033[0m"
+    elif [ "$WAITING_FOR_VERIFICATION" = "1" ]; then
+      echo -e "\\033[0;36m⏳ All incomplete tickets are awaiting AI verification; no-progress tracking paused.\\033[0m"
+    elif [ $AI_EXIT_CODE -eq 0 ]; then
       NO_PROGRESS_COUNT=$((NO_PROGRESS_COUNT + 1))
       if [ $NO_PROGRESS_COUNT -ge $MAX_NO_PROGRESS ]; then
         echo ""
         echo -e "\\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
-        echo -e "\\033[0;33m⏸️  No progress for $MAX_NO_PROGRESS iterations ($INCOMPLETE tickets still incomplete).\\033[0m"
-        echo -e "\\033[0;33m   Tickets are likely in human_review or blocked.\\033[0m"
-        echo -e "\\033[0;33m   Ralph is stopping to avoid wasting iterations.\\033[0m"
+        echo -e "\\033[0;33m⏸️  No new ticket completed for $MAX_NO_PROGRESS iterations ($INCOMPLETE tickets still incomplete).\\033[0m"
+        echo -e "\\033[0;33m   Ralph is likely re-hitting the same blocker every iteration\\033[0m"
+        echo -e "\\033[0;33m   (stuck verification, repeated handoff repair, or a stale tool/schema).\\033[0m"
+        echo -e "\\033[0;33m   Stopping so a human can look at the last progress-log entries.\\033[0m"
         echo -e "\\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
-        echo "[$(date -Iseconds)] STALLED: No progress for $MAX_NO_PROGRESS iterations. $INCOMPLETE/$TOTAL incomplete." >> "$PROGRESS_FILE"
-        exit 0
+        print_blocked_tickets
+        echo "[$(date -Iseconds)] STALLED: No new ticket completed for $MAX_NO_PROGRESS iterations. $INCOMPLETE/$TOTAL incomplete. Likely a repeating blocker; needs human attention." >> "$PROGRESS_FILE"
+        finish_ralph 0
       fi
-    else
-      NO_PROGRESS_COUNT=0
     fi
-    LAST_INCOMPLETE_COUNT="$INCOMPLETE"
+  fi
+
+  if [ "\${BRAIN_DUMP_EPIC_CONTINUATION:-0}" = "1" ] && [ -n "$RESUME_TICKET_ID" ]; then
+    RESUME_COMPLETE=$(node -e 'const p=require(process.argv[1]); const s=p.userStories.find(x=>x.id===process.argv[2]); process.stdout.write(!s||s.passes===true||s.status==="ai_verification"||s.status==="done"?"1":"0")' "$PRD_FILE" "$RESUME_TICKET_ID" 2>/dev/null || echo 0)
+    if [ "$RESUME_COMPLETE" = "1" ]; then
+      echo -e "\\033[0;32m✅ Continuation target handed off; leaving sibling tickets for the owning epic launch.\\033[0m"
+      exit 0
+    fi
   fi
 
   echo ""
@@ -832,6 +1218,6 @@ echo -e "\\033[0;33m⚠️  Max iterations reached. Some tasks may remain.\\033[
 echo -e "\\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
 echo ""
 ${endMessage}
-exec bash
+finish_ralph 0
 `;
 }

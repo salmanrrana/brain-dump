@@ -16,6 +16,22 @@ import {
 import type { DbTicketRow, DbProjectRow, DbEpicRow, DbTicketSummaryRow } from "./db-rows.ts";
 import { safeJsonParse } from "./json.ts";
 import { autoTagFromMentions } from "./platform-mention-parser.ts";
+import {
+  canDirectlyUpdateTicketStatus,
+  recordDirectImplementationEntry,
+  getDirectStatusUpdateErrorMessage,
+  isActiveTicketStatus,
+  TICKET_STATUSES,
+} from "./workflow-steps.ts";
+import {
+  normalizeAttachments,
+  isRunnerEvidenceAttachmentType,
+  isValidAttachmentPriority,
+  isValidAttachmentType,
+  type AttachmentPriority,
+  type AttachmentType,
+  type TicketAttachment,
+} from "./attachment-types.ts";
 
 // ============================================
 // Internal Helpers
@@ -44,7 +60,7 @@ function toTicketWithProject(
     isBlocked: row.is_blocked === 1,
     blockedReason: row.blocked_reason,
     linkedFiles: safeJsonParse<string[]>(row.linked_files, []),
-    attachments: safeJsonParse(row.attachments, []),
+    attachments: normalizeAttachments(row.attachments),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     completedAt: row.completed_at,
@@ -133,32 +149,8 @@ interface AcceptanceCriterion {
 }
 
 // ============================================
-// Attachment Types
-// ============================================
-
-interface TicketAttachment {
-  id: string;
-  filename: string;
-  type?: string;
-  description?: string;
-  priority?: string;
-  uploadedBy?: string;
-  uploadedAt?: string;
-  linkedCriteria?: string[];
-}
-
-// ============================================
 // Valid Constants
 // ============================================
-
-const VALID_STATUSES: TicketStatus[] = [
-  "backlog",
-  "ready",
-  "in_progress",
-  "ai_review",
-  "human_review",
-  "done",
-];
 
 const VALID_PRIORITIES: Priority[] = ["low", "medium", "high"];
 
@@ -299,22 +291,23 @@ export function updateTicketStatus(
   ticketId: string,
   status: TicketStatus
 ): TicketWithProject {
-  if (!VALID_STATUSES.includes(status)) {
-    throw new ValidationError(`Invalid status: ${status}. Valid: ${VALID_STATUSES.join(", ")}`);
-  }
-
   // Verify ticket exists
-  getTicketRow(db, ticketId);
+  const existing = getTicketRow(db, ticketId);
+  assertDirectStatusUpdateAllowed(existing.status as TicketStatus, status);
+  if (existing.status === status) return getTicketWithProject(db, ticketId);
 
   const now = new Date().toISOString();
-  const completedAt = status === "done" ? now : null;
+  const completedAt = null;
 
-  db.prepare("UPDATE tickets SET status = ?, updated_at = ?, completed_at = ? WHERE id = ?").run(
-    status,
-    now,
-    completedAt,
-    ticketId
-  );
+  db.transaction(() => {
+    db.prepare("UPDATE tickets SET status = ?, updated_at = ?, completed_at = ? WHERE id = ?").run(
+      status,
+      now,
+      completedAt,
+      ticketId
+    );
+    recordDirectImplementationEntry(db, ticketId, existing.status, status, now);
+  })();
 
   return getTicketWithProject(db, ticketId);
 }
@@ -342,7 +335,7 @@ export function updateTicket(
   params: UpdateTicketParams
 ): TicketWithProject {
   // Verify ticket exists
-  getTicketRow(db, ticketId);
+  const existing = getTicketRow(db, ticketId);
 
   const setClauses: string[] = [];
   const values: (string | number | null)[] = [];
@@ -358,17 +351,10 @@ export function updateTicket(
   }
 
   if (params.status !== undefined) {
-    if (!VALID_STATUSES.includes(params.status)) {
-      throw new ValidationError(
-        `Invalid status: ${params.status}. Valid: ${VALID_STATUSES.join(", ")}`
-      );
-    }
-    setClauses.push("status = ?");
-    values.push(params.status);
-
-    if (params.status === "done") {
-      setClauses.push("completed_at = ?");
-      values.push(new Date().toISOString());
+    assertDirectStatusUpdateAllowed(existing.status as TicketStatus, params.status);
+    if (params.status !== existing.status) {
+      setClauses.push("status = ?", "completed_at = ?");
+      values.push(params.status, null);
     }
   }
 
@@ -399,18 +385,33 @@ export function updateTicket(
   }
 
   if (setClauses.length === 0) {
+    if (params.status === existing.status) return getTicketWithProject(db, ticketId);
     throw new ValidationError(
       "No fields to update. Provide at least one of: --title, --description, --status, --priority, --epic, --tags"
     );
   }
 
   setClauses.push("updated_at = ?");
-  values.push(new Date().toISOString());
+  const now = new Date().toISOString();
+  values.push(now);
   values.push(ticketId);
 
-  db.prepare(`UPDATE tickets SET ${setClauses.join(", ")} WHERE id = ?`).run(...values);
+  db.transaction(() => {
+    db.prepare(`UPDATE tickets SET ${setClauses.join(", ")} WHERE id = ?`).run(...values);
+    recordDirectImplementationEntry(db, ticketId, existing.status, params.status, now);
+  })();
 
   return getTicketWithProject(db, ticketId);
+}
+
+function assertDirectStatusUpdateAllowed(from: TicketStatus, to: TicketStatus): void {
+  if (!isActiveTicketStatus(to)) {
+    throw new ValidationError(`Invalid status: ${to}. Valid: ${TICKET_STATUSES.join(", ")}`);
+  }
+
+  if (canDirectlyUpdateTicketStatus(from, to)) return;
+
+  throw new ValidationError(getDirectStatusUpdateErrorMessage(from, to));
 }
 
 export type CriterionStatus = "pending" | "passed" | "failed" | "skipped";
@@ -560,22 +561,7 @@ export function updateAttachmentMetadata(
 ): UpdateAttachmentResult {
   const ticketRow = getTicketRow(db, ticketId);
 
-  const attachments: (string | TicketAttachment)[] = safeJsonParse(ticketRow.attachments, []);
-
-  // Normalize attachments (handle legacy string format)
-  const normalizedAttachments: TicketAttachment[] = attachments.map((item, index) => {
-    if (typeof item === "string") {
-      return {
-        id: `legacy-${index}-${item}`,
-        filename: item,
-        type: "reference",
-        priority: "primary",
-        uploadedBy: "human",
-        uploadedAt: new Date().toISOString(),
-      };
-    }
-    return item as TicketAttachment;
-  });
+  const normalizedAttachments = normalizeAttachments(ticketRow.attachments);
 
   const attachmentIndex = normalizedAttachments.findIndex(
     (a) => a.id === attachmentId || a.filename === attachmentId
@@ -592,9 +578,35 @@ export function updateAttachmentMetadata(
   }
 
   const attachment = normalizedAttachments[attachmentIndex]!;
-  if (metadata.type !== undefined) attachment.type = metadata.type;
+  if (isRunnerEvidenceAttachmentType(attachment.type)) {
+    throw new ValidationError(
+      "Verification evidence attachment metadata is runner-only and cannot be updated through ticket metadata updates.",
+      { type: attachment.type }
+    );
+  }
+  if (metadata.type !== undefined) {
+    if (!isValidAttachmentType(metadata.type)) {
+      throw new ValidationError(`Invalid attachment type: ${metadata.type}`, {
+        type: metadata.type,
+      });
+    }
+    if (isRunnerEvidenceAttachmentType(metadata.type)) {
+      throw new ValidationError(
+        "Verification evidence attachment types are runner-only and cannot be assigned through ticket metadata updates.",
+        { type: metadata.type }
+      );
+    }
+    attachment.type = metadata.type as AttachmentType;
+  }
   if (metadata.description !== undefined) attachment.description = metadata.description;
-  if (metadata.priority !== undefined) attachment.priority = metadata.priority;
+  if (metadata.priority !== undefined) {
+    if (!isValidAttachmentPriority(metadata.priority)) {
+      throw new ValidationError(`Invalid attachment priority: ${metadata.priority}`, {
+        priority: metadata.priority,
+      });
+    }
+    attachment.priority = metadata.priority as AttachmentPriority;
+  }
   if (metadata.linkedCriteria !== undefined) attachment.linkedCriteria = metadata.linkedCriteria;
 
   const now = new Date().toISOString();

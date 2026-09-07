@@ -28,24 +28,25 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
-      "react-refresh/only-export-components": [
-        "warn",
-        { allowConstantExport: true },
-      ],
+      "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
       "@typescript-eslint/no-unused-vars": [
         "error",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
       ],
     },
   },
-  // Node CLI scripts (repo root `scripts/`)
+  // Node scripts and dependency-free integration fixture servers.
   {
-    files: ["scripts/**/*.mjs"],
+    files: ["scripts/**/*.mjs", "integration-tests/fixtures/**/*.mjs"],
     languageOptions: {
       globals: {
         ...globals.node,
       },
     },
+  },
+  {
+    files: ["integration-tests/fixtures/**/*.js"],
+    languageOptions: { globals: globals.browser },
   },
   // MCP server files use Node.js globals
   {

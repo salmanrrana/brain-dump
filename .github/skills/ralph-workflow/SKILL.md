@@ -14,195 +14,81 @@ This skill provides the autonomous backlog processing workflow used by Ralph, fo
 - Implementing features from a PRD file
 - Running in background agent mode
 
-## Universal Quality Workflow
+<!-- BEGIN GENERATED: workflow-sequence -->
 
-Brain Dump enforces this status flow for all tickets:
+## Generated Workflow
 
-```
-backlog → ready → in_progress → ai_review → human_review → done
-```
+Status flow: `backlog -> ready -> in_progress -> ai_review -> ai_verification -> done`
 
-- **in_progress**: Active development (code being written)
-- **ai_review**: Automated quality review by code review agents
-- **human_review**: Demo approval by human reviewer
-- **done**: Complete and approved
+### Step 1: Implementation
 
-## The Ralph Workflow
+start-work -> create or reuse a session -> implement -> validate -> commit -> complete-work. Skip this phase only when the selected ticket is already in ai_review.
 
-### 1. Read Context Files
+- `workflow({ action: "start-work", ticketId })`
+- `session({ action: "create", ticketId }) or session({ action: "get", ticketId })`
+- `comment({ action: "add", ticketId, content, commentType: "test_report" })`
+- `workflow({ action: "complete-work", ticketId, summary })`
 
-```
-plans/prd.json     - Product requirements (auto-generated from tickets)
-plans/progress.txt - Notes from previous iterations
-```
+### Step 2: AI Review
 
-### 2. Start Ticket Work
+Start with get-review-context: it returns the acceptance criteria, work history, the exact in-scope changed-file list, prior findings (never re-file resolved ones), and the blocking-findings budget. Review only the in-scope files for regressions, acceptance gaps, and maintainability (reuse existing patterns; keep junior-readable). Submit only concrete NEW blocking findings, fix critical/major findings, then check completion.
 
-Use the MCP tool to create branch and set up tracking:
+- `review({ action: "get-review-context", ticketId })`
+- `review({ action: "submit-finding", ticketId, agent, severity, category, description })`
+- `review({ action: "mark-fixed", findingId, fixStatus: "fixed" })`
+- `review({ action: "check-complete", ticketId })`
 
-```javascript
-workflow "start-work"({ ticketId: "story-id" });
-```
+### Step 3: Demo
 
-This automatically:
+Generate 3-7 test steps after review completion, including criterion coverage references plus automation specs for visual/automated UI, API, command, or file checks. Before API/UI steps, inspect the target project's docs and build/runtime config and declare app.start as spawn-safe argv (with {port}/{host} tokens and optional project-relative cwd); never assume npm or pnpm. Every acceptance criterion must be proven by executable automation — coverageRationale is rejected at generate-demo. If a required command is outside the default allowlist (make, go, npx, ...), declare its exact argv in the project's .brain-dump/verify.json commands array; if a criterion cannot be automated, reword the criterion to match what automation can prove. This moves the ticket to ai_verification for runner certification.
 
-- Creates a git branch: `feature/{ticket-id}-{slug}`
-- Sets ticket status to `in_progress`
-- Posts a "Starting work" comment
+- `review({ action: "generate-demo", ticketId, steps }) with covers references and automation specs on visual/automated steps`
 
-### 3. Pick ONE Task
+### Step 4: Stop
 
-From `prd.json`, find a user story where `passes: false`:
+STOP after generate-demo. generate-demo already completed the ticket's active sessions during the verification handoff — an explicit session complete afterwards is unnecessary (though harmless if called: it returns the recorded completion). Never run verification or move the ticket to done yourself.
 
-- Prioritize by priority field (high > medium > low)
-- Only work on ONE task per iteration
 
-### 4. Create Session for Tracking
 
-```javascript
-session "create"({ ticketId: "story-id" });
-session "update-state"({ sessionId: "...", state: "analyzing" });
-```
+### Implementation Discipline
 
-### 5. Implement Feature
+- Before editing, map each acceptance criterion to the existing production entry point and nearby tests. Search for components, helpers, services, and patterns that already own the behavior.
+- Extend or reuse the established implementation instead of adding a parallel path. New shared logic must be wired through the real production caller; replace superseded ticket-owned logic rather than leaving two competing implementations.
+- Keep the diff minimal and match the codebase's existing style. Prefer explicit code a junior engineer can trace; use the smallest local or established abstraction that removes concrete duplication, never a speculative framework or dependency.
+- Preserve existing behavior outside the ticket and add focused regression coverage at the changed boundary. Before handoff, inspect the final diff for dead code, duplicate logic, and acceptance criteria implemented only in tests but not reachable in production.
 
-```javascript
-session "update-state"({ sessionId: "...", state: "implementing" });
-```
+### Validation Gates
 
-- Write the code
-- Discover validation commands from this project's docs/config
-- Run the project's own validation commands
-- Verify acceptance criteria
+- Before complete-work: Discover and run this project's validation commands from docs/config.
+- Read AGENTS.md, CLAUDE.md, README, CONTRIBUTING, package scripts, pyproject.toml, go.mod, Makefile/Justfile, and CI files before choosing commands.
+- Use the project's own commands, not Brain Dump's commands. Do not assume pnpm, npm, TypeScript, lint, or test scripts exist.
+- Discover validation and boot commands once per project checkout, then reuse them until the relevant docs, config, or dependencies change. During edits, run focused checks; run each required final validation command once after the last relevant change. Metadata-only updates (linking commits, marking findings fixed, posting progress) do not require repeating unchanged checks. After code/config changes, rerun affected checks and any mandatory project-wide gate; never present reused results as newly executed tests.
+- If no automated validation command is discoverable, perform a targeted manual smoke check and record that no project validation command was found.
+- Before complete-work, add a test_report comment with exact pass/fail/skipped command results and omit author so Brain Dump auto-detects the provider.
+- Before demo, all critical/major findings must be fixed and check-complete must allow verification handoff.
+- Fetch get-review-context once on entering AI review and reuse its ticket, acceptanceCriteria, workHistory, openFindings, resolvedFindings, and scope. Do not immediately fetch the same ticket or findings again. Refresh after an external change or if the context was lost; after your own finding updates, use their returned IDs/status and run check-complete once before handoff. A repair review examines the repair diff and its affected callers, not the whole unchanged epic.
+- Keep the session ID returned by session create/get, and update progress at real phase transitions or meaningful changes. Batch independent reads or validation commands in one tool turn when safe, preserving each command's output and exit status; never run commands concurrently when they share mutable test fixtures or build output. A successful generate-demo response is the handoff: STOP instead of polling the ticket, session, findings, or verification status.
+- For CLI finding repairs, use brain-dump review mark-fixed --finding <finding-id> --status fixed. Check the workflow command's exit status and read its full error response before continuing; piping into tail can hide a failed action.
+- For API/UI demo steps, inspect README/AGENTS/CLAUDE docs plus native build files and declare one app.start argv that actually boots this project on {port}; do not infer every app is Node-based.
+- Before authoring a demo, read the project's .brain-dump/verify.json (if present) and reuse its exact start command and declared commands; never hardcode a port or loopback origin — the runner boots on a random free port.
+- The verifier requires a clean reviewed Git revision, including no untracked files. Put CLI --steps-file JSON outside the project (for example in a temporary directory), or commit intentional files before review. Check git status before generate-demo; authoring the demo must not dirty the reviewed checkout.
+- Derive UI selectors from the actual rendered page or component markup. Do not guess aria-label attributes from visible labels. After a verification failure, repair its reported cause and rerun affected checks; avoid repeating unrelated checks unless the repair changes their behavior.
+- For test commands, assert the exit status and stable results rather than an exact passing-test count that changes as the project grows. Derive UI counts from explicitly seeded fixtures or acceptance criteria, not a previous run's incidental data. A failed demo stops at its first failure; later steps are recorded as not run and must pass on the repaired run.
+- In UI demo steps, waitFor a selector that only exists once real data has rendered (a populated row, not a static heading) before clicking or asserting; a mutation fired against a still-loading page settles every widget into an error state.
+- Do not assert live third-party data (e.g. a fresh 'Last fetched' timestamp) unless the verification environment seeds it; assert the honest empty/error copy or an API-level contract instead.
+- To prove a file was deleted, use a file step with a notExists assertion — never contains/notContains against a missing file; for grep-style command steps, set expectedExitCode to what the command actually returns.
+- Before session completion, generate-demo must have been called and the ticket must be in ai_verification.
+- If verification blocked the ticket and you have fixed and validated the cause, call review resolve-verification-failure (rootCause, classification, fixCommits, validation) to clear the blocker and return the ticket to ai_review. Then mark each open verification finding addressed by the fix as fixed before check-complete — never leave a fixed ticket blocked.
 
-### 6. Commit Changes
+### Hard Guards
 
-```javascript
-session "update-state"({ sessionId: "...", state: "committing" });
-```
+- Do not use local substitutes for Brain Dump MCP/CLI workflow actions.
+- Do not skip review check-complete before generate-demo.
+- Do not run verification yourself.
+- Do not move tickets to done yourself.
+- Do not continue to another ticket after demo handoff.
 
-```bash
-git add -A
-git commit -m "feat(<ticket-id>): <description>"
-```
-
-### 7. Complete Implementation (Move to AI Review)
-
-**IMPORTANT**: Do NOT directly set status to "done". Use `workflow "complete-work"`:
-
-```javascript
-workflow "complete-work"({
-  ticketId: "story-id",
-  summary: "Implemented login form with validation and API integration",
-});
-```
-
-This:
-
-- Validates that a current test_report comment exists with exact pass/fail/skipped results
-- Moves ticket to `ai_review` status
-- Posts work summary as comment
-- Updates PRD file (`passes: true`)
-
-### 8. Run AI Review Agents
-
-After `workflow "complete-work"`, run the review pipeline:
-
-```javascript
-// Submit findings from each agent
-review "submit-finding"({
-  ticketId: "story-id",
-  agent: "code-reviewer",
-  severity: "major",
-  category: "type-safety",
-  description: "Missing null check on user input",
-});
-```
-
-Review agents to run:
-
-1. **code-reviewer** - Code quality and style
-2. **silent-failure-hunter** - Error handling issues
-3. **code-simplifier** - Code simplification opportunities
-
-### 9. Fix Critical/Major Findings
-
-If any critical or major findings:
-
-```javascript
-// Fix the issue, then mark as fixed
-review "mark-fixed"({
-  findingId: "finding-id",
-  fixStatus: "fixed",
-  fixDescription: "Added null check before accessing property",
-});
-```
-
-### 10. Check Review Complete
-
-```javascript
-review "check-complete"({ ticketId: "story-id" });
-// Returns { complete: true/false, openCritical: 0, openMajor: 0, ... }
-```
-
-### 11. Generate Demo Script (Move to Human Review)
-
-Once all critical/major findings are fixed:
-
-```javascript
-review "generate-demo"({
-  ticketId: "story-id",
-  steps: [
-    {
-      order: 1,
-      description: "Navigate to login page",
-      expectedOutcome: "Login form displays",
-      type: "manual",
-    },
-    {
-      order: 2,
-      description: "Enter valid credentials",
-      expectedOutcome: "User is logged in",
-      type: "manual",
-    },
-  ],
-});
-```
-
-This moves ticket to `human_review` status.
-
-### 12. STOP - Wait for Human Approval
-
-**The workflow stops here**. A human must:
-
-- Review the demo script
-- Run through the steps
-- Provide approval via `review "submit-feedback"`
-
-If approved → ticket moves to `done`
-If rejected → stays in `human_review` with feedback
-
-### 13. Update Progress File
-
-Append to `plans/progress.txt`:
-
-```
-## Iteration N - [timestamp]
-- Completed: <ticket title>
-- Changes: <brief summary>
-- Review: <number of findings, all fixed>
-- Notes: <any learnings or issues>
-```
-
-### 14. Check Completion
-
-If ALL stories have `passes: true` and are in `done` status:
-
-- Push branch: `git push -u origin <branch-name>`
-- Create PR using `gh pr create`
-- Output: `PRD_COMPLETE`
-
-Otherwise, the next iteration picks the next task.
+<!-- END GENERATED: workflow-sequence -->
 
 ## PRD File Format
 
@@ -254,6 +140,6 @@ Otherwise, the next iteration picks the next task.
 2. **Always validate** - Run project-specific validation before completing
 3. **Use workflow "complete-work"** - Never directly set status to "done"
 4. **Run all review agents** - Fix critical/major before demo
-5. **Stop at human_review** - Wait for human approval
+5. **Stop at ai_verification** - Wait for runner certification
 6. **Document issues** - Add blockers to progress.txt
 7. **Never commit to main/dev** - Always use feature branches

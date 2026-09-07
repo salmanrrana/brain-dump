@@ -19,7 +19,7 @@ interface StatusCounts {
   ready: number;
   in_progress: number;
   ai_review: number;
-  human_review: number;
+  ai_verification: number;
   done: number;
   total: number;
 }
@@ -69,7 +69,7 @@ function getStatusCounts(db: DbHandle, projectId: string): StatusCounts {
     ready: 0,
     in_progress: 0,
     ai_review: 0,
-    human_review: 0,
+    ai_verification: 0,
     done: 0,
     total: 0,
   };
@@ -160,7 +160,7 @@ function formatStatusPretty(data: StatusPayload): string {
   // Status summary
   lines.push("Ticket Summary:");
   lines.push(
-    `  backlog: ${c.backlog}  ready: ${c.ready}  in_progress: ${c.in_progress}  ai_review: ${c.ai_review}  human_review: ${c.human_review}  done: ${c.done}`
+    `  backlog: ${c.backlog}  ready: ${c.ready}  in_progress: ${c.in_progress}  ai_review: ${c.ai_review}  ai_verification: ${c.ai_verification}  done: ${c.done}`
   );
   lines.push(`  total: ${c.total}`);
   lines.push("");
@@ -225,9 +225,9 @@ export function handle(action: string, args: string[]): void {
     const projectName = getProjectName(db, projectId);
     const statusCounts = getStatusCounts(db, projectId);
 
-    // Active tickets: in_progress, ai_review, human_review
+    // Active tickets: in_progress, ai_review, ai_verification
     const allTickets = listTickets(db, { projectId, limit: 100 });
-    const activeStatuses = new Set(["in_progress", "ai_review", "human_review"]);
+    const activeStatuses = new Set(["in_progress", "ai_review", "ai_verification"]);
     const activeTickets: ActiveTicket[] = allTickets
       .filter((t) => activeStatuses.has(t.status))
       .map((t) => ({

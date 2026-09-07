@@ -1,13 +1,4 @@
-import {
-  launchClaudeInTerminal,
-  launchCodexInTerminal,
-  launchCopilotInTerminal,
-  launchCursorAgentInTerminal,
-  launchCursorInTerminal,
-  launchOpenCodeInTerminal,
-  launchPiInTerminal,
-  launchVSCodeInTerminal,
-} from "../api/terminal";
+import { launchProviderInTerminal, type InteractiveTerminalProviderMode } from "../api/terminal";
 import { startEpicWorkflowFn, startTicketWorkflowFn } from "../api/workflow-server-fns";
 import { getEpicContext, getTicketContext } from "../api/context";
 import type {
@@ -44,16 +35,10 @@ export interface UiLaunchResult {
 
 export interface InteractiveLaunchDependencies {
   getTicketContext: (ticketId: string) => Promise<TicketLaunchContextResult>;
-  launchClaude: (payload: InteractiveTerminalPayload) => Promise<UiLaunchResult>;
-  launchCodex: (
-    payload: InteractiveTerminalPayload & { launchMode: "auto" | "cli" | "app" }
+  /** One seam for every interactive provider; providerId discriminates the flow. */
+  launchProvider: (
+    payload: InteractiveTerminalPayload & { providerId: InteractiveTerminalProviderMode }
   ) => Promise<UiLaunchResult>;
-  launchVSCode: (payload: InteractiveTerminalPayload) => Promise<UiLaunchResult>;
-  launchCursor: (payload: InteractiveTerminalPayload) => Promise<UiLaunchResult>;
-  launchCursorAgent: (payload: InteractiveTerminalPayload) => Promise<UiLaunchResult>;
-  launchCopilot: (payload: InteractiveTerminalPayload) => Promise<UiLaunchResult>;
-  launchOpenCode: (payload: InteractiveTerminalPayload) => Promise<UiLaunchResult>;
-  launchPi: (payload: InteractiveTerminalPayload) => Promise<UiLaunchResult>;
 }
 
 export interface RalphLaunchDependencies {
@@ -82,14 +67,7 @@ export interface InteractiveTerminalPayload {
 
 export const defaultInteractiveLaunchDependencies: InteractiveLaunchDependencies = {
   getTicketContext: async (ticketId) => getTicketContext({ data: ticketId }),
-  launchClaude: async (payload) => launchClaudeInTerminal({ data: payload }),
-  launchCodex: async (payload) => launchCodexInTerminal({ data: payload }),
-  launchVSCode: async (payload) => launchVSCodeInTerminal({ data: payload }),
-  launchCursor: async (payload) => launchCursorInTerminal({ data: payload }),
-  launchCursorAgent: async (payload) => launchCursorAgentInTerminal({ data: payload }),
-  launchCopilot: async (payload) => launchCopilotInTerminal({ data: payload }),
-  launchOpenCode: async (payload) => launchOpenCodeInTerminal({ data: payload }),
-  launchPi: async (payload) => launchPiInTerminal({ data: payload }),
+  launchProvider: async (payload) => launchProviderInTerminal({ data: payload }),
 };
 
 export const defaultRalphLaunchDependencies: Pick<
@@ -125,6 +103,53 @@ export const defaultRalphLaunchDependencies: Pick<
     };
   },
 };
+
+/**
+ * Builds full Ralph launch dependencies from the transport calls a screen
+ * already has (typically react-query mutations). Result shaping and the
+ * "not available from this surface" stubs live here once instead of being
+ * re-implemented per component.
+ */
+export function createRalphLaunchDependencies(
+  transport: {
+    launchTicket?: (payload: LaunchTicketInput) => Promise<{
+      success: boolean;
+      message: string;
+      warnings?: string[] | undefined;
+      terminalUsed?: string | undefined;
+    }>;
+    launchEpic?: (payload: LaunchEpicInput) => Promise<UiLaunchResult>;
+  },
+  surfaceLabel: string
+): RalphLaunchDependencies {
+  return {
+    startTicketWorkflow: defaultRalphLaunchDependencies.startTicketWorkflow,
+    startEpicWorkflow: defaultRalphLaunchDependencies.startEpicWorkflow,
+    launchTicketRalph: async (payload) => {
+      if (!transport.launchTicket) {
+        return {
+          success: false,
+          message: `Ticket Ralph launch is not available from ${surfaceLabel}.`,
+        };
+      }
+      const result = await transport.launchTicket(payload);
+      return {
+        success: result.success,
+        message: result.message,
+        ...(result.warnings ? { warnings: result.warnings } : {}),
+        ...("terminalUsed" in result && result.terminalUsed
+          ? { terminalUsed: result.terminalUsed }
+          : {}),
+      };
+    },
+    launchEpicRalph:
+      transport.launchEpic ??
+      (async () => ({
+        success: false,
+        message: `Epic Ralph launch is not available from ${surfaceLabel}.`,
+      })),
+  };
+}
 
 function concreteModelSelection(
   modelSelection: LaunchModelSelection | undefined
@@ -209,39 +234,10 @@ export async function dispatchInteractiveUiLaunch(
       : {}),
   };
 
-  let result: UiLaunchResult;
-  switch (provider.launchMode) {
-    case "claude-terminal":
-      result = await dependencies.launchClaude(payload);
-      break;
-    case "codex-auto":
-      result = await dependencies.launchCodex({ ...payload, launchMode: "auto" });
-      break;
-    case "codex-cli":
-      result = await dependencies.launchCodex({ ...payload, launchMode: "cli" });
-      break;
-    case "codex-app":
-      result = await dependencies.launchCodex({ ...payload, launchMode: "app" });
-      break;
-    case "vscode-editor":
-      result = await dependencies.launchVSCode(payload);
-      break;
-    case "cursor-editor":
-      result = await dependencies.launchCursor(payload);
-      break;
-    case "cursor-agent-terminal":
-      result = await dependencies.launchCursorAgent(payload);
-      break;
-    case "copilot-cli":
-      result = await dependencies.launchCopilot(payload);
-      break;
-    case "opencode-terminal":
-      result = await dependencies.launchOpenCode(payload);
-      break;
-    case "pi-terminal":
-      result = await dependencies.launchPi(payload);
-      break;
-  }
+  const result = await dependencies.launchProvider({
+    ...payload,
+    providerId: provider.launchMode,
+  });
 
   return withAdditionalWarnings(result, modelSelectionResolution.warnings);
 }
@@ -252,6 +248,17 @@ export async function dispatchRalphAutonomousUiLaunch(
   dependencies: RalphLaunchDependencies
 ): Promise<UiLaunchResult> {
   const modelSelectionResolution = resolveConcreteModelSelection(provider, context.modelSelection);
+  const reviewerModelSelectionResolution: ModelSelectionResolution = context.reviewerProvider
+    ? resolveConcreteModelSelection(context.reviewerProvider, context.reviewerModelSelection)
+    : { warnings: [] };
+  const reviewerPayload = context.reviewerProvider
+    ? {
+        reviewerAiBackend: context.reviewerProvider.aiBackend,
+        ...(reviewerModelSelectionResolution.modelSelection
+          ? { reviewerModelSelection: reviewerModelSelectionResolution.modelSelection }
+          : {}),
+      }
+    : {};
 
   if (context.kind === "ticket") {
     await dependencies.startTicketWorkflow({
@@ -267,12 +274,16 @@ export async function dispatchRalphAutonomousUiLaunch(
       ...(modelSelectionResolution.modelSelection
         ? { modelSelection: modelSelectionResolution.modelSelection }
         : {}),
+      ...reviewerPayload,
       ...(provider.workingMethodOverride
         ? { workingMethodOverride: provider.workingMethodOverride }
         : {}),
     });
 
-    return withAdditionalWarnings(launchResult, modelSelectionResolution.warnings);
+    return withAdditionalWarnings(launchResult, [
+      ...modelSelectionResolution.warnings,
+      ...reviewerModelSelectionResolution.warnings,
+    ]);
   }
 
   const workflowResult =
@@ -308,6 +319,7 @@ export async function dispatchRalphAutonomousUiLaunch(
     ...(modelSelectionResolution.modelSelection
       ? { modelSelection: modelSelectionResolution.modelSelection }
       : {}),
+    ...reviewerPayload,
     ...(provider.workingMethodOverride
       ? { workingMethodOverride: provider.workingMethodOverride }
       : {}),
@@ -318,6 +330,7 @@ export async function dispatchRalphAutonomousUiLaunch(
     ...launchResult,
     warnings: [
       ...modelSelectionResolution.warnings,
+      ...reviewerModelSelectionResolution.warnings,
       ...workflowWarnings,
       ...(launchResult.warnings ?? []),
     ],

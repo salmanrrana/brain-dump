@@ -42,6 +42,10 @@ export default defineConfig({
   plugins: [react()],
   test: {
     setupFiles: ["./src/mocks/vitest.setup.ts"],
+    // Wipes the previous run's .vitest-xdg sandbox so verification evidence
+    // artifacts don't accumulate forever (they exhaust inotify watches and
+    // kill `vite dev` with ENOSPC).
+    globalSetup: ["./scripts/vitest-global-setup.ts"],
     globals: true,
     pool: "threads",
     poolOptions: {

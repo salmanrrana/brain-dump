@@ -164,9 +164,25 @@ describe("KanbanBoard", () => {
     vi.clearAllMocks();
   });
 
+  it("keeps supplied tickets visible when the shared query cache reports a refresh error", () => {
+    vi.mocked(hooks.useTicketSummaries).mockReturnValue({
+      tickets: [],
+      hasData: true,
+      loading: false,
+      error: "Network unavailable",
+      refetch: vi.fn(),
+    });
+
+    render(<KanbanBoard tickets={mockTickets} />);
+
+    expect(screen.getByText("Ticket 1")).toBeInTheDocument();
+    expect(screen.queryByText(/Failed to load tickets/)).not.toBeInTheDocument();
+  });
+
   it("renders loading skeleton when loading", () => {
     vi.mocked(hooks.useTicketSummaries).mockReturnValue({
       tickets: [],
+      hasData: false,
       loading: true,
       error: null,
       refetch: vi.fn(),
@@ -182,13 +198,14 @@ describe("KanbanBoard", () => {
     // Check that we have a columns container
     expect(loadingRegion.children[0]).toBeInTheDocument();
     // Check that we have 6 columns (children of the columns container)
-    // Columns: backlog, ready, in_progress, ai_review, human_review, done
+    // Columns: backlog, ready, in_progress, ai_review, ai_verification, done
     expect(loadingRegion.children[0]?.children).toHaveLength(6);
   });
 
   it("renders error message when fetch fails", () => {
     vi.mocked(hooks.useTicketSummaries).mockReturnValue({
       tickets: [],
+      hasData: false,
       loading: false,
       error: "Failed to fetch",
       refetch: vi.fn(),
@@ -202,6 +219,7 @@ describe("KanbanBoard", () => {
   it("renders columns and distributes tickets correctly", () => {
     vi.mocked(hooks.useTicketSummaries).mockReturnValue({
       tickets: mockTickets,
+      hasData: true,
       loading: false,
       error: null,
       refetch: vi.fn(),
@@ -229,6 +247,7 @@ describe("KanbanBoard", () => {
   it("moves ticket to a new column on drag-and-drop and shows success toast", async () => {
     vi.mocked(hooks.useTicketSummaries).mockReturnValue({
       tickets: mockTickets,
+      hasData: true,
       loading: false,
       error: null,
       refetch: vi.fn(),
@@ -267,6 +286,7 @@ describe("KanbanBoard", () => {
   it("moves ticket to an empty column on drag-and-drop", async () => {
     vi.mocked(hooks.useTicketSummaries).mockReturnValue({
       tickets: mockTickets, // no "ready" tickets — that column is empty
+      hasData: true,
       loading: false,
       error: null,
       refetch: vi.fn(),
@@ -304,6 +324,7 @@ describe("KanbanBoard", () => {
   it("does not call status mutation when ticket is dropped in its own column", async () => {
     vi.mocked(hooks.useTicketSummaries).mockReturnValue({
       tickets: mockTickets,
+      hasData: true,
       loading: false,
       error: null,
       refetch: vi.fn(),
@@ -332,6 +353,7 @@ describe("KanbanBoard", () => {
 
     vi.mocked(hooks.useTicketSummaries).mockReturnValue({
       tickets: mockTickets,
+      hasData: true,
       loading: false,
       error: null,
       refetch: vi.fn(),
@@ -354,6 +376,7 @@ describe("KanbanBoard", () => {
   it("ignores drag when dropped on nothing", async () => {
     vi.mocked(hooks.useTicketSummaries).mockReturnValue({
       tickets: mockTickets,
+      hasData: true,
       loading: false,
       error: null,
       refetch: vi.fn(),

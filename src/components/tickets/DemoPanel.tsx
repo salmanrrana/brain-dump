@@ -1,28 +1,45 @@
-import React, { useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
-  PlayCircle,
-  ThumbsUp,
-  ThumbsDown,
-  Loader2,
+  AlertTriangle,
   CheckCircle2,
-  XCircle,
-  MinusCircle,
+  ChevronDown,
   Circle,
+  FileJson,
+  ImageIcon,
+  Loader2,
+  MinusCircle,
+  PlayCircle,
+  ShieldAlert,
+  ShieldCheck,
+  X,
+  XCircle,
 } from "lucide-react";
-import { DemoStep, type DemoStepStatus } from "./DemoStep";
-import { useDemoScript, useUpdateDemoStep, useSubmitDemoFeedback } from "../../lib/hooks";
-import { useToast } from "../Toast";
+import {
+  useDemoScript,
+  useTicketAttachments,
+  useVerificationJobStatus,
+  useVerificationRuns,
+  type Attachment,
+  type VerificationJob,
+  type VerificationRunSummary,
+  type VerificationStepVerdict,
+} from "../../lib/hooks";
 import type { DemoStep as DemoStepSchema } from "../../lib/schema";
+import type { DemoStepStatus } from "./DemoStep";
 
 export interface DemoPanelProps {
   ticketId: string;
-  /** Called when demo is completed (approved or rejected) */
+  ticketStatus?: string | undefined;
+  isBlocked?: boolean | null | undefined;
+  blockedReason?: string | null | undefined;
+  pollingInterval?: number | undefined;
+  /** Kept for existing callers; verification runner completion replaces manual approval. */
   onComplete?: (passed: boolean) => void;
 }
 
 const READ_ONLY_STATUS_CONFIG: Record<
   DemoStepStatus,
-  { label: string; className: string; icon: React.ReactNode }
+  { label: string; className: string; icon: ReactNode }
 > = {
   pending: {
     label: "Pending",
@@ -46,8 +63,367 @@ const READ_ONLY_STATUS_CONFIG: Record<
   },
 };
 
-function ReadOnlyDemoStep({ step }: { step: DemoStepSchema }) {
-  const status = (step.status as DemoStepStatus) || "pending";
+const RUN_STATUS_CONFIG: Record<
+  VerificationRunSummary["status"],
+  { label: string; className: string; icon: ReactNode }
+> = {
+  passed: {
+    label: "Passed",
+    className: "bg-[var(--success-muted)] text-[var(--success)]",
+    icon: <CheckCircle2 size={14} />,
+  },
+  failed: {
+    label: "Failed",
+    className: "bg-[var(--accent-danger)]/10 text-[var(--accent-danger)]",
+    icon: <XCircle size={14} />,
+  },
+  uncertified: {
+    label: "Uncertified",
+    className: "bg-[var(--warning-muted)] text-[var(--warning)]",
+    icon: <ShieldAlert size={14} />,
+  },
+  infra_error: {
+    label: "Infra Error",
+    className: "bg-[var(--accent-danger)]/10 text-[var(--accent-danger)]",
+    icon: <AlertTriangle size={14} />,
+  },
+};
+
+const INTEGRITY_CONFIG: Record<
+  VerificationRunSummary["integrityStatus"],
+  { label: string; className: string; title: string; icon: ReactNode }
+> = {
+  valid: {
+    label: "Valid",
+    className: "bg-[var(--success-muted)] text-[var(--success)]",
+    title: "Manifest hash and immutable run metadata match the stored run.",
+    icon: <ShieldCheck size={14} />,
+  },
+  tampered: {
+    label: "Tampered",
+    className: "bg-[var(--accent-danger)]/10 text-[var(--accent-danger)]",
+    title: "Manifest contents no longer match the stored run metadata or hash.",
+    icon: <ShieldAlert size={14} />,
+  },
+  "uncertified-tripwire": {
+    label: "Uncertified Tripwire",
+    className: "bg-[var(--warning-muted)] text-[var(--warning)]",
+    title: "The runner refused certification because the diff touched verification code.",
+    icon: <ShieldAlert size={14} />,
+  },
+};
+
+function formatDuration(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  return `${(ms / 1000).toFixed(1)}s`;
+}
+
+function formatDateTime(value: string): string {
+  return new Date(value).toLocaleString();
+}
+
+function formatJobAttempt(job: VerificationJob): string {
+  return job.attemptCount === 0 ? "No attempts yet" : `Attempt ${job.attemptCount}`;
+}
+
+function getVerificationJobTitle(job: VerificationJob): string {
+  if (job.status === "queued") return "Verification queued";
+  if (job.status === "running") return "Verification running";
+  if (job.status === "failed") return "Verification retry scheduled";
+  if (job.status === "blocked" || job.status === "dead") return "Verification blocked";
+  return "Verification complete";
+}
+
+function getVerificationJobClassName(job: VerificationJob): string {
+  if (job.status === "blocked" || job.status === "dead") {
+    return "border-[var(--accent-danger)]/40 bg-[var(--accent-danger)]/10";
+  }
+  if (job.status === "failed") return "border-[var(--warning)]/30 bg-[var(--warning-muted)]";
+  return "border-[var(--info)]/30 bg-[var(--bg-secondary)]";
+}
+
+function getPanelSubheading(
+  ticketStatus: string | undefined,
+  latestRun: VerificationRunSummary | null,
+  isBlocked: boolean
+): string {
+  if (isBlocked && ticketStatus !== "ai_verification") {
+    return "Automatic verification stopped. Resolve the blocker below, then requeue or run the normal review handoff again.";
+  }
+  if (latestRun) return "Runner results, evidence, and integrity checks are recorded below.";
+  if (ticketStatus === "ai_verification") {
+    return "The automatic verification runner owns execution, evidence, and completion.";
+  }
+  return "These steps are waiting for the verification runner. Manual approval has been retired.";
+}
+
+function filenameFromPath(path: string): string {
+  return path.split(/[\\/]/).filter(Boolean).pop() ?? path;
+}
+
+function isLikelyImage(path: string): boolean {
+  return /\.(png|jpe?g|gif|webp|svg)$/i.test(path);
+}
+
+function buildAttachmentLookup(attachments: Attachment[]): Map<string, Attachment> {
+  const lookup = new Map<string, Attachment>();
+  for (const attachment of attachments) {
+    lookup.set(`filename:${attachment.filename}`, attachment);
+
+    const hash = attachment.description?.match(/evidence \(([^)]+)\)/)?.[1];
+    if (hash) lookup.set(`hash:${hash}`, attachment);
+  }
+  return lookup;
+}
+
+function findAttachmentForEvidence(
+  attachmentLookup: Map<string, Attachment>,
+  evidenceFile: { path: string; hash: string }
+): Attachment | null {
+  return (
+    attachmentLookup.get(`hash:${evidenceFile.hash}`) ??
+    attachmentLookup.get(`filename:${filenameFromPath(evidenceFile.path)}`) ??
+    null
+  );
+}
+
+function StatusPill({ config }: { config: { label: string; className: string; icon: ReactNode } }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${config.className}`}
+    >
+      {config.icon}
+      {config.label}
+    </span>
+  );
+}
+
+function IntegrityBadge({ run }: { run: VerificationRunSummary }) {
+  const config = INTEGRITY_CONFIG[run.integrityStatus];
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${config.className}`}
+      title={config.title}
+    >
+      {config.icon}
+      {config.label}
+    </span>
+  );
+}
+
+function Lightbox({ attachment, onClose }: { attachment: Attachment; onClose: () => void }) {
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const previouslyFocused =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    closeButtonRef.current?.focus();
+
+    function handleKeyDown(event: KeyboardEvent): void {
+      if (event.key === "Escape") {
+        // Capture-phase stopPropagation keeps parent modals (e.g. TicketModal's
+        // document-level Escape handler) from also closing while the lightbox is open.
+        event.preventDefault();
+        event.stopPropagation();
+        onClose();
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+      event.stopPropagation();
+
+      const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
+        'button, [href], [tabindex]:not([tabindex="-1"])'
+      );
+      if (!focusable || focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown, true);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown, true);
+      previouslyFocused?.focus();
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Evidence image: ${attachment.filename}`}
+        className="max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-xl border border-[var(--border-primary)] bg-[var(--bg-primary)] shadow-2xl"
+      >
+        <div className="flex items-center justify-between gap-3 border-b border-[var(--border-primary)] p-3">
+          <div className="min-w-0">
+            <h4 className="truncate text-sm font-semibold text-[var(--text-primary)]">
+              {attachment.filename}
+            </h4>
+            <p className="text-xs text-[var(--text-tertiary)]">Verification screenshot evidence</p>
+          </div>
+          <button
+            ref={closeButtonRef}
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-2 text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
+            aria-label="Close evidence image"
+          >
+            <X size={18} />
+          </button>
+        </div>
+        <div className="max-h-[calc(90vh-64px)] overflow-auto bg-[var(--bg-secondary)] p-4">
+          <img
+            src={attachment.url}
+            alt={`Verification evidence ${attachment.filename}`}
+            className="mx-auto h-auto max-w-full rounded-lg"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ApiEvidence({ verdict }: { verdict: VerificationStepVerdict }) {
+  if (!verdict.request && !verdict.response) return null;
+
+  return (
+    <details className="rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)] p-3">
+      <summary className="cursor-pointer text-sm font-medium text-[var(--text-primary)]">
+        API request and response
+      </summary>
+      {/* min-w-0 on grid items: their default min-width:auto lets a long
+          unbroken response body widen the whole panel instead of wrapping. */}
+      <div className="mt-3 grid gap-3 text-xs text-[var(--text-secondary)]">
+        {verdict.request && (
+          <div className="min-w-0">
+            <p className="mb-1 font-semibold text-[var(--text-primary)]">Request</p>
+            <div className="break-all rounded-md bg-[var(--bg-tertiary)] p-2 font-mono">
+              <span className="font-semibold text-[var(--info)]">{verdict.request.method}</span>{" "}
+              {verdict.request.url}
+            </div>
+            {verdict.request.body !== undefined && (
+              <pre className="mt-2 max-h-48 overflow-y-auto whitespace-pre-wrap break-all rounded-md bg-[var(--bg-tertiary)] p-2 font-mono text-xs">
+                {JSON.stringify(verdict.request.body, null, 2)}
+              </pre>
+            )}
+          </div>
+        )}
+        {verdict.response && (
+          <div className="min-w-0">
+            <p className="mb-1 font-semibold text-[var(--text-primary)]">Response</p>
+            <div className="mb-2 inline-flex rounded-full bg-[var(--bg-tertiary)] px-2 py-1 font-mono">
+              Status {verdict.response.status}
+            </div>
+            <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap break-all rounded-md bg-[var(--bg-tertiary)] p-2 font-mono text-xs">
+              {verdict.response.body}
+            </pre>
+          </div>
+        )}
+      </div>
+    </details>
+  );
+}
+
+function EvidenceList({
+  verdict,
+  attachmentLookup,
+  onOpenImage,
+}: {
+  verdict: VerificationStepVerdict;
+  attachmentLookup: Map<string, Attachment>;
+  onOpenImage: (attachment: Attachment) => void;
+}) {
+  if (verdict.evidenceFiles.length === 0) return null;
+
+  return (
+    <div className="grid gap-2 sm:grid-cols-2">
+      {verdict.evidenceFiles.map((file) => {
+        const attachment = findAttachmentForEvidence(attachmentLookup, file);
+        const label = filenameFromPath(file.path);
+        const showImage = attachment?.isImage || isLikelyImage(file.path);
+
+        if (attachment && showImage) {
+          return (
+            <button
+              key={`${file.path}-${file.hash}`}
+              type="button"
+              onClick={() => onOpenImage(attachment)}
+              className="group overflow-hidden rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)] text-left transition-colors hover:border-[var(--accent-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
+              aria-label={`Open screenshot evidence ${label}`}
+            >
+              <img
+                src={attachment.url}
+                alt={`Screenshot evidence ${label}`}
+                loading="lazy"
+                className="aspect-video w-full bg-[var(--bg-tertiary)] object-cover"
+              />
+              <span className="flex items-center gap-2 p-2 text-xs text-[var(--text-secondary)]">
+                <ImageIcon size={14} aria-hidden="true" />
+                <span className="truncate">{label}</span>
+              </span>
+            </button>
+          );
+        }
+
+        if (attachment) {
+          return (
+            <a
+              key={`${file.path}-${file.hash}`}
+              href={attachment.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)] p-2 text-xs text-[var(--text-secondary)] hover:border-[var(--accent-primary)] hover:text-[var(--text-primary)]"
+            >
+              <FileJson size={14} aria-hidden="true" />
+              <span className="min-w-0 flex-1 truncate">{label}</span>
+            </a>
+          );
+        }
+
+        return (
+          <span
+            key={`${file.path}-${file.hash}`}
+            title="Evidence file not uploaded as an attachment"
+            className="flex items-center gap-2 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)] p-2 text-xs text-[var(--text-tertiary)]"
+          >
+            <FileJson size={14} aria-hidden="true" />
+            <span className="min-w-0 flex-1 truncate">{label}</span>
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+function ReadOnlyDemoStep({
+  step,
+  verdict,
+  attachmentLookup,
+  onOpenImage,
+}: {
+  step: DemoStepSchema;
+  verdict?: VerificationStepVerdict | undefined;
+  attachmentLookup: Map<string, Attachment>;
+  onOpenImage: (attachment: Attachment) => void;
+}) {
+  const status = (verdict?.status ?? step.status ?? "pending") as DemoStepStatus;
   const statusConfig = READ_ONLY_STATUS_CONFIG[status];
 
   return (
@@ -62,12 +438,7 @@ function ReadOnlyDemoStep({ step }: { step: DemoStepSchema }) {
           </div>
           <p className="text-sm text-[var(--text-secondary)]">{step.description}</p>
         </div>
-        <span
-          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${statusConfig.className}`}
-        >
-          {statusConfig.icon}
-          {statusConfig.label}
-        </span>
+        <StatusPill config={statusConfig} />
       </div>
 
       <div className="mt-4 space-y-3 border-t border-[var(--border-primary)] pt-4">
@@ -75,234 +446,213 @@ function ReadOnlyDemoStep({ step }: { step: DemoStepSchema }) {
           <p className="mb-1 text-sm font-medium text-[var(--text-primary)]">Expected Outcome:</p>
           <p className="text-sm text-[var(--text-secondary)]">{step.expectedOutcome}</p>
         </div>
-        {step.notes && (
+        {(verdict?.message || step.notes) && (
           <div>
-            <p className="mb-1 text-sm font-medium text-[var(--text-primary)]">Reviewer Notes:</p>
-            <p className="text-sm text-[var(--text-secondary)]">{step.notes}</p>
+            <p className="mb-1 text-sm font-medium text-[var(--text-primary)]">Runner Notes:</p>
+            <p className="text-sm text-[var(--text-secondary)]">{verdict?.message || step.notes}</p>
           </div>
+        )}
+        {verdict && (
+          <>
+            <EvidenceList
+              verdict={verdict}
+              attachmentLookup={attachmentLookup}
+              onOpenImage={onOpenImage}
+            />
+            <ApiEvidence verdict={verdict} />
+          </>
         )}
       </div>
     </div>
   );
 }
 
-/**
- * DemoPanel - Human Review UI for approving or rejecting a demo.
- *
- * Displays:
- * - List of demo steps to verify
- * - Progress indicator
- * - Overall feedback textarea
- * - Approve & Complete / Request Changes buttons
- *
- * The panel automatically fetches the demo script for the ticket.
- * Step status changes use TanStack Query optimistic updates for instant UI feedback.
- * Notes are stored locally until blur, then persisted to server.
- */
-export const DemoPanel: React.FC<DemoPanelProps> = ({ ticketId, onComplete }) => {
-  const { showToast } = useToast();
+function VerificationRunHistory({ runs }: { runs: VerificationRunSummary[] }) {
+  if (runs.length === 0) return null;
 
-  // Fetch demo script - this is the single source of truth for step statuses
-  const { demoScript, loading, error, refetch } = useDemoScript(ticketId);
-
-  // Mutations for updating steps and submitting feedback
-  // useUpdateDemoStep uses TanStack Query optimistic updates internally
-  const updateStepMutation = useUpdateDemoStep();
-  const submitFeedbackMutation = useSubmitDemoFeedback();
-
-  // Local state - only for things not persisted per-keystroke
-  const [overallFeedback, setOverallFeedback] = useState("");
-  const [expandedStep, setExpandedStep] = useState<number | null>(null);
-  // Pending notes are stored locally until blur to avoid excessive server calls
-  const [pendingNotes, setPendingNotes] = useState<Record<number, string>>({});
-
-  // Calculate progress directly from cache (optimistic updates keep it current)
-  const totalSteps = demoScript?.steps.length ?? 0;
-  const markedCount =
-    demoScript?.steps.filter((s) => s.status && s.status !== "pending").length ?? 0;
-  const allStepsMarked = totalSteps > 0 && markedCount === totalSteps;
-  const hasFailedSteps = demoScript?.steps.some((s) => s.status === "failed") ?? false;
-
-  // Handle step status change - mutation handles optimistic update
-  const handleStatusChange = useCallback(
-    (stepOrder: number, newStatus: DemoStepStatus) => {
-      if (!demoScript) return;
-
-      // Get current notes (pending or server)
-      const currentNotes =
-        pendingNotes[stepOrder] ?? demoScript.steps.find((s) => s.order === stepOrder)?.notes;
-
-      // Mutation handles optimistic update via onMutate
-      updateStepMutation.mutate(
-        {
-          ticketId,
-          demoScriptId: demoScript.id,
-          stepOrder,
-          status: newStatus,
-          ...(currentNotes ? { notes: currentNotes } : {}),
-        },
-        {
-          onError: (err) => {
-            // Optimistic update already rolled back by mutation's onError
-            showToast("error", `Failed to update step: ${err.message}`);
-          },
-        }
-      );
-    },
-    [demoScript, ticketId, pendingNotes, updateStepMutation, showToast]
+  return (
+    <div className="rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-3">
+      <h4 className="mb-3 text-sm font-semibold text-[var(--text-primary)]">
+        Verification run history
+      </h4>
+      <div className="space-y-2">
+        {runs.map((run, index) => {
+          const statusConfig = RUN_STATUS_CONFIG[run.status];
+          return (
+            <details
+              key={run.id}
+              open={index === 0}
+              className="rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)] p-3"
+            >
+              <summary className="flex cursor-pointer list-none flex-wrap items-center gap-2 text-sm text-[var(--text-secondary)] [&::-webkit-details-marker]:hidden">
+                <ChevronDown size={14} aria-hidden="true" />
+                <span className="font-medium text-[var(--text-primary)]">Run {run.round}</span>
+                <StatusPill config={statusConfig} />
+                <IntegrityBadge run={run} />
+                {run.gitSha && <span className="font-mono text-xs">{run.gitSha.slice(0, 8)}</span>}
+              </summary>
+              <div className="mt-3 grid gap-1 border-t border-[var(--border-primary)] pt-3 text-xs text-[var(--text-tertiary)] sm:grid-cols-2">
+                <span>Started: {new Date(run.startedAt).toLocaleString()}</span>
+                <span>Duration: {formatDuration(run.durationMs)}</span>
+                <span>Finished: {new Date(run.finishedAt).toLocaleString()}</span>
+                <span>Evidence files: {run.manifest?.evidenceFiles.length ?? 0}</span>
+              </div>
+            </details>
+          );
+        })}
+      </div>
+    </div>
   );
+}
 
-  // Handle step notes change - store locally until blur
-  const handleNotesChange = useCallback((stepOrder: number, notes: string) => {
-    setPendingNotes((prev) => ({ ...prev, [stepOrder]: notes }));
-  }, []);
-
-  // Save notes when user finishes editing (blur)
-  const handleNotesSave = useCallback(
-    (stepOrder: number) => {
-      if (!demoScript) return;
-
-      const notes = pendingNotes[stepOrder];
-      if (notes === undefined) return;
-
-      const step = demoScript.steps.find((s) => s.order === stepOrder);
-      const currentStatus = (step?.status as DemoStepStatus) || "pending";
-
-      updateStepMutation.mutate(
-        {
-          ticketId,
-          demoScriptId: demoScript.id,
-          stepOrder,
-          status: currentStatus,
-          notes,
-        },
-        {
-          onSuccess: () => {
-            // Clear pending notes after successful save
-            setPendingNotes((prev) => {
-              const { [stepOrder]: _, ...rest } = prev;
-              return rest;
-            });
-          },
-          onError: (err) => {
-            showToast("error", `Failed to save notes: ${err.message}`);
-          },
-        }
-      );
-    },
-    [demoScript, ticketId, pendingNotes, updateStepMutation, showToast]
-  );
-
-  // Handle toggle expand - save notes when collapsing
-  const handleToggleExpand = useCallback(
-    (stepOrder: number) => {
-      if (expandedStep === stepOrder) {
-        handleNotesSave(stepOrder);
-      }
-      setExpandedStep((prev) => (prev === stepOrder ? null : stepOrder));
-    },
-    [expandedStep, handleNotesSave]
-  );
-
-  // Get step results for submission
-  const getStepResults = useCallback(() => {
-    if (!demoScript) return [];
-    return demoScript.steps.map((step) => ({
-      order: step.order,
-      status: (step.status as DemoStepStatus) || "pending",
-      ...((pendingNotes[step.order] ?? step.notes)
-        ? { notes: pendingNotes[step.order] ?? step.notes }
-        : {}),
-    }));
-  }, [demoScript, pendingNotes]);
-
-  // Handle approve
-  const handleApprove = useCallback(() => {
-    if (!allStepsMarked) {
-      showToast("error", "Please verify all steps before approving");
-      return;
-    }
-
-    submitFeedbackMutation.mutate(
-      {
-        ticketId,
-        passed: true,
-        feedback: overallFeedback || "Approved - all steps verified.",
-        stepResults: getStepResults(),
-      },
-      {
-        onSuccess: () => {
-          showToast("success", "Demo approved! Ticket marked as done.");
-          onComplete?.(true);
-          void refetch();
-        },
-        onError: (err) => {
-          showToast("error", `Failed to approve demo: ${err.message}`);
-        },
-      }
-    );
-  }, [
-    allStepsMarked,
-    ticketId,
-    overallFeedback,
-    getStepResults,
-    submitFeedbackMutation,
-    showToast,
-    onComplete,
-    refetch,
-  ]);
-
-  // Handle reject
-  const handleReject = useCallback(() => {
-    if (!hasFailedSteps && !overallFeedback.trim()) {
-      showToast("error", "Please mark at least one step as failed or provide feedback");
-      return;
-    }
-
-    submitFeedbackMutation.mutate(
-      {
-        ticketId,
-        passed: false,
-        feedback: overallFeedback || "Changes requested - see failed steps.",
-        stepResults: getStepResults(),
-      },
-      {
-        onSuccess: () => {
-          showToast("info", "Changes requested. Ticket moved back to ready.");
-          onComplete?.(false);
-          void refetch();
-        },
-        onError: (err) => {
-          showToast("error", `Failed to submit feedback: ${err.message}`);
-        },
-      }
-    );
-  }, [
-    hasFailedSteps,
-    overallFeedback,
-    ticketId,
-    getStepResults,
-    submitFeedbackMutation,
-    showToast,
-    onComplete,
-    refetch,
-  ]);
-
-  // Loading state
+function VerificationJobStatusPanel({
+  job,
+  loading,
+  error,
+}: {
+  job: VerificationJob | null;
+  loading: boolean;
+  error: string | null;
+}) {
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-8 text-[var(--text-secondary)]">
-        <Loader2 className="animate-spin mr-2" size={20} />
-        <span>Loading demo script...</span>
+      <div className="flex items-center gap-2 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-3 text-sm text-[var(--text-secondary)]">
+        <Loader2 className="animate-spin" size={16} aria-hidden="true" />
+        Loading verification queue status...
       </div>
     );
   }
 
-  // Error state
   if (error) {
     return (
-      <div className="bg-[var(--accent-danger)]/10 border border-[var(--accent-danger)]/30 rounded-lg p-4 text-[var(--accent-danger)]">
-        <p>Failed to load demo script: {error}</p>
+      <div className="rounded-lg border border-[var(--accent-danger)]/30 bg-[var(--accent-danger)]/10 p-4 text-sm text-[var(--accent-danger)]">
+        <p className="font-medium">Verification queue status unavailable</p>
+        <p className="mt-1 text-[var(--text-secondary)]">{error}</p>
+      </div>
+    );
+  }
+
+  if (!job) {
+    return (
+      <div className="rounded-lg border border-[var(--warning)]/30 bg-[var(--warning-muted)] p-4 text-sm text-[var(--text-secondary)]">
+        <p className="font-medium text-[var(--text-primary)]">No verification job found</p>
+        <p className="mt-1">
+          This ticket is in AI verification, but no automatic runner job is queued yet. Brain Dump
+          recreates missing jobs during startup recovery; if this persists, check the worker health.
+        </p>
+      </div>
+    );
+  }
+
+  const blocked = job.status === "blocked" || job.status === "dead";
+  const running = job.status === "running";
+  const succeeded = job.status === "succeeded";
+  const title = getVerificationJobTitle(job);
+  const borderClass = getVerificationJobClassName(job);
+
+  return (
+    <div className={`rounded-lg border p-4 text-sm text-[var(--text-secondary)] ${borderClass}`}>
+      <div className="mb-2 flex flex-wrap items-center gap-2 font-semibold text-[var(--text-primary)]">
+        {running ? <Loader2 className="animate-spin" size={16} aria-hidden="true" /> : null}
+        {blocked ? <AlertTriangle size={16} aria-hidden="true" /> : null}
+        <span>{title}</span>
+      </div>
+      <dl className="grid gap-2 sm:grid-cols-2">
+        <div>
+          <dt className="text-xs uppercase tracking-wide text-[var(--text-tertiary)]">Status</dt>
+          <dd className="capitalize text-[var(--text-primary)]">{job.status.replace("_", " ")}</dd>
+        </div>
+        <div>
+          <dt className="text-xs uppercase tracking-wide text-[var(--text-tertiary)]">Attempt</dt>
+          <dd className="text-[var(--text-primary)]">{formatJobAttempt(job)}</dd>
+        </div>
+        <div>
+          <dt className="text-xs uppercase tracking-wide text-[var(--text-tertiary)]">Next run</dt>
+          <dd className="text-[var(--text-primary)]">{formatDateTime(job.nextRunAt)}</dd>
+        </div>
+        {job.leaseExpiresAt && (
+          <div>
+            <dt className="text-xs uppercase tracking-wide text-[var(--text-tertiary)]">
+              Lease expires
+            </dt>
+            <dd className="text-[var(--text-primary)]">{formatDateTime(job.leaseExpiresAt)}</dd>
+          </div>
+        )}
+      </dl>
+      {job.lastError && (
+        <p className="mt-3 rounded-md bg-[var(--bg-secondary)] p-2 text-[var(--text-secondary)]">
+          {job.lastError}
+        </p>
+      )}
+      {succeeded && (
+        <p className="mt-3 text-[var(--text-secondary)]">
+          The latest queued verification job completed; run evidence is shown below when available.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Read-only verification evidence panel.
+ *
+ * Manual approval/rejection was retired with the AI verification status. The
+ * verification runner executes these steps, records evidence, and owns the
+ * ai_verification -> done / in_progress transition.
+ */
+export function DemoPanel({
+  ticketId,
+  ticketStatus,
+  isBlocked = false,
+  blockedReason,
+  pollingInterval = 0,
+}: DemoPanelProps) {
+  const ticketIsBlocked = isBlocked === true;
+  const shouldPoll = ticketStatus === "ai_verification" && pollingInterval > 0;
+  const { demoScript, loading, error, refetch } = useDemoScript(ticketId, {
+    pollingInterval: shouldPoll ? pollingInterval : 0,
+  });
+  const {
+    verificationRuns,
+    loading: runsLoading,
+    error: runsError,
+  } = useVerificationRuns(ticketId, {
+    pollingInterval: shouldPoll ? pollingInterval : 0,
+  });
+  const {
+    verificationJob,
+    loading: jobLoading,
+    error: jobError,
+  } = useVerificationJobStatus(ticketId, {
+    enabled: ticketStatus === "ai_verification",
+    pollingInterval: shouldPoll ? pollingInterval : 0,
+  });
+  const { attachments, error: attachmentsError } = useTicketAttachments(ticketId, {
+    enabled: verificationRuns.length > 0,
+  });
+  const [lightboxAttachment, setLightboxAttachment] = useState<Attachment | null>(null);
+
+  const attachmentLookup = useMemo(() => buildAttachmentLookup(attachments), [attachments]);
+  const latestRun = verificationRuns[0] ?? null;
+  const verdictsByOrder = useMemo(() => {
+    const entries =
+      latestRun?.manifest?.stepVerdicts.map((verdict) => [verdict.order, verdict] as const) ?? [];
+    return new Map(entries);
+  }, [latestRun]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8 text-[var(--text-secondary)]">
+        <Loader2 className="mr-2 animate-spin" size={20} />
+        <span>Loading verification script...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-lg border border-[var(--accent-danger)]/30 bg-[var(--accent-danger)]/10 p-4 text-[var(--accent-danger)]">
+        <p>Failed to load verification script: {error}</p>
         <button
           onClick={() => void refetch()}
           className="mt-2 text-sm underline hover:no-underline"
@@ -313,167 +663,106 @@ export const DemoPanel: React.FC<DemoPanelProps> = ({ ticketId, onComplete }) =>
     );
   }
 
-  // No demo script
   if (!demoScript) {
     return (
-      <div className="bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg p-6 text-center">
+      <div className="rounded-lg border border-[var(--border-primary)] bg-[var(--bg-tertiary)] p-6 text-center">
         <p className="text-[var(--text-secondary)]">
-          No demo script generated for this ticket yet.
+          No verification script generated for this ticket yet.
         </p>
-        <p className="text-sm text-[var(--text-tertiary)] mt-2">
-          A demo script will be available after the AI completes its review.
+        <p className="mt-2 text-sm text-[var(--text-tertiary)]">
+          A verification script will be available after the AI completes its review.
         </p>
       </div>
     );
   }
 
-  // Already completed - keep the latest demo visible as a read-only verification record.
-  if (demoScript.completedAt) {
-    return (
-      <div
-        className={`space-y-4 border rounded-lg p-6 ${
-          demoScript.passed
-            ? "bg-[var(--success-muted)] border-[var(--success)]/30"
-            : "bg-[var(--accent-danger)]/10 border-[var(--accent-danger)]/30"
-        }`}
-      >
-        <div className="flex items-center gap-3 mb-4">
-          {demoScript.passed ? (
-            <CheckCircle2 className="text-[var(--success)]" size={24} />
-          ) : (
-            <XCircle className="text-[var(--accent-danger)]" size={24} />
-          )}
-          <div>
-            <h3 className="font-semibold text-[var(--text-primary)]">
-              Read-Only Demo Review: {demoScript.passed ? "Approved" : "Rejected"}
-            </h3>
-            <p className="text-sm text-[var(--text-secondary)]">
-              Completed on {new Date(demoScript.completedAt).toLocaleString()}. This record cannot
-              be edited.
-            </p>
-          </div>
-        </div>
-        {demoScript.feedback && (
-          <div className="bg-[var(--bg-secondary)] rounded-lg p-3">
-            <p className="text-sm font-medium text-[var(--text-primary)] mb-1">Feedback:</p>
-            <p className="text-sm text-[var(--text-secondary)]">{demoScript.feedback}</p>
-          </div>
-        )}
-        <div className="space-y-3">
-          <h4 className="text-sm font-semibold text-[var(--text-primary)]">
-            Verification Checklist Snapshot
-          </h4>
-          {demoScript.steps.map((step) => (
-            <ReadOnlyDemoStep key={step.order} step={step} />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  const isSubmitting = submitFeedbackMutation.isPending;
+  const heading =
+    ticketStatus === "done"
+      ? "Verification Evidence"
+      : ticketIsBlocked && ticketStatus !== "ai_verification"
+        ? "Verification Needs Attention"
+        : "AI Verification Handoff";
+  const subheading = getPanelSubheading(ticketStatus, latestRun, ticketIsBlocked);
 
   return (
-    <div className="space-y-4 bg-[var(--info-muted)] border border-[var(--info)]/30 rounded-lg p-6">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-4">
-        <PlayCircle className="text-[var(--info)]" size={24} />
+    <div className="space-y-4 rounded-lg border border-[var(--info)]/30 bg-[var(--info-muted)] p-6">
+      <div className="flex items-start gap-3">
+        <PlayCircle className="mt-0.5 text-[var(--info)]" size={24} aria-hidden="true" />
         <div>
-          <h3 className="font-semibold text-[var(--text-primary)]">Demo Verification</h3>
-          <p className="text-sm text-[var(--text-secondary)]">
-            Run through these steps to verify the feature works correctly.
-          </p>
+          <h3 className="font-semibold text-[var(--text-primary)]">{heading}</h3>
+          <p className="text-sm text-[var(--text-secondary)]">{subheading}</p>
         </div>
       </div>
 
-      {/* Steps */}
+      {ticketIsBlocked && (
+        <div className="rounded-lg border border-[var(--accent-danger)]/40 bg-[var(--accent-danger)]/10 p-4 text-[var(--accent-danger)]">
+          <div className="mb-1 flex items-center gap-2 font-semibold">
+            <AlertTriangle size={16} aria-hidden="true" />
+            <span>Verification needs attention</span>
+          </div>
+          <p className="text-sm text-[var(--text-secondary)]">
+            {blockedReason ??
+              "The ticket is blocked in verification and requires manual investigation."}
+          </p>
+        </div>
+      )}
+
+      {runsError && (
+        <div className="rounded-lg border border-[var(--warning)]/30 bg-[var(--warning-muted)] p-3 text-sm text-[var(--warning)]">
+          Verification run history could not be loaded: {runsError}
+        </div>
+      )}
+
+      {runsLoading && (
+        <div className="flex items-center gap-2 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-3 text-sm text-[var(--text-secondary)]">
+          <Loader2 className="animate-spin" size={16} aria-hidden="true" />
+          Loading verification run history...
+        </div>
+      )}
+
+      {attachmentsError && (
+        <div className="rounded-lg border border-[var(--warning)]/30 bg-[var(--warning-muted)] p-3 text-sm text-[var(--warning)]">
+          Verification evidence attachments could not be loaded: {attachmentsError}
+        </div>
+      )}
+
+      {!latestRun && ticketStatus === "ai_verification" && (
+        <VerificationJobStatusPanel job={verificationJob} loading={jobLoading} error={jobError} />
+      )}
+
+      <VerificationRunHistory runs={verificationRuns} />
+
+      {demoScript.completedAt && (
+        <div className="rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-3 text-sm text-[var(--text-secondary)]">
+          Last recorded result: {demoScript.passed ? "passed" : "failed"} on{" "}
+          {new Date(demoScript.completedAt).toLocaleString()}.
+        </div>
+      )}
+
+      {demoScript.feedback && (
+        <div className="rounded-lg bg-[var(--bg-secondary)] p-3">
+          <p className="mb-1 text-sm font-medium text-[var(--text-primary)]">Feedback:</p>
+          <p className="text-sm text-[var(--text-secondary)]">{demoScript.feedback}</p>
+        </div>
+      )}
+
       <div className="space-y-3">
         {demoScript.steps.map((step) => (
-          <DemoStep
+          <ReadOnlyDemoStep
             key={step.order}
             step={step}
-            status={(step.status as DemoStepStatus) || "pending"}
-            notes={pendingNotes[step.order] ?? step.notes ?? ""}
-            onStatusChange={(status) => handleStatusChange(step.order, status)}
-            onNotesChange={(notes) => handleNotesChange(step.order, notes)}
-            isExpanded={expandedStep === step.order}
-            onToggleExpand={() => handleToggleExpand(step.order)}
+            verdict={verdictsByOrder.get(step.order)}
+            attachmentLookup={attachmentLookup}
+            onOpenImage={setLightboxAttachment}
           />
         ))}
       </div>
 
-      {/* Progress Indicator */}
-      <div className="bg-[var(--bg-secondary)] rounded-lg p-3 text-sm">
-        <div className="flex items-center justify-between">
-          <span className="text-[var(--text-secondary)]">
-            Progress:{" "}
-            <span className="font-semibold text-[var(--text-primary)]">{markedCount}</span>/
-            <span className="font-semibold text-[var(--text-primary)]">{totalSteps}</span> steps
-            verified
-          </span>
-          <div className="w-32 bg-[var(--bg-tertiary)] rounded-full h-2">
-            <div
-              className="bg-[var(--info)] h-2 rounded-full transition-all"
-              style={{ width: `${totalSteps > 0 ? (markedCount / totalSteps) * 100 : 0}%` }}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Overall Feedback */}
-      <div className="space-y-2">
-        <label
-          htmlFor="overall-feedback"
-          className="block text-sm font-medium text-[var(--text-primary)]"
-        >
-          Overall Feedback (optional):
-        </label>
-        <textarea
-          id="overall-feedback"
-          value={overallFeedback}
-          onChange={(e) => setOverallFeedback(e.target.value)}
-          placeholder="Add any additional feedback, issues encountered, or suggestions..."
-          className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)] resize-none"
-          rows={3}
-        />
-      </div>
-
-      {/* Action Buttons */}
-      <div className="flex gap-3 pt-4 border-t border-[var(--info)]/30">
-        <button
-          type="button"
-          onClick={handleApprove}
-          disabled={!allStepsMarked || isSubmitting}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-            allStepsMarked && !isSubmitting
-              ? "bg-[var(--success)] text-white hover:opacity-90"
-              : "bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] cursor-not-allowed"
-          }`}
-        >
-          {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <ThumbsUp size={18} />}
-          Approve & Complete
-        </button>
-
-        <button
-          type="button"
-          onClick={handleReject}
-          disabled={(!hasFailedSteps && !overallFeedback.trim()) || isSubmitting}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-            (hasFailedSteps || overallFeedback.trim()) && !isSubmitting
-              ? "bg-[var(--warning)] text-white hover:opacity-90"
-              : "bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] cursor-not-allowed"
-          }`}
-        >
-          {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <ThumbsDown size={18} />}
-          Request Changes
-        </button>
-      </div>
-
-      {/* Help Text */}
-      <div className="text-xs text-[var(--text-tertiary)] space-y-1 pt-2">
-        <p>✓ Mark all steps before approving</p>
-        <p>✗ Mark at least one step as failed or add feedback before requesting changes</p>
-      </div>
+      {lightboxAttachment && (
+        <Lightbox attachment={lightboxAttachment} onClose={() => setLightboxAttachment(null)} />
+      )}
     </div>
   );
-};
+}
+
+export default DemoPanel;

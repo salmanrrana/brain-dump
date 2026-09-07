@@ -150,17 +150,16 @@ Copilot CLI calls:
   review tool, action: "check-complete", ticketId: "abc-123"
 ```
 
-### Phase 4: Demo & Approval
+### Phase 4: Demo & AI Verification
 
 ```
 Copilot CLI calls:
   review tool, action: "generate-demo", ticketId: "abc-123", steps: [...]
-  # Ticket moves to human_review
+  # Ticket moves to ai_verification
 
 You: Go to Brain Dump UI
-     Click "Start Demo Review"
-     Run through the demo steps
-     Approve or request changes
+     Confirm the ticket is ready for the verification runner
+     Wait for evidence-backed certification or verification findings
 ```
 
 ## 4. Using MCP Tools

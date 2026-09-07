@@ -1,4 +1,5 @@
 import { STATUS_BADGE_CONFIG, COLUMN_STATUSES } from "../../lib/constants";
+import { computeEpicProgressPercent } from "../../../core/epic-progress.ts";
 
 export interface EpicProgressOverviewProps {
   ticketsByStatus: Record<string, number>;
@@ -34,7 +35,7 @@ export function EpicProgressOverview({
     );
   }
 
-  const percentage = Math.round((ticketsDone / ticketsTotal) * 100);
+  const percentage = computeEpicProgressPercent(ticketsDone, ticketsTotal);
   const statusOrder = COLUMN_STATUSES;
 
   const barSegments = statusOrder

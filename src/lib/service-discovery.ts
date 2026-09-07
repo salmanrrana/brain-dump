@@ -125,15 +125,6 @@ export interface RalphServicesFile {
 }
 
 /**
- * Default empty services file for initialization.
- * @deprecated Use createEmptyServicesFile() instead to get a fresh timestamp.
- */
-export const EMPTY_SERVICES_FILE: RalphServicesFile = {
-  services: [],
-  updatedAt: new Date().toISOString(),
-};
-
-/**
  * Factory function to create an empty services file with a fresh timestamp.
  * Use this instead of EMPTY_SERVICES_FILE to avoid stale timestamps.
  */
@@ -148,44 +139,3 @@ export function createEmptyServicesFile(): RalphServicesFile {
  * The filename for service discovery (relative to project root).
  */
 export const SERVICES_FILENAME = ".ralph-services.json";
-
-/**
- * Port ranges by service type, matching Docker port exposure.
- * @see src/api/ralph.ts for Docker port mapping
- */
-export const PORT_RANGES: Record<Exclude<ServiceType, "other">, { min: number; max: number }> = {
-  frontend: { min: 8100, max: 8110 },
-  backend: { min: 8200, max: 8210 },
-  storybook: { min: 8300, max: 8310 },
-  docs: { min: 8300, max: 8310 },
-  database: { min: 8400, max: 8410 },
-};
-
-/**
- * Get the recommended port range for a service type.
- */
-export function getPortRangeForType(type: ServiceType): { min: number; max: number } | null {
-  if (type === "other") return null;
-  return PORT_RANGES[type];
-}
-
-/**
- * Infer service type from port number.
- */
-export function inferTypeFromPort(port: number): ServiceType {
-  if (port >= 8100 && port <= 8110) return "frontend";
-  if (port >= 8200 && port <= 8210) return "backend";
-  if (port >= 8300 && port <= 8310) return "storybook"; // or docs
-  if (port >= 8400 && port <= 8410) return "database";
-  return "other";
-}
-
-/**
- * Validate that a port is within the allowed Docker port ranges.
- * Derives from PORT_RANGES to maintain a single source of truth.
- */
-export function isValidServicePort(port: number): boolean {
-  return Object.values(PORT_RANGES).some(
-    (range) => port >= range.min && port <= range.max
-  );
-}

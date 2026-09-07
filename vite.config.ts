@@ -161,8 +161,6 @@ function serverOnlyImplementationModules(): Plugin {
           "checkComplete",
           "generateDemo",
           "getDemo",
-          "updateDemoStep",
-          "submitFeedback",
           "createSession",
           "updateState",
           "completeSession",
@@ -440,10 +438,11 @@ const config = defineConfig({
     serverOnlyImplementationModules(),
     serverOnlyNativeModules(),
     devtools(
-      process.env.PLAYWRIGHT_E2E === "1"
+      process.env.PLAYWRIGHT_E2E === "1" || process.env.BRAIN_DUMP_VERIFY_BOOT === "1"
         ? {
             // Playwright starts its own Vite dev server; the devtools event bus
-            // binds a fixed port that conflicts with another local `vite dev`.
+            // binds a fixed port that conflicts with another local `vite dev`
+            // or an isolated verification boot.
             eventBusConfig: { enabled: false },
           }
         : {}
@@ -468,9 +467,23 @@ const config = defineConfig({
       },
     }),
   ],
-  // Keep the browser dep optimizer from eagerly pre-bundling native modules.
+  // The vitest configs redirect XDG_DATA_HOME/XDG_STATE_HOME into .vitest-xdg/
+  // inside the repo, and verification tests write thousands of evidence files
+  // (screenshots, manifests) there. Without this ignore, the dev server's
+  // chokidar watcher registers an inotify watch per file/dir and eventually
+  // dies with "ENOSPC: System limit for number of file watchers reached".
+  // None of these paths can ever affect the app bundle, so never watch them.
+  server: {
+    watch: {
+      ignored: ["**/.vitest-xdg/**", "**/plans/archives/**", "**/.claude/**"],
+    },
+  },
+  // Keep the browser dep optimizer from eagerly pre-bundling server-only packages.
+  // Playwright is dynamically imported by the verification runner, but Vite's client
+  // scanner still discovers the literal import and otherwise tries to bundle its
+  // Node-only browser drivers.
   optimizeDeps: {
-    exclude: ["better-sqlite3", "drizzle-orm/better-sqlite3"],
+    exclude: ["better-sqlite3", "drizzle-orm/better-sqlite3", "@playwright/test"],
   },
   // Native modules must stay external on the SSR side too.
   ssr: {

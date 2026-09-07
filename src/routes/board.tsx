@@ -12,6 +12,7 @@ import { useTicketSummaries, useProjects, type Ticket, type StatusChange } from 
 import type { TicketSummary } from "../api/tickets";
 import { useToast } from "../components/Toast";
 import TicketModal from "../components/TicketModal";
+import { TicketRefreshWarning } from "../components/TicketRefreshWarning";
 import { BoardHeader } from "../components/board";
 import { getStatusLabel } from "../lib/constants";
 import { KanbanBoard } from "../components/board/KanbanBoard";
@@ -76,8 +77,8 @@ function Board() {
       // Special message for auto-completion to AI review
       if (change.toStatus === "ai_review") {
         showToast("success", `"${change.ticketTitle}" is ready for AI review!`);
-      } else if (change.toStatus === "human_review") {
-        showToast("success", `"${change.ticketTitle}" is ready for human review!`);
+      } else if (change.toStatus === "ai_verification") {
+        showToast("success", `"${change.ticketTitle}" is ready for AI verification!`);
       } else if (change.toStatus === "done") {
         showToast("success", `"${change.ticketTitle}" has been completed!`);
       } else {
@@ -87,7 +88,9 @@ function Board() {
     [showToast]
   );
 
-  const { tickets, loading, error, refetch } = useTicketSummaries(filters, {
+  const { tickets, hasData, loading, error, refetch } = useTicketSummaries(filters, {
+    // CLI and verification workers change tickets outside React mutations.
+    pollingInterval: 5000,
     onStatusChange: handleStatusChange,
   });
 
@@ -178,7 +181,7 @@ function Board() {
     return <div className="h-full" />;
   }
 
-  if (error) {
+  if (error && !hasData) {
     return (
       <div className="h-full flex items-center justify-center">
         <p className="text-[var(--accent-danger)]">{error}</p>
@@ -189,6 +192,7 @@ function Board() {
   return (
     <Profiler id="Board" onRender={onRenderCallback}>
       <div style={boardContainerStyles} className="route-fade-in">
+        <TicketRefreshWarning error={error} onRetry={refetch} />
         {/* Board Header with filters */}
         <Profiler id="Board.Header" onRender={onRenderCallback}>
           <BoardHeader

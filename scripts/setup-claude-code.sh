@@ -63,13 +63,16 @@ echo -e "${BLUE}Step 1: Configure MCP Server${NC}"
 echo "─────────────────────────────"
 
 if command -v claude &> /dev/null; then
-    # Check if brain-dump MCP is already configured
+    # Remove every possible scope before re-adding. `claude mcp add` defaults to
+    # local scope, and mixed old installs can leave duplicate user/local entries.
     if claude mcp get brain-dump &>/dev/null; then
         echo -e "${YELLOW}Existing brain-dump MCP server found. Removing to reconfigure...${NC}"
-        claude mcp remove brain-dump 2>/dev/null || true
+        for scope in local user project; do
+            claude mcp remove brain-dump --scope "$scope" >/dev/null 2>&1 || true
+        done
     fi
     echo "Adding brain-dump MCP server via CLI..."
-    claude mcp add --transport stdio brain-dump -- node "$BRAIN_DUMP_DIR/mcp-server/dist/index.js"
+    claude mcp add --scope user --transport stdio brain-dump -- node "$BRAIN_DUMP_DIR/mcp-server/dist/index.js"
     echo -e "${GREEN}✓ Brain Dump MCP server configured${NC}"
 else
     echo -e "${YELLOW}Claude CLI not found. Please add MCP server manually:${NC}"
@@ -127,14 +130,7 @@ if [ -d "$SOURCE_HOOKS" ]; then
     cp -v "$SOURCE_HOOKS"/*.md "$GLOBAL_CLAUDE_DIR/hooks/" 2>/dev/null || true
     cp -v "$SOURCE_HOOKS"/*.json "$GLOBAL_CLAUDE_DIR/hooks/" 2>/dev/null || true
     chmod +x "$GLOBAL_CLAUDE_DIR/hooks"/*.sh 2>/dev/null || true
-    # Copy parser script alongside hooks so capture-token-usage.sh can find it globally
-    if [ -f "$BRAIN_DUMP_DIR/scripts/parse-transcript-tokens.ts" ]; then
-        if cp -v "$BRAIN_DUMP_DIR/scripts/parse-transcript-tokens.ts" "$GLOBAL_CLAUDE_DIR/hooks/" 2>/dev/null; then
-            echo -e "  ${GREEN}✓${NC} parse-transcript-tokens.ts (token usage parser)"
-        else
-            echo -e "  ${RED}✗${NC} Failed to copy parse-transcript-tokens.ts"
-        fi
-    fi
+    # Token capture uses the installed Brain Dump CLI and shared core parser.
     echo -e "${GREEN}Hook scripts installed:${NC}"
     ls "$GLOBAL_CLAUDE_DIR/hooks"/*.sh 2>/dev/null | xargs -I {} basename {} | sed 's/^/  • /'
 else
@@ -328,15 +324,15 @@ config.hooks = {
       hooks: [{ type: "command", command: "$HOME/.claude/hooks/link-commit-to-ticket.sh" }]
     },
     {
-      matcher: "mcp__brain-dump__workflow",
-      hooks: [{ type: "command", command: "$HOME/.claude/hooks/spawn-next-ticket.sh" }]
-    },
-    {
-      matcher: "Bash(gh pr create:*)",
-      hooks: [{ type: "command", command: "$HOME/.claude/hooks/spawn-after-pr.sh" }]
-    },
-    {
       matcher: "TodoWrite",
+      hooks: [{ type: "command", command: "$HOME/.claude/hooks/capture-claude-tasks.sh" }]
+    },
+    {
+      matcher: "TaskCreate",
+      hooks: [{ type: "command", command: "$HOME/.claude/hooks/capture-claude-tasks.sh" }]
+    },
+    {
+      matcher: "TaskUpdate",
       hooks: [{ type: "command", command: "$HOME/.claude/hooks/capture-claude-tasks.sh" }]
     }
   ],
@@ -348,9 +344,6 @@ config.hooks = {
   Stop: [
     {
       hooks: [{ type: "command", command: "$HOME/.claude/hooks/check-for-code-changes.sh" }]
-    },
-    {
-      hooks: [{ type: "command", command: "$HOME/.claude/hooks/mark-review-completed.sh" }]
     },
     {
       hooks: [{ type: "command", command: "$HOME/.claude/hooks/capture-token-usage.sh" }]
@@ -424,25 +417,25 @@ else
         ]
       },
       {
-        "matcher": "mcp__brain-dump__workflow",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\$HOME/.claude/hooks/spawn-next-ticket.sh"
-          }
-        ]
-      },
-      {
-        "matcher": "Bash(gh pr create:*)",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\$HOME/.claude/hooks/spawn-after-pr.sh"
-          }
-        ]
-      },
-      {
         "matcher": "TodoWrite",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\$HOME/.claude/hooks/capture-claude-tasks.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "TaskCreate",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\$HOME/.claude/hooks/capture-claude-tasks.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "TaskUpdate",
         "hooks": [
           {
             "type": "command",
@@ -467,14 +460,6 @@ else
           {
             "type": "command",
             "command": "\$HOME/.claude/hooks/check-for-code-changes.sh"
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\$HOME/.claude/hooks/mark-review-completed.sh"
           }
         ]
       },
@@ -516,7 +501,7 @@ echo "    • /breakdown - Break down features (agent persona inlined)"
 echo "    • /next-task - Pick up next ticket with precondition checking"
 echo "    • /review-ticket - Run AI review on current ticket"
 echo "    • /review-epic - Run comprehensive Tracer Review on epic"
-echo "    • /demo - Generate demo script for human review"
+echo "    • /demo - Generate demo script for AI verification"
 echo "    • /reconcile-learnings - Extract and apply learnings"
 echo ""
 echo -e "  ${GREEN}Hooks (~/.claude/hooks/) — 11 hooks:${NC}"
@@ -526,8 +511,7 @@ echo "    • Commit linking to tickets (link-commit-to-ticket)"
 echo "    • Auto-review after code changes (check-for-code-changes)"
 echo "    • Claude task capture (capture-claude-tasks)"
 echo "    • Extended review chaining (chain-extended-review)"
-echo "    • Next ticket spawning (spawn-next-ticket, spawn-after-pr)"
-echo "    • Review completion marker (mark-review-completed)"
+echo "    • Claude task sync to Brain Dump (capture-claude-tasks: TodoWrite/TaskCreate/TaskUpdate)"
 echo "    • Library detection (detect-libraries)"
 echo "    • Token usage capture from JSONL transcripts (capture-token-usage)"
 echo ""

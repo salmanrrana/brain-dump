@@ -13,8 +13,9 @@ const ticketsByStatus = {
   ready: [],
   in_progress: [],
   ai_review: [],
-  human_review: [],
+  ai_verification: [],
   done: [],
+  human_review: [],
 } as Record<TicketStatus, TicketSummary[]>;
 
 function arrowDown(): KeyboardEvent {
@@ -84,8 +85,9 @@ describe("useBoardKeyboardNavigation roving tabindex", () => {
       ready: [makeTicket("c", "ready")],
       in_progress: [],
       ai_review: [],
-      human_review: [],
+      ai_verification: [],
       done: [],
+      human_review: [],
     } as Record<TicketStatus, TicketSummary[]>;
 
     const { result } = renderHook(() =>
@@ -131,8 +133,9 @@ describe("useBoardKeyboardNavigation roving tabindex", () => {
       ready: [],
       in_progress: [],
       ai_review: [],
-      human_review: [],
+      ai_verification: [],
       done: [],
+      human_review: [],
     } as Record<TicketStatus, TicketSummary[]>;
 
     const { result } = renderHook(() => useBoardKeyboardNavigation({ ticketsByStatus: empty }));

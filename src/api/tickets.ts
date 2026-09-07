@@ -1,11 +1,27 @@
 import { createServerFn } from "@tanstack/react-start";
 import { db, sqlite } from "../lib/db";
-import { tickets, projects, epics, ticketComments, type Ticket } from "../lib/schema";
+import {
+  tickets,
+  projects,
+  epics,
+  ticketComments,
+  verificationJobs,
+  type Ticket,
+} from "../lib/schema";
 import { eq, and, sql, type SQL } from "drizzle-orm";
 import { tagFilterConditions } from "../lib/sql-helpers";
 import { randomUUID } from "crypto";
 import { ensureExists, safeJsonStringify } from "../lib/utils";
-import { autoExtractLearnings } from "../../core/index";
+import { handleEpicCompletionLearnings } from "../../core/index";
+import { syncPrdBlockedStateForDbTicketIfPresent } from "../../core/prd-sync.ts";
+import { normalizeUserWritableAttachmentFilenames } from "../../core/attachments.ts";
+import {
+  canDirectlyUpdateTicketStatus,
+  recordDirectImplementationEntry,
+  getDirectStatusUpdateErrorMessage,
+  isActiveTicketStatus,
+} from "../../core/workflow-steps.ts";
+import type { VerificationJobStatus } from "../../core/verification/index.ts";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("tickets-api");
@@ -99,7 +115,10 @@ export const createTicket = createServerFn({ method: "POST" })
     if (!input.projectId) {
       throw new Error("Project ID is required");
     }
-    return input;
+    return {
+      ...input,
+      attachments: normalizeUserWritableAttachmentFilenames(input.attachments),
+    };
   })
   .handler(async ({ data: input }) => {
     // Verify project exists
@@ -180,14 +199,13 @@ export const updateTicket = createServerFn({ method: "POST" })
     if (updates.description !== undefined)
       updateData.description = updates.description?.trim() ?? null;
     if (updates.status !== undefined) {
-      updateData.status = updates.status;
-      // Set completedAt when moving to done
-      if (updates.status === "done") {
-        updateData.completedAt = new Date().toISOString();
-      } else if (existing.status === "done") {
-        // Clear completedAt when moving out of done
-        updateData.completedAt = null;
+      if (!isActiveTicketStatus(updates.status)) {
+        throw new Error(`Invalid status: ${updates.status}`);
       }
+      if (!canDirectlyUpdateTicketStatus(existing.status, updates.status)) {
+        throw new Error(getDirectStatusUpdateErrorMessage(existing.status, updates.status));
+      }
+      updateData.status = updates.status;
     }
     if (updates.priority !== undefined) updateData.priority = updates.priority;
     if (updates.epicId !== undefined) updateData.epicId = updates.epicId;
@@ -206,8 +224,35 @@ export const updateTicket = createServerFn({ method: "POST" })
       updateData.linkedFiles = safeJsonStringify(updates.linkedFiles);
 
     if (Object.keys(updateData).length > 0) {
-      updateData.updatedAt = new Date().toISOString();
-      db.update(tickets).set(updateData).where(eq(tickets.id, id)).run();
+      const now = new Date().toISOString();
+      updateData.updatedAt = now;
+      sqlite.transaction(() => {
+        db.update(tickets).set(updateData).where(eq(tickets.id, id)).run();
+        recordDirectImplementationEntry(sqlite, id, existing.status, updates.status, now);
+      })();
+    }
+
+    if (updates.isBlocked !== undefined || updates.blockedReason !== undefined) {
+      // Ralph's loop reads blocked state from the scoped PRD; a UI unblock
+      // that only touches the DB would leave the loop refusing to resume.
+      const prdSync = syncPrdBlockedStateForDbTicketIfPresent(sqlite, id);
+      if (!prdSync.success) {
+        log.error(`Failed to sync PRD blocked state after ticket ${id} update: ${prdSync.message}`);
+      }
+    }
+
+    if (updates.isBlocked === false && existing.isBlocked) {
+      // A human unblock is the reset for both loop circuit breakers: the
+      // review-round budget (completeWork) and the verification failure
+      // streak. Without this, an unblocked ticket would trip the breaker
+      // again on its very next complete-work.
+      sqlite
+        .prepare(
+          `UPDATE ticket_workflow_state
+           SET review_iteration = 0, verification_streak_reset_at = ?, updated_at = ?
+           WHERE ticket_id = ?`
+        )
+        .run(new Date().toISOString(), new Date().toISOString(), id);
     }
 
     return db.select().from(tickets).where(eq(tickets.id, id)).get();
@@ -219,15 +264,7 @@ export const updateTicketStatus = createServerFn({ method: "POST" })
     if (!input.id) {
       throw new Error("Ticket ID is required");
     }
-    const validStatuses: TicketStatus[] = [
-      "backlog",
-      "ready",
-      "in_progress",
-      "ai_review",
-      "human_review",
-      "done",
-    ];
-    if (!validStatuses.includes(input.status)) {
+    if (!isActiveTicketStatus(input.status)) {
       throw new Error(`Invalid status: ${input.status}`);
     }
     return input;
@@ -236,20 +273,21 @@ export const updateTicketStatus = createServerFn({ method: "POST" })
     const existingResult = db.select().from(tickets).where(eq(tickets.id, id)).get();
     const existing = ensureExists(existingResult, "Ticket", id);
 
+    const now = new Date().toISOString();
     const updateData: Partial<typeof tickets.$inferInsert> = {
       status,
-      updatedAt: new Date().toISOString(),
+      updatedAt: now,
     };
 
-    // Set completedAt when moving to done
-    if (status === "done") {
-      updateData.completedAt = new Date().toISOString();
-    } else if (existing.status === "done") {
-      // Clear completedAt when moving out of done
-      updateData.completedAt = null;
+    if (!canDirectlyUpdateTicketStatus(existing.status, status)) {
+      throw new Error(getDirectStatusUpdateErrorMessage(existing.status, status));
     }
 
-    db.update(tickets).set(updateData).where(eq(tickets.id, id)).run();
+    if (existing.status === status) return existing;
+    sqlite.transaction(() => {
+      db.update(tickets).set(updateData).where(eq(tickets.id, id)).run();
+      recordDirectImplementationEntry(sqlite, id, existing.status, status, now);
+    })();
 
     const updated = db.select().from(tickets).where(eq(tickets.id, id)).get();
 
@@ -264,7 +302,7 @@ export const updateTicketStatus = createServerFn({ method: "POST" })
 
         const allDone = epicTickets.every((t) => t.status === "done");
         if (allDone) {
-          autoExtractLearnings(sqlite, existing.epicId);
+          handleEpicCompletionLearnings({ completedTicketId: id }, { db: sqlite });
           log.info(`Auto-extracted learnings for completed epic ${existing.epicId}`);
         }
       } catch (err) {
@@ -375,6 +413,10 @@ export interface TicketSummary {
   prNumber: number | null;
   prUrl: string | null;
   prStatus: "draft" | "open" | "merged" | "closed" | null;
+  verificationJobStatus?: VerificationJobStatus | null;
+  verificationJobAttemptCount?: number | null;
+  verificationJobNextRunAt?: string | null;
+  verificationJobLastError?: string | null;
 }
 
 /** Columns selected for summary queries — omits heavy text fields (description, linkedFiles, attachments). */
@@ -397,6 +439,10 @@ const TICKET_SUMMARY_COLUMNS = {
   prNumber: tickets.prNumber,
   prUrl: tickets.prUrl,
   prStatus: tickets.prStatus,
+  verificationJobStatus: verificationJobs.status,
+  verificationJobAttemptCount: verificationJobs.attemptCount,
+  verificationJobNextRunAt: verificationJobs.nextRunAt,
+  verificationJobLastError: sql<string | null>`substr(${verificationJobs.lastError}, 1, 240)`,
 };
 
 /**
@@ -415,70 +461,15 @@ export const getTicketSummaries = createServerFn({ method: "GET" })
       conditions.push(...tagFilterConditions(filters.tags));
     }
 
-    let query = db.select(TICKET_SUMMARY_COLUMNS).from(tickets);
+    let query = db
+      .select(TICKET_SUMMARY_COLUMNS)
+      .from(tickets)
+      .leftJoin(verificationJobs, eq(verificationJobs.ticketId, tickets.id));
     if (conditions.length > 0) {
       query = query.where(and(...conditions)) as typeof query;
     }
 
     return query.orderBy(tickets.position).all();
-  });
-
-// ─── Paginated Ticket Summaries ──────────────────────────────────────────────
-
-export interface PaginatedTicketFilters extends TicketFilters {
-  /** Max tickets per page (default 50) */
-  limit?: number;
-  /** Offset for pagination (default 0) */
-  offset?: number;
-}
-
-export interface PaginatedTicketResult {
-  tickets: TicketSummary[];
-  /** Total matching tickets (before pagination) */
-  total: number;
-  /** Whether more pages exist */
-  hasMore: boolean;
-}
-
-const DEFAULT_TICKET_PAGE_SIZE = 50;
-
-/**
- * Paginated ticket summaries. Returns a page of lightweight ticket summaries
- * with total count and hasMore flag. Omits heavy text fields.
- */
-export const getPaginatedTicketSummaries = createServerFn({ method: "GET" })
-  .inputValidator((filters: PaginatedTicketFilters) => filters)
-  .handler(async ({ data: filters }): Promise<PaginatedTicketResult> => {
-    const { limit = DEFAULT_TICKET_PAGE_SIZE, offset = 0, ...ticketFilters } = filters;
-    const pageSize = Math.min(Math.max(1, limit), 200);
-    const safeOffset = Math.max(0, offset);
-
-    // Build WHERE conditions (including tags — single code path)
-    const conditions: SQL[] = [];
-    if (ticketFilters.projectId) conditions.push(eq(tickets.projectId, ticketFilters.projectId));
-    if (ticketFilters.epicId) conditions.push(eq(tickets.epicId, ticketFilters.epicId));
-    if (ticketFilters.status) conditions.push(eq(tickets.status, ticketFilters.status));
-    if (ticketFilters.tags && ticketFilters.tags.length > 0) {
-      conditions.push(...tagFilterConditions(ticketFilters.tags));
-    }
-
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-
-    // Total count (includes tag filters)
-    let countQuery = db.select({ count: sql<number>`COUNT(*)` }).from(tickets);
-    if (whereClause) {
-      countQuery = countQuery.where(whereClause) as typeof countQuery;
-    }
-    const total = countQuery.get()?.count ?? 0;
-
-    // Paginated data query
-    let query = db.select(TICKET_SUMMARY_COLUMNS).from(tickets);
-    if (whereClause) {
-      query = query.where(whereClause) as typeof query;
-    }
-    const ticketRows = query.orderBy(tickets.position).limit(pageSize).offset(safeOffset).all();
-
-    return { tickets: ticketRows, total, hasMore: safeOffset + ticketRows.length < total };
   });
 
 // Delete a ticket with dry-run preview support

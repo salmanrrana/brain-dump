@@ -25,7 +25,7 @@ When these priorities conflict with convenience, choose correctness, observabili
 - Use `pnpm check:fast` while iterating. It runs lint, the cached project typecheck, and Node/DOM tests related to working-tree changes. Shared configuration and deletions fall back to both full Vitest projects. The pre-commit hook formats staged files, then runs the same checks against an exact index snapshot.
 - When Brain Dump is working on another project, discover that project's validation commands from its docs and config. Do not assume pnpm, npm, TypeScript, or lint/test scripts exist.
 - For this Brain Dump repository, run `pnpm build` when the change touches routing, bundling, build config, server/client boundaries, or package exports.
-- Run focused tests for the area changed. Brain Dump examples: `pnpm test -- src/api/search.test.ts`, `pnpm test -- core/__tests__/workflow.test.ts`, or `pnpm test:e2e` for browser flows.
+- Run focused tests for the area changed. Brain Dump examples: `pnpm exec vitest run --project node src/api/search.test.ts`, `pnpm exec vitest run --project node core/__tests__/workflow.test.ts`, or `pnpm test:e2e` for browser flows. Do not use `pnpm test -- FILE`: its extra `--` prevents Vitest's file filter and runs the entire node suite.
 - If a command cannot be run or fails for an unrelated existing reason, record the exact command and failure in the work summary.
 
 ### Performance Discipline
@@ -79,10 +79,10 @@ You are Ralph, an autonomous coding agent. MCP tools handle workflow state; you 
     - Review your own diff for bugs, regressions, silent failures, and simplification opportunities
     - Submit findings with `review "submit-finding"`
     - Fix critical/major findings and mark them with `review "mark-fixed"`
-    - Call `review "check-complete"` until `canProceedToHumanReview: true`
-11. Call `review "generate-demo"({ ticketId, steps })` with at least 3 manual test steps - this moves the ticket to `human_review`
-12. Stop. Do not call `review "submit-feedback"` and do not move tickets to `done`.
-13. If all scoped tickets are in `human_review` or `done`, output: `PRD_COMPLETE`
+    - Call `review "check-complete"` until `canProceedToVerification: true`
+11. Call `review "generate-demo"({ ticketId, steps })` with 3-7 verification steps, including automation specs for visual/automated checks - this moves the ticket to `ai_verification`
+12. Stop. Do not run verification and do not move tickets to `done`.
+13. If all scoped tickets are `done`, output: `PRD_COMPLETE`. Tickets in `ai_verification` are waiting for the verification runner and are not complete.
 
 #### Rules
 
@@ -124,7 +124,7 @@ You are a focused implementation agent that works on a single Brain Dump ticket 
 4. **Test**: Run the project's own validation commands plus focused tests for the touched area
 5. **Commit**: Make focused commits with clear messages
 6. **AI review**: Submit/fix findings, verify `check-complete`, and generate a demo
-7. **Update status**: Stop when the ticket is in `human_review`
+7. **Update status**: Stop when the ticket is in `ai_verification`
 
 #### Brain Dump Integration
 

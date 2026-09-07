@@ -3,7 +3,7 @@
  * Includes queries and mutations for launching and monitoring Ralph sessions.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   launchRalphForTicket,
@@ -13,15 +13,12 @@ import {
   type ActiveRalphSession,
   type RalphEpicLaunchProfile,
 } from "../../api/ralph";
-import { launchProjectInception, launchSpecBreakdown } from "../../api/inception";
-import { getRalphEvents } from "../../api/ralph-events";
 import {
   listRalphContainers,
   getRalphContainerLogs,
   getRalphContainerStats,
 } from "../../api/services";
 import { getDockerStatus } from "../../api/settings";
-import type { RalphEventType, RalphEventData } from "../schema";
 import type { ContainerStats, ContainerStatsResult } from "../../api/docker-utils";
 import { queryKeys } from "../query-keys";
 import type { ConcreteLaunchModelSelection } from "../launch-model-catalog";
@@ -45,6 +42,8 @@ export function useLaunchRalphForTicket() {
       useSandbox?: boolean;
       aiBackend?: "claude" | "opencode" | "codex" | "cursor-agent" | "pi";
       modelSelection?: ConcreteLaunchModelSelection;
+      reviewerAiBackend?: "claude" | "opencode" | "codex" | "cursor-agent" | "pi";
+      reviewerModelSelection?: ConcreteLaunchModelSelection;
       workingMethodOverride?:
         | "auto"
         | "claude-code"
@@ -76,6 +75,8 @@ export function useLaunchRalphForEpic() {
       useSandbox?: boolean;
       aiBackend?: "claude" | "opencode" | "codex" | "cursor-agent" | "pi";
       modelSelection?: ConcreteLaunchModelSelection;
+      reviewerAiBackend?: "claude" | "opencode" | "codex" | "cursor-agent" | "pi";
+      reviewerModelSelection?: ConcreteLaunchModelSelection;
       workingMethodOverride?:
         | "auto"
         | "claude-code"
@@ -150,154 +151,6 @@ export function useClearActiveSessions() {
       queryClient.invalidateQueries({ queryKey: queryKeys.activeRalphSessions });
     },
   });
-}
-
-// =============================================================================
-// PROJECT INCEPTION HOOKS
-// =============================================================================
-
-// Hook for launching Project Inception (new project from scratch)
-export function useLaunchProjectInception() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (data: { preferredTerminal?: string | null }) => launchProjectInception({ data }),
-    onSuccess: () => {
-      // A new project may be created, invalidate the live project-list query
-      queryClient.invalidateQueries({ queryKey: queryKeys.projectsWithEpics });
-    },
-  });
-}
-
-// Hook for launching Spec Breakdown (generate tickets from spec)
-export function useLaunchSpecBreakdown() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (data: {
-      projectPath: string;
-      projectName: string;
-      preferredTerminal?: string | null;
-    }) => launchSpecBreakdown({ data }),
-    onSuccess: () => {
-      // Tickets will be created, invalidate tickets, summaries, counts, and projects
-      queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
-      queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
-      queryClient.invalidateQueries({ queryKey: queryKeys.projectTicketCounts });
-      queryClient.invalidateQueries({ queryKey: queryKeys.projectsWithEpics });
-    },
-  });
-}
-
-// =============================================================================
-// RALPH EVENT STREAMING
-// =============================================================================
-
-/** Parsed Ralph event for UI consumption */
-export interface ParsedRalphEvent {
-  id: string;
-  sessionId: string;
-  type: RalphEventType;
-  data: RalphEventData;
-  createdAt: string;
-}
-
-/**
- * Hook for streaming Ralph events from a session.
- * Uses polling to fetch all events and derives state from the full event list.
- *
- * @param sessionId - The Ralph session ID (usually ticket ID)
- * @param options - Configuration options
- */
-export function useRalphEvents(
-  sessionId: string | null,
-  options: {
-    /** Whether to enable the stream (default: true when sessionId is provided) */
-    enabled?: boolean;
-    /** Polling interval in ms (default: 1000ms = 1 second) */
-    pollingInterval?: number;
-    /** Maximum events to return (default: 100) */
-    maxEvents?: number;
-  } = {}
-) {
-  const { enabled = true, pollingInterval = 1000, maxEvents = 100 } = options;
-  const queryClient = useQueryClient();
-
-  // Query fetches all events from the server
-  const query = useQuery({
-    queryKey: queryKeys.ralph.events(sessionId ?? ""),
-    queryFn: async () => {
-      if (!sessionId) {
-        return [] as ParsedRalphEvent[];
-      }
-
-      const result = await getRalphEvents({
-        data: { sessionId, limit: maxEvents },
-      });
-
-      // Throw on failure so TanStack Query shows error state
-      if (!result.success) {
-        throw new Error(result.message || "Failed to fetch Ralph events");
-      }
-
-      // Return empty array if no events (distinct from failure)
-      if (!result.events) {
-        return [] as ParsedRalphEvent[];
-      }
-
-      return result.events as ParsedRalphEvent[];
-    },
-    enabled: enabled && Boolean(sessionId),
-    refetchInterval: pollingInterval,
-    // Prevent refetch on window focus since we're polling (TanStack Query best practice)
-    staleTime: pollingInterval,
-    refetchOnWindowFocus: false,
-  });
-
-  // Derive all values from query data using useMemo (no effects needed)
-  const events = useMemo(() => query.data ?? [], [query.data]);
-
-  const latestEvent = useMemo(() => {
-    if (events.length === 0) return null;
-    return events[events.length - 1] ?? null;
-  }, [events]);
-
-  // Get the current state from state_change events
-  const currentState = useMemo(() => {
-    const stateEvents = events.filter((e) => e.type === "state_change");
-    const lastStateEvent = stateEvents[stateEvents.length - 1];
-    return lastStateEvent?.data?.state ?? null;
-  }, [events]);
-
-  // Helper to get events of a specific type
-  const getEventsByType = useCallback(
-    (type: RalphEventType) => events.filter((e) => e.type === type),
-    [events]
-  );
-
-  // Clear events by invalidating the query (will refetch empty)
-  const clearEvents = useCallback(() => {
-    queryClient.setQueryData(["ralphEvents", sessionId], []);
-  }, [queryClient, sessionId]);
-
-  return {
-    /** All events for this session (up to maxEvents) */
-    events,
-    /** The most recent event */
-    latestEvent,
-    /** Current state from state_change events */
-    currentState,
-    /** Whether we're fetching events */
-    loading: query.isLoading,
-    /** Any error that occurred */
-    error: query.error?.message ?? null,
-    /** Get events of a specific type */
-    getEventsByType,
-    /** Clear all events (useful when session ends) */
-    clearEvents,
-    /** Force refetch events */
-    refetch: query.refetch,
-  };
 }
 
 // =============================================================================

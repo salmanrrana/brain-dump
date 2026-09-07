@@ -33,11 +33,12 @@ import {
   useAutoClearState,
   useActiveRalphSessions,
   useCostModels,
+  useLaunchProviderAvailability,
 } from "../lib/hooks";
 import { RalphStatusBadge } from "./RalphStatusBadge";
 import { useToast } from "./Toast";
 import ErrorAlert from "./ErrorAlert";
-import type { TicketStatus, TicketPriority } from "../api/tickets";
+import type { TicketPriority } from "../api/tickets";
 import {
   STATUS_OPTIONS,
   PRIORITY_OPTIONS,
@@ -45,12 +46,15 @@ import {
   getPrStatusIconColor,
   getPrStatusBadgeStyle,
 } from "../lib/constants";
-import type { UiLaunchProviderId } from "../lib/launch-provider-contract";
+import type {
+  RalphAutonomousUiLaunchProvider,
+  UiLaunchProviderId,
+} from "../lib/launch-provider-contract";
 import type { LaunchModelSelection } from "../lib/launch-model-catalog";
 import {
   dispatchInteractiveUiLaunch,
   dispatchRalphAutonomousUiLaunch,
-  defaultRalphLaunchDependencies,
+  createRalphLaunchDependencies,
 } from "../lib/ui-launch-dispatcher";
 import {
   getInteractiveUiLaunchProvider,
@@ -210,6 +214,11 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
     isLoading: modelCatalogLoading,
     error: modelCatalogError,
   } = useCostModels();
+  const {
+    availabilityByProviderId,
+    loading: availabilityLoading,
+    error: availabilityError,
+  } = useLaunchProviderAvailability({ enabled: showStartWorkMenu });
 
   // Delete mutation hook
   const deleteTicketMutation = useDeleteTicket();
@@ -294,7 +303,12 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
   useClickOutside(tagDropdownRef, closeTagDropdown, isTagDropdownOpen, tagInputRef);
 
   const handleTicketLaunch = useCallback(
-    async (providerId: UiLaunchProviderId, modelSelection?: LaunchModelSelection) => {
+    async (
+      providerId: UiLaunchProviderId,
+      modelSelection?: LaunchModelSelection,
+      reviewerProvider?: RalphAutonomousUiLaunchProvider,
+      reviewerModelSelection?: LaunchModelSelection
+    ) => {
       setIsStartingWork(true);
       setStartWorkNotification(null);
       setShowStartWorkMenu(false);
@@ -337,25 +351,13 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
               ticketId: ticket.id,
               preferredTerminal: settings?.terminalEmulator ?? null,
               ...(modelSelection ? { modelSelection } : {}),
+              ...(reviewerProvider ? { reviewerProvider } : {}),
+              ...(reviewerModelSelection ? { reviewerModelSelection } : {}),
             },
-            {
-              ...defaultRalphLaunchDependencies,
-              launchTicketRalph: async (payload) => {
-                const launchResult = await launchRalphMutation.mutateAsync(payload);
-                return {
-                  success: launchResult.success,
-                  message: launchResult.message,
-                  ...(launchResult.warnings ? { warnings: launchResult.warnings } : {}),
-                  ...("terminalUsed" in launchResult && launchResult.terminalUsed
-                    ? { terminalUsed: launchResult.terminalUsed }
-                    : {}),
-                };
-              },
-              launchEpicRalph: async () => ({
-                success: false,
-                message: "Epic Ralph launch is not available from the ticket modal.",
-              }),
-            }
+            createRalphLaunchDependencies(
+              { launchTicket: (payload) => launchRalphMutation.mutateAsync(payload) },
+              "the ticket modal"
+            )
           );
 
           if (result.warnings) {
@@ -423,7 +425,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
     const updates: Parameters<typeof updateTicketMutation.mutate>[0]["updates"] = {
       title: values.title.trim(),
       description: values.description.trim() || null,
-      status: values.status,
+      ...(values.status !== ticket.status ? { status: values.status } : {}),
       epicId: values.epicId || null,
       isBlocked: values.isBlocked,
       blockedReason: values.isBlocked ? values.blockedReason : null,
@@ -440,7 +442,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
     }
 
     updateTicketMutation.mutate({ id: ticket.id, updates }, { onSuccess: onUpdate });
-  }, [ticket.id, form, onUpdate, updateTicketMutation]);
+  }, [ticket.id, ticket.status, form, onUpdate, updateTicketMutation]);
 
   // Tag management functions
   const addTag = useCallback(
@@ -769,7 +771,11 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                     <div className="relative">
                       <select
                         value={field.state.value}
-                        onChange={(e) => field.handleChange(e.target.value as TicketStatus)}
+                        onChange={(e) =>
+                          field.handleChange(
+                            e.target.value as (typeof STATUS_OPTIONS)[number]["value"]
+                          )
+                        }
                         className="w-full px-3 py-2 bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl text-[var(--text-primary)] appearance-none focus:border-[var(--accent-primary)] focus:ring-1 focus:ring-[var(--accent-primary)]/30 transition-colors"
                       >
                         {STATUS_OPTIONS.map((opt) => (
@@ -1105,10 +1111,20 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
             </Suspense>
           )}
 
-          {/* Demo Review Panel — interactive in human_review, read-only after completion */}
-          {(currentStatus === "human_review" || currentStatus === "done") && (
+          {/* Verification handoff/evidence panel */}
+          {(currentStatus === "ai_verification" || currentStatus === "done") && (
             <Suspense fallback={<SectionFallback />}>
-              <DemoPanel ticketId={ticket.id} />
+              <DemoPanel
+                ticketId={ticket.id}
+                ticketStatus={currentStatus}
+                isBlocked={ticket.isBlocked}
+                blockedReason={ticket.blockedReason}
+                pollingInterval={
+                  currentStatus === "ai_verification"
+                    ? POLLING_INTERVALS.COMMENTS_ACTIVE
+                    : POLLING_INTERVALS.DISABLED
+                }
+              />
             </Suspense>
           )}
 
@@ -1205,13 +1221,26 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                   onInteractiveLaunch={(provider, modelSelection) =>
                     void handleTicketLaunch(provider.id, modelSelection)
                   }
-                  onRalphLaunch={(provider, modelSelection) =>
-                    void handleTicketLaunch(provider.id, modelSelection)
+                  onRalphLaunch={(
+                    provider,
+                    modelSelection,
+                    reviewerProvider,
+                    reviewerModelSelection
+                  ) =>
+                    void handleTicketLaunch(
+                      provider.id,
+                      modelSelection,
+                      reviewerProvider,
+                      reviewerModelSelection
+                    )
                   }
                   disabled={isStartingWork}
                   costModels={costModels ?? []}
                   modelCatalogLoading={modelCatalogLoading}
                   modelCatalogError={modelCatalogError}
+                  availabilityByProviderId={availabilityByProviderId}
+                  availabilityLoading={availabilityLoading}
+                  availabilityError={availabilityError}
                 />
               </div>
             )}

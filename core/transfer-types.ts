@@ -9,7 +9,7 @@
  * Claude tasks/snapshots, git branch/PR/commit fields, linkedFiles.
  */
 
-import type { DbHandle } from "./types.ts";
+import type { CommentProvenance, DbHandle } from "./types.ts";
 
 // ============================================
 // Manifest Version
@@ -62,7 +62,7 @@ export interface ExportedTicket {
   completedAt: string | null;
 }
 
-export interface ExportedComment {
+export interface ExportedComment extends Partial<CommentProvenance> {
   id: string;
   ticketId: string;
   content: string;

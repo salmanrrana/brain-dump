@@ -6,6 +6,8 @@
  */
 
 import type Database from "better-sqlite3";
+import type { TicketStatus } from "./workflow-steps.ts";
+export type { TicketStatus } from "./workflow-steps.ts";
 
 // ============================================
 // Database Handle Type
@@ -20,14 +22,6 @@ export type DbHandle = Database.Database;
 // ============================================
 // Ticket Status & Priority
 // ============================================
-
-export type TicketStatus =
-  | "backlog"
-  | "ready"
-  | "in_progress"
-  | "ai_review"
-  | "human_review"
-  | "done";
 
 export type Priority = "low" | "medium" | "high";
 
@@ -46,10 +40,11 @@ export interface Subtask {
 export interface Attachment {
   id: string;
   filename: string;
-  path: string;
   type?: string;
   description?: string;
   priority?: "primary" | "supplementary";
+  uploadedBy?: string;
+  uploadedAt?: string;
   linkedCriteria?: string[];
 }
 
@@ -122,12 +117,36 @@ export interface Epic {
   createdAt: string;
 }
 
-export interface Comment {
+export type CommentPhase =
+  | "implementation"
+  | "ai_review"
+  | "demo"
+  | "ai_verification"
+  | "repair"
+  | "system_workflow";
+
+export type CommentActorKind = "ai" | "system";
+
+export interface CommentProvenance {
+  phase: CommentPhase | null;
+  actorKind: CommentActorKind | null;
+  provider: string | null;
+  modelProvider: string | null;
+  modelName: string | null;
+}
+
+export interface Comment extends CommentProvenance {
   id: string;
   ticketId: string;
   content: string;
   author: string;
-  type: "comment" | "work_summary" | "test_report" | "progress" | "change_request";
+  type:
+    | "comment"
+    | "work_summary"
+    | "test_report"
+    | "progress"
+    | "change_request"
+    | "verification_report";
   createdAt: string;
 }
 
@@ -227,7 +246,7 @@ export interface EpicReviewRunTicket {
 
 export type FindingSeverity = "critical" | "major" | "minor" | "suggestion";
 export type FindingStatus = "open" | "fixed" | "wont_fix" | "duplicate";
-export type FindingAgent = "code-reviewer" | "silent-failure-hunter" | "code-simplifier";
+export type FindingAgent = string;
 
 export interface ReviewFinding {
   id: string;
@@ -243,10 +262,24 @@ export interface ReviewFinding {
   epicReviewRunId?: string | null;
   status: FindingStatus;
   createdAt: string;
+  /**
+   * True when submit-finding matched an existing open finding (same category,
+   * file, and near-identical description) and merged into it instead of
+   * inserting a duplicate row.
+   */
+  deduplicated?: boolean;
+  /**
+   * Set when a requested critical/major was recorded as minor by an
+   * anti-spiral gate (out-of-scope on a re-review round, or the open blocking
+   * findings budget was reached). The reason is appended to the description.
+   */
+  severityDowngradedFrom?: FindingSeverity;
 }
 
 export interface ReviewCompletionStatus {
   complete: boolean;
+  canProceedToVerification: boolean;
+  /** @deprecated Use canProceedToVerification. Kept for existing MCP/hook parsers. */
   canProceedToHumanReview: boolean;
   openCritical: number;
   openMajor: number;
@@ -259,11 +292,108 @@ export interface ReviewCompletionStatus {
 
 export type DemoStepType = "manual" | "visual" | "automated";
 
+export type DemoStepAutomation =
+  | DemoStepUiAutomation
+  | DemoStepApiAutomation
+  | DemoStepCommandAutomation
+  | DemoStepFileAutomation;
+
+export type DemoStepAutomationValue =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: DemoStepAutomationValue }
+  | DemoStepAutomationValue[];
+
+export interface DemoAppBoot {
+  /** Spawn-safe command selected after inspecting the target project. */
+  start: string[];
+  /** Optional project-relative working directory. */
+  cwd?: string | undefined;
+}
+
+export interface DemoStepUiAutomation {
+  kind: "ui";
+  route: string;
+  /** CSS pixels, 1..4096 per dimension. Omit for Playwright's default viewport. */
+  viewport?: { width: number; height: number } | undefined;
+  actions?:
+    | Array<{
+        act: "click" | "fill" | "press" | "waitFor";
+        selector?: string | undefined;
+        value?: string | undefined;
+      }>
+    | undefined;
+  assert: Array<{
+    type: "visible" | "text" | "url";
+    selector?: string | undefined;
+    expected?: string | undefined;
+  }>;
+  screenshot: true;
+}
+
+export interface DemoStepApiAutomation {
+  kind: "api";
+  request: {
+    method: string;
+    path: string;
+    headers?: Record<string, string> | undefined;
+    body?: DemoStepAutomationValue | undefined;
+  };
+  assert: Array<{
+    type: "status" | "jsonPath" | "bodyContains";
+    /** Dot-separated JSON path for jsonPath assertions; "$" selects the whole response. */
+    path?: string | undefined;
+    expected: DemoStepAutomationValue;
+  }>;
+}
+
+export interface DemoStepCommandAutomation {
+  kind: "command";
+  command: {
+    argv: string[];
+    cwd?: string | undefined;
+    timeoutMs: number;
+    expectedExitCode: number;
+  };
+  assert: Array<{
+    type: "stdoutContains" | "stdoutNotContains" | "stderrContains" | "stderrNotContains";
+    expected: string;
+  }>;
+}
+
+export interface DemoStepFileAutomation {
+  kind: "file";
+  path: string;
+  assert: Array<
+    | {
+        type: "exists" | "notExists";
+      }
+    | {
+        type: "contains" | "notContains";
+        expected: string;
+      }
+    | {
+        type: "jsonPath";
+        path: string;
+        expected: DemoStepAutomationValue;
+      }
+  >;
+}
+
 export interface DemoStep {
   order: number;
   description: string;
   expectedOutcome: string;
   type: DemoStepType;
+  automation?: DemoStepAutomation | undefined;
+  /** Required for new non-legacy API/UI handoffs so the runner does not guess the stack. */
+  app?: DemoAppBoot | undefined;
+  /** Stable criterion/subtask references this step proves, e.g. criterion:1 or subtask:<id>. */
+  covers?: string[] | undefined;
+  /** Required when a criterion cannot be proven by executable automation. */
+  coverageRationale?: string | undefined;
   status?: "pending" | "passed" | "failed" | "skipped";
   notes?: string;
 }
@@ -530,6 +660,7 @@ export interface ExecFileNoThrowOptions {
   cwd?: string;
   env?: NodeJS.ProcessEnv;
   timeoutMs?: number;
+  killSignal?: NodeJS.Signals;
   maxBuffer?: number;
 }
 

@@ -8,6 +8,7 @@ export interface LockInfo {
   pid: number;
   startedAt: string;
   type: "mcp-server" | "cli" | "vite";
+  workflowSchemaVersion?: string;
 }
 
 export interface LockCheckResult {
@@ -117,9 +118,7 @@ export function acquireLock(type: LockInfo["type"]): {
       };
     }
 
-    console.error(
-      `[brain-dump] Warning: ${check.message}. Concurrent access may cause issues.`
-    );
+    console.error(`[brain-dump] Warning: ${check.message}. Concurrent access may cause issues.`);
   }
 
   const lockInfo: LockInfo = {
@@ -182,9 +181,7 @@ export function releaseLock(): { released: boolean; message: string } {
 }
 
 /** Ensures lock file is cleaned up when process terminates. */
-export function setupGracefulShutdown(
-  cleanupCallback?: () => Promise<void> | void
-): void {
+export function setupGracefulShutdown(cleanupCallback?: () => Promise<void> | void): void {
   let isShuttingDown = false;
 
   const shutdown = async (signal: string) => {

@@ -179,7 +179,7 @@ describe("Status Transitions Verification", () => {
   describe("Valid Status Transitions", () => {
     /**
      * Tests the complete status flow that users experience:
-     * backlog → ready → in_progress → ai_review → human_review → done
+     * backlog → ready → in_progress → ai_review → ai_verification → done
      */
     it("should allow full status flow from backlog to done", () => {
       const ticketId = randomUUID();
@@ -219,15 +219,15 @@ describe("Status Transitions Verification", () => {
       ticket = db.prepare(`SELECT status FROM tickets WHERE id = ?`).get(ticketId) as any;
       expect(ticket.status).toBe("ai_review");
 
-      // Transition: ai_review → human_review (simulates generate_demo_script)
-      db.prepare(`UPDATE tickets SET status = 'human_review', updated_at = ? WHERE id = ?`).run(
+      // Transition: ai_review → ai_verification (simulates generate_demo_script)
+      db.prepare(`UPDATE tickets SET status = 'ai_verification', updated_at = ? WHERE id = ?`).run(
         now,
         ticketId
       );
       ticket = db.prepare(`SELECT status FROM tickets WHERE id = ?`).get(ticketId) as any;
-      expect(ticket.status).toBe("human_review");
+      expect(ticket.status).toBe("ai_verification");
 
-      // Transition: human_review → done (simulates submit_demo_feedback with passed=true)
+      // Transition: ai_verification → done (simulates certified verification pass)
       db.prepare(
         `UPDATE tickets SET status = 'done', completed_at = ?, updated_at = ? WHERE id = ?`
       ).run(now, now, ticketId);
@@ -238,18 +238,18 @@ describe("Status Transitions Verification", () => {
       expect(ticket.completed_at).toBeTruthy();
     });
 
-    it("should allow rejection flow: human_review stays in human_review", () => {
+    it("should allow verification failure flow: ai_verification returns to in_progress", () => {
       const ticketId = randomUUID();
       const now = new Date().toISOString();
 
-      // Create ticket in human_review
+      // Create ticket in ai_verification
       db.prepare(
         `INSERT INTO tickets (id, title, status, priority, position, project_id, epic_id, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).run(
         ticketId,
         "Rejection Flow Ticket",
-        "human_review",
+        "ai_verification",
         "high",
         2,
         projectId,
@@ -258,15 +258,14 @@ describe("Status Transitions Verification", () => {
         now
       );
 
-      // After rejection, ticket stays in human_review with feedback
-      // (submit_demo_feedback with passed=false does NOT move to done)
-      db.prepare(`UPDATE tickets SET status = 'human_review', updated_at = ? WHERE id = ?`).run(
+      // After failed verification, ticket returns to implementation.
+      db.prepare(`UPDATE tickets SET status = 'in_progress', updated_at = ? WHERE id = ?`).run(
         now,
         ticketId
       );
 
       const ticket = db.prepare(`SELECT status FROM tickets WHERE id = ?`).get(ticketId) as any;
-      expect(ticket.status).toBe("human_review");
+      expect(ticket.status).toBe("in_progress");
     });
   });
 
@@ -337,22 +336,22 @@ describe("Status Transitions Verification", () => {
       ).run(randomUUID(), ticketId, now, now);
 
       // Simulate generate_demo_script: Update status AND workflow state
-      db.prepare("UPDATE tickets SET status = 'human_review', updated_at = ? WHERE id = ?").run(
+      db.prepare("UPDATE tickets SET status = 'ai_verification', updated_at = ? WHERE id = ?").run(
         now,
         ticketId
       );
       db.prepare(
-        "UPDATE ticket_workflow_state SET current_phase = 'human_review', demo_generated = 1, updated_at = ? WHERE ticket_id = ?"
+        "UPDATE ticket_workflow_state SET current_phase = 'ai_verification', demo_generated = 1, updated_at = ? WHERE ticket_id = ?"
       ).run(now, ticketId);
 
       // Verify both updates happened
       const ticket = db.prepare(`SELECT status FROM tickets WHERE id = ?`).get(ticketId) as any;
-      expect(ticket.status).toBe("human_review");
+      expect(ticket.status).toBe("ai_verification");
 
       const state = db
         .prepare(`SELECT * FROM ticket_workflow_state WHERE ticket_id = ?`)
         .get(ticketId) as any;
-      expect(state.current_phase).toBe("human_review");
+      expect(state.current_phase).toBe("ai_verification");
       expect(state.demo_generated).toBe(1);
     });
 
@@ -563,13 +562,13 @@ describe("Status Transitions Verification", () => {
           type: "work_summary",
         },
         {
-          status: "human_review",
+          status: "ai_verification",
           comment: "Demo script generated with 5 steps.",
           type: "progress",
         },
         {
           status: "done",
-          comment: "Demo approved by human reviewer. Ticket complete.",
+          comment: "Verification runner certified the ticket. Ticket complete.",
           type: "progress",
         },
       ];
@@ -669,11 +668,11 @@ describe("Status Transitions Verification", () => {
       expect(afterFix.count).toBe(0);
     });
 
-    it("should only allow submit_demo_feedback when ticket is in human_review", () => {
+    it("should not allow retired submit_demo_feedback from ai_review", () => {
       const ticketId = randomUUID();
       const now = new Date().toISOString();
 
-      // Create ticket in ai_review (NOT human_review)
+      // Create ticket in ai_review (not ready for verification completion)
       db.prepare(
         `INSERT INTO tickets (id, title, status, priority, position, project_id, epic_id, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
@@ -691,8 +690,9 @@ describe("Status Transitions Verification", () => {
 
       // Check precondition
       const ticket = db.prepare(`SELECT status FROM tickets WHERE id = ?`).get(ticketId) as any;
-      const canSubmitFeedback = ticket.status === "human_review";
+      const canSubmitFeedback = false;
 
+      expect(ticket.status).toBe("ai_review");
       expect(canSubmitFeedback).toBe(false);
     });
   });

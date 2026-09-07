@@ -5,7 +5,7 @@
  * MSW, Testing Library cleanup, jest-dom matchers, and browser API shims.
  */
 
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, vi } from "vitest";
 
@@ -13,6 +13,12 @@ const hasDom = typeof window !== "undefined";
 const disableDbStartupTasks = process.env.BRAIN_DUMP_DISABLE_DB_STARTUP_TASKS === "1";
 
 if (disableDbStartupTasks && process.env.XDG_DATA_HOME && process.env.XDG_STATE_HOME) {
+  // Server-function imports can initialize SQLite before a test installs mocks.
+  // Each test file owns its database; parallel suites must not race migrations.
+  mkdirSync(process.env.XDG_DATA_HOME, { recursive: true });
+  const sandbox = mkdtempSync(join(process.env.XDG_DATA_HOME, "suite-"));
+  process.env.XDG_DATA_HOME = join(sandbox, "data");
+  process.env.XDG_STATE_HOME = join(sandbox, "state");
   const dataDir = join(process.env.XDG_DATA_HOME, "brain-dump");
   const stateDir = join(process.env.XDG_STATE_HOME, "brain-dump");
   const dbPath = join(dataDir, "brain-dump.db");

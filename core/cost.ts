@@ -27,6 +27,7 @@ import type {
   CostExplorerParams,
 } from "./types.ts";
 import { ValidationError } from "./errors.ts";
+import { PI_MODEL_NAMES_BY_PROVIDER } from "./providers.ts";
 import type { DbCostModelRow, DbTokenUsageRow } from "./db-rows.ts";
 
 // ============================================
@@ -65,7 +66,12 @@ export interface ResolveTokenUsageAttributionParams {
 export interface TokenUsageAttributionResult {
   telemetrySessionId?: string;
   ticketId?: string;
-  source: "explicit" | "project-event-window" | "project-active-session" | "skipped";
+  source:
+    | "explicit"
+    | "project-event-window"
+    | "project-active-session"
+    | "project-ralph-window"
+    | "skipped";
   skipped: boolean;
   warning?: string;
 }
@@ -355,118 +361,60 @@ const DEFAULT_COST_MODELS: DefaultCostModelDefinition[] = [
     cacheReadCostPerMtok: 0.5,
     isDefault: true,
   },
-  // GPT-5.6 bills cache writes at 1.25x uncached input; cache reads keep the
-  // 90% cached-input discount.
+  // Published standard base-tier prices (2026-09-04):
+  // https://developers.openai.com/api/docs/models/gpt-6-astra
+  // https://developers.openai.com/api/docs/models/gpt-5.6-sol
+  // https://developers.openai.com/api/docs/models/gpt-5.6-terra
+  // https://developers.openai.com/api/docs/models/gpt-5.6-luna
+  // Sol's promotional rates last through at least 2026-11-21. Long-context
+  // surcharges are not represented by this single-rate pricing catalog.
+  {
+    provider: "openai",
+    modelName: "gpt-6-astra",
+    inputCostPerMtok: 10,
+    outputCostPerMtok: 50,
+    cacheReadCostPerMtok: 1,
+    cacheCreateCostPerMtok: 12.5,
+    isDefault: true,
+  },
   {
     provider: "openai",
     modelName: "gpt-5.6-sol",
-    inputCostPerMtok: 5,
-    outputCostPerMtok: 30,
-    cacheReadCostPerMtok: 0.5,
-    cacheCreateCostPerMtok: 6.25,
+    inputCostPerMtok: 4,
+    outputCostPerMtok: 20,
+    cacheReadCostPerMtok: 0.4,
+    cacheCreateCostPerMtok: 5,
     isDefault: true,
   },
   {
     provider: "openai",
     modelName: "gpt-5.6-terra",
-    inputCostPerMtok: 2.5,
-    outputCostPerMtok: 15,
-    cacheReadCostPerMtok: 0.25,
-    cacheCreateCostPerMtok: 3.125,
+    inputCostPerMtok: 2,
+    outputCostPerMtok: 12,
+    cacheReadCostPerMtok: 0.2,
+    cacheCreateCostPerMtok: 2.5,
     isDefault: true,
   },
   {
     provider: "openai",
     modelName: "gpt-5.6-luna",
-    inputCostPerMtok: 1,
-    outputCostPerMtok: 6,
-    cacheReadCostPerMtok: 0.1,
-    cacheCreateCostPerMtok: 1.25,
+    inputCostPerMtok: 0.2,
+    outputCostPerMtok: 1.2,
+    cacheReadCostPerMtok: 0.02,
+    cacheCreateCostPerMtok: 0.25,
     isDefault: true,
   },
   // Pi exposes Codex subscription-routed models under openai-codex. These are
   // included so the launch model picker can offer the same ids reported by
   // `pi --list-models`; subscription usage has no marginal API price here.
-  {
+  ...PI_MODEL_NAMES_BY_PROVIDER["openai-codex"].map((modelName) => ({
     provider: "openai-codex",
-    modelName: "gpt-5.1",
+    modelName,
     inputCostPerMtok: 0,
     outputCostPerMtok: 0,
     cacheReadCostPerMtok: 0,
     isDefault: true,
-  },
-  {
-    provider: "openai-codex",
-    modelName: "gpt-5.1-codex-max",
-    inputCostPerMtok: 0,
-    outputCostPerMtok: 0,
-    cacheReadCostPerMtok: 0,
-    isDefault: true,
-  },
-  {
-    provider: "openai-codex",
-    modelName: "gpt-5.1-codex-mini",
-    inputCostPerMtok: 0,
-    outputCostPerMtok: 0,
-    cacheReadCostPerMtok: 0,
-    isDefault: true,
-  },
-  {
-    provider: "openai-codex",
-    modelName: "gpt-5.2",
-    inputCostPerMtok: 0,
-    outputCostPerMtok: 0,
-    cacheReadCostPerMtok: 0,
-    isDefault: true,
-  },
-  {
-    provider: "openai-codex",
-    modelName: "gpt-5.2-codex",
-    inputCostPerMtok: 0,
-    outputCostPerMtok: 0,
-    cacheReadCostPerMtok: 0,
-    isDefault: true,
-  },
-  {
-    provider: "openai-codex",
-    modelName: "gpt-5.3-codex",
-    inputCostPerMtok: 0,
-    outputCostPerMtok: 0,
-    cacheReadCostPerMtok: 0,
-    isDefault: true,
-  },
-  {
-    provider: "openai-codex",
-    modelName: "gpt-5.3-codex-spark",
-    inputCostPerMtok: 0,
-    outputCostPerMtok: 0,
-    cacheReadCostPerMtok: 0,
-    isDefault: true,
-  },
-  {
-    provider: "openai-codex",
-    modelName: "gpt-5.4",
-    inputCostPerMtok: 0,
-    outputCostPerMtok: 0,
-    cacheReadCostPerMtok: 0,
-    isDefault: true,
-  },
-  {
-    provider: "openai-codex",
-    modelName: "gpt-5.4-mini",
-    inputCostPerMtok: 0,
-    outputCostPerMtok: 0,
-    cacheReadCostPerMtok: 0,
-    isDefault: true,
-  },
-  {
-    provider: "openai-codex",
-    modelName: "gpt-5.5",
-    inputCostPerMtok: 0,
-    outputCostPerMtok: 0,
-    cacheReadCostPerMtok: 0,
-    isDefault: true,
-  },
+  })),
   // Google
   {
     provider: "google",
@@ -965,6 +913,42 @@ function skippedAttribution(warning: string): TokenUsageAttributionResult {
   };
 }
 
+/** CLI-only Ralph work has session history even after handoff removes its state file. */
+function resolveRalphWindowAttribution(
+  db: DbHandle,
+  projectPath: string,
+  params: ResolveTokenUsageAttributionParams
+): TokenUsageAttributionResult | null {
+  const window = getAttributionWindow(params);
+  if (!window) return null;
+  const matches = db
+    .prepare(
+      `
+    SELECT DISTINCT rs.ticket_id AS ticketId
+    FROM ralph_sessions rs
+    JOIN tickets t ON t.id = rs.ticket_id
+    JOIN projects p ON p.id = t.project_id
+    WHERE p.path = ? AND rs.started_at <= ?
+      AND (rs.completed_at IS NULL OR rs.completed_at >= ?)
+    LIMIT 2
+  `
+    )
+    .all(
+      projectPath,
+      new Date(window.endMs).toISOString(),
+      new Date(window.startMs).toISOString()
+    ) as Array<{ ticketId: string }>;
+  if (matches.length === 1) {
+    return { ticketId: matches[0]!.ticketId, source: "project-ralph-window", skipped: false };
+  }
+  if (matches.length > 1) {
+    return skippedAttribution(
+      "Token usage attribution skipped: transcript overlaps multiple Ralph tickets; pass --ticket explicitly."
+    );
+  }
+  return null;
+}
+
 /**
  * Resolve token usage attribution without falling back to an arbitrary global
  * active session. Explicit session/ticket flags always win; otherwise callers
@@ -1009,8 +993,11 @@ export function resolveTokenUsageAttribution(
         skipped: false,
       };
     }
-    return skippedAttribution(
-      `Token usage attribution skipped: no telemetry sessions found for project ${params.projectPath}.`
+    return (
+      resolveRalphWindowAttribution(db, params.projectPath, params) ??
+      skippedAttribution(
+        `Token usage attribution skipped: no telemetry sessions found for project ${params.projectPath}.`
+      )
     );
   }
 
@@ -1043,8 +1030,11 @@ export function resolveTokenUsageAttribution(
     };
   }
 
-  return skippedAttribution(
-    `Token usage attribution skipped: no telemetry session window matched transcript ${params.transcriptPath ?? "<unknown>"} for project ${params.projectPath}.`
+  return (
+    resolveRalphWindowAttribution(db, params.projectPath, params) ??
+    skippedAttribution(
+      `Token usage attribution skipped: no telemetry session window matched transcript ${params.transcriptPath ?? "<unknown>"} for project ${params.projectPath}.`
+    )
   );
 }
 
@@ -1061,6 +1051,12 @@ export function resolveTokenUsageAttribution(
  * @throws ValidationError if model is empty or token counts are negative
  */
 export function recordUsage(db: DbHandle, params: RecordUsageParams): TokenUsageRecord {
+  // Ticket-only captures have no unique session index. Reserve the write lock
+  // before lookup so concurrent Stop hooks cannot both insert the same snapshot.
+  return db.transaction(() => recordUsageInTransaction(db, params)).immediate();
+}
+
+function recordUsageInTransaction(db: DbHandle, params: RecordUsageParams): TokenUsageRecord {
   const {
     telemetrySessionId,
     ticketId,
@@ -1094,15 +1090,51 @@ export function recordUsage(db: DbHandle, params: RecordUsageParams): TokenUsage
     }
   }
 
-  if (sourceRef && telemetrySessionId) {
-    const existing = db
-      .prepare(
-        `SELECT * FROM token_usage
-         WHERE telemetry_session_id = ? AND source_ref = ? AND model = ?
+  let existing: DbTokenUsageRow | undefined;
+  if (sourceRef && (telemetrySessionId || resolvedTicketId)) {
+    existing = (
+      telemetrySessionId
+        ? db
+            .prepare(
+              `SELECT * FROM token_usage
+         WHERE source_ref = ? AND model = ? AND
+           (telemetry_session_id = ? OR (telemetry_session_id IS NULL AND ticket_id = ?))
+         ORDER BY telemetry_session_id IS NULL
          LIMIT 1`
-      )
-      .get(telemetrySessionId, sourceRef, model) as DbTokenUsageRow | undefined;
-    if (existing) return parseTokenUsageRow(existing);
+            )
+            .get(sourceRef, model, telemetrySessionId, resolvedTicketId)
+        : db
+            .prepare(
+              `SELECT * FROM token_usage
+         WHERE ticket_id = ? AND source_ref = ? AND model = ?
+         LIMIT 1`
+            )
+            .get(resolvedTicketId, sourceRef, model)
+    ) as DbTokenUsageRow | undefined;
+    if (existing) {
+      // Deep recalculation can create telemetry after a CLI-only capture.
+      // Attach its existing row before applying any newer snapshot/deltas.
+      if (telemetrySessionId && !existing.telemetry_session_id) {
+        db.prepare("UPDATE token_usage SET telemetry_session_id = ? WHERE id = ?").run(
+          telemetrySessionId,
+          existing.id
+        );
+        db.prepare(
+          `UPDATE telemetry_sessions SET
+          total_input_tokens = COALESCE(total_input_tokens, 0) + ?,
+          total_output_tokens = COALESCE(total_output_tokens, 0) + ?,
+          total_cost_usd = COALESCE(total_cost_usd, 0) + ? WHERE id = ?`
+        ).run(existing.input_tokens, existing.output_tokens, existing.cost_usd, telemetrySessionId);
+        existing.telemetry_session_id = telemetrySessionId;
+      }
+      const previousEnd = parseAttributionTime(existing.provider_event_end);
+      const incomingEnd = parseAttributionTime(providerEventEnd);
+      // Untimed imports are immutable; older asynchronous captures must not
+      // replace a newer cumulative snapshot. Equal windows can correct parsing.
+      if (incomingEnd === null || (previousEnd !== null && incomingEnd < previousEnd)) {
+        return parseTokenUsageRow(existing);
+      }
+    }
   }
 
   const costUsd = computeCostFromTokens(db, model, {
@@ -1112,15 +1144,21 @@ export function recordUsage(db: DbHandle, params: RecordUsageParams): TokenUsage
     cacheCreationTokens,
   });
 
-  const id = randomUUID();
-  const now = recordedAt || new Date().toISOString();
+  const id = existing?.id ?? randomUUID();
+  const now = recordedAt || existing?.recorded_at || new Date().toISOString();
 
   db.prepare(
     `INSERT INTO token_usage
      (id, telemetry_session_id, ticket_id, model, input_tokens, output_tokens,
       cache_read_tokens, cache_creation_tokens, cost_usd, source, source_ref,
       provider_event_start, provider_event_end, recorded_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       input_tokens = excluded.input_tokens, output_tokens = excluded.output_tokens,
+       cache_read_tokens = excluded.cache_read_tokens,
+       cache_creation_tokens = excluded.cache_creation_tokens,
+       cost_usd = excluded.cost_usd, provider_event_start = excluded.provider_event_start,
+       provider_event_end = excluded.provider_event_end, recorded_at = excluded.recorded_at`
   ).run(
     id,
     telemetrySessionId || null,
@@ -1139,14 +1177,20 @@ export function recordUsage(db: DbHandle, params: RecordUsageParams): TokenUsage
   );
 
   // Update telemetry_sessions aggregates
-  if (telemetrySessionId) {
+  const aggregateSessionId = existing?.telemetry_session_id ?? telemetrySessionId;
+  if (aggregateSessionId) {
     db.prepare(
       `UPDATE telemetry_sessions
        SET total_input_tokens = COALESCE(total_input_tokens, 0) + ?,
            total_output_tokens = COALESCE(total_output_tokens, 0) + ?,
            total_cost_usd = COALESCE(total_cost_usd, 0) + ?
        WHERE id = ?`
-    ).run(inputTokens, outputTokens, costUsd, telemetrySessionId);
+    ).run(
+      inputTokens - (existing?.input_tokens ?? 0),
+      outputTokens - (existing?.output_tokens ?? 0),
+      costUsd - (existing?.cost_usd ?? 0),
+      aggregateSessionId
+    );
   }
 
   return parseTokenUsageRow(

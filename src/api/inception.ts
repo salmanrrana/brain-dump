@@ -166,125 +166,13 @@ Once the interview is complete and confirmed, execute these steps:
 - The spec.md should be detailed enough that another developer could implement it
 - Use the AskUserQuestion tool for interview questions when appropriate`;
 }
-
-// ============================================================================
-// SPEC BREAKDOWN PROMPT
-// ============================================================================
-
-function getSpecBreakdownPrompt(projectPath: string, projectName: string): string {
-  return `You are a senior software architect breaking down a project specification into actionable tickets.
-
-## Your Mission
-Read the spec.md file in this project and create a comprehensive set of tickets in Brain Dump.
-
-## Input
-Project name: ${projectName}
-Project path: ${projectPath}
-Read the file: ${projectPath}/spec.md
-
-## Process
-
-### Step 1: Analyze the Spec
-Read and understand the entire specification. Identify:
-- Core features that make up the MVP
-- Supporting features that enable the core
-- Nice-to-have features for later
-- Technical infrastructure needs (setup, CI/CD, etc.)
-
-### Step 2: Create Epics
-Group related work into epics. Common epic patterns:
-- "Project Setup" - Initial scaffolding, tooling, CI/CD
-- "Core Feature: [Name]" - Main features
-- "User Authentication" - If applicable
-- "Data Layer" - Database, APIs
-- "UI/UX" - Common components, styling
-- "Testing & QA" - Test infrastructure
-- "Documentation" - README, API docs
-
-Use Brain Dump MCP tool \`create_epic\` for each epic with:
-- projectId: (get from find_project_by_path first)
-- title: Epic title
-- description: Brief description
-
-### Step 3: Create Tickets
-For each epic, create granular, actionable tickets. Each ticket should:
-- Be completable in 1-4 hours of focused work
-- Have a clear definition of done
-- Be properly prioritized (high/medium/low)
-
-Use Brain Dump MCP tool \`create_ticket\` for each ticket with:
-- projectId: The project ID
-- epicId: The epic ID this ticket belongs to
-- title: Short, descriptive title
-- description: Detailed description with acceptance criteria
-- priority: high, medium, or low
-- tags: Relevant tags like ["setup"], ["backend"], ["frontend"], ["testing"]
-
-**Ticket Guidelines:**
-- Start with setup/infrastructure tickets (high priority)
-- Order tickets by dependency (what needs to be done first?)
-- Include test tickets for each feature
-- Don't forget documentation tickets
-- Break large features into multiple smaller tickets
-
-### Step 4: Generate PRD
-Update the plans/prd.json file with all tickets:
-
-\`\`\`json
-{
-  "projectName": "${projectName}",
-  "projectPath": "${projectPath}",
-  "userStories": [
-    {
-      "id": "ticket-uuid-from-brain-dump",
-      "title": "Ticket title",
-      "description": "Ticket description",
-      "acceptanceCriteria": ["Criterion 1", "Criterion 2"],
-      "priority": "high",
-      "tags": ["setup"],
-      "passes": false
-    }
-  ],
-  "generatedAt": "{ISO timestamp}"
-}
-\`\`\`
-
-### Step 5: Update Progress Log
-Append to plans/progress.txt:
-\`\`\`
-## Spec Breakdown Complete
-Date: {timestamp}
-Epics created: {count}
-Tickets created: {count}
-Ready for development!
-\`\`\`
-
-### Step 6: Commit Changes
-\`\`\`bash
-git add plans/
-git commit -m "chore: generate PRD and tickets from spec"
-\`\`\`
-
-## Output Format
-After completing breakdown, output exactly:
-\`\`\`
-SPEC_BREAKDOWN_COMPLETE
-Epics: {count}
-Tickets: {count}
-High Priority: {count}
-Ready to start development with Claude or Ralph!
-\`\`\``;
-}
-
 // ============================================================================
 // LAUNCH FUNCTIONS
 // ============================================================================
 
 // Launch Project Inception skill
 export const launchProjectInception = createServerFn({ method: "POST" })
-  .inputValidator(
-    (data: { preferredTerminal?: string | null }) => data
-  )
+  .inputValidator((data: { preferredTerminal?: string | null }) => data)
   .handler(async ({ data }): Promise<LaunchInceptionResult> => {
     const { preferredTerminal } = data;
     const { exec } = await import("child_process");
@@ -294,11 +182,7 @@ export const launchProjectInception = createServerFn({ method: "POST" })
     const { randomUUID } = await import("crypto");
 
     // Get settings for default projects directory
-    const currentSettings = db
-      .select()
-      .from(settings)
-      .where(eq(settings.id, "default"))
-      .get();
+    const currentSettings = db.select().from(settings).where(eq(settings.id, "default")).get();
 
     const defaultProjectsDir = currentSettings?.defaultProjectsDirectory ?? null;
 
@@ -313,7 +197,9 @@ export const launchProjectInception = createServerFn({ method: "POST" })
       } else {
         // Preferred terminal not available - add warning
         const reason = result.error || "not installed";
-        warnings.push(`Your preferred terminal "${preferredTerminal}" is not available (${reason}). Using auto-detected terminal instead.`);
+        warnings.push(
+          `Your preferred terminal "${preferredTerminal}" is not available (${reason}). Using auto-detected terminal instead.`
+        );
       }
     }
 
@@ -381,121 +267,6 @@ exec bash
       return {
         success: true,
         message: `Launched Project Inception in ${terminal}`,
-        terminalUsed: terminal,
-        ...(warnings.length > 0 && { warnings }),
-      };
-    } catch (error) {
-      return {
-        success: false,
-        message: `Failed to launch terminal: ${error instanceof Error ? error.message : "Unknown error"}`,
-        ...(warnings.length > 0 && { warnings }),
-      };
-    }
-  });
-
-// Launch Spec Breakdown skill for an existing project
-export const launchSpecBreakdown = createServerFn({ method: "POST" })
-  .inputValidator(
-    (data: { projectPath: string; projectName: string; preferredTerminal?: string | null }) => data
-  )
-  .handler(async ({ data }): Promise<LaunchInceptionResult> => {
-    const { projectPath, projectName, preferredTerminal } = data;
-    const { exec } = await import("child_process");
-    const { writeFileSync, mkdirSync, chmodSync, existsSync } = await import("fs");
-    const { join } = await import("path");
-    const { homedir } = await import("os");
-    const { randomUUID } = await import("crypto");
-
-    // Verify spec.md exists
-    const specPath = join(projectPath, "spec.md");
-    if (!existsSync(specPath)) {
-      return {
-        success: false,
-        message: `No spec.md found at ${specPath}. Run Project Inception first or create a spec.md manually.`,
-      };
-    }
-
-    // Determine which terminal to use
-    let terminal: string | null = null;
-    const warnings: string[] = [];
-
-    if (preferredTerminal) {
-      const result = await isTerminalAvailable(preferredTerminal);
-      if (result.available) {
-        terminal = preferredTerminal;
-      } else {
-        // Preferred terminal not available - add warning
-        const reason = result.error || "not installed";
-        warnings.push(`Your preferred terminal "${preferredTerminal}" is not available (${reason}). Using auto-detected terminal instead.`);
-      }
-    }
-
-    if (!terminal) {
-      terminal = await detectTerminal();
-    }
-
-    if (!terminal) {
-      return {
-        success: false,
-        message: "No terminal emulator found.",
-        ...(warnings.length > 0 && { warnings }),
-      };
-    }
-
-    // Create the script directory
-    const scriptDir = join(homedir(), ".brain-dump", "scripts");
-    mkdirSync(scriptDir, { recursive: true });
-
-    // Create prompt file in the project directory so Claude can easily read the spec
-    const promptId = randomUUID();
-    const promptFile = join(projectPath, `.brain-dump-breakdown-prompt-${promptId}.md`);
-    const prompt = getSpecBreakdownPrompt(projectPath, projectName);
-    writeFileSync(promptFile, prompt, { mode: 0o600 });
-
-    // Create launch script
-    const scriptPath = join(scriptDir, `breakdown-${promptId}.sh`);
-
-    const script = `#!/bin/bash
-set -e
-
-cd "${projectPath}"
-
-echo ""
-echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
-echo -e "\\033[0;32m🧠 Brain Dump - Spec Breakdown\\033[0m"
-echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
-echo -e "\\033[1;33m📋 Project:\\033[0m ${projectName}"
-echo -e "\\033[1;33m📁 Path:\\033[0m ${projectPath}"
-echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
-echo ""
-
-# Launch Claude with the prompt
-claude "${promptFile}"
-
-# Cleanup prompt file
-rm -f "${promptFile}"
-
-echo ""
-echo -e "\\033[0;32m✅ Spec Breakdown session ended.\\033[0m"
-exec bash
-`;
-
-    writeFileSync(scriptPath, script, { mode: 0o700 });
-    chmodSync(scriptPath, 0o700);
-
-    // Build and execute terminal command
-    const terminalCommand = buildTerminalCommand(terminal, projectPath, scriptPath);
-
-    try {
-      exec(terminalCommand, (error) => {
-        if (error) {
-          console.error("Terminal launch error:", error);
-        }
-      });
-
-      return {
-        success: true,
-        message: `Launched Spec Breakdown in ${terminal}`,
         terminalUsed: terminal,
         ...(warnings.length > 0 && { warnings }),
       };

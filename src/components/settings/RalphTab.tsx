@@ -1,4 +1,5 @@
 import { ChevronDown, Loader2, AlertTriangle, CheckCircle, Bot } from "lucide-react";
+import { PROVIDER_REGISTRY, REVIEWER_CAPABLE_PROVIDER_IDS } from "../../../core/providers.ts";
 import { DOCKER_RUNTIME_TYPES, type DockerRuntimeSetting } from "../../api/settings";
 import {
   sectionHeaderStyles,
@@ -108,6 +109,69 @@ export function RalphTab({
             <Bot size={16} className="text-[var(--accent-ai)]" />
           </div>
           <h3 className={sectionHeaderStyles.title}>Ralph (Autonomous Mode)</h3>
+        </div>
+
+        <div className="rounded-xl border border-[var(--border-primary)] bg-[var(--bg-primary)] p-4 space-y-4">
+          <div>
+            <div className={fieldStyles.label}>Default Fresh-Eyes Reviewer</div>
+            <p className={fieldStyles.hint}>
+              Optional reviewer backend for Ralph's ai_review phase. Per-launch choices override
+              this default.
+            </p>
+          </div>
+
+          <form.Field
+            name="defaultReviewerProvider"
+            children={(field: StringFieldRenderProps) => (
+              <div>
+                <label htmlFor="defaultReviewerProvider" className={fieldStyles.label}>
+                  Reviewer Provider
+                </label>
+                <div className="relative">
+                  <select
+                    id="defaultReviewerProvider"
+                    value={field.state.value}
+                    onChange={(event) => field.handleChange(event.target.value)}
+                    onBlur={field.handleBlur}
+                    className={inputStyles.select}
+                  >
+                    <option value="">Same as implementer</option>
+                    {REVIEWER_CAPABLE_PROVIDER_IDS.map((providerId) => (
+                      <option key={providerId} value={providerId}>
+                        {PROVIDER_REGISTRY[providerId].displayName}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    size={14}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)] pointer-events-none"
+                  />
+                </div>
+              </div>
+            )}
+          />
+
+          <form.Field
+            name="defaultReviewerModel"
+            children={(field: StringFieldRenderProps) => (
+              <div>
+                <label htmlFor="defaultReviewerModel" className={fieldStyles.label}>
+                  Reviewer Model
+                </label>
+                <input
+                  id="defaultReviewerModel"
+                  value={field.state.value}
+                  onChange={(event) => field.handleChange(event.target.value)}
+                  onBlur={field.handleBlur}
+                  placeholder="Provider default"
+                  className={inputStyles.base}
+                />
+                <p className={fieldStyles.hint}>
+                  Leave blank to use the reviewer provider's default model.
+                </p>
+              </div>
+            )}
+          />
         </div>
 
         {/* Docker Sandbox Toggle */}

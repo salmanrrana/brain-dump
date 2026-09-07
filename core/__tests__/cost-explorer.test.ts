@@ -11,6 +11,7 @@ import {
   repairTokenUsageAttribution,
   seedCostModels,
   recordUsage,
+  getTicketCost,
   syncDefaultCostModels,
   upsertCostModel,
 } from "../cost.ts";
@@ -161,6 +162,7 @@ describe("cost model defaults", () => {
       "gpt-5.6-luna",
       "gpt-5.6-sol",
       "gpt-5.6-terra",
+      "gpt-6-astra",
     ]);
 
     const codex = listCostModels(db).find((model) => model.modelName === "gpt-5.3-codex");
@@ -176,14 +178,76 @@ describe("cost model defaults", () => {
       outputCostPerMtok: 30,
       cacheReadCostPerMtok: 0.5,
     });
+  });
 
-    const gpt56Sol = listCostModels(db).find((model) => model.modelName === "gpt-5.6-sol");
-    expect(gpt56Sol).toMatchObject({
+  it.each([
+    ["gpt-6-astra", 10, 50, 1, 12.5],
+    ["gpt-5.6-sol", 4, 20, 0.4, 5],
+    ["gpt-5.6-terra", 2, 12, 0.2, 2.5],
+    ["gpt-5.6-luna", 0.2, 1.2, 0.02, 0.25],
+  ] as const)(
+    "seeds API pricing and subscription routing for %s",
+    (
+      modelName,
+      inputCostPerMtok,
+      outputCostPerMtok,
+      cacheReadCostPerMtok,
+      cacheCreateCostPerMtok
+    ) => {
+      const models = listCostModels(db);
+      expect(
+        models.find((model) => model.provider === "openai" && model.modelName === modelName)
+      ).toMatchObject({
+        inputCostPerMtok,
+        outputCostPerMtok,
+        cacheReadCostPerMtok,
+        cacheCreateCostPerMtok,
+      });
+      expect(
+        models.find((model) => model.provider === "openai-codex" && model.modelName === modelName)
+      ).toMatchObject({ inputCostPerMtok: 0, outputCostPerMtok: 0, cacheReadCostPerMtok: 0 });
+    }
+  );
+
+  it("upgrades existing GPT catalogs while preserving custom prices", () => {
+    db.prepare(
+      "DELETE FROM cost_models WHERE model_name = 'gpt-6-astra' OR (provider = 'openai-codex' AND model_name LIKE 'gpt-5.6-%')"
+    ).run();
+    upsertCostModel(db, {
+      provider: "openai",
+      modelName: "gpt-5.6-sol",
       inputCostPerMtok: 5,
       outputCostPerMtok: 30,
       cacheReadCostPerMtok: 0.5,
       cacheCreateCostPerMtok: 6.25,
+      isDefault: true,
     });
+    upsertCostModel(db, {
+      provider: "openai",
+      modelName: "gpt-5.6-luna",
+      inputCostPerMtok: 7,
+      outputCostPerMtok: 9,
+      isDefault: false,
+    });
+    expect(syncDefaultCostModels(db)).toEqual({ inserted: 5, updated: 1, removed: 0 });
+    expect(syncDefaultCostModels(db)).toEqual({ inserted: 0, updated: 0, removed: 0 });
+    const models = listCostModels(db);
+    expect(
+      models.find((model) => model.provider === "openai" && model.modelName === "gpt-5.6-sol")
+    ).toMatchObject({
+      inputCostPerMtok: 4,
+      outputCostPerMtok: 20,
+      cacheReadCostPerMtok: 0.4,
+      cacheCreateCostPerMtok: 5,
+    });
+    expect(
+      models.find((model) => model.provider === "openai" && model.modelName === "gpt-5.6-luna")
+    ).toMatchObject({ inputCostPerMtok: 7, outputCostPerMtok: 9, isDefault: false });
+    for (const modelName of ["gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]) {
+      expect(
+        models.some((model) => model.provider === "openai-codex" && model.modelName === modelName)
+      ).toBe(true);
+    }
   });
 
   it("seeds the current open source pricing catalog", () => {
@@ -261,7 +325,7 @@ describe("cost model defaults", () => {
 
     const result = syncDefaultCostModels(db);
 
-    expect(result).toEqual({ inserted: 7, updated: 0, removed: 2 });
+    expect(result).toEqual({ inserted: 8, updated: 0, removed: 2 });
     expect(
       listCostModels(db)
         .filter((model) => model.provider === "openai")
@@ -276,6 +340,7 @@ describe("cost model defaults", () => {
       "gpt-5.6-luna",
       "gpt-5.6-sol",
       "gpt-5.6-terra",
+      "gpt-6-astra",
     ]);
   });
 
@@ -291,7 +356,7 @@ describe("cost model defaults", () => {
 
     const result = syncDefaultCostModels(db);
 
-    expect(result).toEqual({ inserted: 9, updated: 0, removed: 0 });
+    expect(result).toEqual({ inserted: 10, updated: 0, removed: 0 });
     expect(
       listCostModels(db).some(
         (model) =>
@@ -416,6 +481,106 @@ describe("cost model defaults", () => {
     expect(totals.inputTokens).toBe(1000);
     expect(totals.outputTokens).toBe(500);
   });
+
+  it("attaches existing ticket-only usage when backfill later creates telemetry", () => {
+    const ticketId = seedTicket();
+    const capture = {
+      ticketId,
+      model: "claude-sonnet-4-6",
+      inputTokens: 100,
+      outputTokens: 20,
+      source: "jsonl-hook",
+      sourceRef: "/logs/later-telemetry.jsonl",
+    };
+    const first = recordUsage(db, capture);
+    db.prepare(
+      `INSERT INTO telemetry_sessions (id, ticket_id, project_id, environment, started_at)
+      VALUES ('telemetry-later', ?, 'proj-1', 'claude-code', '2026-01-01T00:00:00.000Z')`
+    ).run(ticketId);
+    const attached = recordUsage(db, { ...capture, telemetrySessionId: "telemetry-later" });
+    expect(attached).toMatchObject({ id: first.id, telemetrySessionId: "telemetry-later" });
+    expect(db.prepare("SELECT count(*) AS n FROM token_usage").get()).toEqual({ n: 1 });
+    expect(
+      db
+        .prepare(
+          `SELECT total_input_tokens AS input, total_output_tokens AS output
+      FROM telemetry_sessions WHERE id='telemetry-later'`
+        )
+        .get()
+    ).toEqual({ input: 100, output: 20 });
+    expect(recordUsage(db, { ...capture, telemetrySessionId: "telemetry-later" }).id).toBe(
+      first.id
+    );
+    expect(recordUsage(db, capture)).toMatchObject({
+      id: first.id,
+      telemetrySessionId: "telemetry-later",
+    });
+    expect(
+      recordUsage(db, {
+        ...capture,
+        inputTokens: 120,
+        providerEventEnd: "2026-01-01T00:02:00.000Z",
+      })
+    ).toMatchObject({ id: first.id, telemetrySessionId: "telemetry-later" });
+    expect(
+      db
+        .prepare(
+          "SELECT total_input_tokens AS input FROM telemetry_sessions WHERE id='telemetry-later'"
+        )
+        .get()
+    ).toEqual({ input: 120 });
+    expect(getTicketCost(db, ticketId)).toMatchObject({
+      totalInputTokens: 120,
+      totalOutputTokens: 20,
+    });
+  });
+
+  it.each([false, true])(
+    "updates cumulative transcript captures without double counting (telemetry=%s)",
+    (withTelemetry) => {
+      const ticketId = seedTicket();
+      if (withTelemetry)
+        db.prepare(
+          `INSERT INTO telemetry_sessions
+      (id, ticket_id, project_id, environment, started_at)
+      VALUES ('telemetry-capture', ?, 'proj-1', 'claude-code', '2026-01-01T00:00:00.000Z')`
+        ).run(ticketId);
+      const params = {
+        ticketId,
+        ...(withTelemetry ? { telemetrySessionId: "telemetry-capture" } : {}),
+        model: "claude-sonnet-4-6",
+        inputTokens: 100,
+        outputTokens: 20,
+        source: "jsonl-hook",
+        sourceRef: "/logs/cumulative.jsonl",
+        providerEventEnd: "2026-01-01T00:01:00.000Z",
+      };
+      const first = recordUsage(db, params);
+      expect(recordUsage(db, params).id).toBe(first.id);
+      const updated = recordUsage(db, {
+        ...params,
+        inputTokens: 150,
+        outputTokens: 40,
+        providerEventEnd: "2026-01-01T00:02:00.000Z",
+      });
+      expect(updated).toMatchObject({ id: first.id, inputTokens: 150, outputTokens: 40 });
+      expect(recordUsage(db, params)).toEqual(updated);
+      expect(db.prepare("SELECT count(*) AS n FROM token_usage").get()).toEqual({ n: 1 });
+      expect(getTicketCost(db, ticketId)).toMatchObject({
+        totalInputTokens: 150,
+        totalOutputTokens: 40,
+      });
+      if (withTelemetry)
+        expect(
+          db
+            .prepare(
+              `SELECT total_input_tokens AS input, total_output_tokens AS output
+      FROM telemetry_sessions WHERE id = 'telemetry-capture'`
+            )
+            .get()
+        ).toEqual({ input: 150, output: 40 });
+    }
+  );
 
   it("repairs Notion-style transcript rows across seven matching ticket sessions", () => {
     const finalSessionId = "telemetry-7";

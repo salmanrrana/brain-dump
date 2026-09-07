@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Architecture review for brain-dump</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+    </script>
+    <style>
+      .seam { stroke-dasharray: 4 4; }
+      .leak { stroke: #dc2626; }
+      .deep { background: linear-gradient(135deg, #0f172a, #1e293b); }
+    </style>
+  </head>
+  <body class="bg-stone-50 text-slate-900 font-sans">
+    <main class="max-w-5xl mx-auto px-6 py-12 space-y-12">
+
+      <header class="space-y-3">
+        <h1 class="font-serif text-3xl font-bold">Architecture review — brain-dump</h1>
+        <p class="text-sm text-slate-500">2026-08-23 · hot spots from last ~40 commits: verification, review scope, workflow handoffs</p>
+        <div class="flex gap-6 text-xs uppercase tracking-wider text-slate-600 pt-1">
+          <span class="flex items-center gap-2"><span class="inline-block w-4 h-4 border-2 border-slate-700"></span> module</span>
+          <span class="flex items-center gap-2"><svg width="20" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke="#334155" stroke-width="2" class="seam"/></svg> seam</span>
+          <span class="flex items-center gap-2"><svg width="20" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke="#dc2626" stroke-width="2"/></svg> leakage</span>
+          <span class="flex items-center gap-2"><span class="inline-block w-4 h-4 deep rounded-sm"></span> deep module</span>
+        </div>
+      </header>
+
+      <section id="candidates" class="space-y-10">
+
+        <!-- ============ CANDIDATE 1 ============ -->
+        <article id="c1" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5 shadow-sm">
+          <div class="flex items-start justify-between gap-4">
+            <h2 class="font-serif text-xl font-semibold">1 · Collapse the Verification lifecycle knot</h2>
+            <div class="flex gap-2 shrink-0">
+              <span class="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-semibold">Strong</span>
+              <span class="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 text-xs">in-process</span>
+            </div>
+          </div>
+
+          <p class="font-mono text-sm text-slate-600 leading-relaxed">
+            core/verification.ts (2,272) · core/verification-lifecycle.ts (970) · core/verification-ops.ts (939) ·
+            core/verification-worker.ts (637) · core/verification-queue.ts (440) · core/verification-messages.ts (15)
+          </p>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <p class="text-xs uppercase tracking-wider text-slate-400 mb-2">Before — six modules, one cycle</p>
+              <pre class="mermaid">
+flowchart TB
+  OPS[verification-ops] --> LC[lifecycle]
+  OPS --> Q[queue]
+  OPS --> W[worker]
+  W --> LC
+  W --> Q
+  W --> V[verification]
+  LC --> Q
+  LC -.->|"types"| V
+  V --> LC
+  V --> Q
+  LC --> MSG[messages]
+  V --> MSG
+  classDef leak stroke:#dc2626,stroke-width:2px;
+  class V,LC leak
+              </pre>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-4 flex items-center justify-center">
+              <p class="text-xs uppercase tracking-wider text-slate-400 absolute mt-[-140px] self-start">After — one deep module</p>
+              <div class="deep text-white rounded-lg p-4 w-full max-w-sm border-4 border-slate-900">
+                <p class="text-xs uppercase tracking-wider text-slate-300 mb-3">Verification module</p>
+                <div class="border border-slate-500 rounded px-3 py-2 mb-2 text-sm font-mono">enqueue → run → settle → return-for-human → job status</div>
+                <div class="space-y-1 text-xs text-slate-400 font-mono opacity-50">
+                  <p>verification.ts · lifecycle · ops · queue · worker · messages</p>
+                  <p>same code, absorbed as implementation</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <p><strong>Problem.</strong> Six modules with a verification ↔ lifecycle import cycle and ~86 exports; every adapter (MCP review tool, two API routes) must reach into four or more of them to do one job.</p>
+          <p><strong>Solution.</strong> Deepen into one Verification module whose interface is the lifecycle verbs; the six files become its implementation behind a single seam.</p>
+          <ul class="list-disc list-inside text-sm space-y-1 marker:text-emerald-600">
+            <li>locality: the cycle stops being everyone's problem</li>
+            <li>interface shrinks from ~86 exports to ~6 verbs</li>
+            <li>tests hit one interface, not six files</li>
+            <li>adapters stop importing internals</li>
+          </ul>
+        </article>
+
+        <!-- ============ CANDIDATE 2 ============ -->
+        <article id="c2" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5 shadow-sm">
+          <div class="flex items-start justify-between gap-4">
+            <h2 class="font-serif text-xl font-semibold">2 · One launch interface instead of eight provider clones</h2>
+            <div class="flex gap-2 shrink-0">
+              <span class="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-semibold">Strong</span>
+              <span class="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 text-xs">local-substitutable</span>
+            </div>
+          </div>
+
+          <p class="font-mono text-sm text-slate-600 leading-relaxed">
+            src/api/terminal.ts (2,146) · src/lib/ui-launch-dispatcher.ts · TicketModal / EditTicketModal / EpicModal /
+            EpicDetailHeader ×2 / AppLayout / MobileSidebar / ticket.$id.tsx
+          </p>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <p class="text-xs uppercase tracking-wider text-slate-400 mb-3">Before — eight shallow clones</p>
+              <div class="flex items-end justify-between gap-1 h-64">
+                <!-- each clone: interface bar nearly as tall as impl -->
+                <div class="flex flex-col items-center gap-1 w-full"><div class="w-full bg-red-200 border border-red-400 rounded-t" style="height:88px"></div><div class="w-full bg-slate-300 border border-slate-400" style="height:110px"></div><p class="text-[10px] text-slate-500">claude</p></div>
+                <div class="flex flex-col items-center gap-1 w-full"><div class="w-full bg-red-200 border border-red-400 rounded-t" style="height:84px"></div><div class="w-full bg-slate-300 border border-slate-400" style="height:114px"></div><p class="text-[10px] text-slate-500">codex</p></div>
+                <div class="flex flex-col items-center gap-1 w-full"><div class="w-full bg-red-200 border border-red-400 rounded-t" style="height:86px"></div><div class="w-full bg-slate-300 border border-slate-400" style="height:112px"></div><p class="text-[10px] text-slate-500">pi</p></div>
+                <div class="flex flex-col items-center gap-1 w-full"><div class="w-full bg-red-200 border border-red-400 rounded-t" style="height:82px"></div><div class="w-full bg-slate-300 border border-slate-400" style="height:116px"></div><p class="text-[10px] text-slate-500">cursor</p></div>
+                <div class="flex flex-col items-center gap-1 w-full"><div class="w-full bg-red-200 border border-red-400 rounded-t" style="height:85px"></div><div class="w-full bg-slate-300 border border-slate-400" style="height:113px"></div><p class="text-[10px] text-slate-500">opencode</p></div>
+                <div class="flex flex-col items-center gap-1 w-full"><div class="w-full bg-red-200 border border-red-400 rounded-t" style="height:87px"></div><div class="w-full bg-slate-300 border border-slate-400" style="height:111px"></div><p class="text-[10px] text-slate-500">copilot</p></div>
+                <div class="flex flex-col items-center gap-1 w-full"><div class="w-full bg-red-200 border border-red-400 rounded-t" style="height:83px"></div><div class="w-full bg-slate-300 border border-slate-400" style="height:115px"></div><p class="text-[10px] text-slate-500">vscode</p></div>
+                <div class="flex flex-col items-center gap-1 w-full"><div class="w-full bg-red-200 border border-red-400 rounded-t" style="height:86px"></div><div class="w-full bg-slate-300 border border-slate-400" style="height:112px"></div><p class="text-[10px] text-slate-500">agent</p></div>
+              </div>
+              <p class="text-[10px] text-slate-400 mt-2">red = repeated interface surface (~150 lines each) · grey = provider specifics</p>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <p class="text-xs uppercase tracking-wider text-slate-400 mb-3">After — short interface, deep implementation</p>
+              <div class="flex items-end gap-6 h-64 px-4">
+                <div class="flex flex-col items-center gap-1 w-24">
+                  <div class="w-full bg-emerald-200 border border-emerald-500 rounded-t" style="height:36px"></div>
+                  <div class="w-full deep border-4 border-slate-900 rounded-b" style="height:162px"></div>
+                  <p class="text-[10px] text-slate-500">launch module</p>
+                </div>
+                <div class="flex-1 self-start pt-2 space-y-1.5 text-xs text-slate-500 font-mono">
+                  <p>launch(providerId, payload)</p>
+                  <p class="opacity-60">+ provider catalog entry per AI</p>
+                  <p class="opacity-60">+ terminal resolution once</p>
+                  <p class="opacity-60">+ install checks as data</p>
+                  <p class="opacity-60">+ one test matrix over the seam</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <p><strong>Problem.</strong> Eight <code class="font-mono text-xs">launch*InTerminal</code> server functions repeat the same skeleton (verify path → install check → resolve terminal → spawn), differing only in provider specifics; the dispatcher's dependencies interface names all eight, and eight components each re-wire them by hand.</p>
+          <p><strong>Solution.</strong> One launch module keyed by the provider catalog that already exists in core/providers.ts; provider differences become data inside the implementation.</p>
+          <ul class="list-disc list-inside text-sm space-y-1 marker:text-emerald-600">
+            <li>leverage: one interface, N providers</li>
+            <li>new provider = catalog entry, not nine edits</li>
+            <li>per-provider test suites become one matrix</li>
+            <li>components delete their hand-wired adapters</li>
+          </ul>
+        </article>
+
+        <!-- ============ CANDIDATE 3 ============ -->
+        <article id="c3" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5 shadow-sm">
+          <div class="flex items-start justify-between gap-4">
+            <h2 class="font-serif text-xl font-semibold">3 · Assemble the Ticket briefing once</h2>
+            <div class="flex gap-2 shrink-0">
+              <span class="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-semibold">Worth exploring</span>
+              <span class="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 text-xs">in-process</span>
+            </div>
+          </div>
+
+          <p class="font-mono text-sm text-slate-600 leading-relaxed">
+            src/api/context.ts getTicketContext/getEpicContext · mcp-server/tools/workflow.ts handleStartWork · cli/commands/context.ts
+          </p>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <p class="text-xs uppercase tracking-wider text-slate-400 mb-2">Before — three private briefing builders</p>
+              <pre class="mermaid">
+flowchart LR
+  DB[(tickets rows)]
+  UI[UI getTicketContext] --> DB
+  MCP[MCP start-work prompt] --> DB
+  CLI[CLI context cmd] --> DB
+  UI --> M1["own markdown"]
+  MCP --> M2["own prompt"]
+  CLI --> M3["own render"]
+  classDef leak stroke:#dc2626,stroke-width:2px;
+  class M1,M2,M3 leak
+              </pre>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <p class="text-xs uppercase tracking-wider text-slate-400 mb-2">After — one packet module, thin renderers</p>
+              <div class="flex items-center justify-center h-full py-4">
+                <div class="w-full max-w-sm space-y-2">
+                  <div class="deep text-white rounded-lg p-3 border-4 border-slate-900">
+                    <p class="text-xs uppercase tracking-wider text-slate-300">Ticket briefing module</p>
+                    <p class="font-mono text-sm mt-1">briefing(ticketId) → structured packet</p>
+                    <p class="text-[11px] text-slate-400 opacity-60 mt-1">criteria · comments · attachments · epic</p>
+                  </div>
+                  <div class="flex gap-2">
+                    <div class="flex-1 border-2 border-dashed border-slate-400 rounded px-2 py-1.5 text-xs text-center">UI renderer</div>
+                    <div class="flex-1 border-2 border-dashed border-slate-400 rounded px-2 py-1.5 text-xs text-center">MCP adapter</div>
+                    <div class="flex-1 border-2 border-dashed border-slate-400 rounded px-2 py-1.5 text-xs text-center">CLI adapter</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <p><strong>Problem.</strong> Each adapter hand-assembles its own ticket briefing from raw rows — description, criteria, comments, attachments, epic — so a change to what a launch context must contain lands in three places.</p>
+          <p><strong>Solution.</strong> A core briefing module returns the structured packet once; adapters only render or transport it.</p>
+          <ul class="list-disc list-inside text-sm space-y-1 marker:text-emerald-600">
+            <li>locality: briefing content changes land once</li>
+            <li>two adapters prove the seam is real</li>
+            <li>packet tests replace string-matching three outputs</li>
+          </ul>
+        </article>
+
+      </section>
+
+      <!-- ============ TOP RECOMMENDATION ============ -->
+      <section id="top-recommendation" class="rounded-xl border-2 border-emerald-600 bg-emerald-50 p-6 space-y-2">
+        <p class="text-xs uppercase tracking-wider text-emerald-700 font-semibold">Top recommendation</p>
+        <h2 class="font-serif text-xl font-semibold"><a href="#c1" class="underline decoration-emerald-400 underline-offset-4">Collapse the Verification lifecycle knot</a></h2>
+        <p class="text-sm text-slate-700">It's the hottest path by commit history, the only candidate with an actual import cycle, and the payoff is exact: one interface of lifecycle verbs where today four adapters wire together six modules' exports by hand.</p>
+      </section>
+
+    </main>
+  </body>
+</html>

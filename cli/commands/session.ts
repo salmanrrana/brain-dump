@@ -16,9 +16,8 @@ import {
   getEvents,
   clearEvents,
   clearActiveSessionsForProject,
-  InvalidActionError,
-  ValidationError,
-} from "../../core/index.ts";
+} from "../../core/session.ts";
+import { InvalidActionError, ValidationError } from "../../core/errors.ts";
 import type { RalphSessionState, SessionOutcome, RalphEventType } from "../../core/index.ts";
 import {
   parseFlags,

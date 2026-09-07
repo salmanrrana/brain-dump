@@ -5,6 +5,7 @@ import {
   createTicket,
   listTickets,
   getTicket,
+  updateTicket,
   updateTicketStatus,
   updateAcceptanceCriterion,
   deleteTicket,
@@ -215,6 +216,20 @@ describe("getTicket", () => {
 });
 
 describe("updateTicketStatus", () => {
+  it.each(["ai_review", "ai_verification", "done"] as const)(
+    "allows ordinary edits with unchanged %s status",
+    (status) => {
+      seedProject();
+      seedTicket("t1", "proj-1", { status });
+      const completedAt = status === "done" ? "2026-01-01T00:00:00.000Z" : null;
+      db.prepare("UPDATE tickets SET completed_at = ? WHERE id = 't1'").run(completedAt);
+      const updated = updateTicket(db, "t1", { title: "Renamed", status });
+      expect(updated).toMatchObject({ title: "Renamed", status, completedAt });
+      expect(updateTicket(db, "t1", { status })).toEqual(updated);
+      expect(updateTicketStatus(db, "t1", status).completedAt).toBe(completedAt);
+    }
+  );
+
   it("updates status and returns updated ticket", () => {
     seedProject();
     seedTicket("t1", "proj-1");
@@ -223,21 +238,34 @@ describe("updateTicketStatus", () => {
     expect(ticket.status).toBe("ready");
   });
 
-  it("sets completedAt when status becomes done", () => {
+  it("rejects direct done transitions", () => {
     seedProject();
     seedTicket("t1", "proj-1");
 
-    const ticket = updateTicketStatus(db, "t1", "done");
-    expect(ticket.status).toBe("done");
-    expect(ticket.completedAt).toBeTruthy();
+    expect(() => updateTicketStatus(db, "t1", "done")).toThrow(ValidationError);
   });
 
-  it("clears completedAt when moving back from done", () => {
+  it("rejects direct edits out of workflow-managed statuses", () => {
+    seedProject();
+    seedTicket("t1", "proj-1", { status: "ai_verification" });
+
+    expect(() => updateTicketStatus(db, "t1", "in_progress")).toThrow(ValidationError);
+  });
+
+  it("rejects direct review and verification transitions through updateTicket", () => {
+    seedProject();
+    seedTicket("t1", "proj-1");
+
+    expect(() => updateTicket(db, "t1", { status: "ai_review" })).toThrow(ValidationError);
+    expect(() => updateTicket(db, "t1", { status: "ai_verification" })).toThrow(ValidationError);
+    expect(() => updateTicket(db, "t1", { status: "done" })).toThrow(ValidationError);
+  });
+
+  it("rejects direct edits out of done", () => {
     seedProject();
     seedTicket("t1", "proj-1", { status: "done" });
 
-    const ticket = updateTicketStatus(db, "t1", "in_progress");
-    expect(ticket.completedAt).toBeNull();
+    expect(() => updateTicketStatus(db, "t1", "in_progress")).toThrow(ValidationError);
   });
 
   it("throws TicketNotFoundError for nonexistent ticket", () => {

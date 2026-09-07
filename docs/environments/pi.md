@@ -34,6 +34,25 @@ This installs Brain Dump-managed prompts and skills into Pi’s global agent dir
 
 4. For autonomous Ralph launches, Brain Dump uses the Ralph loop with a Pi backend and sets Pi/Ralph environment markers so comments and telemetry are attributed as Pi or Ralph (Pi).
 
+### GPT model selection
+
+The ticket and Ralph model pickers include `gpt-6-astra`, `gpt-5.6-sol`,
+`gpt-5.6-terra`, and `gpt-5.6-luna` under Pi's `openai-codex` provider. For example:
+
+```bash
+brain-dump workflow launch-epic --epic <id> --provider pi --model openai-codex/gpt-6-astra
+```
+
+The shared catalog also exposes these models for Codex and OpenCode launches.
+Existing databases receive missing built-in models and refreshed default prices
+when Brain Dump initializes; custom prices are preserved. Pi's `openai-codex`
+rows represent subscription usage with zero marginal API cost. OpenAI API rows
+use published standard base-tier prices, including the current Sol promotion;
+long-context surcharges are not included in these estimates.
+
+Confirm local availability with `pi --list-models gpt --offline`. Model access
+still depends on the installed Pi version and your provider account.
+
 ## CLI-Only Behavior
 
 Pi support intentionally does not install or modify MCP configuration. Brain Dump uses its own server-side workflow calls before launch, then passes context to Pi through local prompt and context files.

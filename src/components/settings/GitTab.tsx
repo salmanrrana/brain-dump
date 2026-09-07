@@ -87,6 +87,31 @@ export function GitTab({ isActive, form }: GitTabProps) {
           )}
         />
 
+        <form.Field
+          name="epicAutoPr"
+          children={(field: BooleanFieldRenderProps) => (
+            <div className={toggleStyles.row}>
+              <div className={toggleStyles.info}>
+                <div className={toggleStyles.label}>Epic auto-PR</div>
+                <div className={toggleStyles.desc}>
+                  When AI verification completes the final ticket in an epic, create or ready the
+                  epic pull request automatically.
+                </div>
+              </div>
+              <button
+                onClick={() => field.handleChange(!field.state.value)}
+                onBlur={field.handleBlur}
+                className={toggleStyles.switch(field.state.value)}
+                role="switch"
+                aria-checked={field.state.value}
+                aria-label="Epic auto-PR"
+              >
+                <span className={toggleStyles.knob(field.state.value)} />
+              </button>
+            </div>
+          )}
+        />
+
         {/* PR Target Branch */}
         <form.Field
           name="prTargetBranch"

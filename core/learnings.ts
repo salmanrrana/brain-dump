@@ -12,6 +12,7 @@ import type { DbHandle, Learning, LearningType, EpicInsight } from "./types.ts";
 import { TicketNotFoundError, EpicNotFoundError, InvalidStateError } from "./errors.ts";
 import { addComment } from "./comment.ts";
 import { listComments } from "./comment.ts";
+import { refreshEpicWorkflowTicketCounts } from "./epic-progress.ts";
 
 // ============================================
 // Internal DB Row Types
@@ -201,16 +202,7 @@ export function reconcileLearnings(
     }
   }
 
-  // Update tickets_done count
-  const ticketsDone = (
-    db
-      .prepare("SELECT COUNT(*) as count FROM tickets WHERE epic_id = ? AND status = 'done'")
-      .get(ticket.epic_id) as CountResult
-  ).count;
-
-  db.prepare(
-    "UPDATE epic_workflow_state SET tickets_done = ?, updated_at = ? WHERE epic_id = ?"
-  ).run(ticketsDone, now, ticket.epic_id);
+  refreshEpicWorkflowTicketCounts(db, ticket.epic_id);
 
   // Create audit trail comment
   const learningsLines = learnings.map((l) => `- [${l.type}] ${l.description}`).join("\n");
@@ -223,7 +215,15 @@ export function reconcileLearnings(
 
   let commentWarning: string | undefined;
   try {
-    addComment(db, { ticketId, content: commentContent, type: "progress" });
+    addComment(db, {
+      ticketId,
+      content: commentContent,
+      author: "brain-dump",
+      type: "progress",
+      phase: "system_workflow",
+      actorKind: "system",
+      provider: "brain-dump",
+    });
   } catch (err) {
     commentWarning = `Audit trail comment was not saved: ${err instanceof Error ? err.message : String(err)}`;
   }

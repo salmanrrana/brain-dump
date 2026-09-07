@@ -8,6 +8,18 @@ import { initializeLockSync } from "./lockfile";
 import { initializeWatcher, stopWatching } from "./db-watcher";
 import { startupIntegrityCheck } from "./integrity";
 import { ensureTelemetryTables, ensureTicketWorkflowColumns } from "./db-bootstrap";
+import {
+  drainVerificationQueue,
+  isVerificationExecutionAllowedFromEnv,
+  resolveBrainDumpRootFrom,
+  shouldStartVerificationWorkerFromEnv,
+  spawnDetachedVerificationDrainIfNeeded,
+  startVerificationWorker,
+} from "../../core/verification/index.ts";
+import { drainEpicContinuations } from "../../core/epic-continuation.ts";
+import { reconcileVerificationTicketStates } from "../../core/verification/index.ts";
+import { launchEpicContinuationHeadless } from "./ralph-launch/epic-continuation-adapter";
+import { execFileNoThrow } from "../utils/execFileNoThrow";
 
 const disableStartupTasks = process.env.BRAIN_DUMP_DISABLE_DB_STARTUP_TASKS === "1";
 
@@ -136,6 +148,8 @@ function initTables() {
         path TEXT NOT NULL UNIQUE,
         color TEXT,
         working_method TEXT DEFAULT 'auto',
+        reviewer_provider TEXT,
+        reviewer_model TEXT,
         position REAL NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
       )
@@ -261,6 +275,14 @@ function migrateProjectsTable() {
     console.log("Adding working_method column to projects...");
     ensureColumnExists("projects", "working_method", "TEXT DEFAULT 'auto'");
   }
+  if (!columnExists("projects", "reviewer_provider")) {
+    console.log("Adding reviewer_provider column to projects...");
+    ensureColumnExists("projects", "reviewer_provider", "TEXT");
+  }
+  if (!columnExists("projects", "reviewer_model")) {
+    console.log("Adding reviewer_model column to projects...");
+    ensureColumnExists("projects", "reviewer_model", "TEXT");
+  }
 
   const shouldBackfillExistingPositions = (): boolean => {
     const maxRow = sqlite.prepare("SELECT MAX(position) as maxPosition FROM projects").get() as {
@@ -381,9 +403,13 @@ function initSettings() {
         ralph_timeout INTEGER DEFAULT 3600,
         ralph_max_iterations INTEGER DEFAULT 10,
         auto_create_pr INTEGER DEFAULT 1,
+        epic_auto_pr INTEGER DEFAULT 1,
+        verification_worker_paused INTEGER DEFAULT 0,
         pr_target_branch TEXT DEFAULT 'dev',
         default_projects_directory TEXT,
         default_working_method TEXT DEFAULT 'auto',
+        default_reviewer_provider TEXT,
+        default_reviewer_model TEXT,
         docker_runtime TEXT,
         docker_socket_path TEXT,
         conversation_retention_days INTEGER DEFAULT 90,
@@ -409,6 +435,14 @@ function initSettings() {
       console.log("Adding auto_create_pr column to settings...");
       sqlite.exec("ALTER TABLE settings ADD COLUMN auto_create_pr INTEGER DEFAULT 1");
     }
+    if (!columns.includes("epic_auto_pr")) {
+      console.log("Adding epic_auto_pr column to settings...");
+      sqlite.exec("ALTER TABLE settings ADD COLUMN epic_auto_pr INTEGER DEFAULT 1");
+    }
+    if (!columns.includes("verification_worker_paused")) {
+      console.log("Adding verification_worker_paused column to settings...");
+      sqlite.exec("ALTER TABLE settings ADD COLUMN verification_worker_paused INTEGER DEFAULT 0");
+    }
     if (!columns.includes("pr_target_branch")) {
       console.log("Adding pr_target_branch column to settings...");
       sqlite.exec("ALTER TABLE settings ADD COLUMN pr_target_branch TEXT DEFAULT 'dev'");
@@ -421,6 +455,12 @@ function initSettings() {
     }
     if (!columns.includes("default_working_method")) {
       sqlite.exec("ALTER TABLE settings ADD COLUMN default_working_method TEXT DEFAULT 'auto'");
+    }
+    if (!columns.includes("default_reviewer_provider")) {
+      sqlite.exec("ALTER TABLE settings ADD COLUMN default_reviewer_provider TEXT");
+    }
+    if (!columns.includes("default_reviewer_model")) {
+      sqlite.exec("ALTER TABLE settings ADD COLUMN default_reviewer_model TEXT");
     }
     if (!columns.includes("default_projects_directory")) {
       sqlite.exec("ALTER TABLE settings ADD COLUMN default_projects_directory TEXT");
@@ -449,11 +489,22 @@ function initTicketComments() {
         content TEXT NOT NULL,
         author TEXT NOT NULL,
         type TEXT NOT NULL DEFAULT 'comment',
+        phase TEXT,
+        actor_kind TEXT,
+        provider TEXT,
+        model_provider TEXT,
+        model_name TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
       )
     `);
     sqlite.exec(`CREATE INDEX idx_comments_ticket ON ticket_comments (ticket_id)`);
     console.log("ticket_comments table created successfully");
+  } else {
+    ensureColumnExists("ticket_comments", "phase", "TEXT");
+    ensureColumnExists("ticket_comments", "actor_kind", "TEXT");
+    ensureColumnExists("ticket_comments", "provider", "TEXT");
+    ensureColumnExists("ticket_comments", "model_provider", "TEXT");
+    ensureColumnExists("ticket_comments", "model_name", "TEXT");
   }
 }
 
@@ -543,6 +594,16 @@ function initReviewWorkflowTables() {
     sqlite.exec(`CREATE INDEX idx_workflow_ticket ON ticket_workflow_state (ticket_id)`);
     console.log("ticket_workflow_state table created successfully");
   }
+  // Core-owned columns also used by the app server (review circuit breaker,
+  // repair-diff scope gate). Kept in sync with core/db.ts runMigrations.
+  ensureColumnExists("ticket_workflow_state", "verification_streak_reset_at", "TEXT");
+  ensureColumnExists("ticket_workflow_state", "reviewed_through_commit", "TEXT");
+  ensureColumnExists("ticket_workflow_state", "implementation_started_at", "TEXT");
+  sqlite
+    .prepare(
+      "UPDATE ticket_workflow_state SET implementation_started_at = updated_at WHERE implementation_started_at IS NULL"
+    )
+    .run();
 
   const findingsExists = sqlite
     .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='review_findings'")
@@ -593,6 +654,114 @@ function initReviewWorkflowTables() {
     `);
     console.log("demo_scripts table created successfully");
   }
+
+  const verificationRunsExists = sqlite
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='verification_runs'")
+    .get();
+
+  if (!verificationRunsExists) {
+    console.log("Creating verification_runs table...");
+    sqlite.exec(`
+      CREATE TABLE verification_runs (
+        id TEXT PRIMARY KEY NOT NULL,
+        ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+        round INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        certified INTEGER NOT NULL DEFAULT 0,
+        manifest TEXT NOT NULL,
+        git_sha TEXT,
+        provider TEXT,
+        actor TEXT,
+        provider_source TEXT,
+        execution_surface TEXT,
+        worker_id TEXT,
+        code_git_sha TEXT,
+        started_at TEXT NOT NULL,
+        finished_at TEXT NOT NULL
+      )
+    `);
+    sqlite.exec(`CREATE INDEX idx_verification_runs_ticket ON verification_runs (ticket_id)`);
+    sqlite.exec(
+      `CREATE UNIQUE INDEX idx_verification_runs_round ON verification_runs (ticket_id, round)`
+    );
+    console.log("verification_runs table created successfully");
+  }
+
+  const verificationJobsExists = sqlite
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='verification_jobs'")
+    .get();
+
+  if (!verificationJobsExists) {
+    console.log("Creating verification_jobs table...");
+    sqlite.exec(`
+      CREATE TABLE verification_jobs (
+        id TEXT PRIMARY KEY NOT NULL,
+        ticket_id TEXT NOT NULL UNIQUE REFERENCES tickets(id) ON DELETE CASCADE,
+        demo_script_id TEXT NOT NULL REFERENCES demo_scripts(id) ON DELETE CASCADE,
+        status TEXT NOT NULL DEFAULT 'queued',
+        attempt_count INTEGER NOT NULL DEFAULT 0,
+        next_run_at TEXT NOT NULL,
+        last_error TEXT,
+        leased_by TEXT,
+        lease_expires_at TEXT,
+        provider TEXT,
+        actor TEXT,
+        provider_source TEXT,
+        execution_surface TEXT,
+        worker_id TEXT,
+        code_git_sha TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        completed_at TEXT
+      )
+    `);
+    console.log("verification_jobs table created successfully");
+  }
+  sqlite.exec(
+    `CREATE INDEX IF NOT EXISTS idx_verification_jobs_status_next ON verification_jobs (status, next_run_at)`
+  );
+  sqlite.exec(
+    `CREATE INDEX IF NOT EXISTS idx_verification_jobs_lease ON verification_jobs (status, lease_expires_at)`
+  );
+  sqlite.exec(
+    `CREATE INDEX IF NOT EXISTS idx_verification_jobs_demo ON verification_jobs (demo_script_id)`
+  );
+  for (const tableName of ["verification_runs", "verification_jobs"]) {
+    ensureColumnExists(tableName, "provider", "TEXT");
+    ensureColumnExists(tableName, "actor", "TEXT");
+    ensureColumnExists(tableName, "provider_source", "TEXT");
+    ensureColumnExists(tableName, "execution_surface", "TEXT");
+    ensureColumnExists(tableName, "worker_id", "TEXT");
+    ensureColumnExists(tableName, "code_git_sha", "TEXT");
+  }
+
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS autonomous_epic_launches (
+      epic_id TEXT PRIMARY KEY REFERENCES epics(id) ON DELETE CASCADE,
+      profile_json TEXT NOT NULL,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS epic_continuation_jobs (
+      id TEXT PRIMARY KEY,
+      epic_id TEXT NOT NULL UNIQUE REFERENCES epics(id) ON DELETE CASCADE,
+      ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'queued',
+      attempt_count INTEGER NOT NULL DEFAULT 0,
+      next_run_at TEXT NOT NULL,
+      last_error TEXT,
+      leased_by TEXT,
+      lease_expires_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      completed_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_epic_continuation_jobs_ready
+      ON epic_continuation_jobs (status, next_run_at);
+    CREATE INDEX IF NOT EXISTS idx_epic_continuation_jobs_lease
+      ON epic_continuation_jobs (status, lease_expires_at);
+  `);
 
   const epicReviewRunsExists = sqlite
     .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='epic_review_runs'")
@@ -671,6 +840,12 @@ function initReviewWorkflowTables() {
   );
   sqlite.exec(
     `CREATE INDEX IF NOT EXISTS idx_demo_scripts_run ON demo_scripts (epic_review_run_id)`
+  );
+  sqlite.exec(
+    `CREATE INDEX IF NOT EXISTS idx_verification_runs_ticket ON verification_runs (ticket_id)`
+  );
+  sqlite.exec(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_verification_runs_round ON verification_runs (ticket_id, round)`
   );
 }
 
@@ -817,7 +992,7 @@ function runSchemaMigrations(): void {
  * Bump this whenever a new table/column migration is added to
  * `runSchemaMigrations()` so existing DBs re-run the checks once and re-stamp.
  */
-const CURRENT_SCHEMA_VERSION = 2;
+const CURRENT_SCHEMA_VERSION = 9;
 
 // Gate the migration checks behind PRAGMA user_version (standard SQLite
 // pattern). When the DB is already at the current version we skip all ~25
@@ -865,6 +1040,91 @@ async function cleanupLaunchScripts() {
   }
 }
 cleanupLaunchScripts();
+
+function scheduleVerificationWorker(): void {
+  // Resident 10s poller is explicit opt-in (BRAIN_DUMP_VERIFICATION_WORKER_POLL=1).
+  if (shouldStartVerificationWorkerFromEnv()) {
+    setTimeout(() => {
+      try {
+        startVerificationWorker(sqlite, {
+          execFileNoThrow,
+          executionSurface: "resident-poller",
+          afterJob: async () => {
+            await drainEpicContinuations(sqlite, { launch: launchEpicContinuationHeadless });
+          },
+        });
+        console.log("[VerificationWorker] Started resident polling worker (opt-in)");
+      } catch (error) {
+        console.error("[VerificationWorker] Failed to start:", error);
+      }
+    }, 0).unref?.();
+    return;
+  }
+
+  if (!isVerificationExecutionAllowedFromEnv()) return;
+
+  const reconciliation = reconcileVerificationTicketStates(sqlite);
+  if (reconciliation.enqueuedTicketIds.length > 0) {
+    console.log(
+      `[VerificationWorker] Recovered ${reconciliation.enqueuedTicketIds.length} missing verification job(s)`
+    );
+  }
+  if (reconciliation.humanActionTicketIds.length > 0) {
+    console.warn(
+      `[VerificationWorker] Returned ${reconciliation.humanActionTicketIds.length} terminal verification ticket(s) for human action`
+    );
+  }
+
+  const brainDumpRoot = resolveBrainDumpRootFrom(import.meta.url);
+  if (brainDumpRoot) {
+    // Enqueue drains are normally launched by the MCP/CLI caller. That caller
+    // may belong to a short-lived provider process tree, so a lightweight
+    // supervisor in the long-lived app recovers queued jobs and expired
+    // leases with a fresh current-code drain.
+    setInterval(() => {
+      try {
+        const recovery = spawnDetachedVerificationDrainIfNeeded(sqlite, { brainDumpRoot });
+        if (recovery.needed && !recovery.spawned) {
+          console.error(
+            `[VerificationWorker] Recovery drain failed to spawn: ${recovery.error ?? "unknown error"}`
+          );
+        }
+      } catch (error) {
+        console.error("[VerificationWorker] Recovery supervisor check failed:", error);
+      }
+    }, 10_000).unref?.();
+  } else {
+    console.error("[VerificationWorker] Recovery supervisor could not resolve Brain Dump root");
+  }
+
+  // Default mode: one drain pass for jobs left over from previous sessions,
+  // then the recovery supervisor only intervenes when an enqueue drain never
+  // claims its job or leaves an expired lease. Boot-time in-process execution
+  // is safe — the module graph is fresh at boot.
+  setTimeout(() => {
+    drainVerificationQueue(sqlite, { execFileNoThrow, executionSurface: "boot-drain" })
+      .then(async (result) => {
+        if (result.processed > 0) {
+          console.log(`[VerificationWorker] Boot drain processed ${result.processed} job(s)`);
+        }
+        if (result.lastError) {
+          console.error(`[VerificationWorker] Boot drain last error: ${result.lastError}`);
+        }
+        const continuations = await drainEpicContinuations(sqlite, {
+          launch: launchEpicContinuationHeadless,
+        });
+        if (continuations.lastError) {
+          console.error(
+            `[EpicContinuationWorker] Boot drain last error: ${continuations.lastError}`
+          );
+        }
+      })
+      .catch((error) => {
+        console.error("[VerificationWorker] Boot drain failed:", error);
+      });
+  }, 0).unref?.();
+}
+scheduleVerificationWorker();
 
 export const db = drizzle(sqlite, { schema });
 

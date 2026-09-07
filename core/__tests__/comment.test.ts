@@ -1,8 +1,15 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import type Database from "better-sqlite3";
 import { createTestDatabase } from "../db.ts";
-import { addComment, listComments } from "../comment.ts";
-import { TicketNotFoundError } from "../errors.ts";
+import {
+  addComment,
+  addVerificationReportComment,
+  getActivityLog,
+  listComments,
+  resolveCommentAuthor,
+  resolveCommentIdentity,
+} from "../comment.ts";
+import { TicketNotFoundError, ValidationError } from "../errors.ts";
 
 let db: Database.Database;
 
@@ -30,6 +37,84 @@ beforeEach(() => {
   db = result.db;
 });
 
+describe("resolveCommentIdentity", () => {
+  it("uses the provider registry for Pi comment authors", () => {
+    expect(resolveCommentAuthor("pi")).toBe("pi");
+    expect(resolveCommentAuthor("pi", true)).toBe("ralph:pi");
+  });
+
+  it("keeps implementer and fresh-eyes reviewer models separate", () => {
+    const env = {
+      BRAIN_DUMP_LAUNCH_MODEL_PROVIDER: "openai",
+      BRAIN_DUMP_LAUNCH_MODEL: "gpt-5.6",
+      BRAIN_DUMP_REVIEWER_AUTHOR: "claude",
+      BRAIN_DUMP_REVIEWER_MODEL_PROVIDER: "anthropic",
+      BRAIN_DUMP_REVIEWER_MODEL: "claude-opus-4-6",
+    };
+
+    expect(
+      resolveCommentIdentity({
+        phase: "implementation",
+        actorKind: "ai",
+        role: "implementation",
+        author: "ralph:codex",
+        env,
+      })
+    ).toMatchObject({
+      provider: "codex",
+      modelProvider: "openai",
+      modelName: "gpt-5.6",
+    });
+    expect(
+      resolveCommentIdentity({
+        phase: "ai_review",
+        actorKind: "ai",
+        role: "reviewer",
+        env,
+      })
+    ).toMatchObject({
+      author: "claude",
+      provider: "claude-code",
+      modelProvider: "anthropic",
+      modelName: "claude-opus-4-6",
+    });
+  });
+
+  it("records null model fields when no exact model was selected", () => {
+    expect(
+      resolveCommentIdentity({
+        phase: "implementation",
+        actorKind: "ai",
+        role: "implementation",
+        author: "codex",
+        env: { BRAIN_DUMP_LAUNCH_MODEL_PROVIDER: "openai" },
+      })
+    ).toMatchObject({
+      provider: "codex",
+      modelProvider: null,
+      modelName: null,
+    });
+  });
+
+  it("never records model fields for verification system comments", () => {
+    expect(
+      resolveCommentIdentity({
+        phase: "ai_verification",
+        actorKind: "system",
+        author: "brain-dump",
+        provider: "codex",
+        modelProvider: "openai",
+        modelName: "gpt-5.6",
+      })
+    ).toMatchObject({
+      actorKind: "system",
+      provider: "codex",
+      modelProvider: null,
+      modelName: null,
+    });
+  });
+});
+
 describe("addComment", () => {
   it("creates a comment with correct fields", () => {
     seedProject();
@@ -47,6 +132,13 @@ describe("addComment", () => {
     expect(comment.content).toBe("This is a comment");
     expect(comment.author).toBe("claude");
     expect(comment.type).toBe("comment");
+    expect(comment).toMatchObject({
+      phase: null,
+      actorKind: null,
+      provider: null,
+      modelProvider: null,
+      modelName: null,
+    });
     expect(comment.createdAt).toBeTruthy();
   });
 
@@ -109,6 +201,97 @@ describe("addComment", () => {
 
     expect(comment.author).toBe("ralph:codex");
     expect(comment.type).toBe("progress");
+  });
+
+  it("persists AI workflow and model provenance in comments and activity", () => {
+    seedProject();
+    seedTicket();
+
+    const comment = addComment(db, {
+      ticketId: "ticket-1",
+      content: "Implemented the backend slice",
+      author: "ralph:codex",
+      type: "work_summary",
+      phase: "implementation",
+      actorKind: "ai",
+      provider: "codex",
+      modelProvider: "openai",
+      modelName: "gpt-5.6",
+    });
+
+    expect(comment).toMatchObject({
+      phase: "implementation",
+      actorKind: "ai",
+      provider: "codex",
+      modelProvider: "openai",
+      modelName: "gpt-5.6",
+    });
+    expect(listComments(db, "ticket-1")[0]).toMatchObject(comment);
+    expect(getActivityLog(db, { ticketId: "ticket-1" })[0]).toMatchObject({
+      phase: "implementation",
+      actorKind: "ai",
+      provider: "codex",
+      modelProvider: "openai",
+      modelName: "gpt-5.6",
+    });
+  });
+
+  it("rejects model attribution for system provenance", () => {
+    seedProject();
+    seedTicket();
+
+    expect(() =>
+      addComment(db, {
+        ticketId: "ticket-1",
+        content: "Deterministic workflow update",
+        actorKind: "system",
+        modelName: "not-a-system-model",
+      })
+    ).toThrow(ValidationError);
+  });
+});
+
+describe("verification report comments", () => {
+  it("stores system provenance and refreshes it when updating a run report", () => {
+    seedProject();
+    seedTicket();
+
+    const first = addVerificationReportComment(db, {
+      ticketId: "ticket-1",
+      provider: "codex",
+      runId: "run-1",
+      status: "running",
+      steps: [],
+    });
+    expect(first).toMatchObject({
+      phase: "ai_verification",
+      actorKind: "system",
+      provider: "codex",
+      modelProvider: null,
+      modelName: null,
+    });
+
+    db.prepare(
+      "UPDATE ticket_comments SET phase = NULL, actor_kind = NULL, provider = NULL WHERE id = ?"
+    ).run(first.id);
+
+    const updated = addVerificationReportComment(db, {
+      ticketId: "ticket-1",
+      provider: "codex",
+      runId: "run-1",
+      status: "passed",
+      steps: [],
+    });
+
+    expect(updated.id).toBe(first.id);
+    expect(updated).toMatchObject({
+      phase: "ai_verification",
+      actorKind: "system",
+      provider: "codex",
+      modelProvider: null,
+      modelName: null,
+    });
+    expect(listComments(db, "ticket-1")).toHaveLength(1);
   });
 });
 

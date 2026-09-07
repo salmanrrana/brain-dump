@@ -263,8 +263,8 @@ describe("Full Workflow with Telemetry Capture", () => {
       "UPDATE ticket_workflow_state SET demo_generated = 1, updated_at = ? WHERE ticket_id = ?"
     ).run(new Date().toISOString(), ticketId);
 
-    // Move ticket to human_review
-    db.prepare("UPDATE tickets SET status = 'human_review' WHERE id = ?").run(ticketId);
+    // Move ticket to ai_verification
+    db.prepare("UPDATE tickets SET status = 'ai_verification' WHERE id = ?").run(ticketId);
 
     // Create demo generated comment
     db.prepare(
@@ -278,7 +278,7 @@ describe("Full Workflow with Telemetry Capture", () => {
     );
 
     // ==========================================
-    // Phase 7: Submit Demo Feedback (Human Approval)
+    // Phase 7: Verification Runner Certification
     // ==========================================
     db.prepare(
       `UPDATE demo_scripts SET completed_at = ?, feedback = ?, passed = 1 WHERE id = ?`
@@ -465,6 +465,8 @@ function initializeTestSchema(db: ReturnType<typeof Database>) {
       path TEXT NOT NULL UNIQUE,
       color TEXT,
       working_method TEXT DEFAULT 'auto',
+      reviewer_provider TEXT,
+      reviewer_model TEXT,
       position REAL NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )

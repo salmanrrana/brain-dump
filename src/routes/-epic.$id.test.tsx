@@ -8,8 +8,7 @@ const mockShowToast = vi.hoisted(() => vi.fn());
 const mockPushBranchServerFn = vi.hoisted(() => vi.fn());
 const mockInvalidateQueries = vi.hoisted(() => vi.fn());
 const mockLaunchRalphForEpic = vi.hoisted(() => vi.fn());
-const mockLaunchPiInTerminal = vi.hoisted(() => vi.fn());
-const mockLaunchCodexInTerminal = vi.hoisted(() => vi.fn());
+const mockLaunchProviderInTerminal = vi.hoisted(() => vi.fn());
 const mockGetTicketContext = vi.hoisted(() => vi.fn());
 const mockGetEpicContext = vi.hoisted(() => vi.fn());
 const mockStartEpicWorkflowFn = vi.hoisted(() => vi.fn());
@@ -85,6 +84,11 @@ vi.mock("../lib/hooks", () => ({
     isLoading: false,
     error: null,
   }),
+  useLaunchProviderAvailability: () => ({
+    availabilityByProviderId: {},
+    loading: false,
+    error: null,
+  }),
   useClickOutside: vi.fn(),
 }));
 
@@ -104,14 +108,7 @@ vi.mock("../api/workflow-server-fns", () => ({
 }));
 
 vi.mock("../api/terminal", () => ({
-  launchClaudeInTerminal: vi.fn(),
-  launchCodexInTerminal: mockLaunchCodexInTerminal,
-  launchVSCodeInTerminal: vi.fn(),
-  launchCursorInTerminal: vi.fn(),
-  launchCursorAgentInTerminal: vi.fn(),
-  launchCopilotInTerminal: vi.fn(),
-  launchOpenCodeInTerminal: vi.fn(),
-  launchPiInTerminal: mockLaunchPiInTerminal,
+  launchProviderInTerminal: mockLaunchProviderInTerminal,
 }));
 
 vi.mock("../components/epics/EpicProgressOverview", () => ({
@@ -228,11 +225,7 @@ describe("EpicDetailPage ship entry points", () => {
       success: true,
       message: "Launched Ralph in terminal",
     });
-    mockLaunchPiInTerminal.mockResolvedValue({
-      success: true,
-      message: "Launched Pi in terminal",
-    });
-    mockLaunchCodexInTerminal.mockResolvedValue({
+    mockLaunchProviderInTerminal.mockResolvedValue({
       success: true,
       message: "Launched Codex in terminal",
     });
@@ -409,6 +402,7 @@ describe("EpicDetailPage ship entry points", () => {
         preferredTerminal: null,
         useSandbox: false,
         aiBackend: "claude",
+        workingMethodOverride: "claude-code",
         launchProfile: {
           type: "review",
           selectedTicketIds: ["ticket-1"],
@@ -474,6 +468,7 @@ describe("EpicDetailPage ship entry points", () => {
         preferredTerminal: null,
         useSandbox: false,
         aiBackend: "claude",
+        workingMethodOverride: "claude-code",
         launchProfile: {
           type: "review",
           selectedTicketIds: ["ticket-1", "ticket-2"],
@@ -495,7 +490,7 @@ describe("EpicDetailPage ship entry points", () => {
 
     await waitFor(() => {
       expect(mockGetTicketContext).toHaveBeenCalledWith({ data: "ticket-1" });
-      expect(mockLaunchCodexInTerminal).toHaveBeenCalledWith({
+      expect(mockLaunchProviderInTerminal).toHaveBeenCalledWith({
         data: {
           ticketId: "ticket-1",
           context: "Ticket context",
@@ -504,7 +499,7 @@ describe("EpicDetailPage ship entry points", () => {
           projectName: "Brain Dump",
           epicName: "Launch Epic",
           ticketTitle: "Ship modal",
-          launchMode: "auto",
+          providerId: "codex-auto",
         },
       });
     });
@@ -543,6 +538,7 @@ describe("EpicDetailPage ship entry points", () => {
         preferredTerminal: null,
         useSandbox: false,
         aiBackend: "pi",
+        workingMethodOverride: "pi",
       });
     });
   });
@@ -563,6 +559,7 @@ describe("EpicDetailPage ship entry points", () => {
         preferredTerminal: null,
         useSandbox: false,
         aiBackend: "pi",
+        workingMethodOverride: "pi",
         launchProfile: {
           type: "review",
           selectedTicketIds: ["ticket-1"],

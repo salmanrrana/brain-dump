@@ -15,22 +15,13 @@
  */
 
 import { setupServer } from "msw/node";
-import { handlers, resetMockDataStore } from "./handlers";
+import { handlers } from "./handlers";
 
 /**
  * MSW server instance for tests
  * Intercepts network requests matching the handlers
  */
 export const server = setupServer(...handlers);
-
-/**
- * Reset both the server handlers and the mock data store
- * Call this in afterEach for complete test isolation
- */
-export function resetServer(): void {
-  server.resetHandlers();
-  resetMockDataStore();
-}
 
 // Re-export utilities from handlers for convenience
 export { resetMockDataStore, getMockDataStore, setMockDataStore } from "./handlers";

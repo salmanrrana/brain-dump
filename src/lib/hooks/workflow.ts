@@ -3,8 +3,16 @@
  * Includes queries and mutations for workflow state and demo scripts.
  */
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getDemoScript, updateDemoStep, submitDemoFeedback } from "../../api/demo";
+import { useQuery } from "@tanstack/react-query";
+import { getAttachments, type Attachment } from "../../api/attachments";
+import { getDemoScript } from "../../api/demo";
+import {
+  getVerificationJobStatus,
+  getVerificationRuns,
+  type VerificationJob,
+  type VerificationRunSummary,
+  type VerificationStepVerdict,
+} from "../../api/verification";
 import {
   getWorkflowDisplayState,
   type WorkflowDisplayState,
@@ -19,6 +27,7 @@ const logger = createBrowserLogger("hooks:workflow");
 
 // Re-export types for consumers
 export type { WorkflowDisplayState, WorkflowDisplayResult, DemoStep };
+export type { Attachment, VerificationJob, VerificationRunSummary, VerificationStepVerdict };
 
 // =============================================================================
 // DEMO SCRIPT TYPES
@@ -35,31 +44,6 @@ export interface DemoScript {
   completedAt: string | null;
   passed: boolean | null;
   feedback: string | null;
-}
-
-/**
- * Input type for updateDemoStep mutation
- */
-export interface UpdateDemoStepInput {
-  ticketId: string;
-  demoScriptId: string;
-  stepOrder: number;
-  status: "pending" | "passed" | "failed" | "skipped";
-  notes?: string;
-}
-
-/**
- * Input type for submitDemoFeedback mutation
- */
-export interface SubmitDemoFeedbackInput {
-  ticketId: string;
-  passed: boolean;
-  feedback: string;
-  stepResults?: Array<{
-    order: number;
-    status: "pending" | "passed" | "failed" | "skipped";
-    notes?: string;
-  }>;
 }
 
 // =============================================================================
@@ -104,93 +88,82 @@ export function useDemoScript(
   };
 }
 
-/**
- * Hook for updating a single demo step's status.
- * Uses TanStack Query optimistic updates for instant UI feedback.
- *
- * The optimistic update pattern:
- * 1. onMutate: Cancel outgoing refetches, snapshot previous value, update cache optimistically
- * 2. onError: Roll back to snapshot on failure
- * 3. onSettled: Invalidate queries to ensure cache is in sync with server
- */
-export function useUpdateDemoStep() {
-  const queryClient = useQueryClient();
+export function useTicketAttachments(
+  ticketId: string,
+  options: {
+    /** Whether to enable the query (default: true when ticketId is provided) */
+    enabled?: boolean;
+  } = {}
+) {
+  const { enabled = Boolean(ticketId) } = options;
 
-  return useMutation({
-    mutationFn: (data: UpdateDemoStepInput) => {
-      // Extract only the fields the API expects (excludes ticketId which is for cache key)
-      const { demoScriptId, stepOrder, status, notes } = data;
-      return updateDemoStep({ data: { demoScriptId, stepOrder, status, notes } });
-    },
-    onMutate: async (variables) => {
-      // Cancel any outgoing refetches to avoid overwriting our optimistic update
-      await queryClient.cancelQueries({ queryKey: queryKeys.demoScript(variables.ticketId) });
-
-      // Snapshot the previous value
-      const previousDemoScript = queryClient.getQueryData<DemoScript>(
-        queryKeys.demoScript(variables.ticketId)
-      );
-
-      // Optimistically update the cache
-      if (previousDemoScript) {
-        queryClient.setQueryData<DemoScript>(queryKeys.demoScript(variables.ticketId), (old) => {
-          if (!old) return old;
-          return {
-            ...old,
-            steps: old.steps.map(
-              (step): DemoStep =>
-                step.order === variables.stepOrder
-                  ? {
-                      ...step,
-                      status: variables.status,
-                      // Keep existing notes if new notes not provided
-                      ...(variables.notes !== undefined ? { notes: variables.notes } : {}),
-                    }
-                  : step
-            ),
-          };
-        });
-      }
-
-      // Return context with snapshot for rollback
-      return { previousDemoScript };
-    },
-    onError: (_err, variables, context) => {
-      // Roll back to the previous value on error
-      if (context?.previousDemoScript) {
-        queryClient.setQueryData(
-          queryKeys.demoScript(variables.ticketId),
-          context.previousDemoScript
-        );
-      }
-    },
-    onSettled: (_data, _err, variables) => {
-      // Always refetch after error or success to ensure cache is in sync
-      queryClient.invalidateQueries({ queryKey: queryKeys.demoScript(variables.ticketId) });
-    },
+  const query = useQuery({
+    queryKey: queryKeys.attachments(ticketId),
+    queryFn: async () => getAttachments({ data: ticketId }),
+    enabled,
+    staleTime: 30 * 1000,
   });
+
+  return {
+    attachments: query.data ?? [],
+    loading: query.isLoading,
+    error: query.error?.message ?? null,
+    refetch: query.refetch,
+  };
 }
 
-/**
- * Hook for submitting final demo feedback from human reviewer.
- * This approves or rejects the demo and updates ticket status.
- */
-export function useSubmitDemoFeedback() {
-  const queryClient = useQueryClient();
+export function useVerificationRuns(
+  ticketId: string,
+  options: {
+    /** Whether to enable the query (default: true when ticketId is provided) */
+    enabled?: boolean;
+    /** Polling interval in ms for live verification status (default: 0 = disabled) */
+    pollingInterval?: number;
+  } = {}
+) {
+  const { enabled = Boolean(ticketId), pollingInterval = 0 } = options;
 
-  return useMutation({
-    mutationFn: (data: SubmitDemoFeedbackInput) => submitDemoFeedback({ data }),
-    onSuccess: (_, variables) => {
-      // Invalidate demo script for this ticket
-      queryClient.invalidateQueries({ queryKey: queryKeys.demoScript(variables.ticketId) });
-      // Invalidate tickets to reflect status change (feedback changes status)
-      queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
-      queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
-      queryClient.invalidateQueries({ queryKey: queryKeys.projectTicketCounts });
-      // Invalidate workflow state as demo feedback changes it
-      queryClient.invalidateQueries({ queryKey: queryKeys.workflowState(variables.ticketId) });
-    },
+  const query = useQuery({
+    queryKey: queryKeys.verificationRuns(ticketId),
+    queryFn: async () => getVerificationRuns({ data: { ticketId } }),
+    enabled,
+    refetchInterval: pollingInterval > 0 ? pollingInterval : false,
+    staleTime: pollingInterval > 0 ? pollingInterval : 30 * 1000,
   });
+
+  return {
+    verificationRuns: (query.data ?? []) as VerificationRunSummary[],
+    loading: query.isLoading,
+    error: query.error?.message ?? null,
+    refetch: query.refetch,
+  };
+}
+
+export function useVerificationJobStatus(
+  ticketId: string,
+  options: {
+    /** Whether to enable the query (default: true when ticketId is provided) */
+    enabled?: boolean;
+    /** Polling interval in ms for live verification job status (default: 0 = disabled) */
+    pollingInterval?: number;
+  } = {}
+) {
+  const { enabled = Boolean(ticketId), pollingInterval = 0 } = options;
+
+  const query = useQuery({
+    queryKey: queryKeys.verificationJob(ticketId),
+    queryFn: async () => getVerificationJobStatus({ data: { ticketId } }),
+    enabled,
+    refetchInterval: pollingInterval > 0 ? pollingInterval : false,
+    staleTime: pollingInterval > 0 ? pollingInterval : 30 * 1000,
+  });
+
+  return {
+    verificationJob: (query.data ?? null) as VerificationJob | null,
+    loading: query.isLoading,
+    error: query.error?.message ?? null,
+    refetch: query.refetch,
+  };
 }
 
 // =============================================================================

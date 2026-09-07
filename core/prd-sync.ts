@@ -6,6 +6,7 @@ interface UserStory {
   id: string;
   title: string;
   passes?: boolean;
+  status?: string;
   [key: string]: unknown;
 }
 
@@ -24,6 +25,39 @@ export interface OptionalUpdatePrdResult extends UpdatePrdResult {
   required: boolean;
 }
 
+// The Ralph loop reads blocked state from the scoped PRD to tell "waiting on
+// a human" apart from "re-hitting the same blocker" — without it, a ticket
+// parked for human action looks identical to silent no-progress.
+function applyBlockedState(
+  story: UserStory,
+  blocked: { isBlocked: boolean; reason: string | null }
+): void {
+  if (blocked.isBlocked) {
+    story.blocked = true;
+    if (blocked.reason) story.blockedReason = blocked.reason;
+    else delete story.blockedReason;
+  } else {
+    delete story.blocked;
+    delete story.blockedReason;
+  }
+}
+
+function applyStoryState(
+  story: UserStory,
+  passes: boolean,
+  status?: string,
+  blocked?: { isBlocked: boolean; reason: string | null }
+): void {
+  story.passes = passes;
+  if (status !== undefined) story.status = status;
+  if (blocked !== undefined) applyBlockedState(story, blocked);
+  // Failure details remain useful through implementation and review, but a
+  // newly generated demo supersedes them. Durable run/finding history remains
+  // in SQLite; keeping the old prompt payload in PRD makes the next Ralph pass
+  // look like the fresh verification already failed.
+  if (passes || status === "ai_verification") delete story.verificationFailures;
+}
+
 /**
  * Update a ticket's Ralph PRD pass marker.
  *
@@ -34,7 +68,8 @@ export interface OptionalUpdatePrdResult extends UpdatePrdResult {
 export function updatePrdForTicket(
   projectPath: string,
   ticketId: string,
-  passes: boolean = true
+  passes: boolean = true,
+  status?: string
 ): UpdatePrdResult {
   const prdPath = join(projectPath, "plans", "prd.json");
 
@@ -58,7 +93,7 @@ export function updatePrdForTicket(
       };
     }
 
-    story.passes = passes;
+    applyStoryState(story, passes, status);
     writeFileSync(prdPath, JSON.stringify(prd, null, 2) + "\n");
     return {
       success: true,
@@ -80,7 +115,9 @@ export function updatePrdForTicket(
 export function updatePrdForTicketIfPresent(
   projectPath: string,
   ticketId: string,
-  passes: boolean = true
+  passes: boolean = true,
+  status?: string,
+  blocked?: { isBlocked: boolean; reason: string | null }
 ): OptionalUpdatePrdResult {
   const prdPath = join(projectPath, "plans", "prd.json");
 
@@ -127,7 +164,7 @@ export function updatePrdForTicketIfPresent(
   }
 
   try {
-    story.passes = passes;
+    applyStoryState(story, passes, status, blocked);
     writeFileSync(prdPath, JSON.stringify(prd, null, 2) + "\n");
     return {
       success: true,
@@ -149,13 +186,16 @@ export function updatePrdForTicketIfPresent(
 export function updatePrdForDbTicketIfPresent(
   db: DbHandle,
   ticketId: string,
-  passes: boolean = true
+  passes: boolean = true,
+  status?: string
 ): OptionalUpdatePrdResult {
   const ticketRow = db
     .prepare(
-      "SELECT p.path as project_path FROM tickets t JOIN projects p ON t.project_id = p.id WHERE t.id = ?"
+      "SELECT p.path as project_path, t.status, t.is_blocked, t.blocked_reason FROM tickets t JOIN projects p ON t.project_id = p.id WHERE t.id = ?"
     )
-    .get(ticketId) as { project_path: string } | undefined;
+    .get(ticketId) as
+    | { project_path: string; status: string; is_blocked: number; blocked_reason: string | null }
+    | undefined;
 
   if (!ticketRow) {
     return {
@@ -166,5 +206,80 @@ export function updatePrdForDbTicketIfPresent(
     };
   }
 
-  return updatePrdForTicketIfPresent(ticketRow.project_path, ticketId, passes);
+  return updatePrdForTicketIfPresent(ticketRow.project_path, ticketId, passes, status ?? ticketRow.status, {
+    isBlocked: ticketRow.is_blocked === 1,
+    reason: ticketRow.blocked_reason,
+  });
+}
+
+/**
+ * Sync only the blocked flags for a ticket into the scoped PRD, leaving
+ * passes/status untouched. Direct ticket edits (a human unblocking in the UI)
+ * bypass the workflow transitions that normally sync the PRD; without this the
+ * Ralph loop's blocked gate keeps trusting a stale blocked:true and refuses to
+ * resume even though the database says the ticket is workable again.
+ */
+export function syncPrdBlockedStateForDbTicketIfPresent(
+  db: DbHandle,
+  ticketId: string
+): OptionalUpdatePrdResult {
+  const ticketRow = db
+    .prepare(
+      "SELECT p.path as project_path, t.is_blocked, t.blocked_reason FROM tickets t JOIN projects p ON t.project_id = p.id WHERE t.id = ?"
+    )
+    .get(ticketId) as
+    | { project_path: string; is_blocked: number; blocked_reason: string | null }
+    | undefined;
+  if (!ticketRow) {
+    return {
+      success: true,
+      applied: false,
+      required: false,
+      message: "PRD blocked-state sync skipped: project path unavailable for this ticket.",
+    };
+  }
+
+  const prdPath = join(ticketRow.project_path, "plans", "prd.json");
+  if (!existsSync(prdPath)) {
+    return {
+      success: true,
+      applied: false,
+      required: false,
+      message: `PRD blocked-state sync skipped: PRD file not found: ${prdPath}`,
+    };
+  }
+
+  try {
+    const prd = JSON.parse(readFileSync(prdPath, "utf-8")) as PrdDocument;
+    const story = Array.isArray(prd.userStories)
+      ? prd.userStories.find((s) => s.id === ticketId)
+      : undefined;
+    if (!story) {
+      return {
+        success: true,
+        applied: false,
+        required: false,
+        message: `PRD blocked-state sync skipped: ticket ${ticketId} is not in the current scoped PRD`,
+      };
+    }
+    applyBlockedState(story, {
+      isBlocked: ticketRow.is_blocked === 1,
+      reason: ticketRow.blocked_reason,
+    });
+    writeFileSync(prdPath, JSON.stringify(prd, null, 2) + "\n");
+    return {
+      success: true,
+      applied: true,
+      required: true,
+      message: `PRD blocked state synced for ${ticketId}`,
+    };
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    return {
+      success: false,
+      applied: false,
+      required: true,
+      message: `Failed to sync PRD blocked state: ${errorMsg}`,
+    };
+  }
 }

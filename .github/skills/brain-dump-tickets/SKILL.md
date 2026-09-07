@@ -21,28 +21,28 @@ Brain Dump provides these MCP tools (prefix with `brain-dump/` if needed):
 
 ### Project Management
 
-| Tool                   | Description                    |
-| ---------------------- | ------------------------------ |
-| `list_projects`        | List all registered projects   |
-| `find_project_by_path` | Find project by directory path |
-| `create_project`       | Register a new project         |
+| Tool                     | Description                    |
+| ------------------------ | ------------------------------ |
+| `project "list"`         | List all registered projects   |
+| `project "find-by-path"` | Find project by directory path |
+| `project "create"`       | Register a new project         |
 
 ### Ticket Operations
 
-| Tool                       | Description                        |
-| -------------------------- | ---------------------------------- |
-| `list_tickets`             | List tickets (optionally filtered) |
-| `create_ticket`            | Create a new ticket                |
-| `ticket "update-status"`   | Update ticket status               |
-| `workflow "start-work"`    | Start working (creates git branch) |
-| `workflow "complete-work"` | Complete and move to review        |
+| Tool                       | Description                                                |
+| -------------------------- | ---------------------------------------------------------- |
+| `ticket "list"`            | List tickets (optionally filtered)                         |
+| `ticket "create"`          | Create a new ticket                                        |
+| `ticket "update-status"`   | Update status (backlog/ready/in_progress only)             |
+| `workflow "start-work"`    | Start working (creates git branch)                         |
+| `workflow "complete-work"` | Complete and move to review (requires a fresh test_report) |
 
 ### Epic Management
 
-| Tool          | Description              |
-| ------------- | ------------------------ |
-| `list_epics`  | List epics for a project |
-| `create_epic` | Create a new epic        |
+| Tool            | Description              |
+| --------------- | ------------------------ |
+| `epic "list"`   | List epics for a project |
+| `epic "create"` | Create a new epic        |
 
 ### Progress Tracking
 
@@ -55,16 +55,28 @@ Brain Dump provides these MCP tools (prefix with `brain-dump/` if needed):
 
 ## Ticket Status Flow
 
-```
-backlog → ready → in_progress → review → done
-                              ↘ ai_review → human_review → done
-```
+<!-- BEGIN GENERATED: workflow-sequence -->
+
+The enforced ticket status specification lives in `core/workflow-steps.ts`. Run `pnpm workflow:prompts` after changing workflow statuses or transitions.
+
+Status flow: `backlog -> ready -> in_progress -> ai_review -> ai_verification -> done`
+
+| Status            | Label           | Active | Kanban column |
+| ----------------- | --------------- | ------ | ------------- |
+| `backlog`         | Backlog         | no     | yes           |
+| `ready`           | Ready           | no     | yes           |
+| `in_progress`     | In Progress     | yes    | yes           |
+| `ai_review`       | AI Review       | yes    | yes           |
+| `ai_verification` | AI Verification | yes    | yes           |
+| `done`            | Done            | no     | yes           |
+
+<!-- END GENERATED: workflow-sequence -->
 
 ## Creating Good Tickets
 
 ### Required Fields
 
-- `projectId`: Get from `find_project_by_path` or `list_projects`
+- `projectId`: Get from `project "find-by-path"` or `project "list"`
 - `title`: Clear, action-oriented title
 
 ### Optional Fields
@@ -97,7 +109,7 @@ Implement login/logout functionality with JWT tokens.
 ### Example
 
 ```javascript
-create_ticket({
+ticket "create"({
   projectId: "abc-123",
   title: "Add user authentication",
   description: `## Description
@@ -133,7 +145,7 @@ comment "add"({
 **Notes:**
 - Consider adding rate limiting later`,
   author: "claude",
-  type: "work_summary"
+  commentType: "work_summary"
 })
 ```
 
@@ -146,7 +158,7 @@ comment "add"({
   ticketId: "ticket-id",
   content: "Starting implementation of login form. Will add validation and error handling.",
   author: "claude",
-  type: "comment"
+  commentType: "comment"
 })
 ```
 
@@ -158,7 +170,7 @@ comment "add"({
 workflow "link-commit"({
   ticketId: "ticket-id",
   commitHash: "abc123",
-  message: "feat: add login form component"
+  commitMessage: "feat: add login form component"
 })
 ```
 

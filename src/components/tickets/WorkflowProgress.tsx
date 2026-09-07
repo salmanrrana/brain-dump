@@ -10,14 +10,14 @@ export interface WorkflowProgressProps {
 }
 
 /** Workflow phases in order */
-const PHASES = ["started", "implementation", "ai_review", "human_review", "done"] as const;
+const PHASES = ["started", "implementation", "ai_review", "ai_verification", "done"] as const;
 
 /** Human-readable labels for each phase */
 const PHASE_LABELS: Record<(typeof PHASES)[number], string> = {
   started: "Started",
   implementation: "Implemented",
   ai_review: "AI Review",
-  human_review: "Human Review",
+  ai_verification: "AI Verification",
   done: "Done",
 };
 
@@ -25,7 +25,7 @@ const PHASE_LABELS: Record<(typeof PHASES)[number], string> = {
  * WorkflowProgress - Visual progress indicator for ticket workflow phases.
  *
  * Shows the current position in the workflow with completed, active, and pending states:
- * [✓ Started] → [✓ Implemented] → [◐ AI Review] → [ Human Review] → [ Done]
+ * [✓ Started] → [✓ Implemented] → [◐ AI Review] → [ AI Verification] → [ Done]
  */
 export const WorkflowProgress: React.FC<WorkflowProgressProps> = ({
   workflowState,

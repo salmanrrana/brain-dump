@@ -19,6 +19,7 @@ import { useToast } from "../components/Toast";
 import TicketListView from "../components/TicketListView";
 import TagListView from "../components/TagListView";
 import TicketModal from "../components/TicketModal";
+import { TicketRefreshWarning } from "../components/TicketRefreshWarning";
 import { getStatusLabel } from "../lib/constants";
 import { getTicket, getTicketSummaries } from "../api/tickets";
 import { getProjectsWithEpics } from "../api/projects";
@@ -112,8 +113,8 @@ function ListView() {
 
       if (change.toStatus === "ai_review") {
         showToast("success", `"${change.ticketTitle}" is ready for AI review!`);
-      } else if (change.toStatus === "human_review") {
-        showToast("success", `"${change.ticketTitle}" is ready for human review!`);
+      } else if (change.toStatus === "ai_verification") {
+        showToast("success", `"${change.ticketTitle}" is ready for AI verification!`);
       } else if (change.toStatus === "done") {
         showToast("success", `"${change.ticketTitle}" has been completed!`);
       } else {
@@ -123,7 +124,9 @@ function ListView() {
     [showToast]
   );
 
-  const { tickets, loading, error, refetch } = useTicketSummaries(filters, {
+  const { tickets, hasData, loading, error, refetch } = useTicketSummaries(filters, {
+    // CLI and verification workers change tickets outside React mutations.
+    pollingInterval: 5000,
     onStatusChange: handleStatusChange,
   });
 
@@ -230,7 +233,7 @@ function ListView() {
     return <div className="h-full" />;
   }
 
-  if (error) {
+  if (error && !hasData) {
     return (
       <div className="h-full flex items-center justify-center">
         <p className="text-[var(--accent-danger)]">{error}</p>
@@ -240,6 +243,7 @@ function ListView() {
 
   return (
     <div style={listContainerStyles} className="route-fade-in">
+      <TicketRefreshWarning error={error} onRetry={refetch} />
       {/* List sub-mode toggle */}
       <div className="flex items-center gap-1 px-1 pb-3">
         <div

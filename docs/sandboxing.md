@@ -488,7 +488,7 @@ Ralph mounts `SSH_AUTH_SOCK` for forwarding.
 1. **Never mount Docker socket** unless absolutely necessary
 2. **Use read-only mounts** for credentials (`~/.config/gh:ro`)
 3. **Set resource limits** for autonomous agents
-4. **Review before merge** - Even sandboxed AI output needs human review
+4. **Review before merge** - Even sandboxed AI output needs independent review before merge
 5. **Rotate credentials** regularly when used in containers
 
 ---

@@ -18,7 +18,6 @@ This inventory lists the current Brain Dump UI surfaces that own or render launc
 
 - `src/components/projects/WorkingMethodSelect.tsx` — project working method selector used by project create/edit flows; it should stay aligned with supported working methods, including Pi.
 - `src/components/ProjectModal.tsx` — project create/edit flow that consumes `WorkingMethodSelect`.
-- `src/components/projects/EditProjectModal.tsx` — project edit modal that consumes `WorkingMethodSelect`.
 
 ## Contract note
 

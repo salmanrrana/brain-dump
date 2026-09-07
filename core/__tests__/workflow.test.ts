@@ -1,7 +1,10 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import type Database from "better-sqlite3";
+import { randomUUID } from "node:crypto";
 import { createTestDatabase } from "../db.ts";
-import { startWork, completeWork, startEpicWork } from "../workflow.ts";
+import { startWork, completeWork, startEpicWork, MAX_REVIEW_ROUNDS } from "../workflow.ts";
+import { markFixed } from "../review.ts";
+import { updateTicket, updateTicketStatus } from "../ticket.ts";
 import {
   TicketNotFoundError,
   EpicNotFoundError,
@@ -53,11 +56,12 @@ function seedEpic(id = "epic-1", projectId = "proj-1") {
 
 function seedTestReport(ticketId = "ticket-1", author = "ralph:claude") {
   const now = new Date().toISOString();
+  // randomUUID keeps the primary key unique when two seeds land in the same millisecond
   db.prepare(
     `INSERT INTO ticket_comments (id, ticket_id, content, author, type, created_at)
      VALUES (?, ?, ?, ?, 'test_report', ?)`
   ).run(
-    `comment-${ticketId}-${now}`,
+    `comment-${ticketId}-${randomUUID()}`,
     ticketId,
     "make check: pass\nmake test: pass",
     author,
@@ -279,7 +283,6 @@ describe("completeWork", () => {
   it("increments review_iteration on workflow state", () => {
     seedProject();
     seedTicket("ticket-1", "proj-1", { status: "in_progress" });
-    seedTestReport("ticket-1");
     const git = createMockGit();
 
     // Pre-create workflow state (as if startWork was called)
@@ -288,6 +291,7 @@ describe("completeWork", () => {
       `INSERT INTO ticket_workflow_state (id, ticket_id, current_phase, review_iteration, findings_count, findings_fixed, demo_generated, created_at, updated_at)
        VALUES (?, ?, 'implementation', 0, 0, 0, 0, ?, ?)`
     ).run("ws-1", "ticket-1", now, now);
+    seedTestReport("ticket-1");
 
     completeWork(db, "ticket-1", git);
 
@@ -317,6 +321,35 @@ describe("completeWork", () => {
     const summaryComment = comments.find((c) => c.type === "work_summary");
     expect(summaryComment).toBeDefined();
     expect(summaryComment!.content).toContain("Did the work");
+  });
+
+  it("persists the exact implementer model on work summaries", () => {
+    seedProject();
+    seedTicket("ticket-1", "proj-1", { status: "in_progress" });
+    seedTestReport("ticket-1", "ralph:codex");
+
+    completeWork(db, "ticket-1", createMockGit(), "Did the work", {
+      author: "ralph:codex",
+      env: {
+        BRAIN_DUMP_LAUNCH_MODEL_PROVIDER: "openai",
+        BRAIN_DUMP_LAUNCH_MODEL: "gpt-5.6",
+        BRAIN_DUMP_REVIEWER_MODEL_PROVIDER: "anthropic",
+        BRAIN_DUMP_REVIEWER_MODEL: "claude-opus-4-6",
+      },
+    });
+
+    const summary = db
+      .prepare(
+        "SELECT phase, actor_kind, provider, model_provider, model_name FROM ticket_comments WHERE ticket_id = ? AND type = 'work_summary'"
+      )
+      .get("ticket-1");
+    expect(summary).toEqual({
+      phase: "implementation",
+      actor_kind: "ai",
+      provider: "codex",
+      model_provider: "openai",
+      model_name: "gpt-5.6",
+    });
   });
 
   it("uses the provided work summary author", () => {
@@ -362,6 +395,65 @@ describe("completeWork", () => {
     expect(() => completeWork(db, "ticket-1", createMockGit())).toThrow(ValidationError);
   });
 
+  it.each(["status", "update"] as const)(
+    "requires fresh validation after direct re-entry through %s, preserving later edits/no-ops",
+    (adapter) => {
+      vi.useFakeTimers();
+      try {
+        vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
+        seedProject();
+        seedTicket("ticket-1", "proj-1", { status: "ready" });
+        const git = createMockGit();
+        startWork(db, "ticket-1", git);
+        seedTestReport("ticket-1");
+        vi.setSystemTime(new Date("2026-01-02T00:00:00.000Z"));
+        for (const status of ["ready", "in_progress"] as const) {
+          if (adapter === "status") updateTicketStatus(db, "ticket-1", status);
+          else updateTicket(db, "ticket-1", { status });
+        }
+        startWork(db, "ticket-1", git); // Existing branch: idempotent resume.
+        expect(() => completeWork(db, "ticket-1", git)).toThrow("add a test_report");
+        seedTestReport("ticket-1");
+        vi.setSystemTime(new Date("2026-01-03T00:00:00.000Z"));
+        updateTicket(db, "ticket-1", { title: "Renamed", status: "in_progress" });
+        updateTicketStatus(db, "ticket-1", "in_progress");
+        expect(completeWork(db, "ticket-1", git).status).toBe("ai_review");
+      } finally {
+        vi.useRealTimers();
+      }
+    }
+  );
+
+  it.each([
+    { reportAt: "2026-01-02T00:00:00.000Z", accepted: true },
+    { reportAt: "2025-12-31T00:00:00.000Z", accepted: false },
+  ])(
+    "uses pass freshness after commit linking and marking a repair finding fixed ($accepted)",
+    ({ reportAt, accepted }) => {
+      seedProject();
+      seedTicket("ticket-1", "proj-1", { status: "in_progress" });
+      db.prepare(
+        `INSERT INTO ticket_workflow_state (id, ticket_id, current_phase, created_at, updated_at, implementation_started_at)
+      VALUES ('ws-1', 'ticket-1', 'implementation', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')`
+      ).run();
+      seedTestReport("ticket-1");
+      db.prepare("UPDATE ticket_comments SET created_at = ? WHERE ticket_id = 'ticket-1'").run(
+        reportAt
+      );
+      // Linking a commit occurs after validation/reporting in the documented flow.
+      db.prepare(
+        "UPDATE tickets SET updated_at = '2026-01-03T00:00:00.000Z' WHERE id = 'ticket-1'"
+      ).run();
+      db.prepare(
+        `INSERT INTO review_findings (id, ticket_id, iteration, agent, severity, category, description, status)
+         VALUES ('repair-finding', 'ticket-1', 1, 'verifier', 'major', 'verification', 'Fix calculation', 'open')`
+      ).run();
+      markFixed(db, "repair-finding", "fixed");
+      if (accepted) expect(completeWork(db, "ticket-1", createMockGit()).status).toBe("ai_review");
+      else expect(() => completeWork(db, "ticket-1", createMockGit())).toThrow("add a test_report");
+    }
+  );
+
   it("throws InvalidStateError when ticket is already done", () => {
     seedProject();
     seedTicket("ticket-1", "proj-1", { status: "done" });
@@ -374,6 +466,59 @@ describe("completeWork", () => {
     seedTicket("ticket-1", "proj-1", { status: "ai_review" });
 
     expect(() => completeWork(db, "ticket-1", createMockGit())).toThrow(InvalidStateError);
+  });
+
+  it("blocks the ticket for human attention after the review-round limit", () => {
+    seedProject();
+    seedTicket("ticket-1", "proj-1", { status: "in_progress" });
+    const now = new Date().toISOString();
+    db.prepare(
+      `INSERT INTO ticket_workflow_state (id, ticket_id, current_phase, review_iteration, findings_count, findings_fixed, demo_generated, created_at, updated_at)
+       VALUES (?, ?, 'implementation', ?, 0, 0, 0, ?, ?)`
+    ).run("ws-1", "ticket-1", MAX_REVIEW_ROUNDS, now, now);
+    seedTestReport("ticket-1");
+
+    expect(() => completeWork(db, "ticket-1", createMockGit())).toThrow(ValidationError);
+
+    const row = db
+      .prepare("SELECT status, is_blocked, blocked_reason FROM tickets WHERE id = 'ticket-1'")
+      .get() as { status: string; is_blocked: number; blocked_reason: string | null };
+    expect(row.status).toBe("in_progress");
+    expect(row.is_blocked).toBe(1);
+    expect(row.blocked_reason).toContain("Review loop limit");
+
+    const attention = db
+      .prepare(
+        "SELECT content FROM ticket_comments WHERE ticket_id = 'ticket-1' AND content LIKE '%review loop stopped%'"
+      )
+      .get() as { content: string } | undefined;
+    expect(attention).toBeDefined();
+    expect(attention!.content).toContain("resets the review-round budget");
+  });
+
+  it("allows complete-work again after a human resets the review-round budget", () => {
+    seedProject();
+    seedTicket("ticket-1", "proj-1", { status: "in_progress" });
+    const now = new Date().toISOString();
+    db.prepare(
+      `INSERT INTO ticket_workflow_state (id, ticket_id, current_phase, review_iteration, findings_count, findings_fixed, demo_generated, created_at, updated_at)
+       VALUES (?, ?, 'implementation', ?, 0, 0, 0, ?, ?)`
+    ).run("ws-1", "ticket-1", MAX_REVIEW_ROUNDS, now, now);
+    seedTestReport("ticket-1");
+
+    expect(() => completeWork(db, "ticket-1", createMockGit())).toThrow(ValidationError);
+
+    // Simulate the human reset performed by the unblock path.
+    db.prepare(
+      "UPDATE ticket_workflow_state SET review_iteration = 0 WHERE ticket_id = 'ticket-1'"
+    ).run();
+    db.prepare(
+      "UPDATE tickets SET is_blocked = 0, blocked_reason = NULL WHERE id = 'ticket-1'"
+    ).run();
+    seedTestReport("ticket-1");
+
+    const result = completeWork(db, "ticket-1", createMockGit(), "Repaired after human review");
+    expect(result.status).toBe("ai_review");
   });
 });
 

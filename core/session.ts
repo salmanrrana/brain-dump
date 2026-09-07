@@ -409,8 +409,13 @@ export function updateState(db: DbHandle, params: UpdateStateParams): UpdateStat
  * Marks the session as done, adds 'done' to state history, removes the
  * state file, and emits a completion event.
  *
+ * Idempotent for already-completed sessions: generate-demo completes active
+ * sessions itself, and fresh-context agents reliably follow up with an
+ * explicit session complete call. Throwing there turned every successful
+ * verification handoff into a trailing error (observed tripping the Ralph
+ * loop's review-failure detection); instead, return the recorded completion.
+ *
  * @throws SessionNotFoundError if the session doesn't exist
- * @throws InvalidStateError if the session is already completed
  */
 export function completeSession(
   db: DbHandle,
@@ -419,7 +424,21 @@ export function completeSession(
   errorMessage?: string
 ): CompleteSessionResult {
   const session = getSessionWithProject(db, sessionId);
-  requireActiveSession(session, "complete session");
+  if (session.completed_at) {
+    const stateHistory = parseStateHistory(session.state_history);
+    return {
+      id: session.id,
+      ticketId: session.ticket_id,
+      currentState: "done",
+      stateHistory,
+      outcome: (session.outcome as SessionOutcome | null) ?? outcome,
+      errorMessage: session.error_message,
+      startedAt: session.started_at,
+      completedAt: session.completed_at,
+      ticketTitle: session.ticket_title,
+      durationMs: new Date(session.completed_at).getTime() - new Date(session.started_at).getTime(),
+    };
+  }
 
   const now = new Date().toISOString();
 
@@ -630,15 +649,15 @@ export function clearActiveSessionsForProject(
  * Complete all active Ralph sessions for a ticket.
  *
  * This is used when the workflow reaches a terminal agent-owned handoff point
- * (for example demo generation moves the ticket to human_review). It prevents
+ * (for example demo generation moves the ticket to ai_verification). It prevents
  * stale active sessions from making the UI show Ralph as still "testing" or
- * "reviewing" after the ticket has already been handed to the human reviewer.
+ * "reviewing" after the ticket has already been handed to verification.
  */
 export function completeActiveSessionsForTicket(
   db: DbHandle,
   ticketId: string,
   outcome: SessionOutcome = "success",
-  reason = "ticket handed to human review",
+  reason = "ticket handed to verification",
   errorMessage?: string
 ): CompleteActiveSessionsForTicketResult {
   getTicketRow(db, ticketId);

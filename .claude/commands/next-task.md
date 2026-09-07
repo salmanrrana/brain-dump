@@ -28,8 +28,8 @@ You are starting work on the next available task from the Brain Dump kanban boar
    workflow tool, action: "start-work", ticketId: "<ticket-id>"
    ```
 
-   - The tool will check preconditions and block if needed
-   - Follow any instructions in the response (e.g., if previous ticket needs human review)
+   - The tool validates the transition (only backlog/ready/in_progress tickets can start; tickets past implementation are rejected to protect their review state)
+   - Follow any instructions in the response
 
 4. **If successful, create a micro-plan:**
    - Write a 5-10 bullet implementation plan
@@ -42,9 +42,7 @@ You are starting work on the next available task from the Brain Dump kanban boar
 
 6. **Run validation before completing:**
 
-   ```bash
-   pnpm type-check && pnpm lint && pnpm test
-   ```
+   Discover validation commands from the target project's docs/config before running checks. Use the project's own commands (for example package scripts, Makefile/Justfile targets, Go/Python/PHP/Rust test commands, or CI-documented gates); do not assume pnpm, npm, TypeScript, lint, or test scripts exist. If no automated validation command is discoverable, perform a targeted manual smoke check and record that no project validation command was found.
 
 7. **Complete implementation:**
    ```
@@ -53,16 +51,16 @@ You are starting work on the next available task from the Brain Dump kanban boar
 
 ## Important
 
-- The MCP tool enforces preconditions - trust its guidance
-- If blocked (e.g., previous ticket in human_review), follow the instructions to unblock
+- The MCP tool enforces status transitions - trust its guidance
+- Tickets in `ai_verification` belong to the verification runner; leave them and pick a different workable ticket
 - Always write a plan before coding
-- Always validate before completing
+- Always run discovered project-specific validation before completing
 - After completing, ticket moves to `ai_review` - run `/review-ticket` next
 
 ## Status Flow
 
 ```
-backlog → ready → in_progress → ai_review → human_review → done
+backlog → ready → in_progress → ai_review → ai_verification → done
                                 ↑
                              You are here after workflow "complete-work"
 ```
@@ -71,6 +69,6 @@ backlog → ready → in_progress → ai_review → human_review → done
 
 If `workflow` tool `start-work` returns a blocking message:
 
-- **Previous ticket in human_review**: Wait for human approval or escalate
+- **Ticket already past implementation** (`ai_review`/`ai_verification`/`done`): start-work is rejected to protect review state; resume via the review workflow instead
 - **Validation failed**: Fix issues first
 - **Branch conflict**: Resolve git conflicts

@@ -29,9 +29,23 @@ import {
   InvalidStateError,
   ValidationError,
 } from "./errors.ts";
-import { addComment, type CommentAuthor } from "./comment.ts";
+import {
+  addComment,
+  resolveCommentIdentity,
+  type CommentAuthor,
+  type ResolveCommentIdentityParams,
+} from "./comment.ts";
 import { generateBranchName, generateEpicBranchName, findBaseBranch } from "./git-utils.ts";
 import type { DbEpicWorkflowStateRow } from "./db-rows.ts";
+import {
+  assertTransition,
+  isTicketStatus,
+  WorkflowTransitionError,
+  type TicketStatus,
+  type WorkflowTransitionAction,
+} from "./workflow-steps.ts";
+import { normalizeAttachments } from "./attachment-types.ts";
+import { updatePrdForDbTicketIfPresent } from "./prd-sync.ts";
 
 // ============================================
 // Internal row types (raw SQL results)
@@ -115,30 +129,27 @@ export function startWork(
 
   // 2. If already in_progress with a branch, return early (idempotent)
   if (ticket.status === "in_progress" && ticket.branch_name) {
+    const warnings = ["Ticket is already in progress."];
+    const prdResult = updatePrdForDbTicketIfPresent(db, ticketId, false, "in_progress");
+    if (!prdResult.success) warnings.push(`PRD sync failed: ${prdResult.message}`);
     return {
       branch: ticket.branch_name,
       branchCreated: false,
       usingEpicBranch: false,
       ticket: toTicketWithProject(ticket),
-      warnings: ["Ticket is already in progress."],
+      warnings,
     };
   }
 
   // 2a. Refuse to regress a ticket already past implementation. Without this
-  //     guard, calling start-work on a ticket in ai_review / human_review /
+  //     guard, calling start-work on a ticket in ai_review / ai_verification /
   //     done silently drops it back to in_progress AND wipes the review
   //     findings + demo flags in ticket_workflow_state (see step 7 below),
   //     which is a silent data loss bug. Observed in the wild with Ralph
   //     when an agent re-read plans/prd.json (which still had
   //     \`passes: false\` for a ticket that had since been demoed into
-  //     human_review) and naively called start-work.
-  if (
-    ticket.status === "ai_review" ||
-    ticket.status === "human_review" ||
-    ticket.status === "done"
-  ) {
-    throw new InvalidStateError("ticket", ticket.status, "backlog|ready", "start work");
-  }
+  //     post-review status) and naively called start-work.
+  assertTicketTransition(ticket.status, "in_progress", "start-work", "start work");
 
   // 3. Verify git repo
   const gitCheck = git.run("git rev-parse --git-dir", projectPath);
@@ -201,6 +212,8 @@ export function startWork(
   db.prepare(
     "UPDATE tickets SET status = 'in_progress', branch_name = ?, updated_at = ? WHERE id = ?"
   ).run(branchName, now, ticketId);
+  const prdResult = updatePrdForDbTicketIfPresent(db, ticketId, false, "in_progress");
+  if (!prdResult.success) warnings.push(`PRD sync failed: ${prdResult.message}`);
 
   // 7. Create or reset workflow state
   try {
@@ -210,13 +223,13 @@ export function startWork(
 
     if (!existingState) {
       db.prepare(
-        `INSERT INTO ticket_workflow_state (id, ticket_id, current_phase, review_iteration, findings_count, findings_fixed, demo_generated, created_at, updated_at)
-         VALUES (?, ?, 'implementation', 0, 0, 0, 0, ?, ?)`
-      ).run(randomUUID(), ticketId, now, now);
+        `INSERT INTO ticket_workflow_state (id, ticket_id, current_phase, review_iteration, findings_count, findings_fixed, demo_generated, created_at, updated_at, implementation_started_at)
+         VALUES (?, ?, 'implementation', 0, 0, 0, 0, ?, ?, ?)`
+      ).run(randomUUID(), ticketId, now, now, now);
     } else {
       db.prepare(
-        `UPDATE ticket_workflow_state SET current_phase = 'implementation', review_iteration = 0, findings_count = 0, findings_fixed = 0, demo_generated = 0, updated_at = ? WHERE ticket_id = ?`
-      ).run(now, ticketId);
+        `UPDATE ticket_workflow_state SET current_phase = 'implementation', review_iteration = 0, findings_count = 0, findings_fixed = 0, demo_generated = 0, reviewed_through_commit = NULL, updated_at = ?, implementation_started_at = ? WHERE ticket_id = ?`
+      ).run(now, now, ticketId);
     }
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : "Unknown error";
@@ -228,7 +241,15 @@ export function startWork(
     ? `Started work on ticket. Branch: \`${branchName}\` (epic branch)`
     : `Started work on ticket. Branch: \`${branchName}\``;
   try {
-    addComment(db, { ticketId, content: commentContent, author: "brain-dump", type: "progress" });
+    addComment(db, {
+      ticketId,
+      content: commentContent,
+      author: "brain-dump",
+      type: "progress",
+      phase: "system_workflow",
+      actorKind: "system",
+      provider: "brain-dump",
+    });
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : "Unknown error";
     warnings.push(`Failed to post starting comment: ${errMsg}`);
@@ -257,18 +278,88 @@ export function startWork(
 // ============================================
 
 /**
+ * Maximum implement → review → verify round-trips per ticket before Brain
+ * Dump stops the loop for human attention. Matches the spirit of the
+ * verification breakers (3 same-signature failures). The count lives in
+ * ticket_workflow_state.review_iteration and is reset by human intervention
+ * (resolve-verification-failure or unblocking the ticket).
+ */
+export const MAX_REVIEW_ROUNDS = 3;
+
+function enforceReviewRoundLimit(db: Database.Database, ticketId: string): void {
+  const workflowState = db
+    .prepare("SELECT review_iteration FROM ticket_workflow_state WHERE ticket_id = ?")
+    .get(ticketId) as { review_iteration: number } | undefined;
+  const completedRounds = workflowState?.review_iteration ?? 0;
+  if (completedRounds < MAX_REVIEW_ROUNDS) return;
+
+  const now = new Date().toISOString();
+  const reason = `Review loop limit: this ticket has been through ${completedRounds} implement → review rounds without reaching done. Automatic iteration stopped so a person can decide the remaining scope.`;
+  db.prepare(
+    "UPDATE tickets SET is_blocked = 1, blocked_reason = ?, updated_at = ? WHERE id = ?"
+  ).run(reason, now, ticketId);
+  const prdResult = updatePrdForDbTicketIfPresent(db, ticketId, false, "in_progress");
+
+  const openBlocking = db
+    .prepare(
+      `SELECT severity, category, description FROM review_findings
+       WHERE ticket_id = ? AND status = 'open' AND severity IN ('critical', 'major')
+       ORDER BY created_at DESC LIMIT 5`
+    )
+    .all(ticketId) as Array<{ severity: string; category: string; description: string }>;
+  const findingLines = openBlocking.map(
+    (f) => `- [${f.severity}] ${f.category}: ${f.description.split("\n", 1)[0]?.slice(0, 200)}`
+  );
+
+  try {
+    addComment(db, {
+      ticketId,
+      author: "brain-dump",
+      type: "comment",
+      content: [
+        "## Needs Attention — review loop stopped",
+        "",
+        reason,
+        ...(findingLines.length > 0 ? ["", "Open blocking findings:", ...findingLines] : []),
+        "",
+        "The ticket is blocked in `in_progress`. A person should review the remaining findings and either:",
+        '1. Close disputed or hypothetical findings (`review` tool, `action: "mark-fixed"`, `fixStatus: "wont_fix"`), unblock the ticket, and let the loop finish, or',
+        "2. Fix the real issues manually, then unblock the ticket and re-run `complete-work`.",
+        "",
+        "Unblocking the ticket resets the review-round budget.",
+      ].join("\n"),
+      phase: "ai_review",
+      actorKind: "system",
+      provider: "brain-dump",
+    });
+  } catch {
+    // The block itself must not be undone by a failed comment; the thrown
+    // ValidationError below still carries the full explanation.
+  }
+
+  throw new ValidationError(
+    `${reason}${prdResult.success ? "" : ` (PRD sync warning: ${prdResult.message})`} The ticket is now blocked for human attention; unblocking it resets the review-round budget.`
+  );
+}
+
+/**
  * Complete work on a ticket: move to ai_review, gather git info, post work summary, suggest next ticket.
  *
  * Throws:
  * - `TicketNotFoundError` if ticket doesn't exist
- * - `InvalidStateError` if ticket is already done, ai_review, or human_review
+ * - `InvalidStateError` if ticket is already done, ai_review, or ai_verification
  */
+type CompleteWorkCommentIdentity = Pick<
+  ResolveCommentIdentityParams,
+  "author" | "provider" | "modelProvider" | "modelName" | "env"
+>;
+
 export function completeWork(
   db: Database.Database,
   ticketId: string,
   git: GitOperations,
   summary?: string,
-  commentAuthor: CommentAuthor = "ralph"
+  commentIdentity: CommentAuthor | CompleteWorkCommentIdentity = "ralph"
 ): CompleteWorkResult {
   // 1. Fetch ticket
   const ticket = db
@@ -282,14 +373,15 @@ export function completeWork(
     throw new TicketNotFoundError(ticketId);
   }
 
-  if (ticket.status === "done") {
-    throw new InvalidStateError("ticket", "done", "in_progress", "complete work");
-  }
+  assertTicketTransition(ticket.status, "ai_review", "complete-work", "complete work");
 
-  if (ticket.status === "ai_review" || ticket.status === "human_review") {
-    throw new InvalidStateError("ticket", ticket.status, "in_progress", "complete work");
-  }
-
+  // Commit/PR linking updates tickets.updated_at after the prescribed
+  // validate → report → commit sequence. Those bookkeeping writes must not
+  // invalidate the report, nor may marking a review finding fixed. Only entering
+  // implementation (including a failed verification handback) advances the cutoff.
+  const workflowPass = db
+    .prepare("SELECT implementation_started_at FROM ticket_workflow_state WHERE ticket_id = ?")
+    .get(ticketId) as { implementation_started_at: string | null } | undefined;
   const latestTestReport = db
     .prepare(
       `SELECT id FROM ticket_comments
@@ -297,13 +389,27 @@ export function completeWork(
        ORDER BY created_at DESC
        LIMIT 1`
     )
-    .get(ticketId, ticket.updated_at) as { id: string } | undefined;
+    .get(ticketId, workflowPass?.implementation_started_at ?? ticket.updated_at) as
+    | { id: string }
+    | undefined;
 
   if (!latestTestReport) {
     throw new ValidationError(
       "Cannot complete work: add a test_report comment for this implementation pass summarizing the project-specific validation commands you ran, their pass/fail/skipped results, and any manual smoke checks, then retry."
     );
   }
+
+  // 1a. Review-round circuit breaker. review_iteration increments on every
+  //     complete-work and survives verification bounces (start-work on an
+  //     in_progress ticket returns early without resetting workflow state), so
+  //     it counts implement → review → verify round-trips for this ticket.
+  //     Reviewer/implementer pairs have been observed re-litigating the same
+  //     ticket for hours — each fresh-context review pass minting new blocking
+  //     findings on code a previous pass already accepted. Verification has
+  //     3-strikes and non-convergence breakers; this is the review-side
+  //     equivalent. A human resets the budget via resolve-verification-failure
+  //     or by unblocking the ticket (both stamp verification_streak_reset_at).
+  enforceReviewRoundLimit(db, ticketId);
 
   // 2. Gather git info
   let commitsInfo = "";
@@ -338,6 +444,8 @@ export function completeWork(
 
   // 4. Update workflow state (increment review_iteration)
   const warnings: string[] = [];
+  const prdResult = updatePrdForDbTicketIfPresent(db, ticketId, false, "ai_review");
+  if (!prdResult.success) warnings.push(`PRD sync failed: ${prdResult.message}`);
   try {
     const workflowState = db
       .prepare("SELECT * FROM ticket_workflow_state WHERE ticket_id = ?")
@@ -364,11 +472,19 @@ export function completeWork(
     ? `## Work Summary\n\n${summary}\n\n${commitsInfo ? `### Commits\n\`\`\`\n${commitsInfo}\`\`\`` : ""}`
     : `Completed work on: ${ticket.title}${commitsInfo ? `\n\nCommits:\n${commitsInfo}` : ""}`;
   try {
+    const identityInput =
+      typeof commentIdentity === "string" ? { author: commentIdentity } : commentIdentity;
+    const identity = resolveCommentIdentity({
+      phase: "implementation",
+      actorKind: "ai",
+      role: "implementation",
+      ...identityInput,
+    });
     addComment(db, {
       ticketId,
       content: workSummaryContent,
-      author: commentAuthor,
       type: "work_summary",
+      ...identity,
     });
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : "Unknown error";
@@ -396,12 +512,10 @@ export function completeWork(
 
   // 7. Build next steps
   const nextSteps = [
-    "Run review agents (code-reviewer, silent-failure-hunter, code-simplifier)",
-    'Submit findings with review({ action: "submit-finding", ... })',
-    'Fix critical/major findings with review({ action: "mark-fixed", fixStatus: "fixed", ... })',
-    'Verify with review({ action: "check-complete", ... })',
-    'Generate demo script with review({ action: "generate-demo", ... })',
-    'STOP — ticket requires human approval via review({ action: "submit-feedback", ... })',
+    "AI review is next. If this launch configured a separate fresh-eyes reviewer, stop now; that reviewer owns the review, targeted fixes, validation, and verification handoff in one invocation.",
+    "Without a separate reviewer, run the ticket-scoped review workflow: inspect the changed implementation, submit concrete findings, and fix critical/major findings.",
+    "After review completion is confirmed, generate the verification demo handoff.",
+    "STOP — ticket requires AI verification; the runner owns completion.",
   ];
 
   return {
@@ -675,6 +789,26 @@ function resolveEpicBranch(
   };
 }
 
+function assertTicketTransition(
+  from: string,
+  to: TicketStatus,
+  action: WorkflowTransitionAction,
+  errorAction: string
+): void {
+  if (!isTicketStatus(from)) {
+    throw new InvalidStateError("ticket", from, "known ticket status", errorAction);
+  }
+
+  try {
+    assertTransition(from, to, action);
+  } catch (err) {
+    if (err instanceof WorkflowTransitionError) {
+      throw new InvalidStateError("ticket", from, err.allowedFrom.join("|"), errorAction);
+    }
+    throw err;
+  }
+}
+
 /** Convert a raw DB ticket row to the public `TicketWithProject` type. */
 function toTicketWithProject(row: TicketRow): TicketWithProject {
   return {
@@ -691,7 +825,7 @@ function toTicketWithProject(row: TicketRow): TicketWithProject {
     isBlocked: row.is_blocked === 1,
     blockedReason: row.blocked_reason,
     linkedFiles: row.linked_files ? safeParseJson(row.linked_files, [], "linked_files") : [],
-    attachments: row.attachments ? safeParseJson(row.attachments, [], "attachments") : [],
+    attachments: normalizeAttachments(row.attachments),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     completedAt: row.completed_at,

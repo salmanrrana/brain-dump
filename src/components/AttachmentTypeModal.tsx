@@ -19,9 +19,17 @@ import {
   FileImage,
   Image,
   Star,
+  Camera,
+  FileJson,
+  ShieldCheck,
 } from "lucide-react";
 import type { AttachmentType, AttachmentPriority } from "../lib/attachment-types";
 import { ATTACHMENT_TYPE_CONFIG } from "../lib/attachment-types";
+
+type UserSelectableAttachmentType = Exclude<
+  AttachmentType,
+  "verification-screenshot" | "api-evidence" | "verification-manifest"
+>;
 
 interface AttachmentTypeModalProps {
   /** Filename being uploaded */
@@ -52,13 +60,16 @@ const TYPE_ICONS: Record<AttachmentType, typeof Palette> = {
   "console-log": Terminal,
   reference: FileImage,
   asset: Image,
+  "verification-screenshot": Camera,
+  "api-evidence": FileJson,
+  "verification-manifest": ShieldCheck,
 };
 
 /** Attachment types grouped by category for better UX */
 const TYPE_CATEGORIES = [
   {
     label: "Design",
-    types: ["mockup", "wireframe", "asset"] as AttachmentType[],
+    types: ["mockup", "wireframe", "asset"] as UserSelectableAttachmentType[],
   },
   {
     label: "Bug Report",
@@ -68,16 +79,16 @@ const TYPE_CATEGORIES = [
       "actual-behavior",
       "error-message",
       "console-log",
-    ] as AttachmentType[],
+    ] as UserSelectableAttachmentType[],
   },
   {
     label: "Other",
-    types: ["diagram", "reference"] as AttachmentType[],
+    types: ["diagram", "reference"] as UserSelectableAttachmentType[],
   },
 ];
 
 /** Pattern-to-type mapping for auto-detection */
-const FILENAME_PATTERNS: Array<{ patterns: string[]; type: AttachmentType }> = [
+const FILENAME_PATTERNS: Array<{ patterns: string[]; type: UserSelectableAttachmentType }> = [
   { patterns: ["mockup", "design"], type: "mockup" },
   { patterns: ["wireframe"], type: "wireframe" },
   { patterns: ["bug", "broken"], type: "bug-screenshot" },
@@ -93,7 +104,7 @@ const FILENAME_PATTERNS: Array<{ patterns: string[]; type: AttachmentType }> = [
  * Auto-detect attachment type based on filename patterns.
  * Used to provide sensible defaults for common naming conventions.
  */
-function detectTypeFromFilename(filename: string): AttachmentType {
+function detectTypeFromFilename(filename: string): UserSelectableAttachmentType {
   const lowerFilename = filename.toLowerCase();
 
   for (const { patterns, type } of FILENAME_PATTERNS) {

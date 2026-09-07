@@ -59,6 +59,7 @@ function extractReviewPayload(output: any): Record<string, unknown> | null {
     // Direct structured payload
     if (
       "complete" in output ||
+      "canProceedToVerification" in output ||
       "canProceedToHumanReview" in output ||
       "openCritical" in output ||
       "openMajor" in output
@@ -103,7 +104,7 @@ function isReviewComplete(output: any): boolean {
       return true;
     }
 
-    if (data.canProceedToHumanReview === true) {
+    if (data.canProceedToVerification === true || data.canProceedToHumanReview === true) {
       return true;
     }
 
@@ -146,8 +147,7 @@ export default async (context: any) => {
      */
     "tool.execute.after": async (input: any, output: any) => {
       const toolName = input.tool || "";
-      const action =
-        input.params?.action || input.input?.action || input.arguments?.action || "";
+      const action = input.params?.action || input.input?.action || input.arguments?.action || "";
 
       // Support both consolidated and legacy review tool naming.
       const isConsolidatedCheckComplete =

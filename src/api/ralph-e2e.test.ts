@@ -36,6 +36,8 @@ const SCHEMA_SQL = `
     path TEXT NOT NULL UNIQUE,
     color TEXT,
     working_method TEXT DEFAULT 'auto',
+    reviewer_provider TEXT,
+    reviewer_model TEXT,
     position REAL NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
@@ -300,7 +302,7 @@ function completeTicketWork(
   if (
     ticket.status === "done" ||
     ticket.status === "ai_review" ||
-    ticket.status === "human_review"
+    ticket.status === "ai_verification"
   ) {
     return { success: true, ticket };
   }
@@ -350,7 +352,7 @@ function suggestNextTicket(
     .prepare(
       `
     SELECT id, title, priority FROM tickets
-    WHERE project_id = ? AND id != ? AND status NOT IN ('done', 'ai_review', 'human_review')
+    WHERE project_id = ? AND id != ? AND status NOT IN ('done', 'ai_review', 'ai_verification')
     ORDER BY
       CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 ELSE 1 END,
       position

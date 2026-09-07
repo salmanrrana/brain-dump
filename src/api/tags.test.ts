@@ -32,6 +32,8 @@ describe("Tags API - User Experience", () => {
         path TEXT NOT NULL UNIQUE,
         color TEXT,
         working_method TEXT DEFAULT 'auto',
+        reviewer_provider TEXT,
+        reviewer_model TEXT,
         position REAL NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
@@ -132,7 +134,7 @@ describe("Tags API - User Experience", () => {
         SUM(CASE WHEN tickets.status = 'ready' THEN 1 ELSE 0 END) as ready_count,
         SUM(CASE WHEN tickets.status = 'in_progress' THEN 1 ELSE 0 END) as in_progress_count,
         SUM(CASE WHEN tickets.status = 'ai_review' THEN 1 ELSE 0 END) as ai_review_count,
-        SUM(CASE WHEN tickets.status = 'human_review' THEN 1 ELSE 0 END) as human_review_count,
+        SUM(CASE WHEN tickets.status = 'ai_verification' THEN 1 ELSE 0 END) as ai_verification_count,
         SUM(CASE WHEN tickets.status = 'done' THEN 1 ELSE 0 END) as done_count,
         MAX(tickets.updated_at) as last_used_at
       FROM tickets, json_each(tickets.tags)

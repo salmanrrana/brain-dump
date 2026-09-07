@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { EnhancedPRDDocument } from "../lib/prd-extraction";
-import { generateEnhancedPRD, generateVSCodeContext, getRalphPrompt } from "./ralph-prompts";
+import {
+  generateEnhancedPRD,
+  generateVSCodeContext,
+  getFreshEyesReviewerPrompt,
+  getRalphPrompt,
+} from "./ralph-prompts";
 import { prepareEpicLaunch } from "../lib/ralph-launch/launch-epic";
 
 type LaunchTicket = Parameters<typeof prepareEpicLaunch>[0][number];
@@ -171,7 +176,7 @@ describe("prepareEpicLaunch", () => {
 });
 
 describe("review-mode prompt builders", () => {
-  it("keeps ai_review tickets incomplete but treats human_review as handed off", () => {
+  it("keeps ai_review and ai_verification tickets incomplete until done", () => {
     const prd = generateEnhancedPRD("Brain Dump", "/tmp/brain-dump", [
       {
         id: "ticket-ai-review",
@@ -182,9 +187,9 @@ describe("review-mode prompt builders", () => {
         tags: "[]",
       },
       {
-        id: "ticket-human-review",
-        title: "Ready for humans",
-        status: "human_review",
+        id: "ticket-ai-verification",
+        title: "Ready for verification",
+        status: "ai_verification",
         description: "",
         priority: "high",
         tags: "[]",
@@ -192,13 +197,15 @@ describe("review-mode prompt builders", () => {
     ] as Parameters<typeof generateEnhancedPRD>[2]);
 
     expect(prd.userStories.find((story) => story.id === "ticket-ai-review")?.passes).toBe(false);
-    expect(prd.userStories.find((story) => story.id === "ticket-human-review")?.passes).toBe(true);
+    expect(prd.userStories.find((story) => story.id === "ticket-ai-verification")?.passes).toBe(
+      false
+    );
   });
 
   it("builds implementation gates around project-native verification commands", () => {
     const prompt = getRalphPrompt();
 
-    expect(prompt).toContain("discover and run this project's validation commands");
+    expect(prompt.toLowerCase()).toContain("discover and run this project's validation commands");
     expect(prompt).toContain("Use the project's own commands, not Brain Dump's commands");
     expect(prompt).toContain(
       "If no automated validation command is discoverable, perform a targeted manual smoke check"
@@ -206,12 +213,76 @@ describe("review-mode prompt builders", () => {
     expect(prompt).not.toMatch(/pnpm type-check.*pnpm lint.*pnpm test/);
   });
 
+  it("keeps the fresh-eyes implementer focused on implementation and verification repairs", () => {
+    const prompt = getRalphPrompt({
+      type: "implementation",
+      freshEyes: { implementerLabel: "Claude", reviewerLabel: "Codex" },
+    });
+
+    expect(prompt).toContain("## Implementation Discipline");
+    expect(prompt).toContain(
+      "map each acceptance criterion to the existing production entry point"
+    );
+    expect(prompt).toContain("New shared logic must be wired through the real production caller");
+    expect(prompt).toContain("output `REVIEW_PENDING` and STOP without editing");
+    expect(prompt).toContain("When verification findings exist, fix exactly those failures");
+    expect(prompt).toContain("Only after the commit and validation pass");
+    expect(prompt).toContain("mark any resolved verification findings fixed");
+    expect(prompt).toContain("PRD entry uses `blocked: true`");
+    expect(prompt).toContain("live ticket output uses `isBlocked: true`");
+    expect(prompt).toContain("FIRST unblocked scoped ticket");
+    expect(prompt).not.toContain("brain-dump review submit-finding");
+    expect(prompt).not.toContain("brain-dump review check-complete");
+    expect(prompt).not.toContain("brain-dump review generate-demo");
+    expect(prompt).not.toContain("Work Mode B");
+    expect(prompt).not.toContain("mandatory 4-phase workflow");
+  });
+
+  it("makes the fresh reviewer own one complete review, repair, and handoff", () => {
+    const prompt = getFreshEyesReviewerPrompt({
+      implementerLabel: "Claude",
+      reviewerLabel: "Codex",
+    });
+
+    expect(prompt).toContain("# Ralph: Fresh Eyes Reviewer");
+    expect(prompt).toContain("review the FIRST unblocked `ai_review` candidate in PRD order");
+    expect(prompt).toContain("PRD entry reports `blocked: true`");
+    expect(prompt).toContain("live ticket reports `isBlocked: true`");
+    expect(prompt).toContain("perform exactly ONE bounded fresh-eyes pass");
+    expect(prompt).toContain("The changed files are the cause boundary, not a reading boundary");
+    expect(prompt).toContain("Impact cone");
+    expect(prompt).toContain("Newly exposed defects");
+    expect(prompt).toContain("--file <causal-changed-file>");
+    expect(prompt).toContain("currently OPEN critical/major findings");
+    expect(prompt).toContain("brain-dump review get-review-context --ticket <ticketId> --pretty");
+    expect(prompt).toContain("already litigated — never re-file these");
+    expect(prompt).toContain("scope.changedFiles");
+    expect(prompt).toContain("Submit the complete finding batch with");
+    expect(prompt).toContain("Fix every open critical/major finding yourself");
+    expect(prompt).toContain("`implementing`, `testing`, and `committing`");
+    expect(prompt).toContain("If and only if you changed code for a blocking finding");
+    expect(prompt).toContain(
+      "add a `test_report` comment containing the exact commands and results"
+    );
+    expect(prompt).toContain("do not create an empty commit");
+    expect(prompt).toContain("commit the review fixes, then mark each resolved finding fixed");
+    expect(prompt).toContain("Do NOT begin a second broad review");
+    expect(prompt).toContain("finish that same targeted repair before proceeding");
+    expect(prompt).toContain("generate-demo");
+    expect(prompt).not.toContain("allows at most 3 blocking review waves");
+    expect(prompt).not.toContain("The implementer owns repairs");
+    expect(prompt).not.toContain("Never write or edit implementation files");
+  });
+
   it("tells implementation Ralph to resume scoped tickets already in AI review", () => {
     const prompt = getRalphPrompt();
 
     expect(prompt).toContain("If any candidate is already `ai_review`, pick ONE of those first");
     expect(prompt).toContain("resume at the AI Review phase");
-    expect(prompt).toContain("A ticket in `ai_review` is NOT complete; resume it instead.");
+    expect(prompt).toContain("A ticket in `ai_review` or `ai_verification` is NOT complete");
+    expect(prompt).toContain(
+      "Tickets in `ai_verification` are incomplete but waiting on the verification runner"
+    );
   });
 
   it("builds a review prompt that stays scoped to the selected ticket and preserves steering text", () => {
@@ -229,10 +300,10 @@ describe("review-mode prompt builders", () => {
     expect(prompt).toContain("Review launch contract");
     expect(prompt).toContain("ticket-review");
     expect(prompt).toContain("Focus on auth edge cases and silent failures.");
-    expect(prompt).toContain('review({ action: "submit-finding", ticketId: "ticket-review"');
-    expect(prompt).toContain('review({ action: "check-complete", ticketId: "ticket-review" })');
-    expect(prompt).toContain('session({ action: "create", ticketId: "ticket-review" })');
-    expect(prompt).not.toContain('workflow({ action: "complete-work"');
+    expect(prompt).toContain("brain-dump review submit-finding --ticket ticket-review");
+    expect(prompt).toContain("brain-dump review check-complete --ticket ticket-review --pretty");
+    expect(prompt).toContain("brain-dump session create --ticket ticket-review --pretty");
+    expect(prompt).not.toContain("workflow complete-work");
   });
 
   it("builds a focused review context that excludes unrelated tickets", () => {
@@ -296,6 +367,17 @@ describe("review-mode prompt builders", () => {
     );
   });
 
+  it("includes reuse and production-path discipline in implementation contexts", () => {
+    const context = generateVSCodeContext(createReviewPrd());
+
+    expect(context).toContain("## Implementation Discipline");
+    expect(context).toContain(
+      "map each acceptance criterion to the existing production entry point"
+    );
+    expect(context).toContain("New shared logic must be wired through the real production caller");
+    expect(context).toContain("Prefer explicit code a junior engineer can trace");
+  });
+
   it("keeps review-only workflow gates in the focused review context", () => {
     const context = generateVSCodeContext(createReviewPrd(), {
       type: "review",
@@ -306,10 +388,12 @@ describe("review-mode prompt builders", () => {
       steeringPrompt: "Stay focused on the selected ticket.",
     });
 
-    expect(context).toContain('review({ action: "check-complete", ticketId: "ticket-review" })');
-    expect(context).toContain("Generate a demo with at least 3 manual steps, then STOP.");
+    expect(context).toContain("brain-dump review check-complete --ticket ticket-review --pretty");
+    expect(context).toContain(
+      "Generate 3-7 verification steps with automation specs for visual/automated UI, API, command, or file checks, then STOP."
+    );
     expect(context).toContain("- Review mode is separate from implementation launch mode");
     expect(context).toContain("- Steering text is preserved verbatim");
-    expect(context).not.toContain('workflow({ action: "complete-work"');
+    expect(context).not.toContain("workflow complete-work");
   });
 });

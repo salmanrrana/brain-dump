@@ -195,7 +195,8 @@ export const AttachmentsSection: FC<AttachmentsSectionProps> = ({ ticketId }) =>
           {attachments.map((attachment) => (
             <div
               key={attachment.id}
-              className="flex items-center gap-3 p-2 bg-[var(--bg-tertiary)] rounded-lg group"
+              id={`attachment-${attachment.id}`}
+              className="flex items-center gap-3 p-2 bg-[var(--bg-tertiary)] rounded-lg group scroll-mt-4"
             >
               {attachment.isImage ? (
                 <a

@@ -14,7 +14,7 @@ export interface TagMetadata {
     ready: number;
     in_progress: number;
     ai_review: number;
-    human_review: number;
+    ai_verification: number;
     done: number;
   };
   lastUsedAt: string;
@@ -59,7 +59,7 @@ interface TagMetadataRow {
   ready_count: number;
   in_progress_count: number;
   ai_review_count: number;
-  human_review_count: number;
+  ai_verification_count: number;
   done_count: number;
   last_used_at: string;
 }
@@ -76,7 +76,7 @@ export const getTagsWithMetadata = createServerFn({ method: "GET" })
         SUM(CASE WHEN tickets.status = 'ready' THEN 1 ELSE 0 END) as ready_count,
         SUM(CASE WHEN tickets.status = 'in_progress' THEN 1 ELSE 0 END) as in_progress_count,
         SUM(CASE WHEN tickets.status = 'ai_review' THEN 1 ELSE 0 END) as ai_review_count,
-        SUM(CASE WHEN tickets.status = 'human_review' THEN 1 ELSE 0 END) as human_review_count,
+        SUM(CASE WHEN tickets.status = 'ai_verification' THEN 1 ELSE 0 END) as ai_verification_count,
         SUM(CASE WHEN tickets.status = 'done' THEN 1 ELSE 0 END) as done_count,
         MAX(tickets.updated_at) as last_used_at
       FROM tickets, json_each(tickets.tags)
@@ -109,7 +109,7 @@ export const getTagsWithMetadata = createServerFn({ method: "GET" })
         ready: row.ready_count,
         in_progress: row.in_progress_count,
         ai_review: row.ai_review_count,
-        human_review: row.human_review_count,
+        ai_verification: row.ai_verification_count,
         done: row.done_count,
       },
       lastUsedAt: row.last_used_at,

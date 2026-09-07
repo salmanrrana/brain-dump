@@ -23,6 +23,7 @@ import { outputResult, outputError, showResourceHelp } from "../lib/output.ts";
 import { getDb } from "../lib/db.ts";
 import { statSync } from "fs";
 import { resolve } from "path";
+import { parseClaudeTranscript } from "../../core/claude-transcript.ts";
 
 const ACTIONS = [
   "start",
@@ -33,6 +34,7 @@ const ACTIONS = [
   "log-prompt",
   "log-context",
   "record-usage",
+  "parse-transcript",
   "recalculate-costs",
   "deep-recalculate-costs",
 ];
@@ -57,9 +59,13 @@ export async function handle(action: string, args: string[]): Promise<void> {
 
   const flags = parseFlags(args);
   const pretty = boolFlag(flags, "pretty");
-  const { db } = getDb();
-
   try {
+    if (action === "parse-transcript") {
+      const transcript = await parseClaudeTranscript(resolve(requireFlag(flags, "transcript")));
+      outputResult(transcript.usage, pretty);
+      return;
+    }
+    const { db } = getDb();
     switch (action) {
       case "start": {
         const ticketId = optionalFlag(flags, "ticket");
@@ -194,7 +200,11 @@ export async function handle(action: string, args: string[]): Promise<void> {
         let resolvedSessionId = sessionIdFlag;
         let resolvedTicketId = ticketIdFlag;
 
-        if (!resolvedSessionId && !resolvedTicketId) {
+        // A transcript's explicit project/time context must not inherit the
+        // next ticket's active state when a delayed Stop hook records usage.
+        const hasAttributionContext =
+          transcriptPath || eventTimeFlag || eventStartFlag || eventEndFlag;
+        if (!resolvedSessionId && !resolvedTicketId && !hasAttributionContext) {
           const detection = detectActiveTicket(projectPath ?? resolve(process.cwd()));
           if (detection.ticketId) {
             resolvedTicketId = detection.ticketId;

@@ -42,6 +42,8 @@ describe("Sample Data API", () => {
         path TEXT NOT NULL UNIQUE,
         color TEXT,
         working_method TEXT DEFAULT 'auto',
+        reviewer_provider TEXT,
+        reviewer_model TEXT,
         position REAL NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
       );

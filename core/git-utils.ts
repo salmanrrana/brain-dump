@@ -55,7 +55,7 @@ export function runGitCommand(command: string, cwd: string): GitCommandResult {
 }
 
 /** Run git with argument array via `execFileSync` (no shell interpretation — safe from injection). */
-function runGitArgs(args: string[], cwd: string): GitCommandResult {
+export function runGitArgs(args: string[], cwd: string): GitCommandResult {
   try {
     const output = execFileSync("git", args, {
       cwd,

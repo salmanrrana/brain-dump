@@ -13,6 +13,7 @@ import {
   Search,
   MoreHorizontal,
 } from "lucide-react";
+import { computeEpicTicketCounts } from "../../../core/epic-progress.ts";
 import { useToast } from "../Toast";
 import { Modal } from "../ui/Modal";
 import { LaunchProviderMenu } from "../LaunchProviderMenu";
@@ -22,13 +23,18 @@ import type { EpicDetailResult } from "../../api/epics";
 import type { RalphAutonomousUiLaunchProvider } from "../../lib/launch-provider-contract";
 import type { LaunchModelSelection } from "../../lib/launch-model-catalog";
 import {
-  defaultRalphLaunchDependencies,
+  createRalphLaunchDependencies,
   dispatchInteractiveUiLaunch,
   dispatchRalphAutonomousUiLaunch,
 } from "../../lib/ui-launch-dispatcher";
 import type { INTERACTIVE_UI_LAUNCH_PROVIDERS } from "../../lib/ui-launch-registry";
 import { queryKeys } from "../../lib/query-keys";
-import { useCostModels, useLaunchRalphForEpic, useSettings } from "../../lib/hooks";
+import {
+  useCostModels,
+  useLaunchProviderAvailability,
+  useLaunchRalphForEpic,
+  useSettings,
+} from "../../lib/hooks";
 
 export interface EpicDetailHeaderProps {
   epic: EpicDetailResult["epic"];
@@ -76,12 +82,16 @@ export function EpicDetailHeader({
     isLoading: modelCatalogLoading,
     error: modelCatalogError,
   } = useCostModels();
+  const {
+    availabilityByProviderId,
+    loading: availabilityLoading,
+    error: availabilityError,
+  } = useLaunchProviderAvailability({ enabled: showLaunchMenu || showReviewModal });
   const queryClient = useQueryClient();
   const launchRalphMutation = useLaunchRalphForEpic();
 
-  const ticketsTotal = Object.values(ticketsByStatus).reduce((a, b) => a + b, 0);
-  const ticketsDone = ticketsByStatus["done"] ?? 0;
-  const completionPercent = ticketsTotal > 0 ? Math.round((ticketsDone / ticketsTotal) * 100) : 0;
+  const { ticketsTotal, progressPercent: completionPercent } =
+    computeEpicTicketCounts(ticketsByStatus);
   const hasFindings = findingsSummary.total > 0;
   const openFindings = findingsSummary.total - findingsSummary.fixed;
   const reviewableTickets = tickets
@@ -185,7 +195,9 @@ export function EpicDetailHeader({
   const handleLaunchRalph = useCallback(
     async (
       provider: RalphAutonomousUiLaunchProvider,
-      modelSelection: LaunchModelSelection
+      modelSelection: LaunchModelSelection,
+      reviewerProvider?: RalphAutonomousUiLaunchProvider,
+      reviewerModelSelection?: LaunchModelSelection
     ): Promise<void> => {
       setShowLaunchMenu(false);
 
@@ -202,15 +214,13 @@ export function EpicDetailHeader({
             epicId: epic.id,
             preferredTerminal: settings?.settings?.terminalEmulator ?? null,
             modelSelection,
+            ...(reviewerProvider ? { reviewerProvider } : {}),
+            ...(reviewerModelSelection ? { reviewerModelSelection } : {}),
           },
-          {
-            ...defaultRalphLaunchDependencies,
-            launchTicketRalph: async () => ({
-              success: false,
-              message: "Ticket Ralph launch is not available from the epic header.",
-            }),
-            launchEpicRalph: (payload) => launchRalphMutation.mutateAsync(payload),
-          }
+          createRalphLaunchDependencies(
+            { launchEpic: (payload) => launchRalphMutation.mutateAsync(payload) },
+            "the epic header."
+          )
         );
 
         if ("warnings" in result && result.warnings) {
@@ -238,7 +248,9 @@ export function EpicDetailHeader({
   const handleLaunchFocusedReview = useCallback(
     async (
       provider: RalphAutonomousUiLaunchProvider,
-      modelSelection: LaunchModelSelection
+      modelSelection: LaunchModelSelection,
+      reviewerProvider?: RalphAutonomousUiLaunchProvider,
+      reviewerModelSelection?: LaunchModelSelection
     ): Promise<void> => {
       if (selectedReviewTicketIds.length === 0) {
         setReviewLaunchError("Select at least one ticket to review.");
@@ -258,15 +270,13 @@ export function EpicDetailHeader({
             selectedTicketIds: selectedReviewTicketIds,
             steeringPrompt: reviewSteeringPrompt,
             modelSelection,
+            ...(reviewerProvider ? { reviewerProvider } : {}),
+            ...(reviewerModelSelection ? { reviewerModelSelection } : {}),
           },
-          {
-            ...defaultRalphLaunchDependencies,
-            launchTicketRalph: async () => ({
-              success: false,
-              message: "Ticket Ralph launch is not available from focused review.",
-            }),
-            launchEpicRalph: (payload) => launchRalphMutation.mutateAsync(payload),
-          }
+          createRalphLaunchDependencies(
+            { launchEpic: (payload) => launchRalphMutation.mutateAsync(payload) },
+            "focused review."
+          )
         );
 
         if ("warnings" in result && result.warnings) {
@@ -474,12 +484,25 @@ export function EpicDetailHeader({
                     onInteractiveLaunch={(provider, modelSelection) =>
                       void handleLaunchInteractive(provider, modelSelection)
                     }
-                    onRalphLaunch={(provider, modelSelection) =>
-                      void handleLaunchRalph(provider, modelSelection)
+                    onRalphLaunch={(
+                      provider,
+                      modelSelection,
+                      reviewerProvider,
+                      reviewerModelSelection
+                    ) =>
+                      void handleLaunchRalph(
+                        provider,
+                        modelSelection,
+                        reviewerProvider,
+                        reviewerModelSelection
+                      )
                     }
                     costModels={costModels ?? []}
                     modelCatalogLoading={modelCatalogLoading}
                     modelCatalogError={modelCatalogError}
+                    availabilityByProviderId={availabilityByProviderId}
+                    availabilityLoading={availabilityLoading}
+                    availabilityError={availabilityError}
                   />
                 </div>
               )}
@@ -702,8 +725,18 @@ export function EpicDetailHeader({
                     interactiveContext="focused-review"
                     ralphContext="focused-review"
                     onInteractiveLaunch={() => undefined}
-                    onRalphLaunch={(provider, modelSelection) =>
-                      void handleLaunchFocusedReview(provider, modelSelection)
+                    onRalphLaunch={(
+                      provider,
+                      modelSelection,
+                      reviewerProvider,
+                      reviewerModelSelection
+                    ) =>
+                      void handleLaunchFocusedReview(
+                        provider,
+                        modelSelection,
+                        reviewerProvider,
+                        reviewerModelSelection
+                      )
                     }
                     disabled={launchRalphMutation.isPending || selectedReviewTicketIds.length === 0}
                     loadingProviderId={pendingReviewProvider}
@@ -711,6 +744,9 @@ export function EpicDetailHeader({
                     costModels={costModels ?? []}
                     modelCatalogLoading={modelCatalogLoading}
                     modelCatalogError={modelCatalogError}
+                    availabilityByProviderId={availabilityByProviderId}
+                    availabilityLoading={availabilityLoading}
+                    availabilityError={availabilityError}
                   />
                 </div>
               </div>

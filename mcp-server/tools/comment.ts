@@ -14,7 +14,7 @@ import { detectAuthor } from "../lib/environment.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type Database from "better-sqlite3";
 import { CoreError } from "../../core/errors.ts";
-import { addComment, listComments } from "../../core/comment.ts";
+import { addComment, listComments, resolveCommentIdentity } from "../../core/comment.ts";
 import type { CommentAuthor, CommentType } from "../../core/comment.ts";
 
 const ACTIONS = ["add", "list"] as const;
@@ -27,6 +27,7 @@ const AUTHORS = [
   "vscode",
   "copilot",
   "codex",
+  "pi",
   "cursor-agent",
   "ai",
   "brain-dump",
@@ -72,11 +73,21 @@ export function registerCommentTool(server: McpServer, db: Database.Database): v
             const finalAuthor = (params.author || detectAuthor()) as CommentAuthor;
             const commentType = (params.commentType || "comment") as CommentType;
 
+            const implementationIdentity =
+              commentType === "work_summary" || commentType === "test_report"
+                ? resolveCommentIdentity({
+                    phase: "implementation",
+                    actorKind: "ai",
+                    role: "implementation",
+                    author: finalAuthor,
+                  })
+                : null;
             const comment = addComment(db, {
               ticketId,
               content,
               author: finalAuthor,
               type: commentType,
+              ...(implementationIdentity ?? {}),
             });
 
             log.info(`Added ${commentType} to ticket ${ticketId} by ${finalAuthor}`);

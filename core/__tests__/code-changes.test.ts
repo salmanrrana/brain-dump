@@ -199,6 +199,196 @@ describe("getCodeChangeSummary", () => {
     expect(calls.some((call) => call.args.includes("main...feature/ticket-1"))).toBe(true);
   });
 
+  it("does not inflate per-ticket totals or epic aggregate when tickets share one epic branch", async () => {
+    const repoPath = createRepoDir();
+    seedProject(db, { id: "proj-1", path: repoPath });
+    seedEpic(db, { id: "epic-1", projectId: "proj-1", title: "Shared Branch Epic" });
+    db.prepare(
+      `INSERT INTO epic_workflow_state (
+         id, epic_id, epic_branch_name, epic_branch_created_at, created_at, updated_at
+       ) VALUES (?, ?, ?, ?, ?, ?)`
+    ).run(
+      "ews-1",
+      "epic-1",
+      "feature/epic-epic-1",
+      "2026-07-08T00:00:00.000Z",
+      "2026-07-08T00:00:00.000Z",
+      "2026-07-08T00:00:00.000Z"
+    );
+    // The workflow records the shared epic branch as every ticket's
+    // branch_name — the ledger must not attribute that diff to each ticket.
+    seedTicket(db, {
+      id: "ticket-1",
+      projectId: "proj-1",
+      epicId: "epic-1",
+      branchName: "feature/epic-epic-1",
+    });
+    seedTicket(db, {
+      id: "ticket-2",
+      projectId: "proj-1",
+      epicId: "epic-1",
+      branchName: "feature/epic-epic-1",
+    });
+    linkCommits("ticket-1", ["aaaaaaaaaaaaaaaa"]);
+    linkCommits("ticket-2", ["bbbbbbbbbbbbbbbb"]);
+
+    const epicBranchDiff = "100\t20\tsrc/epic-only.ts\n50\t10\tsrc/shared.ts\n";
+    const epicBranchStatus = "A\tsrc/epic-only.ts\nM\tsrc/shared.ts\n";
+    const ticket1Commit = "5\t1\tsrc/ticket-one.ts\n";
+    const ticket2Commit = "8\t2\tsrc/ticket-two.ts\n";
+
+    const results: Record<string, ExecFileNoThrowResult> = {
+      [createCommandKey(
+        ["cat-file", "-e", "--end-of-options", "aaaaaaaaaaaaaaaa^{commit}"],
+        repoPath
+      )]: createExecResult(),
+      [createCommandKey(
+        [
+          "show",
+          "--numstat",
+          "--format=",
+          "--find-renames",
+          "--end-of-options",
+          "aaaaaaaaaaaaaaaa",
+        ],
+        repoPath
+      )]: createExecResult({ stdout: ticket1Commit }),
+      [createCommandKey(
+        [
+          "show",
+          "--name-status",
+          "--format=",
+          "--find-renames",
+          "--end-of-options",
+          "aaaaaaaaaaaaaaaa",
+        ],
+        repoPath
+      )]: createExecResult({ stdout: "A\tsrc/ticket-one.ts\n" }),
+      [createCommandKey(
+        ["cat-file", "-e", "--end-of-options", "bbbbbbbbbbbbbbbb^{commit}"],
+        repoPath
+      )]: createExecResult(),
+      [createCommandKey(
+        [
+          "show",
+          "--numstat",
+          "--format=",
+          "--find-renames",
+          "--end-of-options",
+          "bbbbbbbbbbbbbbbb",
+        ],
+        repoPath
+      )]: createExecResult({ stdout: ticket2Commit }),
+      [createCommandKey(
+        [
+          "show",
+          "--name-status",
+          "--format=",
+          "--find-renames",
+          "--end-of-options",
+          "bbbbbbbbbbbbbbbb",
+        ],
+        repoPath
+      )]: createExecResult({ stdout: "A\tsrc/ticket-two.ts\n" }),
+      [createCommandKey(
+        ["rev-parse", "--verify", "--end-of-options", "feature/epic-epic-1"],
+        repoPath
+      )]: createExecResult(),
+      [createCommandKey(["rev-parse", "--verify", "main"], repoPath)]: createExecResult(),
+      [createCommandKey(
+        ["diff", "--numstat", "--find-renames", "--end-of-options", "main...feature/epic-epic-1"],
+        repoPath
+      )]: createExecResult({ stdout: epicBranchDiff }),
+      [createCommandKey(
+        [
+          "diff",
+          "--name-status",
+          "--find-renames",
+          "--end-of-options",
+          "main...feature/epic-epic-1",
+        ],
+        repoPath
+      )]: createExecResult({ stdout: epicBranchStatus }),
+    };
+    const { execFileNoThrow, calls } = createRecordingExec(results);
+
+    const summary = await getCodeChangeSummary(
+      { type: "epic", id: "epic-1" },
+      { db, execFileNoThrow }
+    );
+
+    const epicBranchDiffCalls = calls.filter((call) =>
+      call.args.includes("main...feature/epic-epic-1")
+    );
+    expect(epicBranchDiffCalls).toHaveLength(2);
+
+    expect(summary.totals).toEqual({ files: 2, additions: 150, deletions: 30 });
+    expect(summary.groups[0]?.totals).toEqual({ files: 1, additions: 5, deletions: 1 });
+    expect(summary.groups[1]?.totals).toEqual({ files: 1, additions: 8, deletions: 2 });
+    expect(summary.groups[0]?.sources.map((source) => source.kind)).toContain("epic_branch");
+    expect(summary.groups[1]?.sources.map((source) => source.kind)).toContain("epic_branch");
+    expect(summary.groups[0]?.files.map((file) => file.path)).toEqual(["src/ticket-one.ts"]);
+    expect(summary.groups[1]?.files.map((file) => file.path)).toEqual(["src/ticket-two.ts"]);
+  });
+
+  it("exposes epic branch for patch viewing without inflating totals when a ticket has no linked commits", async () => {
+    const repoPath = createRepoDir();
+    seedProject(db, { id: "proj-1", path: repoPath });
+    seedEpic(db, { id: "epic-1", projectId: "proj-1" });
+    db.prepare(
+      `INSERT INTO epic_workflow_state (
+         id, epic_id, epic_branch_name, epic_branch_created_at, created_at, updated_at
+       ) VALUES (?, ?, ?, ?, ?, ?)`
+    ).run(
+      "ews-1",
+      "epic-1",
+      "feature/epic-epic-1",
+      "2026-07-08T00:00:00.000Z",
+      "2026-07-08T00:00:00.000Z",
+      "2026-07-08T00:00:00.000Z"
+    );
+    seedTicket(db, {
+      id: "ticket-1",
+      projectId: "proj-1",
+      epicId: "epic-1",
+      branchName: "feature/epic-epic-1",
+    });
+
+    const epicBranchDiff = "12\t3\tsrc/fallback.ts\n";
+    const { execFileNoThrow } = createRecordingExec({
+      [createCommandKey(
+        ["rev-parse", "--verify", "--end-of-options", "feature/epic-epic-1"],
+        repoPath
+      )]: createExecResult(),
+      [createCommandKey(["rev-parse", "--verify", "main"], repoPath)]: createExecResult(),
+      [createCommandKey(
+        ["diff", "--numstat", "--find-renames", "--end-of-options", "main...feature/epic-epic-1"],
+        repoPath
+      )]: createExecResult({ stdout: epicBranchDiff }),
+      [createCommandKey(
+        [
+          "diff",
+          "--name-status",
+          "--find-renames",
+          "--end-of-options",
+          "main...feature/epic-epic-1",
+        ],
+        repoPath
+      )]: createExecResult({ stdout: "M\tsrc/fallback.ts\n" }),
+    });
+
+    const summary = await getCodeChangeSummary(
+      { type: "epic", id: "epic-1" },
+      { db, execFileNoThrow }
+    );
+
+    expect(summary.groups[0]?.totals).toEqual({ files: 0, additions: 0, deletions: 0 });
+    expect(summary.groups[0]?.files).toEqual([]);
+    expect(summary.groups[0]?.sources.map((source) => source.kind)).toEqual(["epic_branch"]);
+    expect(summary.groups[0]?.state.kind).toBe("metadata_only");
+    expect(summary.totals).toEqual({ files: 1, additions: 12, deletions: 3 });
+  });
+
   it("aggregates epic ticket groups in ticket order and preserves duplicate commit boundaries", async () => {
     const repoPath = createRepoDir();
     seedProject(db, { id: "proj-1", path: repoPath });

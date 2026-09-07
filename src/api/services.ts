@@ -10,7 +10,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { existsSync, readFileSync, writeFileSync, unlinkSync } from "fs";
 import { join } from "path";
-import type { RalphServicesFile, RalphService, ServiceStatus } from "../lib/service-discovery";
+import type { RalphServicesFile, RalphService } from "../lib/service-discovery";
 import { SERVICES_FILENAME, createEmptyServicesFile } from "../lib/service-discovery";
 import { safeJsonParse } from "../lib/utils";
 
@@ -88,46 +88,6 @@ export const getProjectServices = createServerFn({ method: "GET" })
   });
 
 /**
- * Check if a project has any running services.
- *
- * This is a convenience function for quick checks without fetching full details.
- *
- * @param projectPath - Absolute path to the project root
- * @returns true if the project has at least one running service
- */
-export const hasRunningServices = createServerFn({ method: "GET" })
-  .inputValidator(validateProjectPath)
-  .handler(async ({ data }): Promise<{ hasServices: boolean; count: number }> => {
-    const { projectPath } = data;
-    const servicesFile = join(projectPath, SERVICES_FILENAME);
-
-    if (!existsSync(servicesFile)) {
-      return { hasServices: false, count: 0 };
-    }
-
-    try {
-      const content = readFileSync(servicesFile, "utf-8");
-      const parsed = safeJsonParse<RalphServicesFile | { __parseError: true }>(content, {
-        __parseError: true,
-      });
-
-      if ("__parseError" in parsed || !Array.isArray(parsed.services)) {
-        return { hasServices: false, count: 0 };
-      }
-
-      // Only count services with "running" status
-      const runningServices = parsed.services.filter((s) => s.status === "running");
-      return {
-        hasServices: runningServices.length > 0,
-        count: runningServices.length,
-      };
-    } catch (error) {
-      console.error(`[services] Error checking for running services in ${servicesFile}:`, error);
-      return { hasServices: false, count: 0 };
-    }
-  });
-
-/**
  * Input validator for service update operations.
  */
 interface UpdateServiceInput {
@@ -185,61 +145,6 @@ function writeServicesFile(projectPath: string, data: RalphServicesFile): void {
   const servicesFile = join(projectPath, SERVICES_FILENAME);
   writeFileSync(servicesFile, JSON.stringify(data, null, 2), "utf-8");
 }
-
-/**
- * Update a service's status in the services file.
- *
- * @param projectPath - Absolute path to the project root
- * @param serviceName - Name of the service to update
- * @param servicePort - Port of the service (used for identification)
- * @param newStatus - New status to set
- * @returns Updated service info or error
- */
-export const updateServiceStatus = createServerFn({ method: "POST" })
-  .inputValidator((data: UpdateServiceInput & { newStatus: ServiceStatus }) => {
-    const validated = validateUpdateServiceInput(data);
-    if (!["running", "stopped", "starting", "error"].includes(data.newStatus)) {
-      throw new Error("newStatus must be a valid ServiceStatus");
-    }
-    return { ...validated, newStatus: data.newStatus };
-  })
-  .handler(
-    async ({ data }): Promise<{ success: boolean; service?: RalphService; error?: string }> => {
-      const { projectPath, serviceName, servicePort, newStatus } = data;
-
-      // Check if project path exists
-      if (!existsSync(projectPath)) {
-        return { success: false, error: "Project path does not exist" };
-      }
-
-      const servicesData = readServicesFile(projectPath);
-
-      if (!servicesData) {
-        return { success: false, error: "Services file not found or invalid" };
-      }
-
-      // Find the service by name and port
-      const service = servicesData.services.find(
-        (s) => s.name === serviceName && s.port === servicePort
-      );
-
-      if (!service) {
-        return { success: false, error: `Service "${serviceName}:${servicePort}" not found` };
-      }
-
-      // Update the service status
-      service.status = newStatus;
-      servicesData.updatedAt = new Date().toISOString();
-
-      try {
-        writeServicesFile(projectPath, servicesData);
-        return { success: true, service };
-      } catch (error) {
-        console.error(`[services] Error writing services file:`, error);
-        return { success: false, error: "Failed to write services file" };
-      }
-    }
-  );
 
 /**
  * Start a service (set status to "running").
@@ -413,25 +318,6 @@ export const stopAllServices = createServerFn({ method: "POST" })
       }
     }
   );
-
-// =============================================================================
-// DOCKER AVAILABILITY
-// =============================================================================
-
-/**
- * Check if Docker daemon is available.
- *
- * Uses a cached check (60 second TTL) to avoid repeatedly hitting Docker daemon.
- * This is called at app startup and periodically to enable/disable Docker features.
- *
- * @returns Object with available boolean, cached flag, and optional error
- */
-export const checkDockerAvailable = createServerFn({ method: "GET" })
-  .inputValidator((data: { forceRefresh?: boolean }) => data)
-  .handler(async ({ data }) => {
-    const { checkDockerAvailability } = await import("./docker-utils");
-    return checkDockerAvailability(data.forceRefresh ?? false);
-  });
 
 // =============================================================================
 // DOCKER CONTAINER LOGS

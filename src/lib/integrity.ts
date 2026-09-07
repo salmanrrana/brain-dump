@@ -29,6 +29,20 @@ export interface FullCheckResult {
 
 const REQUIRED_TABLES = ["projects", "epics", "tickets", "settings", "ticket_comments"];
 
+function isReadOnlyDatabaseError(error: unknown): boolean {
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? String((error as { code?: unknown }).code ?? "")
+      : "";
+  const message = error instanceof Error ? error.message : String(error);
+
+  return (
+    code.startsWith("SQLITE_READONLY") ||
+    code === "SQLITE_CANTOPEN" ||
+    /read-only|readonly|permission denied/i.test(message)
+  );
+}
+
 /** Uses PRAGMA integrity_check(1) which stops at first error. */
 export function quickIntegrityCheck(dbPath?: string): QuickCheckResult {
   const targetPath = dbPath || getDatabasePath();
@@ -217,32 +231,47 @@ export function walCheck(dbPath?: string): IntegrityCheckResult {
   }
 
   try {
-    const db = new Database(targetPath, { readonly: true });
-
-    const journalMode = db.pragma("journal_mode") as { journal_mode: string }[];
-    const mode = journalMode[0]?.journal_mode || "unknown";
+    const inspectionDb = new Database(targetPath, { readonly: true });
+    let mode = "unknown";
+    try {
+      const journalMode = inspectionDb.pragma("journal_mode") as { journal_mode: string }[];
+      mode = journalMode[0]?.journal_mode || "unknown";
+    } finally {
+      inspectionDb.close();
+    }
     details.push(`Journal mode: ${mode}`);
 
     if (mode === "wal") {
-      const checkpointInfo = db.pragma("wal_checkpoint(PASSIVE)") as {
-        busy: number;
-        log: number;
-        checkpointed: number;
-      }[];
-      if (checkpointInfo[0]) {
-        const info = checkpointInfo[0];
-        details.push(`WAL pages: ${info.log} total, ${info.checkpointed} checkpointed`);
+      let checkpointDb: Database.Database | undefined;
+      try {
+        // wal_checkpoint writes checkpoint metadata even in PASSIVE mode.
+        checkpointDb = new Database(targetPath, { fileMustExist: true });
+        const checkpointInfo = checkpointDb.pragma("wal_checkpoint(PASSIVE)") as {
+          busy: number;
+          log: number;
+          checkpointed: number;
+        }[];
+        if (checkpointInfo[0]) {
+          const info = checkpointInfo[0];
+          details.push(`WAL pages: ${info.log} total, ${info.checkpointed} checkpointed`);
 
-        // Large number of uncheckpointed pages might indicate issues
-        const uncheckpointed = info.log - info.checkpointed;
-        if (uncheckpointed > 10000) {
-          details.push(`Warning: ${uncheckpointed} uncheckpointed pages`);
-          if (status === "ok") status = "warning";
+          // Large number of uncheckpointed pages might indicate issues
+          const uncheckpointed = info.log - info.checkpointed;
+          if (uncheckpointed > 10000) {
+            details.push(`Warning: ${uncheckpointed} uncheckpointed pages`);
+            if (status === "ok") status = "warning";
+          }
         }
+      } catch (error) {
+        if (!isReadOnlyDatabaseError(error)) {
+          throw error;
+        }
+        details.push("WAL checkpoint skipped: database is read-only");
+        if (status === "ok") status = "warning";
+      } finally {
+        checkpointDb?.close();
       }
     }
-
-    db.close();
 
     return {
       success: true,
@@ -276,9 +305,9 @@ export function tableCheck(dbPath?: string): IntegrityCheckResult {
   try {
     const db = new Database(targetPath, { readonly: true });
 
-    const tables = db
-      .prepare("SELECT name FROM sqlite_master WHERE type='table'")
-      .all() as { name: string }[];
+    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as {
+      name: string;
+    }[];
     const tableNames = new Set(tables.map((t) => t.name));
     db.close();
 
@@ -327,6 +356,7 @@ export function fullDatabaseCheck(dbPath?: string): FullCheckResult {
   if (
     integrityCheck.status === "error" ||
     fkCheck.status === "error" ||
+    walResult.status === "error" ||
     tableResult.status === "error"
   ) {
     overallStatus = "error";
@@ -357,6 +387,12 @@ export function fullDatabaseCheck(dbPath?: string): FullCheckResult {
 
   if (walResult.status === "warning") {
     suggestions.push("WAL status warnings - consider running PRAGMA wal_checkpoint(TRUNCATE)");
+  }
+
+  if (walResult.status === "error") {
+    suggestions.push(
+      "WAL check failed - the write-ahead log could not be verified; check disk health and file permissions before trusting writes"
+    );
   }
 
   if (tableResult.status === "error") {

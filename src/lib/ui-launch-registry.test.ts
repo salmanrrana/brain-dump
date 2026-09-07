@@ -52,14 +52,10 @@ function makeInteractiveDependencies(): InteractiveLaunchDependencies & {
       epicName: "Launch Epic",
       ticketTitle: "Unify providers",
     }),
-    launchClaude: vi.fn().mockResolvedValue({ success: true, message: "claude" }),
-    launchCodex: vi.fn().mockResolvedValue({ success: true, message: "codex" }),
-    launchVSCode: vi.fn().mockResolvedValue({ success: true, message: "vscode" }),
-    launchCursor: vi.fn().mockResolvedValue({ success: true, message: "cursor" }),
-    launchCursorAgent: vi.fn().mockResolvedValue({ success: true, message: "cursor-agent" }),
-    launchCopilot: vi.fn().mockResolvedValue({ success: true, message: "copilot" }),
-    launchOpenCode: vi.fn().mockResolvedValue({ success: true, message: "opencode" }),
-    launchPi: vi.fn().mockResolvedValue({ success: true, message: "pi" }),
+    launchProvider: vi.fn().mockImplementation(async (payload: { providerId: string }) => ({
+      success: true,
+      message: payload.providerId,
+    })),
   };
 
   return { ...calls, calls };
@@ -122,8 +118,8 @@ describe("shared UI launch dispatcher", () => {
       dependencies
     );
 
-    expect(dependencies.calls.launchClaude!).toHaveBeenCalledWith(
-      expect.objectContaining({ modelSelection })
+    expect(dependencies.calls.launchProvider!).toHaveBeenCalledWith(
+      expect.objectContaining({ providerId: "claude-terminal", modelSelection })
     );
   });
 
@@ -142,23 +138,25 @@ describe("shared UI launch dispatcher", () => {
       dependencies
     );
 
-    expect(dependencies.calls.launchClaude!.mock.calls[0]?.[0]).not.toHaveProperty(
+    expect(dependencies.calls.launchProvider!.mock.calls[0]?.[0]).not.toHaveProperty(
       "modelSelection"
+    );
+    expect(dependencies.calls.launchProvider!.mock.calls[0]?.[0]).toHaveProperty(
+      "providerId",
+      "claude-terminal"
     );
   });
 
   it.each([
-    ["codex-app", "launchCodex"],
-    ["vscode", "launchVSCode"],
-    ["cursor", "launchCursor"],
-    ["copilot", "launchCopilot"],
+    ["codex-app", "codex-app"],
+    ["vscode", "vscode-editor"],
+    ["cursor", "cursor-editor"],
+    ["copilot", "copilot-cli"],
   ] as const)(
     "does not pass concrete model selections to default-only interactive provider %s",
-    async (providerId, launcherName) => {
+    async (id, mode) => {
       const dependencies = makeInteractiveDependencies();
-      const provider = INTERACTIVE_UI_LAUNCH_PROVIDERS.find(
-        (candidate) => candidate.id === providerId
-      );
+      const provider = INTERACTIVE_UI_LAUNCH_PROVIDERS.find((candidate) => candidate.id === id);
 
       expect(provider).toBeDefined();
       const result = await dispatchInteractiveUiLaunch(
@@ -175,8 +173,12 @@ describe("shared UI launch dispatcher", () => {
         dependencies
       );
 
-      expect(dependencies.calls[launcherName]!.mock.calls[0]?.[0]).not.toHaveProperty(
+      expect(dependencies.calls.launchProvider!.mock.calls[0]?.[0]).not.toHaveProperty(
         "modelSelection"
+      );
+      expect(dependencies.calls.launchProvider!.mock.calls[0]?.[0]).toHaveProperty(
+        "providerId",
+        mode
       );
       expect(result.warnings).toEqual([
         `${provider!.display.label} does not have pricing-backed model choices yet. Launching with the provider's default model.`,
@@ -185,58 +187,49 @@ describe("shared UI launch dispatcher", () => {
   );
 
   it.each([
-    ["claude", "launchClaude", undefined],
-    ["codex", "launchCodex", "auto"],
-    ["codex-cli", "launchCodex", "cli"],
-    ["codex-app", "launchCodex", "app"],
-    ["vscode", "launchVSCode", undefined],
-    ["cursor", "launchCursor", undefined],
-    ["cursor-agent", "launchCursorAgent", undefined],
-    ["copilot", "launchCopilot", undefined],
-    ["opencode", "launchOpenCode", undefined],
-    ["pi", "launchPi", undefined],
-  ] as const)(
-    "maps %s to the shared interactive launcher",
-    async (providerId, launcherName, launchMode) => {
-      const dependencies = makeInteractiveDependencies();
-      const provider = INTERACTIVE_UI_LAUNCH_PROVIDERS.find(
-        (candidate) => candidate.id === providerId
-      );
+    ["claude", "claude-terminal"],
+    ["codex", "codex-auto"],
+    ["codex-cli", "codex-cli"],
+    ["codex-app", "codex-app"],
+    ["vscode", "vscode-editor"],
+    ["cursor", "cursor-editor"],
+    ["cursor-agent", "cursor-agent-terminal"],
+    ["copilot", "copilot-cli"],
+    ["opencode", "opencode-terminal"],
+    ["pi", "pi-terminal"],
+  ] as const)("maps %s to the shared interactive launcher seam", async (id, mode) => {
+    const dependencies = makeInteractiveDependencies();
+    const provider = INTERACTIVE_UI_LAUNCH_PROVIDERS.find((candidate) => candidate.id === id);
 
-      expect(provider).toBeDefined();
-      await dispatchInteractiveUiLaunch(
-        provider!,
-        {
-          kind: "ticket",
-          ticketId: "ticket-1",
-          preferredTerminal: "ghostty",
-        },
-        dependencies
-      );
+    expect(provider).toBeDefined();
+    await dispatchInteractiveUiLaunch(
+      provider!,
+      {
+        kind: "ticket",
+        ticketId: "ticket-1",
+        preferredTerminal: "ghostty",
+      },
+      dependencies
+    );
 
-      expect(dependencies.calls[launcherName]).toHaveBeenCalledWith(
-        expect.objectContaining({
-          ticketId: "ticket-1",
-          context: "# Ticket context",
-          projectPath: "/repo/from-context",
-          preferredTerminal: "ghostty",
-        })
-      );
-      if (launchMode) {
-        expect(dependencies.calls[launcherName]).toHaveBeenCalledWith(
-          expect.objectContaining({ launchMode })
-        );
-      }
-    }
-  );
+    expect(dependencies.calls.launchProvider).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerId: mode,
+        ticketId: "ticket-1",
+        context: "# Ticket context",
+        projectPath: "/repo/from-context",
+        preferredTerminal: "ghostty",
+      })
+    );
+  });
 
   it.each([
-    ["ralph-native", "claude", undefined],
-    ["ralph-codex", "codex", undefined],
-    ["ralph-cursor-agent", "cursor-agent", undefined],
+    ["ralph-native", "claude", "claude-code"],
+    ["ralph-codex", "codex", "codex"],
+    ["ralph-cursor-agent", "cursor-agent", "cursor-agent"],
     ["ralph-copilot", "claude", "copilot-cli"],
-    ["ralph-opencode", "opencode", undefined],
-    ["ralph-pi", "pi", undefined],
+    ["ralph-opencode", "opencode", "opencode"],
+    ["ralph-pi", "pi", "pi"],
   ] as const)(
     "maps %s to the shared Ralph ticket payload",
     async (providerId, aiBackend, workingMethodOverride) => {
@@ -449,6 +442,7 @@ describe("shared UI launch dispatcher", () => {
       preferredTerminal: null,
       useSandbox: false,
       aiBackend: "pi",
+      workingMethodOverride: "pi",
       launchProfile: {
         type: "review",
         selectedTicketIds: ["ticket-1", "ticket-2"],
@@ -495,6 +489,7 @@ describe("shared UI launch dispatcher", () => {
       preferredTerminal: "ghostty",
       useSandbox: true,
       aiBackend: "pi",
+      workingMethodOverride: "pi",
     });
     expect(result).toEqual({
       success: true,

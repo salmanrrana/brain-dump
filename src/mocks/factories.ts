@@ -6,7 +6,7 @@
  * that can be overridden as needed.
  */
 
-import type { Project, Epic, Ticket, TicketComment, Settings } from "../lib/schema";
+import type { Project, Epic, Ticket, TicketComment } from "../lib/schema";
 
 // Counter for generating sequential positions
 let positionCounter = 0;
@@ -31,6 +31,8 @@ export function createMockProject(overrides: Partial<Project> = {}): Project {
     color: overrides.color ?? null,
     position: overrides.position ?? positionCounter,
     workingMethod: overrides.workingMethod ?? "auto",
+    reviewerProvider: overrides.reviewerProvider ?? null,
+    reviewerModel: overrides.reviewerModel ?? null,
     createdAt: overrides.createdAt ?? new Date().toISOString(),
   };
 }
@@ -93,30 +95,12 @@ export function createMockComment(overrides: Partial<TicketComment> = {}): Ticke
     content: overrides.content ?? "Test comment",
     author: overrides.author ?? "claude",
     type: overrides.type ?? "comment",
+    phase: overrides.phase ?? null,
+    actorKind: overrides.actorKind ?? null,
+    provider: overrides.provider ?? null,
+    modelProvider: overrides.modelProvider ?? null,
+    modelName: overrides.modelName ?? null,
     createdAt: overrides.createdAt ?? new Date().toISOString(),
-  };
-}
-
-/**
- * Create mock settings
- */
-export function createMockSettings(overrides: Partial<Settings> = {}): Settings {
-  return {
-    id: overrides.id ?? "default",
-    terminalEmulator: overrides.terminalEmulator ?? null,
-    ralphSandbox: overrides.ralphSandbox ?? false,
-    ralphTimeout: overrides.ralphTimeout ?? 3600,
-    ralphMaxIterations: overrides.ralphMaxIterations ?? 10,
-    autoCreatePr: overrides.autoCreatePr ?? true,
-    prTargetBranch: overrides.prTargetBranch ?? "dev",
-    defaultProjectsDirectory: overrides.defaultProjectsDirectory ?? null,
-    defaultWorkingMethod: overrides.defaultWorkingMethod ?? "auto",
-    dockerRuntime: overrides.dockerRuntime ?? null,
-    dockerSocketPath: overrides.dockerSocketPath ?? null,
-    conversationRetentionDays: overrides.conversationRetentionDays ?? 90,
-    conversationLoggingEnabled: overrides.conversationLoggingEnabled ?? true,
-    createdAt: overrides.createdAt ?? new Date().toISOString(),
-    updatedAt: overrides.updatedAt ?? new Date().toISOString(),
   };
 }
 

@@ -10,6 +10,7 @@ import {
 import type { HealthDependencies, EnvironmentDetector } from "../health.ts";
 import { ProjectNotFoundError } from "../errors.ts";
 import { seedProject } from "./test-helpers.ts";
+import { WORKFLOW_SCHEMA_VERSION } from "../workflow-schema.ts";
 
 let db: Database.Database;
 
@@ -95,6 +96,8 @@ describe("getEnvironment", () => {
     expect(result.environment).toBe("claude-code");
     expect(result.workspacePath).toBe("/tmp/test-project");
     expect(result.envVarsDetected).toContain("CLAUDE_CODE");
+    expect(result.workflowSchema.version).toBe(WORKFLOW_SCHEMA_VERSION);
+    expect(result.workflowSchema.capabilities.aiVerificationStatus).toBe(true);
   });
 
   it("detects project from workspace path", () => {

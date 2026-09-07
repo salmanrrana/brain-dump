@@ -358,7 +358,7 @@ function simulateCompleteTicketWork(
   if (
     ticket.status === "done" ||
     ticket.status === "ai_review" ||
-    ticket.status === "human_review"
+    ticket.status === "ai_verification"
   ) {
     return { success: true, nextTicket: null };
   }
@@ -390,7 +390,7 @@ function simulateCompleteTicketWork(
   const incompleteTickets = db
     .prepare(
       `SELECT id, title, priority FROM tickets
-       WHERE project_id = ? AND status NOT IN ('done', 'ai_review', 'human_review') AND id != ?
+        WHERE project_id = ? AND status NOT IN ('done', 'ai_review', 'ai_verification') AND id != ?
        ORDER BY CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 ELSE 1 END`
     )
     .all(ticket.project_id, ticketId) as Array<{ id: string; title: string; priority: string }>;

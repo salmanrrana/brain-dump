@@ -17,69 +17,17 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
-import * as readline from "node:readline";
+import { parseClaudeTranscript } from "../core/claude-transcript.ts";
 import { initDatabase, consoleLogger, recordUsage } from "../core/index.ts";
 import type { DbHandle } from "../core/index.ts";
 
 // --- Types ---
-
-interface ModelUsage {
-  model: string;
-  inputTokens: number;
-  outputTokens: number;
-  cacheReadTokens: number;
-  cacheCreationTokens: number;
-}
 
 interface TelemetrySessionRow {
   id: string;
   ticket_id: string | null;
   started_at: string;
   ended_at: string | null;
-}
-
-// --- JSONL Parser (inlined from parse-transcript-tokens.ts) ---
-
-async function parseTranscript(filePath: string): Promise<ModelUsage[]> {
-  const totals = new Map<string, Omit<ModelUsage, "model">>();
-
-  const fileStream = fs.createReadStream(filePath);
-  const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
-
-  for await (const line of rl) {
-    let obj: unknown;
-    try {
-      obj = JSON.parse(line);
-    } catch {
-      continue;
-    }
-
-    if (typeof obj !== "object" || obj === null) continue;
-    const record = obj as Record<string, unknown>;
-    if (record.type !== "assistant") continue;
-
-    const message = record.message as Record<string, unknown> | undefined;
-    const usage = message?.usage as Record<string, unknown> | undefined;
-    const model = message?.model;
-    if (!usage || typeof model !== "string") continue;
-
-    const inputTokens = Number(usage.input_tokens) || 0;
-    const outputTokens = Number(usage.output_tokens) || 0;
-    const cacheReadTokens = Number(usage.cache_read_input_tokens) || 0;
-    const cacheCreationTokens = Number(usage.cache_creation_input_tokens) || 0;
-
-    const existing = totals.get(model);
-    if (existing) {
-      existing.inputTokens += inputTokens;
-      existing.outputTokens += outputTokens;
-      existing.cacheReadTokens += cacheReadTokens;
-      existing.cacheCreationTokens += cacheCreationTokens;
-    } else {
-      totals.set(model, { inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens });
-    }
-  }
-
-  return Array.from(totals.entries()).map(([model, counts]) => ({ model, ...counts }));
 }
 
 // --- Session Matching ---
@@ -182,7 +130,7 @@ async function main(): Promise<void> {
     }
 
     try {
-      const usage = await parseTranscript(filePath);
+      const usage = (await parseClaudeTranscript(filePath)).usage;
 
       if (usage.length === 0) {
         skippedEmpty++;

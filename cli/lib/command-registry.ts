@@ -7,6 +7,8 @@
  * No decorators, no class hierarchy — just typed data.
  */
 
+import { DIRECT_STATUS_UPDATE_STATUSES, TICKET_STATUSES } from "../../core/workflow-steps.ts";
+
 // ── Types ──────────────────────────────────────────────────────
 
 export interface FlagDef {
@@ -41,6 +43,9 @@ const projectFlag: FlagDef = {
   required: false,
   description: "Project ID",
 };
+
+const ticketStatusEnum = [...TICKET_STATUSES];
+const directStatusUpdateEnum = [...DIRECT_STATUS_UPDATE_STATUSES];
 
 const ticketFlag: FlagDef = {
   name: "ticket",
@@ -162,8 +167,8 @@ export const COMMAND_REGISTRY: CommandDef[] = [
         name: "status",
         type: "enum",
         required: false,
-        description: "Ticket status",
-        enum: ["backlog", "ready", "in_progress", "ai_review", "human_review", "done"],
+        description: "Directly editable ticket status",
+        enum: directStatusUpdateEnum,
       },
       {
         name: "priority",
@@ -177,7 +182,7 @@ export const COMMAND_REGISTRY: CommandDef[] = [
       prettyFlag,
     ],
     examples: [
-      "brain-dump ticket update --ticket abc --status done",
+      "brain-dump ticket update --ticket abc --status in_progress",
       'brain-dump ticket update --ticket abc --title "New Title" --priority high',
     ],
   },
@@ -191,8 +196,8 @@ export const COMMAND_REGISTRY: CommandDef[] = [
         name: "status",
         type: "enum",
         required: true,
-        description: "Ticket status",
-        enum: ["backlog", "ready", "in_progress", "ai_review", "human_review", "done"],
+        description: "Directly editable ticket status",
+        enum: directStatusUpdateEnum,
       },
       prettyFlag,
     ],
@@ -262,7 +267,7 @@ export const COMMAND_REGISTRY: CommandDef[] = [
         type: "enum",
         required: false,
         description: "Filter by status",
-        enum: ["backlog", "ready", "in_progress", "ai_review", "human_review", "done"],
+        enum: ticketStatusEnum,
       },
       limitFlag,
       prettyFlag,
@@ -377,6 +382,46 @@ export const COMMAND_REGISTRY: CommandDef[] = [
   // ── workflow ────────────────────────────────────────────────
   {
     resource: "workflow",
+    action: "run-epic-script",
+    description: "Supervise an epic script with exclusive local process-group ownership",
+    flags: [
+      {
+        name: "sandbox",
+        type: "boolean",
+        required: false,
+        description: "Own and clean up the AI sandbox container",
+      },
+      {
+        name: "docker-host",
+        type: "string",
+        required: false,
+        description: "Docker daemon used by the sandbox",
+      },
+      { name: "epic", type: "string", required: true, description: "Epic ID" },
+      {
+        name: "script",
+        type: "string",
+        required: true,
+        description: "Generated Ralph script path",
+      },
+      { name: "max-iterations", type: "number", required: false, description: "Iteration limit" },
+      {
+        name: "resume-ticket",
+        type: "string",
+        required: false,
+        description: "Repair continuation target",
+      },
+      {
+        name: "timeout",
+        type: "number",
+        required: false,
+        description: "Maximum ownership wait and execution time in seconds",
+      },
+    ],
+    examples: ["brain-dump workflow run-epic-script --epic abc --script /tmp/ralph.sh"],
+  },
+  {
+    resource: "workflow",
     action: "start-work",
     description: "Start work on a ticket (creates branch, updates status)",
     flags: [ticketFlag, prettyFlag],
@@ -433,6 +478,26 @@ export const COMMAND_REGISTRY: CommandDef[] = [
         description: "Preferred terminal emulator (e.g. ghostty, kitty, iterm2)",
       },
       {
+        name: "model",
+        type: "string",
+        required: false,
+        description: "Provider model id to pass to Ralph (requires --provider)",
+      },
+      {
+        name: "review-provider",
+        type: "enum",
+        required: false,
+        description: "Fresh-eyes reviewer backend for ai_review (headless Ralph providers only)",
+        enum: ["claude-code", "cursor-agent", "codex", "pi", "opencode"],
+      },
+      {
+        name: "review-model",
+        type: "string",
+        required: false,
+        description:
+          "Reviewer model id to pass to the fresh-eyes reviewer (requires --review-provider)",
+      },
+      {
         name: "max-iterations",
         type: "number",
         required: false,
@@ -479,6 +544,26 @@ export const COMMAND_REGISTRY: CommandDef[] = [
         type: "string",
         required: false,
         description: "Preferred terminal emulator (e.g. ghostty, kitty, iterm2)",
+      },
+      {
+        name: "model",
+        type: "string",
+        required: false,
+        description: "Provider model id to pass to Ralph (requires --provider)",
+      },
+      {
+        name: "review-provider",
+        type: "enum",
+        required: false,
+        description: "Fresh-eyes reviewer backend for ai_review (headless Ralph providers only)",
+        enum: ["claude-code", "cursor-agent", "codex", "pi", "opencode"],
+      },
+      {
+        name: "review-model",
+        type: "string",
+        required: false,
+        description:
+          "Reviewer model id to pass to the fresh-eyes reviewer (requires --review-provider)",
       },
       {
         name: "max-iterations",
@@ -548,6 +633,14 @@ export const COMMAND_REGISTRY: CommandDef[] = [
   // ── review ─────────────────────────────────────────────────
   {
     resource: "review",
+    action: "get-review-context",
+    description:
+      "One-call review packet: ticket requirements, work history, exact in-scope files, finding history, and anti-loop budgets. Run this FIRST when reviewing a ticket.",
+    flags: [ticketFlag, prettyFlag],
+    examples: ["brain-dump review get-review-context --ticket abc --pretty"],
+  },
+  {
+    resource: "review",
     action: "submit-finding",
     description: "Submit a review finding for a ticket",
     flags: [
@@ -605,14 +698,16 @@ export const COMMAND_REGISTRY: CommandDef[] = [
   {
     resource: "review",
     action: "generate-demo",
-    description: "Generate a demo script for human review",
+    description:
+      "Generate a demo script for AI verification with criterion coverage and executable step specs",
     flags: [
       ticketFlag,
       {
         name: "steps-file",
         type: "string",
         required: true,
-        description: "JSON file with demo steps",
+        description:
+          "JSON file with visual/automated demo steps, covers references (criterion:1, subtask:<id>), and executable UI/API/command/file checks for every criterion. coverageRationale is rejected. Keep untracked demo files outside the reviewed project.",
       },
       prettyFlag,
     ],
@@ -622,53 +717,6 @@ export const COMMAND_REGISTRY: CommandDef[] = [
     action: "get-demo",
     description: "Get the demo script for a ticket",
     flags: [ticketFlag, prettyFlag],
-  },
-  {
-    resource: "review",
-    action: "submit-feedback",
-    description: "Submit demo feedback (human reviewer only)",
-    flags: [
-      ticketFlag,
-      { name: "passed", type: "boolean", required: true, description: "Whether demo passed" },
-      { name: "feedback", type: "string", required: true, description: "Reviewer feedback" },
-      prettyFlag,
-    ],
-  },
-  {
-    resource: "review",
-    action: "update-demo-step",
-    description: "Update a demo step status during human review",
-    flags: [
-      {
-        name: "demo-script",
-        type: "string",
-        required: true,
-        description: "Demo script ID",
-      },
-      {
-        name: "step-order",
-        type: "number",
-        required: true,
-        description: "Step order number",
-      },
-      {
-        name: "step-status",
-        type: "enum",
-        required: true,
-        description: "Step status",
-        enum: ["pending", "passed", "failed", "skipped"],
-      },
-      {
-        name: "step-notes",
-        type: "string",
-        required: false,
-        description: "Reviewer notes",
-      },
-      prettyFlag,
-    ],
-    examples: [
-      "brain-dump review update-demo-step --demo-script abc --step-order 1 --step-status passed",
-    ],
   },
   {
     resource: "review",
@@ -699,6 +747,179 @@ export const COMMAND_REGISTRY: CommandDef[] = [
       },
       prettyFlag,
     ],
+  },
+  {
+    resource: "review",
+    action: "get-verification-history",
+    description: "Read verification run history for a ticket",
+    flags: [ticketFlag, prettyFlag],
+    examples: ["brain-dump review get-verification-history --ticket abc --pretty"],
+  },
+  {
+    resource: "review",
+    action: "repair-legacy-handoff",
+    description: "Repair a legacy human_review ticket into the active AI verification flow",
+    flags: [ticketFlag, prettyFlag],
+    examples: ["brain-dump review repair-legacy-handoff --ticket abc --pretty"],
+  },
+  {
+    resource: "review",
+    action: "resolve-verification-failure",
+    description: "Resolve a verified failure blocker and return the ticket to AI review",
+    flags: [
+      ticketFlag,
+      { name: "root-cause", type: "string", required: true, description: "Confirmed root cause" },
+      {
+        name: "classification",
+        type: "enum",
+        required: true,
+        description: "Failure classification",
+        enum: ["connectivity", "environment", "demo-spec", "product-defect", "other"],
+      },
+      {
+        name: "validation",
+        type: "string",
+        required: true,
+        description: "Evidence that validates the fix",
+      },
+      {
+        name: "fix-commits",
+        type: "string",
+        required: false,
+        description: "Comma-separated fix commit SHAs",
+      },
+      {
+        name: "why-next-attempt-will-pass",
+        type: "string",
+        required: false,
+        description: "Why the regenerated demo should pass",
+      },
+      { name: "operator", type: "string", required: false, description: "Operator identity" },
+      prettyFlag,
+    ],
+    examples: [
+      'brain-dump review resolve-verification-failure --ticket abc --root-cause "CORS rejected random loopback ports" --classification connectivity --validation "Random-port smoke test passes"',
+    ],
+  },
+  {
+    resource: "verify",
+    action: "run",
+    description: "Run AI verification for a ticket",
+    flags: [
+      ticketFlag,
+      {
+        name: "base-url",
+        type: "string",
+        required: false,
+        description: "Use an already-running app instead of booting the project",
+      },
+      {
+        name: "provider",
+        type: "string",
+        required: false,
+        description: "Provider attribution for runner evidence, stored as '<provider> ralph'",
+      },
+      prettyFlag,
+    ],
+    examples: [
+      "brain-dump verify --ticket abc --pretty",
+      "brain-dump verify --ticket abc --base-url http://127.0.0.1:4242 --pretty",
+    ],
+  },
+  {
+    resource: "verify",
+    action: "history",
+    description: "List verification run history for a ticket",
+    flags: [
+      ticketFlag,
+      { name: "history", type: "boolean", required: false, description: "Show history" },
+      prettyFlag,
+    ],
+    examples: ["brain-dump verify --ticket abc --history --pretty"],
+  },
+  {
+    resource: "verify",
+    action: "status",
+    description: "Show queued/running verification job state for a ticket",
+    flags: [ticketFlag, prettyFlag],
+    examples: ["brain-dump verify status --ticket abc --pretty"],
+  },
+  {
+    resource: "verify",
+    action: "jobs",
+    description: "List verification jobs for operator diagnostics",
+    flags: [prettyFlag],
+    examples: ["brain-dump verify jobs --pretty"],
+  },
+  {
+    resource: "verify",
+    action: "worker-status",
+    description: "Show automatic verification worker operations health",
+    flags: [prettyFlag],
+    examples: ["brain-dump verify worker-status --pretty"],
+  },
+  {
+    resource: "verify",
+    action: "pause",
+    description: "Pause automatic verification job claims without changing evidence or verdicts",
+    flags: [
+      { name: "reason", type: "string", required: false, description: "Audit reason" },
+      prettyFlag,
+    ],
+    examples: ['brain-dump verify pause --reason "playwright outage" --pretty'],
+  },
+  {
+    resource: "verify",
+    action: "resume",
+    description: "Resume automatic verification job claims after an operator pause",
+    flags: [
+      { name: "reason", type: "string", required: false, description: "Audit reason" },
+      prettyFlag,
+    ],
+    examples: ['brain-dump verify resume --reason "playwright fixed" --pretty'],
+  },
+  {
+    resource: "verify",
+    action: "requeue",
+    description: "Requeue a blocked, dead, failed, queued, or stale verification job after repair",
+    flags: [
+      ticketFlag,
+      { name: "reason", type: "string", required: false, description: "Audit reason" },
+      prettyFlag,
+    ],
+    examples: ['brain-dump verify requeue --ticket abc --reason "fixed browser deps" --pretty'],
+  },
+  {
+    resource: "verify",
+    action: "dead",
+    description: "Mark an unrecoverable verification job dead with an audit comment",
+    flags: [
+      ticketFlag,
+      { name: "reason", type: "string", required: true, description: "Audit reason" },
+      prettyFlag,
+    ],
+    examples: ['brain-dump verify dead --ticket abc --reason "fixture removed" --pretty'],
+  },
+  {
+    resource: "verify",
+    action: "worker",
+    description: "Run one automatic verification worker iteration for debugging",
+    flags: [
+      {
+        name: "drain",
+        type: "boolean",
+        required: false,
+        description: "Drain all currently runnable verification jobs instead of claiming one job",
+      },
+      {
+        name: "provider",
+        type: "string",
+        required: false,
+        description: "Provider attribution for runner evidence, stored as '<provider> ralph'",
+      },
+      prettyFlag,
+    ],
+    examples: ["brain-dump verify worker --pretty"],
   },
 
   // ── session ────────────────────────────────────────────────
@@ -977,6 +1198,21 @@ export const COMMAND_REGISTRY: CommandDef[] = [
     examples: [
       "brain-dump telemetry log-context --session abc --has-description --has-criteria --criteria-count 3",
     ],
+  },
+  {
+    resource: "telemetry",
+    action: "parse-transcript",
+    description: "Read deduplicated Claude transcript usage without database writes",
+    flags: [
+      {
+        name: "transcript",
+        type: "string",
+        required: true,
+        description: "Path to a Claude JSONL transcript",
+      },
+      prettyFlag,
+    ],
+    examples: ["brain-dump telemetry parse-transcript --transcript /logs/session.jsonl"],
   },
   {
     resource: "telemetry",
@@ -1331,8 +1567,16 @@ export const COMMAND_REGISTRY: CommandDef[] = [
     resource: "admin",
     action: "doctor",
     description: "Diagnose configuration issues",
-    flags: [prettyFlag],
-    examples: ["brain-dump admin doctor"],
+    flags: [
+      {
+        name: "verification",
+        type: "boolean",
+        required: false,
+        description:
+          "Run only the Verification Runner & Epic Auto-PR capability checks; exit code reflects those checks alone",
+      },
+    ],
+    examples: ["brain-dump admin doctor", "brain-dump doctor --verification"],
   },
   {
     resource: "admin",
@@ -1417,7 +1661,7 @@ export const COMMAND_REGISTRY: CommandDef[] = [
         type: "enum",
         required: false,
         description: "Filter by ticket status",
-        enum: ["backlog", "ready", "in_progress", "ai_review", "human_review", "done"],
+        enum: ticketStatusEnum,
       },
       limitFlag,
       prettyFlag,
@@ -1478,11 +1722,6 @@ export function getCommandsForResource(resource: string): CommandDef[] {
   return COMMAND_REGISTRY.filter((c) => c.resource === resource);
 }
 
-/** Get a specific command definition. */
-export function getCommand(resource: string, action: string): CommandDef | undefined {
-  return COMMAND_REGISTRY.find((c) => c.resource === resource && c.action === action);
-}
-
 /** Get a one-line description for a resource (from its first command's resource name). */
 export function getResourceDescription(resource: string): string {
   const descriptions: Record<string, string> = {
@@ -1492,6 +1731,7 @@ export function getResourceDescription(resource: string): string {
     workflow: "Start work, complete work, start epic, launch Ralph",
     comment: "Add and list ticket comments",
     review: "Submit findings, generate demos, manage reviews",
+    verify: "Run AI verification and inspect verification history",
     session: "Create, update, complete Ralph sessions",
     git: "Link commits, PRs, sync ticket links",
     telemetry: "Start, end, get, list telemetry sessions, record token usage",

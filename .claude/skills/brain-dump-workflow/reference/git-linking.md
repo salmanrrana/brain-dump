@@ -58,6 +58,6 @@ completing work to ensure all commits and PRs are recorded.
 The `link-commit-to-ticket.sh` PostToolUse hook runs after every `git commit`
 and outputs a reminder to call `workflow` with `action: "sync-links"`.
 
-The `create-pr-on-ticket-start.sh` PostToolUse hook runs after `workflow`
-`action: "start-work"` and automatically creates a draft PR, then suggests
-calling `workflow` with `action: "link-pr"`.
+Auto-PR creation is built into `workflow` `action: "start-work"` with
+`autoPr: true` — no hook involved. It creates a WIP commit, pushes the
+branch, opens a draft PR via `gh`, and links it to the ticket.

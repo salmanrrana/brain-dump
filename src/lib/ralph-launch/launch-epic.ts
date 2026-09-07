@@ -5,9 +5,13 @@ import { dirname, join } from "path";
 import { and, eq, inArray } from "drizzle-orm";
 import {
   addEpicReviewRunAuditComments,
+  canTransition,
   createEpicReviewRun,
   createRealGitOperations,
   GitError,
+  isTicketStatus,
+  RALPH_PRD_TICKET_STATUSES,
+  saveAutonomousEpicLaunch,
   startWork,
   updateEpicReviewRun,
   updateEpicReviewRunTicketLink,
@@ -30,14 +34,19 @@ import {
   validateDockerSetup,
 } from "../../api/ralph-launchers";
 import { epics, projects, settings, tickets } from "../schema";
-import { getHumanRequestedChangesByTicketId } from "./change-request-context";
+import {
+  getHumanRequestedChangesByTicketId,
+  getVerificationFailuresByTicketId,
+} from "./change-request-context";
 import { ensureRalphArtifactsIgnored } from "./gitignore";
+import { resolveLaunchReviewer, validateReviewerLaunchSupport } from "./reviewer";
 import type {
   EpicLaunchPreparation,
   LaunchEpicInput,
   RalphEpicLaunchProfile,
   RalphLaunchDb,
   RalphLaunchDependencies,
+  RalphWorkingMethod,
   TicketRecord,
 } from "./types";
 
@@ -51,7 +60,7 @@ const coreGit = createRealGitOperations();
  * - ONLY the first runnable ticket (status `backlog` or `ready`) is handed to
  *   `promoteFirstTicket` (which calls `startWork` → `in_progress` + branch).
  * - Every other ticket keeps its existing status: `backlog` stays `backlog`,
- *   `ready` stays `ready`. Tickets already in `ai_review` / `human_review` /
+ *   `ready` stays `ready`. Tickets already in `ai_review` / `ai_verification` /
  *   `done` are never touched.
  * - `rollback()` restores each ticket's captured pre-launch status, so a later
  *   launch step that fails cannot leave the board half-mutated.
@@ -69,8 +78,15 @@ export function applyEpicLaunchStatusChanges(
     status: ticket.status,
   }));
 
+  if (epicTickets.some((ticket) => ticket.status === "in_progress")) {
+    return { firstTicketId: null, rollback: () => {} };
+  }
+
   const firstTicket = epicTickets.find(
-    (ticket) => ticket.status === "backlog" || ticket.status === "ready"
+    (ticket) =>
+      isTicketStatus(ticket.status) &&
+      ticket.status !== "in_progress" &&
+      canTransition(ticket.status, "in_progress", "start-work")
   );
 
   if (firstTicket) {
@@ -229,8 +245,9 @@ export async function launchRalphForEpicCore(
     workingMethodOverride,
     modelSelection,
     launchProfile,
+    reviewerAiBackend,
+    reviewerModelSelection,
   } = input;
-
   const appSettings = db.select().from(settings).where(eq(settings.id, "default")).get();
   const timeoutSeconds = appSettings?.ralphTimeout ?? DEFAULT_TIMEOUT_SECONDS;
   const effectiveMaxIterations = maxIterations ?? appSettings?.ralphMaxIterations ?? 10;
@@ -249,9 +266,41 @@ export async function launchRalphForEpicCore(
     return { success: false, message: `Project directory not found: ${project.path}` };
   }
 
+  const workingMethod = (workingMethodOverride ||
+    project.workingMethod ||
+    "auto") as RalphWorkingMethod;
+  const reviewerResult = resolveLaunchReviewer({
+    aiBackend,
+    reviewerAiBackend,
+    reviewerModelSelection,
+    projectDefaults: { provider: project.reviewerProvider, model: project.reviewerModel },
+    settingsDefaults: {
+      provider: appSettings?.defaultReviewerProvider,
+      model: appSettings?.defaultReviewerModel,
+    },
+    sqlite,
+  });
+  if (!reviewerResult.success) {
+    return reviewerResult;
+  }
+  const reviewer = reviewerResult.reviewer;
+
+  const reviewerSupport = validateReviewerLaunchSupport(reviewer, workingMethod, "Epic launch");
+  if (!reviewerSupport.success) {
+    return reviewerSupport;
+  }
+
   let sshWarnings: string[] | undefined;
   let dockerHostEnv: string | null = null;
   if (useSandbox) {
+    if (reviewer) {
+      return {
+        success: false,
+        message:
+          "Fresh-eyes reviewer launches are only supported in native mode, not Docker sandbox mode.",
+      };
+    }
+
     if (aiBackend !== "claude") {
       return {
         success: false,
@@ -272,12 +321,7 @@ export async function launchRalphForEpicCore(
   const epicTickets = db
     .select()
     .from(tickets)
-    .where(
-      and(
-        eq(tickets.epicId, epicId),
-        inArray(tickets.status, ["backlog", "ready", "in_progress", "ai_review", "human_review"])
-      )
-    )
+    .where(and(eq(tickets.epicId, epicId), inArray(tickets.status, RALPH_PRD_TICKET_STATUSES)))
     .all();
   if (epicTickets.length === 0) {
     return { success: false, message: "No pending tickets in this epic" };
@@ -323,7 +367,6 @@ export async function launchRalphForEpicCore(
   const { promptProfile, prdTickets, startsImplementationWorkflow, reviewLaunches } =
     launchPreparation.preparation;
   const launchedTicketCount = prdTickets.length;
-  const workingMethod = workingMethodOverride || project.workingMethod || "auto";
 
   if (reviewLaunches.length > 0 && epicReviewRunId) {
     const runStartedAt = new Date().toISOString();
@@ -348,13 +391,28 @@ export async function launchRalphForEpicCore(
       const humanRequestedChanges = getHumanRequestedChangesByTicketId(sqlite, [
         reviewLaunch.ticket.id,
       ]);
+      const verificationFailures = getVerificationFailuresByTicketId(sqlite, [
+        reviewLaunch.ticket.id,
+      ]);
       const ticketPrd = generateEnhancedPRD(
         project.name,
         project.path,
         [reviewLaunch.ticket],
         epic.title,
         epic.description ?? undefined,
-        humanRequestedChanges
+        humanRequestedChanges,
+        verificationFailures,
+        reviewer
+          ? {
+              aiBackend: reviewer.aiBackend,
+              ...(reviewer.modelSelection
+                ? {
+                    modelProvider: reviewer.modelSelection.provider,
+                    modelName: reviewer.modelSelection.modelName,
+                  }
+                : {}),
+            }
+          : undefined
       );
       const ticketPrdPath = join(project.path, reviewLaunch.prdRelativePath);
       mkdirSync(dirname(ticketPrdPath), { recursive: true });
@@ -555,13 +613,29 @@ export async function launchRalphForEpicCore(
     sqlite,
     prdTickets.map((ticket) => ticket.id)
   );
+  const verificationFailures = getVerificationFailuresByTicketId(
+    sqlite,
+    prdTickets.map((ticket) => ticket.id)
+  );
   const prd = generateEnhancedPRD(
     project.name,
     project.path,
     prdTickets,
     epic.title,
     epic.description ?? undefined,
-    humanRequestedChanges
+    humanRequestedChanges,
+    verificationFailures,
+    reviewer
+      ? {
+          aiBackend: reviewer.aiBackend,
+          ...(reviewer.modelSelection
+            ? {
+                modelProvider: reviewer.modelSelection.provider,
+                modelName: reviewer.modelSelection.modelName,
+              }
+            : {}),
+        }
+      : undefined
   );
   const prdPath = join(plansDir, "prd.json");
   writeFileSync(prdPath, JSON.stringify(prd, null, 2));
@@ -573,23 +647,51 @@ export async function launchRalphForEpicCore(
     DEFAULT_RESOURCE_LIMITS,
     timeoutSeconds,
     dockerHostEnv,
-    useSandbox
-      ? {
-          projectId: project.id,
-          projectName: project.name,
-          epicId: epic.id,
-          epicTitle: epic.title,
-        }
-      : undefined,
+    {
+      projectId: project.id,
+      projectName: project.name,
+      epicId: epic.id,
+      epicTitle: epic.title,
+    },
     aiBackend,
     promptProfile,
-    modelSelection
+    modelSelection,
+    undefined,
+    reviewer
   );
   const scriptDir = join(homedir(), ".brain-dump", "scripts");
   mkdirSync(scriptDir, { recursive: true });
   const scriptPath = join(scriptDir, `ralph-epic-${useSandbox ? "docker-" : ""}${randomUUID()}.sh`);
   writeFileSync(scriptPath, ralphScript, { mode: 0o700 });
   chmodSync(scriptPath, 0o700);
+  const persistAutonomousLaunch = () =>
+    saveAutonomousEpicLaunch(sqlite, {
+      epicId: epic.id,
+      projectPath: project.path,
+      scriptPath,
+      scriptContent: ralphScript,
+      maxIterations: effectiveMaxIterations,
+      expiresAt: new Date(
+        Date.now() + effectiveMaxIterations * timeoutSeconds * 1000 + 60 * 60 * 1000
+      ).toISOString(),
+      provider: aiBackend,
+      ...(modelSelection
+        ? { modelProvider: modelSelection.provider, modelName: modelSelection.modelName }
+        : {}),
+      ...(reviewer
+        ? {
+            reviewerProvider: reviewer.aiBackend,
+            ...(reviewer.modelSelection
+              ? {
+                  reviewerModelProvider: reviewer.modelSelection.provider,
+                  reviewerModelName: reviewer.modelSelection.modelName,
+                }
+              : {}),
+          }
+        : {}),
+      useSandbox,
+      originalWorkingMethod: workingMethod,
+    });
 
   // Promote ONLY the first runnable ticket to in_progress (via startWork). All
   // other epic tickets keep their existing status — previously a loop here set
@@ -645,6 +747,7 @@ export async function launchRalphForEpicCore(
     }
 
     if (workingMethod === "copilot-cli") {
+      persistAutonomousLaunch();
       const terminalUsed = "terminal" in launchResult ? String(launchResult.terminal) : undefined;
       const terminalLabel = terminalUsed ?? "your terminal";
       return {
@@ -658,6 +761,7 @@ export async function launchRalphForEpicCore(
       };
     }
 
+    persistAutonomousLaunch();
     return {
       success: true,
       message: `Opened ${methodLabel} with Ralph context for ${launchedTicketCount} ticket${launchedTicketCount === 1 ? "" : "s"}. Check .claude/ralph-context.md for instructions.`,
@@ -669,8 +773,11 @@ export async function launchRalphForEpicCore(
   }
 
   console.log("[brain-dump] Using terminal launch path");
+  // The shell claims its ownership immediately, before any provider invocation.
+  const rollbackLaunchProfile = persistAutonomousLaunch();
   const launchResult = await launchInTerminal(project.path, scriptPath, preferredTerminal);
   if (!launchResult.success) {
+    rollbackLaunchProfile();
     rollbackEpicLaunchStatuses();
     return launchResult;
   }

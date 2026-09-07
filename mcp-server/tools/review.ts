@@ -18,53 +18,157 @@ import {
   markFixed,
   getFindings,
   checkComplete,
+  getReviewContext,
   validateGenerateDemo,
   generateDemo,
   getDemo,
-  updateDemoStep,
-  validateSubmitFeedback,
-  submitFeedback,
+  DEMO_COMMAND_MAX_TIMEOUT_MS,
+  validateRepairLegacyHumanReviewHandoff,
+  repairLegacyHumanReviewHandoff,
 } from "../../core/review.ts";
-import type { MarkFixedStatus, DemoStepStatus } from "../../core/review.ts";
-import type { FindingAgent, FindingSeverity, FindingStatus } from "../../core/types.ts";
-import { addComment, type CommentAuthor } from "../../core/comment.ts";
+import { listVerificationRuns } from "../../core/verification/index.ts";
+import { getVerificationJob } from "../../core/verification/index.ts";
+import {
+  resolveVerificationFailure,
+  VERIFICATION_FAILURE_RESOLUTION_CLASSIFICATIONS,
+} from "../../core/verification/index.ts";
+import {
+  resolveBrainDumpRootFrom,
+  spawnDetachedVerificationDrain,
+} from "../../core/verification/index.ts";
+import type { MarkFixedStatus } from "../../core/review.ts";
+import type { DemoStep, FindingAgent, FindingSeverity, FindingStatus } from "../../core/types.ts";
+import type { CommentAuthor } from "../../core/comment.ts";
 import { detectAuthor } from "../lib/environment.js";
 import { execFileNoThrow, syncPrVerificationChecklist } from "../../core/index.ts";
 import { updatePrdForDbTicketIfPresent } from "../../core/prd-sync.ts";
-
-const SEVERITY_ICONS: Record<string, string> = {
-  critical: "🔴",
-  major: "🟠",
-  minor: "🟡",
-  suggestion: "💡",
-};
+import { WORKFLOW_SCHEMA_VERSION } from "../../core/workflow-schema.ts";
 
 const ACTIONS = [
+  "get-review-context",
   "submit-finding",
   "mark-fixed",
   "get-findings",
   "check-complete",
   "generate-demo",
   "get-demo",
-  "update-demo-step",
-  "submit-feedback",
+  "get-verification-history",
+  "get-verification-job",
+  "repair-legacy-handoff",
+  "resolve-verification-failure",
 ] as const;
 
-const AGENTS = ["code-reviewer", "silent-failure-hunter", "code-simplifier"] as const;
 const SEVERITIES = ["critical", "major", "minor", "suggestion"] as const;
 const FINDING_STATUSES = ["open", "fixed", "wont_fix", "duplicate"] as const;
 const MARK_FIXED_STATUSES = ["fixed", "wont_fix", "duplicate"] as const;
-const DEMO_STEP_STATUSES = ["pending", "passed", "failed", "skipped"] as const;
 const DEMO_STEP_TYPES = ["manual", "visual", "automated"] as const;
+const DEFINED_UNKNOWN_SCHEMA = z.unknown().refine((value) => value !== undefined, {
+  message: "Expected value is required.",
+});
+const DEMO_APP_BOOT_SCHEMA = z.object({
+  start: z.array(z.string()),
+  cwd: z.string().optional(),
+});
+
+const DEMO_STEP_AUTOMATION_SCHEMA = z.union([
+  z.object({
+    kind: z.literal("ui"),
+    route: z.string(),
+    viewport: z
+      .object({
+        width: z.number().int().min(1).max(4096),
+        height: z.number().int().min(1).max(4096),
+      })
+      .optional()
+      .describe("Browser viewport in CSS pixels, e.g. 390x844 for a mobile layout screenshot."),
+    actions: z
+      .array(
+        z.object({
+          act: z.enum(["click", "fill", "press", "waitFor"]),
+          selector: z.string().optional(),
+          value: z.string().optional(),
+        })
+      )
+      .optional(),
+    assert: z.array(
+      z.object({
+        type: z.enum(["visible", "text", "url"]),
+        selector: z.string().optional(),
+        expected: z.string().optional(),
+      })
+    ),
+    screenshot: z.literal(true),
+  }),
+  z.object({
+    kind: z.literal("api"),
+    request: z.object({
+      method: z.string(),
+      path: z.string(),
+      headers: z.record(z.string()).optional(),
+      body: z.unknown().optional(),
+    }),
+    assert: z.array(
+      z.object({
+        type: z.enum(["status", "jsonPath", "bodyContains"]),
+        path: z
+          .string()
+          .optional()
+          .describe("For jsonPath: dot-separated path; $ selects the whole JSON response."),
+        expected: DEFINED_UNKNOWN_SCHEMA,
+      })
+    ),
+  }),
+  z.object({
+    kind: z.literal("command"),
+    command: z.object({
+      argv: z.array(z.string()),
+      cwd: z.string().optional(),
+      timeoutMs: z.number().int().positive().max(DEMO_COMMAND_MAX_TIMEOUT_MS),
+      expectedExitCode: z.number(),
+    }),
+    assert: z.array(
+      z.object({
+        type: z.enum([
+          "stdoutContains",
+          "stdoutNotContains",
+          "stderrContains",
+          "stderrNotContains",
+        ]),
+        expected: z.string(),
+      })
+    ),
+  }),
+  z.object({
+    kind: z.literal("file"),
+    path: z.string(),
+    assert: z.array(
+      z.union([
+        z.object({ type: z.enum(["exists", "notExists"]) }),
+        z.object({ type: z.enum(["contains", "notContains"]), expected: z.string() }),
+        z.object({
+          type: z.literal("jsonPath"),
+          path: z.string(),
+          expected: DEFINED_UNKNOWN_SCHEMA,
+        }),
+      ])
+    ),
+  }),
+]);
 
 type PrdSyncResult = ReturnType<typeof updatePrdForDbTicketIfPresent>;
+
+function getReviewerAuthorOverride(): CommentAuthor | undefined {
+  const author = process.env.BRAIN_DUMP_REVIEWER_AUTHOR?.trim();
+  return author ? (author as CommentAuthor) : undefined;
+}
 
 function syncPrdPassMarker(
   db: Database.Database,
   ticketId: string,
-  passes: boolean
+  passes: boolean,
+  status?: string
 ): PrdSyncResult {
-  const result = updatePrdForDbTicketIfPresent(db, ticketId, passes);
+  const result = updatePrdForDbTicketIfPresent(db, ticketId, passes, status);
   if (result.required && !result.success) {
     log.warn(`PRD sync failed for ticket ${ticketId}`, new Error(result.message));
   }
@@ -75,14 +179,6 @@ function formatPrdSyncNote(result: PrdSyncResult): string {
   return result.success ? result.message : `PRD sync warning: ${result.message}`;
 }
 
-function requirePrdSyncForFeedback(result: PrdSyncResult, passed: boolean): string {
-  if (passed || result.success) {
-    return result.message;
-  }
-
-  throw new Error(`Cannot submit demo feedback because PRD sync failed: ${result.message}`);
-}
-
 /**
  * Register the consolidated review tool with the MCP server.
  */
@@ -91,18 +187,25 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
     "review",
     `Manage review findings and demo scripts in Brain Dump.
 
+### get-review-context - One-call review packet: ticket requirements + acceptance criteria, work summaries/test reports, the exact in-scope file list (repair diff on re-review rounds), finding history, and the anti-loop budgets in effect. Call this FIRST when reviewing a ticket and review only the files it lists.
 ### submit-finding - Submit a review finding (ticket must be in ai_review)
 ### mark-fixed - Mark finding as fixed, wont_fix, or duplicate
 ### get-findings - Get findings for a ticket (filterable by status, severity, agent)
-### check-complete - Check if all critical/major findings resolved (returns canProceedToHumanReview)
-### generate-demo - Generate demo script for human review (moves ticket to human_review)
+### check-complete - Check if all critical/major findings resolved (returns canProceedToVerification)
+### generate-demo - Generate demo script for AI verification (moves ticket to ai_verification). Steps must be visual/automated with executable UI, API, command, or file automation specs; manual steps are legacy read-only data and are rejected for new handoffs.
 ### get-demo - Get the demo script for a ticket
-### update-demo-step - Update a demo step's status during human review
-### submit-feedback - Submit final demo feedback from human reviewer (moves to done if passed)`,
+### get-verification-history - Read verification run history for a ticket
+### get-verification-job - Read queued/running verification job state for a ticket
+### repair-legacy-handoff - Repair a legacy human_review ticket to ai_verification (with demo) or ai_review (without demo)
+### resolve-verification-failure - Clear a verification blocker after fixing its cause. Requires rootCause, classification, and validation (exact commands/results proving the fix); records the structured resolution on the ticket and returns it to ai_review so check-complete -> generate-demo can re-enter verification. Never certifies anything itself.
+
+Workflow schema: ${WORKFLOW_SCHEMA_VERSION}
+
+No MCP action uploads evidence or marks verification passed. The verification runner owns evidence writes and ai_verification -> done.`,
     {
       action: z.enum(ACTIONS).describe("The operation to perform"),
       ticketId: z.string().optional().describe("Ticket ID"),
-      agent: z.enum(AGENTS).optional().describe("Review agent"),
+      agent: z.string().optional().describe("Review agent"),
       severity: z.enum(SEVERITIES).optional().describe("Finding severity"),
       category: z.string().optional().describe("Finding category"),
       description: z.string().optional().describe("Finding description"),
@@ -120,14 +223,17 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
             description: z.string(),
             expectedOutcome: z.string(),
             type: z.enum(DEMO_STEP_TYPES),
+            automation: DEMO_STEP_AUTOMATION_SCHEMA.optional(),
+            app: DEMO_APP_BOOT_SCHEMA.optional(),
+            covers: z.array(z.string()).optional(),
+            coverageRationale: z.string().optional(),
           })
         )
         .optional()
-        .describe("Demo steps"),
+        .describe(
+          "Demo steps. Use executable automation and covers references (criterion:1, subtask:<id>) so every acceptance criterion is proven. API/UI steps for non-legacy projects require app.start argv selected from that project's docs/config, with {port}/{host} tokens and optional project-relative cwd. coverageRationale is rejected: if a required command is outside the default allowlist, declare its exact argv in the project's .brain-dump/verify.json commands array; if a criterion cannot be automated, reword it to match what automation can prove."
+        ),
       demoScriptId: z.string().optional().describe("Demo script ID"),
-      stepOrder: z.number().optional().describe("Step order number"),
-      stepStatus: z.enum(DEMO_STEP_STATUSES).optional().describe("Step status"),
-      stepNotes: z.string().optional().describe("Reviewer notes"),
       passed: z.boolean().optional().describe("Whether demo passed"),
       feedback: z.string().optional().describe("Reviewer feedback"),
       stepResults: z
@@ -140,11 +246,33 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
         )
         .optional()
         .describe("Step results"),
+      rootCause: z
+        .string()
+        .optional()
+        .describe("resolve-verification-failure: what actually caused the failed runs"),
+      classification: z
+        .enum(VERIFICATION_FAILURE_RESOLUTION_CLASSIFICATIONS)
+        .optional()
+        .describe(
+          "resolve-verification-failure: failure class (connectivity, environment, demo-spec, product-defect, other)"
+        ),
+      fixCommits: z
+        .array(z.string())
+        .optional()
+        .describe("resolve-verification-failure: commit hashes that fix the cause"),
+      validation: z
+        .string()
+        .optional()
+        .describe("resolve-verification-failure: exact commands and results proving the fix works"),
+      whyNextAttemptWillPass: z
+        .string()
+        .optional()
+        .describe("resolve-verification-failure: why the next verification attempt should pass"),
     },
     async (params: {
       action: (typeof ACTIONS)[number];
       ticketId?: string | undefined;
-      agent?: (typeof AGENTS)[number] | undefined;
+      agent?: string | undefined;
       severity?: (typeof SEVERITIES)[number] | undefined;
       category?: string | undefined;
       description?: string | undefined;
@@ -155,23 +283,18 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
       fixStatus?: (typeof MARK_FIXED_STATUSES)[number] | undefined;
       fixDescription?: string | undefined;
       findingStatus?: (typeof FINDING_STATUSES)[number] | undefined;
-      steps?:
-        | Array<{
-            order: number;
-            description: string;
-            expectedOutcome: string;
-            type: (typeof DEMO_STEP_TYPES)[number];
-          }>
-        | undefined;
+      steps?: unknown[] | undefined;
       demoScriptId?: string | undefined;
-      stepOrder?: number | undefined;
-      stepStatus?: (typeof DEMO_STEP_STATUSES)[number] | undefined;
-      stepNotes?: string | undefined;
       passed?: boolean | undefined;
       feedback?: string | undefined;
       stepResults?:
         | Array<{ order: number; passed: boolean; notes?: string | undefined }>
         | undefined;
+      rootCause?: string | undefined;
+      classification?: (typeof VERIFICATION_FAILURE_RESOLUTION_CLASSIFICATIONS)[number] | undefined;
+      fixCommits?: string[] | undefined;
+      validation?: string | undefined;
+      whyNextAttemptWillPass?: string | undefined;
     }) => {
       try {
         switch (params.action) {
@@ -181,39 +304,44 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
             const severity = requireParam(params.severity, "severity", "submit-finding");
             const category = requireParam(params.category, "category", "submit-finding");
             const description = requireParam(params.description, "description", "submit-finding");
+            const reviewerAuthor = getReviewerAuthorOverride();
+            const findingAgent = (reviewerAuthor ?? agent) as FindingAgent;
 
             const finding = submitFinding(db, {
               ticketId,
-              agent: agent as FindingAgent,
+              agent: findingAgent,
               severity: severity as FindingSeverity,
               category,
               description,
               ...(params.filePath !== undefined ? { filePath: params.filePath } : {}),
               ...(params.lineNumber !== undefined ? { lineNumber: params.lineNumber } : {}),
               ...(params.suggestedFix !== undefined ? { suggestedFix: params.suggestedFix } : {}),
+              commentIdentity: {
+                author: reviewerAuthor ?? (detectAuthor() as CommentAuthor),
+              },
             });
 
-            // Add audit comment to ticket
-            const icon = SEVERITY_ICONS[severity] ?? "📋";
-            let commentContent = `Review finding: ${icon} [${severity}] ${category}\n\n${description}`;
-            if (params.filePath) {
-              commentContent += `\n\nFile: ${params.filePath}`;
-              if (params.lineNumber) commentContent += `:${params.lineNumber}`;
+            if (finding.deduplicated) {
+              log.info(
+                `Finding for ticket ${ticketId} merged into existing open finding ${finding.id}`
+              );
+              return formatResult(
+                finding,
+                `Matched existing open ${finding.severity} finding ${finding.id} (same category/file/description); merged instead of creating a duplicate.`
+              );
             }
-            if (params.suggestedFix) {
-              commentContent += `\n\nSuggested fix:\n${params.suggestedFix}`;
-            }
-            if (finding.epicReviewRunId) {
-              commentContent += `\n\nEpic review run: ${finding.epicReviewRunId}`;
-            }
-            addComment(db, {
-              ticketId,
-              content: commentContent,
-              author: detectAuthor() as CommentAuthor,
-              type: "progress",
-            });
 
-            log.info(`Submitted ${severity} finding for ticket ${ticketId} by ${agent}`);
+            if (finding.severityDowngradedFrom) {
+              log.info(
+                `Finding for ticket ${ticketId} downgraded from ${finding.severityDowngradedFrom} to ${finding.severity} by anti-spiral gate`
+              );
+              return formatResult(
+                finding,
+                `Finding recorded as ${finding.severity} (requested ${finding.severityDowngradedFrom}; see the [severity gate] note in the description). It does NOT block check-complete — do not re-submit it at higher severity.`
+              );
+            }
+
+            log.info(`Submitted ${severity} finding for ticket ${ticketId} by ${findingAgent}`);
             return formatResult(finding, `Finding submitted (${severity})`);
           }
 
@@ -221,31 +349,32 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
             const findingId = requireParam(params.findingId, "findingId", "mark-fixed");
             const fixStatus = requireParam(params.fixStatus, "fixStatus", "mark-fixed");
 
-            const finding = markFixed(db, findingId, fixStatus as MarkFixedStatus);
-
-            // Add audit comment to ticket
-            const statusLabel =
-              fixStatus === "fixed"
-                ? "✅ Finding marked as fixed"
-                : fixStatus === "wont_fix"
-                  ? "⚠️ Finding marked as won't fix"
-                  : "↔️ Finding marked as duplicate";
-            let fixComment = `${statusLabel}\nCategory: ${finding.category}\nSeverity: ${finding.severity}`;
-            if (params.fixDescription) {
-              fixComment += `\n\nFix description:\n${params.fixDescription}`;
-            }
-            if (finding.epicReviewRunId) {
-              fixComment += `\n\nEpic review run: ${finding.epicReviewRunId}`;
-            }
-            addComment(db, {
-              ticketId: finding.ticketId,
-              content: fixComment,
-              author: detectAuthor() as CommentAuthor,
-              type: "progress",
+            const finding = markFixed(db, findingId, fixStatus as MarkFixedStatus, {
+              ...(params.fixDescription !== undefined
+                ? { fixDescription: params.fixDescription }
+                : {}),
+              commentIdentity: {
+                author: getReviewerAuthorOverride() ?? (detectAuthor() as CommentAuthor),
+              },
             });
 
             log.info(`Marked finding ${findingId} as ${fixStatus}`);
             return formatResult(finding, `Finding marked as ${fixStatus}`);
+          }
+
+          case "get-review-context": {
+            const ticketId = requireParam(params.ticketId, "ticketId", "get-review-context");
+            const context = getReviewContext(db, ticketId);
+            const scopeSummary =
+              context.scope.kind === "repair"
+                ? `repair scope: ${context.scope.changedFiles.length} file(s) since ${context.scope.reviewedThroughCommit?.slice(0, 12)}`
+                : context.scope.kind === "initial"
+                  ? `initial scope: ${context.scope.changedFiles.length} file(s) vs ${context.scope.baseRef}`
+                  : "scope unknown — derive from linked commits";
+            return formatResult(
+              context,
+              `Review context for ${context.ticket.title} (round ${context.reviewRules.reviewIteration}, ${scopeSummary}, ${context.openFindings.length} open finding(s), blocking budget ${context.reviewRules.blockingBudgetRemaining} remaining)`
+            );
           }
 
           case "get-findings": {
@@ -279,11 +408,17 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
 
           case "generate-demo": {
             const ticketId = requireParam(params.ticketId, "ticketId", "generate-demo");
-            const steps = requireParam(params.steps, "steps", "generate-demo");
+            const steps = requireParam(params.steps, "steps", "generate-demo") as DemoStep[];
 
-            const demoParams = { ticketId, steps };
+            const demoParams = {
+              ticketId,
+              steps,
+              commentIdentity: {
+                author: getReviewerAuthorOverride() ?? (detectAuthor() as CommentAuthor),
+              },
+            };
             validateGenerateDemo(db, demoParams);
-            const prdSync = syncPrdPassMarker(db, ticketId, true);
+            const prdSync = syncPrdPassMarker(db, ticketId, false, "ai_verification");
             if (prdSync.required && !prdSync.success) {
               throw new Error(`Cannot generate demo because PRD sync failed: ${prdSync.message}`);
             }
@@ -310,18 +445,30 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
               );
             }
 
-            // Add audit comment to ticket
-            addComment(db, {
-              ticketId,
-              content: `Demo script generated with ${steps.length} steps. Ticket is now ready for human review.${demo.epicReviewRunId ? `\n\nEpic review run: ${demo.epicReviewRunId}` : ""}`,
-              author: detectAuthor() as CommentAuthor,
-              type: "progress",
-            });
-
             log.info(`Generated demo script for ticket ${ticketId} with ${steps.length} steps`);
+
+            // Hand execution to a detached one-shot drain running current
+            // on-disk code; this long-running MCP process never executes
+            // verification with its boot-time module graph.
+            const brainDumpRoot = resolveBrainDumpRootFrom(import.meta.url);
+            let drainNote = "Verification drain spawned; the runner will pick the job up shortly.";
+            if (brainDumpRoot) {
+              const drain = spawnDetachedVerificationDrain({
+                brainDumpRoot,
+                logError: (message) => log.error(message),
+              });
+              if (!drain.spawned) {
+                drainNote = `Verification drain not spawned (${drain.error ?? "unknown"}); the job stays queued for the next boot or enqueue drain.`;
+              }
+            } else {
+              drainNote =
+                "Verification drain not spawned (Brain Dump root not resolvable); the job stays queued for the next boot or enqueue drain.";
+              log.warn(drainNote);
+            }
+
             return formatResult(
               demo,
-              `Demo script generated! Ticket moved to human_review.\n\n${prdNote}\n\n${syncNote}`
+              `Demo script generated! Ticket moved to ai_verification.\n\n${prdNote}\n\n${syncNote}\n\n${drainNote}`
             );
           }
 
@@ -335,58 +482,80 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
             return formatResult(demo);
           }
 
-          case "update-demo-step": {
-            const demoScriptId = requireParam(
-              params.demoScriptId,
-              "demoScriptId",
-              "update-demo-step"
-            );
-            const stepOrder = requireParam(params.stepOrder, "stepOrder", "update-demo-step");
-            const stepStatus = requireParam(params.stepStatus, "stepStatus", "update-demo-step");
-
-            const demo = updateDemoStep(
-              db,
-              demoScriptId,
-              stepOrder,
-              stepStatus as DemoStepStatus,
-              params.stepNotes
-            );
-            log.info(`Updated demo step ${stepOrder} to ${stepStatus}`);
-            return formatResult(demo, `Step ${stepOrder} updated to ${stepStatus}`);
+          case "get-verification-history": {
+            const ticketId = requireParam(params.ticketId, "ticketId", "get-verification-history");
+            const runs = listVerificationRuns(db, ticketId);
+            if (runs.length === 0) {
+              return formatEmpty("verification runs for this ticket");
+            }
+            return formatResult(runs, `Found ${runs.length} verification run(s)`);
           }
 
-          case "submit-feedback": {
-            const ticketId = requireParam(params.ticketId, "ticketId", "submit-feedback");
-            const passed = requireParam(params.passed, "passed", "submit-feedback");
-            const feedback = requireParam(params.feedback, "feedback", "submit-feedback");
+          case "get-verification-job": {
+            const ticketId = requireParam(params.ticketId, "ticketId", "get-verification-job");
+            const job = getVerificationJob(db, ticketId);
+            if (!job) {
+              return formatEmpty("verification job for this ticket");
+            }
+            return formatResult(job);
+          }
 
-            const feedbackParams = {
-              ticketId,
-              passed,
-              feedback,
-              ...(params.stepResults !== undefined
-                ? {
-                    stepResults: params.stepResults.map((sr) => ({
-                      order: sr.order,
-                      passed: sr.passed,
-                      ...(sr.notes !== undefined ? { notes: sr.notes } : {}),
-                    })),
-                  }
-                : {}),
-            };
-            validateSubmitFeedback(db, feedbackParams);
-            const prdNote = requirePrdSyncForFeedback(
-              syncPrdPassMarker(db, ticketId, passed),
-              passed
+          case "resolve-verification-failure": {
+            const ticketId = requireParam(
+              params.ticketId,
+              "ticketId",
+              "resolve-verification-failure"
             );
-            const result = submitFeedback(db, feedbackParams);
+            const rootCause = requireParam(
+              params.rootCause,
+              "rootCause",
+              "resolve-verification-failure"
+            );
+            const classification = requireParam(
+              params.classification,
+              "classification",
+              "resolve-verification-failure"
+            );
+            const validation = requireParam(
+              params.validation,
+              "validation",
+              "resolve-verification-failure"
+            );
 
-            log.info(`Demo feedback for ${ticketId}: ${passed ? "PASSED" : "REJECTED"}`);
+            const result = resolveVerificationFailure(db, {
+              ticketId,
+              rootCause,
+              classification,
+              validation,
+              ...(params.fixCommits !== undefined ? { fixCommits: params.fixCommits } : {}),
+              ...(params.whyNextAttemptWillPass !== undefined
+                ? { whyNextAttemptWillPass: params.whyNextAttemptWillPass }
+                : {}),
+              commentIdentity: { author: detectAuthor() as CommentAuthor },
+            });
+
+            log.info(
+              `Resolved verification failure for ticket ${ticketId} (${classification}); ticket returned to ai_review`
+            );
             return formatResult(
               result,
-              passed
-                ? `Demo approved! Ticket moved to done.\n\n${prdNote}`
-                : `Demo rejected. Ticket moved to ready for rework.\n\n${prdNote}`
+              `Verification blocker cleared; ticket returned to ai_review. Continue with check-complete then generate-demo to re-enter verification. The runner still owns certification.`
+            );
+          }
+
+          case "repair-legacy-handoff": {
+            const ticketId = requireParam(params.ticketId, "ticketId", "repair-legacy-handoff");
+            validateRepairLegacyHumanReviewHandoff(db, ticketId);
+            const prdSync = syncPrdPassMarker(db, ticketId, false);
+            if (prdSync.required && !prdSync.success) {
+              throw new Error(
+                `Cannot repair legacy handoff because PRD sync failed: ${prdSync.message}`
+              );
+            }
+            const result = repairLegacyHumanReviewHandoff(db, ticketId);
+            return formatResult(
+              { ...result, prdSync },
+              `Legacy human_review handoff repaired: ticket moved to ${result.newStatus}.\n\n${formatPrdSyncNote(prdSync)}`
             );
           }
         }

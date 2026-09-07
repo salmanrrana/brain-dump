@@ -9,174 +9,69 @@
   ],
   "userStories": [
     {
-      "id": "956d2e18-7f19-4bce-a019-513a45128b9a",
-      "title": "Drag-to-reorder projects in the workspace Projects list (reuse @dnd-kit)",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [
-        {
-          "decision": "this approach",
-          "alternatives": [],
-          "rationale": []
-        }
-      ],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "User can grab a project row by its handle and drop it elsewhere; the list reorders immediately (optimistic) and the order persists across reload.",
-        "Keyboard reorder works (focus handle → Space to pick up → arrows → Space to drop) with screen-reader announcements.",
-        "Clicking a project row (not the handle) still opens the project; the 8px activation constraint prevents accidental drags on click.",
-        "Reorder is disabled/ignored while a search filter is active (documented behavior), and re-enabled when the search is cleared.",
-        "No layout shift / flicker on drop."
-      ],
-      "references": [
-        "src/routes/index.tsx",
-        "src/components/projects/ProjectListItem.tsx"
-      ],
-      "description": "## Goal\n\nLet the user drag project rows into a custom order on the workspace Projects list (`src/routes/index.tsx`, the \"Projects\" page from the screenshot), persisting via the reorder hook with instant optimistic feedback.\n\n## Depends on\n\nSchema ticket + reorder API/hook ticket.\n\n## Why this approach\n\n@dnd-kit is already wired for the kanban — we reuse that exact setup (vertical list, fractional-midpoint drop math) so the interaction feels identical and we add no new dependency. The list is a simple vertical list, so this is a straightforward `verticalListSortingStrategy`.\n\n## Reference implementation to copy\n\n- DndContext + sensors + accessibility announcements: `KanbanBoard.tsx:17-28, 54-64, 197-200, 390-397`.\n- `SortableContext` with `verticalListSortingStrategy`: `KanbanColumnContent.tsx:155`.\n- `useSortable` + `CSS.Transform.toString` + drag handle/listeners: `SortableTicketCard.tsx:32-54`.\n- Fractional-midpoint drop math (drop-to-end / before-first / between-two): `KanbanBoard.tsx:286-310`.\n\n## Changes\n\n1. Wrap the project list in `src/routes/index.tsx` with `DndContext` (PointerSensor `{ distance: 8 }` + KeyboardSensor with `sortableKeyboardCoordinates`, plus accessibility `announcements`) and a `SortableContext` over the project IDs using `verticalListSortingStrategy`.\n2. Make `ProjectListItem` (`src/components/projects/ProjectListItem.tsx`) sortable via `useSortable({ id: project.id })` — apply transform/transition style, `opacity` while dragging, and add a **visible drag handle** (grip icon) that carries the `listeners` so clicking the card still navigates (don't make the whole card the drag handle — preserve the existing `onClick` to open the project).\n3. `onDragEnd`: compute the target `position` with the fractional-midpoint algorithm against the **position-ordered** project array, then call `useUpdateProjectPosition().mutateAsync({ id, position })`.\n4. **Search interaction**: dragging should be disabled (or no-op for persistence) while a search filter is active, since reordering a filtered subset is ambiguous. Simplest correct behavior: only enable drag when the search box is empty; document this choice.\n\n## Acceptance criteria\n\n- User can grab a project row by its handle and drop it elsewhere; the list reorders immediately (optimistic) and the order persists across reload.\n- Keyboard reorder works (focus handle → Space to pick up → arrows → Space to drop) with screen-reader announcements.\n- Clicking a project row (not the handle) still opens the project; the 8px activation constraint prevents accidental drags on click.\n- Reorder is disabled/ignored while a search filter is active (documented behavior), and re-enabled when the search is cleared.\n- No layout shift / flicker on drop.\n\n## Validation\n\n- `pnpm check` passes.\n- `pnpm build` (touches a route/component) and **`pnpm build:analyze`** — this changes the `/` route's chunk graph by pulling @dnd-kit in. Record before/after initial-load bundle numbers per `docs/performance/validating-optimizations.md`; lazy-load if it regresses the home route meaningfully, and ratchet `docs/performance/perf-budgets.json` if needed.\n- Manually verify in browser at `localhost:4242`: mouse drag, keyboard drag, click-to-open still works, responsive layout.\n- Add a test for the observable reorder behavior (user drags row → order changes) following the Kent C. Dodds philosophy.\n\n## Notes\n\n- Reuse, don't fork: if the kanban's sensor option constants or announcement helpers can be lifted to a shared module without churn, prefer that over copy-paste. Otherwise keep it local and consistent.",
-      "priority": "high",
-      "tags": [
-        "projects",
-        "ui",
-        "dnd-kit",
-        "reorder",
-        "accessibility",
-        "performance"
-      ]
-    },
-    {
-      "id": "edc820a0-82a6-4504-94c6-9ffb1381353a",
-      "title": "Propagate custom project order to desktop and mobile sidebars",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [
-        {
-          "decision": "this should be cheap",
-          "alternatives": [
-            "Desktop `ProjectsPanel` receives `projects` from `AppLayout` via `useProjectsWithAIActivity()` (`src/components/AppLayout.tsx:129`), which builds on `useProjects()` → `queryKeys.projectsWithEpics`. Once the server fn orders by `position`, the panel order follows automatically.",
-            "Mobile `MobileSidebar` calls `useProjects()` directly (`src/components/MobileSidebar.tsx:51`) and passes straight to `ProjectTree` (`src/components/ProjectTree.tsx:105`) with no sort — so it also follows automatically."
-          ],
-          "rationale": []
-        }
-      ],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Reordering projects in the workspace list updates the order shown in the desktop `ProjectsPanel` (after its query refreshes) without a manual refresh beyond normal cache invalidation.",
-        "The mobile `ProjectTree` reflects the same custom order.",
-        "Search/filter in both sidebars preserves the custom order of the matching subset."
-      ],
-      "references": [
-        "src/components/AppLayout.tsx:129",
-        "src/components/MobileSidebar.tsx:51",
-        "src/components/ProjectTree.tsx:105"
-      ],
-      "description": "## Goal\n\nEnsure the custom order set in the Projects list shows up everywhere projects are listed — specifically the desktop `ProjectsPanel` slide-out and the mobile `MobileSidebar`/`ProjectTree`.\n\n## Depends on\n\nSchema ticket (ordered data layer). Largely a verification + small-fix ticket because all consumers read the same query.\n\n## Why this should be cheap\n\n- Desktop `ProjectsPanel` receives `projects` from `AppLayout` via `useProjectsWithAIActivity()` (`src/components/AppLayout.tsx:129`), which builds on `useProjects()` → `queryKeys.projectsWithEpics`. Once the server fn orders by `position`, the panel order follows automatically.\n- Mobile `MobileSidebar` calls `useProjects()` directly (`src/components/MobileSidebar.tsx:51`) and passes straight to `ProjectTree` (`src/components/ProjectTree.tsx:105`) with no sort — so it also follows automatically.\n\n## Changes / checks\n\n1. Confirm neither sidebar applies its own project-level `.sort()` that would override `position`. (The desktop panel sorts *epics* newest-first at `ProjectsPanel.tsx:626-628` — that is fine and unrelated; do not touch it.)\n2. Verify the desktop panel's `filteredProjects` `useMemo` (`ProjectsPanel.tsx:184-187`) preserves incoming order after filtering (filtering should not re-sort).\n3. If any consumer derives its own ordering, remove it so `position` is the single source of truth.\n\n## Acceptance criteria\n\n- Reordering projects in the workspace list updates the order shown in the desktop `ProjectsPanel` (after its query refreshes) without a manual refresh beyond normal cache invalidation.\n- The mobile `ProjectTree` reflects the same custom order.\n- Search/filter in both sidebars preserves the custom order of the matching subset.\n\n## Validation\n\n- `pnpm check` passes.\n- Manual cross-surface check at `localhost:4242`: reorder on the Projects page, open the desktop panel and (responsive/mobile) the mobile sidebar, confirm identical order. Confirm filtering keeps order.\n- If a fix was needed, add/adjust a test asserting the rendered sidebar order matches the data order.",
-      "priority": "medium",
-      "tags": [
-        "projects",
-        "sidebar",
-        "reorder",
-        "navigation"
-      ]
-    },
-    {
-      "id": "5e2f4f34-76fa-4b80-9a5b-7ad0bc50c872",
-      "title": "Default-sort epics newest-first on the project detail page",
+      "id": "7753e791-b699-4b4a-b163-d869af2f0e0e",
+      "title": "Epic work ledger massively over-counts changed files and +/- totals",
       "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "The project detail page lists epics with the most recently created epic at the top.",
-        "Creating a new epic makes it appear at the top of the list.",
-        "No regression to ticket counts, epic links, or the \"Add Epic\" affordance."
+        "Each ticket row in the epic work ledger shows only that ticket's own linked-commit/ticket-branch diffs, not the full epic branch diff",
+        "The All tickets aggregate equals the epic branch diff (base...epic branch) when an epic branch exists — never a multiple of it",
+        "A ticket with no linked commits still exposes the epic-branch source for patch viewing without inflating file totals",
+        "Regression test: an epic where N tickets share one epic branch reports aggregate == branch diff and per-ticket totals == that ticket's commits"
       ],
-      "references": [
-        "src/routes/projects.$projectId.tsx",
-        "src/api/projects.ts:52-119"
+      "references": [],
+      "description": "## Bug\nOn the epic detail page, every ticket in the Tickets and changes work ledger shows the identical file count (e.g. 257 files) and near-identical +/- totals (~+63k/-11k), and the All tickets aggregate shows absurd totals (+1,741,652 / -310,358 across 257 files) — roughly 28x the real branch diff. Observed on epic bc99b396 (AI Verification Gate) on 2026-07-07.\n\n## Root cause (diagnosed)\ncore/code-changes.ts:\n1. buildTicketGroup (line ~664) unconditionally appends the FULL epic-branch diff (readBranchSource, main...epicBranch) to EVERY ticket group, on top of the ticket's linked commit diffs. So each ticket's files/totals = its own commits + the entire epic diff, and its commits are counted twice (they are inside the branch diff too).\n2. mergeFileSummaries (line ~577) SUMS additions/deletions per path across sources instead of deduping overlapping sources. Commit diffs are subsets of the ticket branch which is a subset of the epic branch — summing them per path multiplies the numbers.\n3. getCodeChangeSummary (line ~786) aggregates by merging all 28 ticket groups, so the identical epic-branch diff is summed ~28 times (28 x ~62k = ~1.74M).\n\n## Fix direction\n- Include the epic-branch source in a ticket group's FILE TOTALS only as a fallback when the ticket has no commit/ticket-branch file sources (keep it as a patch-viewing source regardless).\n- For the scope aggregate, compute totals from a deduplicated source set (when an epic branch diff is available it IS the ground-truth aggregate) — never sum the same path across sources that contain each other.\n- Add a regression test: epic with N tickets sharing one epic branch must report aggregate == branch diff, and per-ticket totals == that ticket's commit diffs.\n\n## Where\n- core/code-changes.ts buildTicketGroup, mergeFileSummaries, getCodeChangeSummary\n- UI consumer: src/components/code-changes/CodeChangeReviewSurface.tsx\n\n## Acceptance criteria\n- Each ticket row in the epic work ledger shows only that ticket's own linked-commit/ticket-branch diffs, not the full epic branch diff\n- The All tickets aggregate equals the epic branch diff (base...epic branch) when an epic branch exists — never a multiple of it\n- A ticket with no linked commits still exposes the epic-branch source for patch viewing without inflating file totals\n- Regression test: an epic where N tickets share one epic branch reports aggregate == branch diff and per-ticket totals == that ticket's commits",
+      "priority": "high",
+      "tags": [
+        "code-changes",
+        "ui",
+        "correctness"
+      ]
+    },
+    {
+      "id": "7e1f00ae-0782-434e-a5c0-c9543693b7ec",
+      "title": "Epic progress bar shows >100% (stale epic_workflow_state.tickets_total)",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "The epic detail progress percentage can never exceed 100%",
+        "The progress overview and the header completion badge derive from the same live ticket counts",
+        "epic_workflow_state.tickets_total no longer drifts: it is refreshed wherever tickets_done is refreshed, or the progress UI stops preferring the snapshot",
+        "Regression test: adding tickets to an epic after launch keeps the reported progress at or below 100%"
       ],
-      "description": "## Goal\n\nOn the project detail page (`src/routes/projects.$projectId.tsx`, the \"EPICS\" list from the screenshot), render epics **newest-first** by default instead of the current DB insertion order (oldest-first).\n\n## Why\n\nCurrently `getProjectsWithEpics` (`src/api/projects.ts:52-119`) has no `ORDER BY` for epics, so `project.epics` comes back in leftJoin/insertion order (oldest first). The detail page maps it directly (`projects.$projectId.tsx:163-176`) with no sort. Users expect the most recent epic at the top. Note the desktop sidebar already sorts epics newest-first inline (`ProjectsPanel.tsx:626-628`) — this aligns the detail page with that behavior.\n\n## Changes (pick the cleanest single place)\n\n- Preferred: sort `project.epics` newest-first where the detail page consumes it. `epic.createdAt` is an ISO 8601 string, so `[...project.epics].sort((a, b) => b.createdAt.localeCompare(a.createdAt))` (descending) is correct and dependency-free.\n- Alternative: add `.orderBy(desc(epics.createdAt))` in `getProjectsWithEpics`. This is also fine and would centralize ordering, but verify it does not disturb the inline sort the desktop panel already does (it would simply make that sort redundant, which is harmless).\n- Whichever layer is chosen, keep it to one place — do not sort in multiple layers.\n\n## Acceptance criteria\n\n- The project detail page lists epics with the most recently created epic at the top.\n- Creating a new epic makes it appear at the top of the list.\n- No regression to ticket counts, epic links, or the \"Add Epic\" affordance.\n\n## Validation\n\n- `pnpm check` passes.\n- Manual check at `localhost:4242`: open a project with several epics (e.g. Brain Dump), confirm newest-first; create an epic and confirm it lands on top.\n- Add a small test verifying the rendered epic order is newest-first given known `createdAt` values (test the observable order, not the sort fn).\n\n## Notes\n\n- Independent of the reorder tickets — can ship in parallel.",
+      "references": [],
+      "description": "## Bug\nEpic detail PROGRESS section showed 193% (now 200%) on epic bc99b396 while the header badge correctly showed 96%/28 tickets.\n\n## Root cause (diagnosed)\n- src/routes/epic.$id.tsx (~line 354) prefers epic_workflow_state.ticketsTotal over the live sum of ticketsByStatus, but ticketsDone comes from live ticketsByStatus. The stored tickets_total is a snapshot written by startEpicWorkflow (core/workflow.ts:547-551) at launch time and is never refreshed when tickets are added to the epic afterwards. Stored value was 14; live done count 27 -> 193%.\n- core/learnings.ts (~204-213) refreshes tickets_done but not tickets_total, so the pair drifts apart.\n\n## Fix direction\n- In the epic route, derive BOTH ticketsTotal and ticketsDone from live ticketsByStatus (drop the workflowState preference for the progress bar), OR\n- Refresh tickets_total wherever tickets_done is refreshed and when tickets are added/moved between epics.\n- Regression test: adding tickets to an epic after launch must never push the progress percentage above 100.\n\n## Acceptance criteria\n- The epic detail progress percentage can never exceed 100%\n- The progress overview and the header completion badge derive from the same live ticket counts\n- epic_workflow_state.tickets_total no longer drifts: it is refreshed wherever tickets_done is refreshed, or the progress UI stops preferring the snapshot\n- Regression test: adding tickets to an epic after launch keeps the reported progress at or below 100%",
       "priority": "medium",
       "tags": [
         "epics",
         "ui",
-        "sorting",
-        "project-detail"
+        "correctness"
       ]
     },
     {
-      "id": "1873563c-342e-4c0a-9763-f1a95f9f16ab",
-      "title": "Add `position` column to projects and order the shared data layer by it",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [
-        {
-          "decision": "this approach",
-          "alternatives": [],
-          "rationale": []
-        }
-      ],
-      "implementationGuide": [],
+      "id": "7fe1a9e1-ff65-412b-8a15-8b17bdca43f0",
+      "title": "Automatically resume epic Ralph after verification failure",
+      "passes": false,
+      "status": "in_progress",
       "acceptanceCriteria": [
-        "`projects` table has a non-null `position` column with an index; `pnpm db:generate` + `pnpm db:migrate` apply cleanly on an existing database.",
-        "Existing projects retain their current visual order after migration (deterministic backfill, no NULLs).",
-        "Newly created projects (via web `createProject` and via MCP/CLI `core/project.ts`) receive `MAX(position)+1`.",
-        "`getProjectsWithEpics` and `getProjects` return projects ordered by `position`.",
-        "`core/db-rows.ts` `DbProjectRow` includes `position`; core read path compiles and returns it."
+        "Persist autonomous epic launch profiles in Brain Dump",
+        "Durably enqueue and consume one continuation after verification failure",
+        "Resume only the failed ticket without target-project hooks",
+        "Keep verification waiting outside iteration and no-progress budgets"
       ],
-      "references": [
-        "src/lib/schema.ts",
-        "src/lib/schema.ts:46",
-        "src/api/projects.ts",
-        "src/api/tickets.ts:123-130",
-        "src/api/projects.ts:52-119",
-        "src/api/projects.ts:46"
-      ],
-      "description": "## Goal\n\nGive projects a persistent, user-controllable sort order by adding a `position` column, and make every project list read it. This is the foundation the reorder UI and sidebar propagation build on.\n\n## Why this approach\n\n`tickets` and `claudeTasks` already use a `position: real` fractional-ordering column. We mirror that exact pattern for `projects` so the codebase stays consistent and the drop algorithm (next ticket) can be copied verbatim. Because the workspace list and both sidebars all read the **same** `getProjectsWithEpics` query, ordering here propagates everywhere for free.\n\n## Changes\n\n1. **Schema** — `src/lib/schema.ts` (`projects` table, ~line 5):\n   - Add `position: real(\"position\").notNull()` (mirror `tickets.position` at `src/lib/schema.ts:46`).\n   - Add an index for consistency: `index(\"idx_projects_position\").on(table.position)`.\n2. **Migration** — run `pnpm db:generate` (creates a file in `drizzle/`), then `pnpm db:migrate`. The generated SQL must **backfill existing rows** with sequential positions (e.g. ordered by `created_at`/rowid) so current ordering is preserved on upgrade — verify/adjust the generated SQL to set deterministic positions for existing projects rather than leaving them NULL/0.\n3. **Initial position on create** — `createProject` in `src/api/projects.ts` (~line 122): assign `MAX(position) + 1` for new projects (mirror `createTicket` at `src/api/tickets.ts:123-130`). Also set position in the `core/` create path (`core/project.ts createProject`) used by the MCP/CLI so projects created outside the web UI still get a valid position.\n4. **Order the reads**:\n   - `getProjectsWithEpics` (`src/api/projects.ts:52-119`): add `ORDER BY projects.position` to the query so the returned `Array.from(projectMap.values())` is position-ordered. Keep epic ordering untouched (handled in a separate ticket).\n   - `getProjects` (`src/api/projects.ts:46`): add the same ordering.\n   - `core/project.ts listProjects` currently does `ORDER BY name`. Decide and document: keep alphabetical for MCP, OR switch to `ORDER BY position` for parity. Recommended: order by `position` for parity with the UI; update `DbProjectRow` (`core/db-rows.ts:10-17`) to include `position`.\n\n## Acceptance criteria\n\n- `projects` table has a non-null `position` column with an index; `pnpm db:generate` + `pnpm db:migrate` apply cleanly on an existing database.\n- Existing projects retain their current visual order after migration (deterministic backfill, no NULLs).\n- Newly created projects (via web `createProject` and via MCP/CLI `core/project.ts`) receive `MAX(position)+1`.\n- `getProjectsWithEpics` and `getProjects` return projects ordered by `position`.\n- `core/db-rows.ts` `DbProjectRow` includes `position`; core read path compiles and returns it.\n\n## Validation\n\n- `pnpm check` (type-check + lint + test) passes.\n- `pnpm db:migrate` against a copy of the dev DB succeeds and preserves order (note before/after row order).\n- Add/adjust a focused test for the projects core read path ordering if one exists for that module.\n\n## Notes\n\n- Do NOT add blocking work to hot paths; this is a single indexed column + one `ORDER BY`.\n- Take a backup first: `pnpm brain-dump admin backup` before testing the migration.",
       "priority": "high",
       "tags": [
-        "projects",
-        "schema",
-        "database",
-        "reorder",
-        "foundation"
-      ]
-    },
-    {
-      "id": "73dab6e5-fc68-43a7-988d-f97423bf281c",
-      "title": "Add `updateProjectPosition` server fn + optimistic `useUpdateProjectPosition` hook",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [
-        {
-          "decision": "this approach",
-          "alternatives": [],
-          "rationale": []
-        }
-      ],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Calling `updateProjectPosition` with a valid `{ id, position }` persists the new position; invalid input throws a clear error.",
-        "`useUpdateProjectPosition` updates the cache optimistically (list reorders immediately) and rolls back with a visible error if the server call fails.",
-        "After settle, the list reflects server truth via invalidation."
-      ],
-      "references": [
-        "src/api/projects.ts",
-        "src/api/tickets.ts:282-302",
-        "src/lib/hooks/projects.ts",
-        "src/lib/hooks/tickets.ts:366-413"
-      ],
-      "description": "## Goal\n\nProvide the write path for project reordering, with instant optimistic UI, by mirroring the existing ticket-position machinery.\n\n## Depends on\n\nSchema ticket (projects `position` column must exist).\n\n## Why this approach\n\n`updateTicketPosition` + `useUpdateTicketPosition` already implement exactly this: a validated `{ id, position }` server function and an optimistic mutation that patches the query cache and rolls back on error. Copying the pattern keeps behavior and error-handling identical and avoids a bespoke solution.\n\n## Changes\n\n1. **Server function** — `src/api/projects.ts`: add `updateProjectPosition` mirroring `updateTicketPosition` (`src/api/tickets.ts:282-302`):\n   - `createServerFn({ method: \"POST\" })` with `.inputValidator((input: { id: string; position: number }) => ...)` rejecting missing id / non-numeric position.\n   - Use `ensureExists(project, \"Project\", id)`.\n   - Update `projects.position` via Drizzle (`db.update(projects).set({ position }).where(eq(projects.id, id))`). Note: `projects` has no `updatedAt` column today — do not set one unless the schema ticket adds it.\n   - Return the updated row.\n2. **React hook** — `src/lib/hooks/projects.ts`: add `useUpdateProjectPosition` mirroring `useUpdateTicketPosition` (`src/lib/hooks/tickets.ts:366-413`):\n   - `onMutate`: cancel in-flight queries for `queryKeys.projectsWithEpics`, snapshot, optimistically patch the matching project's `position` in the cached array, and **re-sort the cached array by position** so the optimistic order matches what the server will return.\n   - `onError`: roll back to snapshot + surface a user-visible error (toast) per Rule 1/Rule 2 (no silent failure).\n   - `onSettled`: invalidate `queryKeys.projectsWithEpics`.\n\n## Acceptance criteria\n\n- Calling `updateProjectPosition` with a valid `{ id, position }` persists the new position; invalid input throws a clear error.\n- `useUpdateProjectPosition` updates the cache optimistically (list reorders immediately) and rolls back with a visible error if the server call fails.\n- After settle, the list reflects server truth via invalidation.\n\n## Validation\n\n- `pnpm check` passes.\n- Add a test that verifies the optimistic reorder + rollback-on-error user-visible behavior (mock the boundary/server fn, assert the visible order changes then reverts on failure) — follow the project's Kent C. Dodds testing philosophy (test the observable reorder, not internals).\n\n## Notes\n\n- This ticket adds no UI; the drag interaction lives in the next ticket. Keep the hook generic enough to be driven by the @dnd-kit `onDragEnd` handler.",
-      "priority": "high",
-      "tags": [
-        "projects",
-        "api",
-        "reorder",
-        "tanstack-query"
+        "workflow",
+        "reliability",
+        "ralph",
+        "verification",
+        "orchestration"
       ]
     }
   ],
@@ -327,7 +222,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-06-20T22:27:30.602Z",
-  "epicTitle": "Reorderable Projects & Newest-First Epics",
-  "epicDescription": "## Why\n\nThe workspace Projects list (`src/routes/index.tsx`) and the project sidebars currently render projects in raw SQLite insertion order — there is no `ORDER BY` at the DB layer, no `.sort()` in any hook, and no sort in the rendering components. Users want to express their own priority by **dragging projects into a custom order** in the Projects list view, and have that order **propagate everywhere projects are listed** (desktop `ProjectsPanel` slide-out and mobile `ProjectTree`).\n\nSeparately, on the project detail page (`src/routes/projects.$projectId.tsx`) the EPICS list renders in DB insertion order (oldest-first). Users want it **default-sorted newest-first**.\n\n## Design / Reuse (maintainability first)\n\nBoth the workspace list and both sidebars read the **same single TanStack Query cache entry** (`queryKeys.projectsWithEpics` → `getProjectsWithEpics` in `src/api/projects.ts`). Ordering applied once at that data layer therefore propagates to every consumer automatically — no per-component sort needed.\n\nWe mirror the **existing ticket reorder system** rather than invent a new one:\n- `tickets` already uses a `position: real` column with a **fractional-midpoint** drop algorithm (no renumbering). See `tickets` schema (`src/lib/schema.ts:46`), `updateTicketPosition` server fn (`src/api/tickets.ts:282-302`), `useUpdateTicketPosition` optimistic hook (`src/lib/hooks/tickets.ts:366`), and the drop math in `KanbanBoard.tsx:286-310`.\n- @dnd-kit is already a dependency (`@dnd-kit/core`, `/sortable`, `/utilities`) and wired in the kanban (`DndContext` + `SortableContext` + `useSortable` + `PointerSensor`/`KeyboardSensor` + accessibility announcements). The projects list reuses this exact setup.\n\n## Performance / UX\n\n- Local-first → must feel instant. Reorder uses optimistic cache updates (no spinner, no flicker), exactly like the kanban.\n- Adding @dnd-kit to the `/` route may shift the initial-load chunk graph; run `pnpm build:analyze` and keep the home route lean (lazy where appropriate). Record before/after numbers.\n- Keyboard-accessible drag (KeyboardSensor + announcements) and a clear drag handle.\n\n## Scope (tickets)\n\n1. Schema: add `position` to `projects`, migration + backfill, order the shared data layer (web API **and** `core/` for MCP parity) by position, set initial position on create.\n2. API: `updateProjectPosition` server fn + `useUpdateProjectPosition` optimistic hook.\n3. UI: drag-to-reorder in the workspace Projects list (reuse the kanban @dnd-kit pattern, keyboard-accessible, drag handle).\n4. Propagation: verify/ensure custom order is reflected in desktop `ProjectsPanel` and mobile `ProjectTree`, and that search/filter preserves order.\n5. UX: default-sort epics newest-first on the project detail page.\n\n## Out of scope\n\n- Reordering epics or tickets via this feature (tickets already have it; epics get sort-only here).\n- Per-user ordering / multi-user (Brain Dump is single-user local-first)."
+  "generatedAt": "2026-07-08T02:34:19.259Z",
+  "epicTitle": "AI Verification Gate (Evidence-Based Review)",
+  "epicDescription": "Replace human review entirely with an evidence-based AI verification gate. New flow: backlog → ready → in_progress → ai_review → ai_verification → done. A deterministic runner executes machine-executable demo steps against a fresh boot of the current code, capturing tamper-evident evidence (Playwright screenshots for UI steps, real HTTP request/response captures for API steps) attributed to \"{provider} ralph\" (claude ralph, pi ralph, cursor ralph, ...). Verification pass → Brain Dump itself sets the ticket to done (no human approval step). Fail → verification findings are filed and the ticket loops back to implementation with failed steps + evidence injected into the next Ralph iteration, repeating until clean. Re-verification always re-runs the full step suite so fixes cannot regress previously passing steps.\n\nEpic auto-PR: when the last ticket in an epic reaches done, Brain Dump detects epic completion and creates/readies the PR itself (via gh) with an evidence-linked body — no human prompting.\n\nAnti-fabrication guarantees: the implementing agent only authors step specs — it cannot mark steps passed, upload evidence, or set done (no MCP action exists for any of these; only the runner transitions ai_verification → done). The runner boots the app itself on an ephemeral port, records git HEAD SHA + dirty flag + boot log in an HMAC-SHA256-sealed provenance manifest, and refuses to certify runs whose diff touches the runner itself. Exception state instead of human gate: uncertified/tripwire runs and 3 consecutive failed repair loops leave the ticket in ai_verification flagged blocked/needs-attention — nothing self-certifies past a broken runner.\n\nFoundation-first: tickets 1-2 centralize the status/workflow-step definitions (currently duplicated across ~30 code sites) and generate provider skill/prompt files from that single source, so this step — and every future step — is cheap to add for all providers.\n\nFull plan document: see the \"AI Verification Gate\" artifact (published 2026-07-04)."
 }

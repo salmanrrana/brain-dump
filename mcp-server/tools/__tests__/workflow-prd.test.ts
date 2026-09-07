@@ -25,7 +25,7 @@ function getToolHandler(
   return tool.handler;
 }
 
-function writePrd(projectPath: string, ticketId: string, passes: boolean): void {
+function writePrd(projectPath: string, ticketId: string, passes: boolean, status?: string): void {
   mkdirSync(join(projectPath, "plans"), { recursive: true });
   writeFileSync(
     join(projectPath, "plans", "prd.json"),
@@ -36,6 +36,7 @@ function writePrd(projectPath: string, ticketId: string, passes: boolean): void 
             id: ticketId,
             title: "Ticket under review",
             passes,
+            ...(status ? { status } : {}),
           },
         ],
       },
@@ -54,6 +55,13 @@ function readPrdPasses(projectPath: string): boolean {
     throw new Error("Expected PRD story");
   }
   return story.passes;
+}
+
+function readPrdStatus(projectPath: string): string | undefined {
+  const prd = JSON.parse(readFileSync(join(projectPath, "plans", "prd.json"), "utf8")) as {
+    userStories: Array<{ status?: string }>;
+  };
+  return prd.userStories[0]?.status;
 }
 
 let db: Database.Database;
@@ -102,6 +110,33 @@ describe("workflow complete-work PRD sync", () => {
     )) as { content: Array<{ text: string }> };
 
     expect(result.content[0]?.text).toContain("Status:** ai_review");
+    expect(result.content[0]?.text).toContain('type: "automated"');
+    expect(result.content[0]?.text).toContain("app: { start:");
+    expect(result.content[0]?.text).not.toContain('type: "manual"');
     expect(readPrdPasses(tempDir)).toBe(false);
+    expect(readPrdStatus(tempDir)).toBe("ai_review");
+  });
+});
+
+describe("workflow start-work PRD sync", () => {
+  it("records an idempotently resumed ticket as in_progress", async () => {
+    const ticketId = "ticket-1";
+    seedProject(db, { id: "proj-1", path: tempDir });
+    seedTicket(db, {
+      id: ticketId,
+      projectId: "proj-1",
+      status: "in_progress",
+      branchName: "feature/ticket-1",
+    });
+    writePrd(tempDir, ticketId, false, "backlog");
+
+    const server = new McpServer({ name: "test", version: "1.0.0" });
+    registerWorkflowTool(server, db, () => "codex");
+    const handler = getToolHandler(server, "workflow");
+
+    await handler({ action: "start-work", ticketId }, {});
+
+    expect(readPrdPasses(tempDir)).toBe(false);
+    expect(readPrdStatus(tempDir)).toBe("in_progress");
   });
 });

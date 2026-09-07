@@ -200,78 +200,8 @@ h6 {
   }
 }
 
-.animate-pulse-slow,
-.ai-active-glow {
+.animate-pulse-slow {
   animation: ai-pulse 2.5s ease-in-out infinite;
-}
-
-[data-ai-active="true"] {
-  animation: ai-pulse 2.5s ease-in-out infinite;
-}
-
-/* Staggered reveal for lists and grids */
-@keyframes reveal-up {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.animate-reveal {
-  animation: reveal-up 0.5s var(--ease-out-expo) both;
-}
-
-/* Stagger children - apply to parent container */
-.stagger-children > * {
-  animation: reveal-up 0.4s var(--ease-out-expo) both;
-}
-.stagger-children > *:nth-child(1) {
-  animation-delay: 0ms;
-}
-.stagger-children > *:nth-child(2) {
-  animation-delay: 50ms;
-}
-.stagger-children > *:nth-child(3) {
-  animation-delay: 100ms;
-}
-.stagger-children > *:nth-child(4) {
-  animation-delay: 150ms;
-}
-.stagger-children > *:nth-child(5) {
-  animation-delay: 200ms;
-}
-.stagger-children > *:nth-child(6) {
-  animation-delay: 250ms;
-}
-.stagger-children > *:nth-child(7) {
-  animation-delay: 300ms;
-}
-.stagger-children > *:nth-child(8) {
-  animation-delay: 350ms;
-}
-.stagger-children > *:nth-child(n + 9) {
-  animation-delay: 400ms;
-}
-
-/* Accent glow breathing - for highlighted elements */
-@keyframes glow-breathe {
-  0%,
-  100% {
-    box-shadow: 0 0 12px var(--accent-glow);
-  }
-  50% {
-    box-shadow:
-      0 0 28px var(--accent-glow),
-      0 0 56px rgba(249, 115, 22, 0.08);
-  }
-}
-
-.animate-glow-breathe {
-  animation: glow-breathe 3s ease-in-out infinite;
 }
 
 /* ============================================
@@ -309,18 +239,6 @@ select:focus-visible {
   outline-offset: 0;
 }
 
-/* Custom focus class for components that need explicit focus styling */
-.focus-ring:focus-visible {
-  outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: var(--focus-ring-offset);
-}
-
-/* Focus ring with inset offset (for cards/containers) */
-.focus-ring-inset:focus-visible {
-  outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: calc(-1 * var(--focus-ring-width));
-}
-
 /* ============================================
    SKIP TO CONTENT LINK
    ============================================
@@ -356,60 +274,13 @@ select:focus-visible {
 
 /* Button-like elements - spring-based transitions */
 button,
-[role="button"],
-a.nav-item,
-.interactive {
+[role="button"] {
   transition:
     background-color var(--transition-fast),
     border-color var(--transition-fast),
     color var(--transition-fast),
     box-shadow var(--transition-normal),
     transform var(--transition-normal);
-}
-
-/* Hover lift - subtle float + shadow expansion */
-.hover-lift {
-  transition:
-    transform var(--transition-normal),
-    box-shadow var(--transition-normal);
-}
-
-.hover-lift:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--shadow-lg);
-}
-
-/* Hover glow - accent bleeds into surrounding space */
-.hover-glow {
-  transition: box-shadow var(--transition-normal);
-}
-
-.hover-glow:hover {
-  box-shadow: var(--shadow-glow-sm);
-}
-
-/* Subtle hover background */
-.hover-bg:hover {
-  background-color: var(--bg-hover);
-}
-
-/* Glass panel effect */
-.glass {
-  background: var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid var(--glass-border);
-}
-
-/* Surface with subtle gradient for depth */
-.surface-elevated {
-  background: var(--bg-elevated);
-  background-image: var(--gradient-subtle);
-}
-
-/* Accent surface - very subtle accent tint */
-.surface-accent {
-  background: var(--accent-surface);
 }
 
 /* ============================================

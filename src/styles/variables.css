@@ -69,10 +69,6 @@
   --priority-low: #636378;
 
   /* PR Status Colors */
-  --pr-open: #3bca6e;
-  --pr-draft: #636378;
-  --pr-merged: #a87cf7;
-  --pr-closed: #ef4444;
 
   /* Semantic Colors */
   --success: #3bca6e;
@@ -135,10 +131,8 @@
   --font-size-xl: 1.25rem; /* 20px */
   --font-size-2xl: 1.625rem; /* 26px */
   --font-size-3xl: 2.125rem; /* 34px */
-  --font-size-4xl: 2.75rem; /* 44px */
 
   /* Font Weights */
-  --font-weight-normal: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
@@ -156,7 +150,6 @@
   --line-height-relaxed: 1.75;
 
   /* Spacing Scale (4px base unit) */
-  --spacing-0: 0;
   --spacing-1: 0.25rem;
   --spacing-2: 0.5rem;
   --spacing-3: 0.75rem;
@@ -165,13 +158,8 @@
   --spacing-6: 1.5rem;
   --spacing-8: 2rem;
   --spacing-10: 2.5rem;
-  --spacing-12: 3rem;
-  --spacing-16: 4rem;
-  --spacing-20: 5rem;
-  --spacing-24: 6rem;
 
   /* Border Radius */
-  --radius-none: 0;
   --radius-sm: 0.25rem;
   --radius-md: 0.5rem;
   --radius-lg: 0.75rem;
@@ -190,7 +178,6 @@
   --focus-ring-color: var(--accent-primary);
   --focus-ring-width: 2px;
   --focus-ring-offset: 2px;
-  --focus-ring-offset-color: var(--bg-primary);
 
   /* Glow shadows */
   --shadow-glow: 0 0 24px var(--accent-glow);
@@ -203,16 +190,11 @@
   /* Transitions - Spring-like curves */
   --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
   --transition-fast: 120ms var(--ease-spring);
   --transition-normal: 200ms var(--ease-spring);
-  --transition-slow: 400ms var(--ease-out-expo);
 
   /* Animation durations */
-  --animation-duration-fast: 150ms;
   --animation-duration-normal: 300ms;
-  --animation-duration-slow: 500ms;
-  --animation-duration-pulse: 2s;
 
   /* Dot grid pattern */
   --grid-dot-color: rgba(255, 255, 255, 0.03);
@@ -222,11 +204,8 @@
   /* Z-Index Scale */
   --z-dropdown: 10;
   --z-sticky: 20;
-  --z-fixed: 30;
   --z-modal-backdrop: 40;
   --z-modal: 50;
-  --z-popover: 60;
-  --z-tooltip: 70;
   --z-toast: 80;
 }
 

@@ -55,7 +55,7 @@ These are the real workflow engines, regardless of provider:
 - `core/workflow.ts:startWork()` creates/checks out branch, sets ticket to `in_progress`, initializes workflow state, and posts the initial progress comment.
 - `core/workflow.ts:completeWork()` validates that a fresh `test_report` comment exists, moves ticket to `ai_review`, and posts the work summary comment.
 - `core/review.ts:submitFinding()` requires ticket status `ai_review`.
-- `core/review.ts:generateDemo()` requires ticket status `ai_review`, requires all critical/major findings fixed, and moves the ticket to `human_review`.
+- `core/review.ts:generateDemo()` requires ticket status `ai_review`, requires all critical/major findings fixed, and moves the ticket to `ai_verification`.
 - `core/session.ts` writes `.claude/ralph-state.json`, which hooks/plugins read for enforcement.
 
 Key references:
@@ -89,7 +89,7 @@ For every provider, the intended ticket flow is:
 5. Complete implementation to move to `ai_review`
 6. Submit findings and fix them
 7. Check review completion
-8. Generate demo to move to `human_review`
+8. Generate demo to move to `ai_verification`
 9. Complete the session and stop
 
 The sections below explain how each provider gets through those steps.
@@ -138,7 +138,7 @@ Reference:
    Claude is instructed to call `review.submit-finding`, `review.mark-fixed`, and `review.check-complete`.
 
 7. Demo handoff
-   `review.generate-demo` moves the ticket to `human_review`.
+   `review.generate-demo` moves the ticket to `ai_verification`.
 
 8. End session
    Claude calls `session.complete` and stops.
@@ -485,7 +485,7 @@ If you need the short explanation when presenting this:
 - OpenCode uses plugins plus agent guidance.
 - VS Code and Codex mostly rely on prompts, instructions, and MCP preconditions.
 
-4. The same MCP actions move the ticket through `in_progress`, `ai_review`, and `human_review`.
+4. The same MCP actions move the ticket through `in_progress`, `ai_review`, and `ai_verification`.
 5. The same core functions generate the audit comments and validations.
 
 ## Most important implementation references

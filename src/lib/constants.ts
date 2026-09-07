@@ -1,3 +1,9 @@
+import {
+  KANBAN_STATUSES,
+  STATUS_OPTIONS as CORE_STATUS_OPTIONS,
+  STATUS_ORDER as CORE_STATUS_ORDER,
+} from "../../core/workflow-steps.ts";
+
 // Shared color options for projects and epics
 export const COLOR_OPTIONS = [
   { value: "", label: "Default" },
@@ -12,27 +18,13 @@ export const COLOR_OPTIONS = [
 ] as const;
 
 // Status options for ticket forms (full list including AI review states)
-export const STATUS_OPTIONS = [
-  { value: "backlog", label: "Backlog" },
-  { value: "ready", label: "Ready" },
-  { value: "in_progress", label: "In Progress" },
-  { value: "ai_review", label: "AI Review" },
-  { value: "human_review", label: "Human Review" },
-  { value: "done", label: "Done" },
-] as const;
+export const STATUS_OPTIONS = CORE_STATUS_OPTIONS;
 
 /**
  * Status columns in display order for the Kanban board.
  * Shared between KanbanBoard and keyboard navigation hook.
  */
-export const COLUMN_STATUSES = [
-  "backlog",
-  "ready",
-  "in_progress",
-  "ai_review",
-  "human_review",
-  "done",
-] as const;
+export const COLUMN_STATUSES = KANBAN_STATUSES;
 
 // Priority options for ticket forms
 export const PRIORITY_OPTIONS = [
@@ -43,14 +35,7 @@ export const PRIORITY_OPTIONS = [
 ] as const;
 
 // Status ordering for sorting (lower = earlier in workflow, unique values for distinct sorting)
-export const STATUS_ORDER: Record<string, number> = {
-  backlog: 0,
-  ready: 1,
-  in_progress: 2,
-  ai_review: 3,
-  human_review: 4,
-  done: 5,
-};
+export const STATUS_ORDER: Record<string, number> = CORE_STATUS_ORDER;
 
 // Priority ordering for sorting (lower = higher priority)
 export const PRIORITY_ORDER: Record<string, number> = {
@@ -59,35 +44,6 @@ export const PRIORITY_ORDER: Record<string, number> = {
   low: 2,
   "": 3, // No priority = lowest
 };
-
-// Status color utility for UI styling
-export function getStatusColor(status: string): string {
-  switch (status) {
-    case "done":
-      return "text-green-400";
-    case "in_progress":
-      return "text-amber-400";
-    case "ai_review":
-    case "human_review":
-      return "text-purple-400";
-    case "ready":
-      return "text-blue-400";
-    default:
-      return "text-slate-400";
-  }
-}
-
-// Priority style utility for UI styling
-export function getPriorityStyle(priority: string): string {
-  switch (priority) {
-    case "high":
-      return "bg-red-900/50 text-red-300";
-    case "medium":
-      return "bg-yellow-900/50 text-yellow-300";
-    default:
-      return "bg-green-900/50 text-green-300";
-  }
-}
 
 // Polling intervals in milliseconds for consistent timing across the app
 export const POLLING_INTERVALS = {
@@ -134,7 +90,8 @@ export const STATUS_BADGE_CONFIG: Record<string, { label: string; className: str
   ready: { label: "Ready", className: "bg-blue-900/50 text-blue-300" },
   in_progress: { label: "In Progress", className: "bg-amber-900/50 text-amber-300" },
   ai_review: { label: "AI Review", className: "bg-orange-900/50 text-orange-300" },
-  human_review: { label: "Human Review", className: "bg-rose-900/50 text-rose-300" },
+  ai_verification: { label: "AI Verification", className: "bg-purple-900/50 text-purple-300" },
+  human_review: { label: "Human Review (Legacy)", className: "bg-rose-900/50 text-rose-300" },
   done: { label: "Done", className: "bg-green-900/50 text-green-300" },
 };
 

@@ -7,6 +7,8 @@ import { randomUUID } from "crypto";
 import { log } from "./logging.js";
 import { detectAuthor } from "./environment.js";
 import Database from "better-sqlite3";
+import { COMMENT_ACTOR_KIND_LABELS, COMMENT_PHASE_LABELS } from "../../core/comment-provenance.ts";
+import type { CommentActorKind, CommentPhase } from "../../core/types.ts";
 
 // ============================================
 // Type Definitions
@@ -18,11 +20,18 @@ interface CommentTypeLabels {
   test_report: string;
   progress: string;
   change_request: string;
+  verification_report: string;
   comment: string;
 }
 
 /** Comment type - must match database values */
-type CommentType = "comment" | "work_summary" | "test_report" | "progress" | "change_request";
+type CommentType =
+  | "comment"
+  | "work_summary"
+  | "test_report"
+  | "progress"
+  | "change_request"
+  | "verification_report";
 
 /** Author type - who created the comment */
 type CommentAuthor =
@@ -38,6 +47,7 @@ type CommentAuthor =
   | "ai"
   | "brain-dump"
   | `ralph:${string}`
+  | `${string} ralph`
   | null;
 
 /** Comment record from database */
@@ -45,6 +55,11 @@ interface TicketComment {
   content: string;
   author: string;
   type: string;
+  phase: CommentPhase | null;
+  actor_kind: CommentActorKind | null;
+  provider: string | null;
+  model_provider: string | null;
+  model_name: string | null;
   created_at: string;
 }
 
@@ -79,6 +94,7 @@ export const COMMENT_TYPE_LABELS: CommentTypeLabels = {
   test_report: "🧪 Test Report",
   progress: "📈 Progress",
   change_request: "⚠️ Changes Requested",
+  verification_report: "✅ Verification Report",
   comment: "💬 Comment",
 };
 
@@ -142,7 +158,8 @@ export function fetchTicketComments(db: Database.Database, ticketId: string): Fe
     const comments = db
       .prepare(
         `
-      SELECT content, author, type, created_at
+      SELECT content, author, type, phase, actor_kind, provider,
+             model_provider, model_name, created_at
       FROM ticket_comments
       WHERE ticket_id = ?
       ORDER BY created_at DESC
@@ -174,6 +191,28 @@ export function fetchTicketComments(db: Database.Database, ticketId: string): Fe
   }
 }
 
+function formatCommentAttribution(comment: TicketComment): string {
+  const parts: string[] = [];
+
+  const phaseLabel = comment.phase ? COMMENT_PHASE_LABELS[comment.phase] : undefined;
+  const actorLabel = comment.actor_kind ? COMMENT_ACTOR_KIND_LABELS[comment.actor_kind] : undefined;
+  if (phaseLabel) parts.push(phaseLabel);
+  if (actorLabel) parts.push(actorLabel);
+  if (comment.provider) parts.push(comment.provider);
+
+  if (comment.model_name) {
+    parts.push(
+      comment.model_provider
+        ? `${comment.model_provider}/${comment.model_name}`
+        : comment.model_name
+    );
+  } else if (comment.model_provider) {
+    parts.push(comment.model_provider);
+  }
+
+  return parts.length > 0 ? ` [${parts.join(" · ")}]` : "";
+}
+
 /**
  * Format a single comment for display.
  */
@@ -185,8 +224,9 @@ export function formatComment(comment: TicketComment): string {
     day: "numeric",
   });
   const typeLabel = COMMENT_TYPE_LABELS[comment.type as keyof CommentTypeLabels] || "💬 Comment";
+  const attribution = formatCommentAttribution(comment);
 
-  return `**${comment.author}** (${typeLabel}) - ${dateStr}:\n${comment.content}`;
+  return `**${comment.author}** (${typeLabel})${attribution} - ${dateStr}:\n${comment.content}`;
 }
 
 /**

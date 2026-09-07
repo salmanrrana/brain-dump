@@ -26,6 +26,11 @@ vi.mock("../../lib/hooks", () => ({
     isLoading: false,
     error: null,
   }),
+  useLaunchProviderAvailability: () => ({
+    availabilityByProviderId: {},
+    loading: false,
+    error: null,
+  }),
 }));
 
 describe("LaunchActions", () => {

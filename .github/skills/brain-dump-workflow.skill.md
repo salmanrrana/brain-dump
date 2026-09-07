@@ -8,74 +8,81 @@ applyTo: "**/*"
 
 When the user asks to start work on a ticket, work on a task, or implement a feature, follow this workflow:
 
-## Selecting a Ticket
+<!-- BEGIN GENERATED: workflow-sequence -->
 
-1. Call `mcp__brain-dump__list_tickets({ status: 'ready', limit: 10 })` to see available tickets
-2. Consider:
-   - Priority (high > medium > low)
-   - Dependencies (unblocked tickets first)
-   - Epic context (continue current epic if possible)
-3. Present top 3 recommendations with rationale
-4. Once user selects, call `mcp__brain-dump__workflow "start-work"({ ticketId })`
+## Generated Workflow
 
-## Starting Work
+Status flow: `backlog -> ready -> in_progress -> ai_review -> ai_verification -> done`
 
-1. Create a session: `mcp__brain-dump__session "create"({ ticketId })`
-2. Read the ticket description and acceptance criteria
-3. Update session state: `session "update-state"({ state: 'analyzing' })`
+### Step 1: Implementation
 
-## Implementing
+start-work -> create or reuse a session -> implement -> validate -> commit -> complete-work. Skip this phase only when the selected ticket is already in ai_review.
 
-1. Analyze the requirements
-2. Update session state: `session "update-state"({ state: 'implementing' })`
-3. Write and modify code
-4. Discover and run the project's validation commands from docs/config
-5. Verify acceptance criteria are met
+- `workflow({ action: "start-work", ticketId })`
+- `session({ action: "create", ticketId }) or session({ action: "get", ticketId })`
+- `comment({ action: "add", ticketId, content, commentType: "test_report" })`
+- `workflow({ action: "complete-work", ticketId, summary })`
 
-## Testing & Review
+### Step 2: AI Review
 
-1. Check project docs/config first: `AGENTS.md`, `CLAUDE.md`, README, CONTRIBUTING, package scripts, `pyproject.toml`, `go.mod`, Makefile/Justfile, and CI files
-2. Run the project's own validation commands. Do not assume pnpm, npm, TypeScript, lint, or test scripts exist
-3. Examples only: package script check/test/lint, pytest/ruff when configured, `go test ./...`, `cargo test`, `dotnet test`, `mvn test`, `./gradlew test`
-4. If no automated validation command is discoverable, run a targeted manual smoke check and record that no project validation command was found
-5. Update session state: `session "update-state"({ state: 'testing' })`
+Start with get-review-context: it returns the acceptance criteria, work history, the exact in-scope changed-file list, prior findings (never re-file resolved ones), and the blocking-findings budget. Review only the in-scope files for regressions, acceptance gaps, and maintainability (reuse existing patterns; keep junior-readable). Submit only concrete NEW blocking findings, fix critical/major findings, then check completion.
 
-## Completing Work
+- `review({ action: "get-review-context", ticketId })`
+- `review({ action: "submit-finding", ticketId, agent, severity, category, description })`
+- `review({ action: "mark-fixed", findingId, fixStatus: "fixed" })`
+- `review({ action: "check-complete", ticketId })`
 
-1. Create commit with format: `feat(<ticket-id>): <description>`
-2. Update session state: `session "update-state"({ state: 'committing' })`
-3. Call `mcp__brain-dump__workflow "complete-work"({ ticketId, summary })`
-4. This moves ticket to `ai_review` status
+### Step 3: Demo
 
-## AI Review Phase
+Generate 3-7 test steps after review completion, including criterion coverage references plus automation specs for visual/automated UI, API, command, or file checks. Before API/UI steps, inspect the target project's docs and build/runtime config and declare app.start as spawn-safe argv (with {port}/{host} tokens and optional project-relative cwd); never assume npm or pnpm. Every acceptance criterion must be proven by executable automation — coverageRationale is rejected at generate-demo. If a required command is outside the default allowlist (make, go, npx, ...), declare its exact argv in the project's .brain-dump/verify.json commands array; if a criterion cannot be automated, reword the criterion to match what automation can prove. This moves the ticket to ai_verification for runner certification.
 
-After `workflow "complete-work"`:
+- `review({ action: "generate-demo", ticketId, steps }) with covers references and automation specs on visual/automated steps`
 
-1. Run review agents to identify issues:
-   - Call `review "submit-finding"` for each finding
-   - Include severity (critical, major, minor, suggestion)
-   - Be specific about file paths and line numbers
+### Step 4: Stop
 
-2. Check completion: `review "check-complete"({ ticketId })`
-   - If open critical/major findings, stay in ai_review
-   - If all critical/major fixed, proceed to human review
+STOP after generate-demo. generate-demo already completed the ticket's active sessions during the verification handoff — an explicit session complete afterwards is unnecessary (though harmless if called: it returns the recorded completion). Never run verification or move the ticket to done yourself.
 
-3. Verify findings are fixed using `review "mark-fixed"`
 
-## Human Review Phase
 
-When ready for human approval:
+### Implementation Discipline
 
-1. Call `review "generate-demo"({ ticketId, steps })` with demo steps
-2. This transitions ticket to `human_review`
-3. Update session state: `session "update-state"({ state: 'reviewing' })`
-4. Wait for human to review demo and approve
+- Before editing, map each acceptance criterion to the existing production entry point and nearby tests. Search for components, helpers, services, and patterns that already own the behavior.
+- Extend or reuse the established implementation instead of adding a parallel path. New shared logic must be wired through the real production caller; replace superseded ticket-owned logic rather than leaving two competing implementations.
+- Keep the diff minimal and match the codebase's existing style. Prefer explicit code a junior engineer can trace; use the smallest local or established abstraction that removes concrete duplication, never a speculative framework or dependency.
+- Preserve existing behavior outside the ticket and add focused regression coverage at the changed boundary. Before handoff, inspect the final diff for dead code, duplicate logic, and acceptance criteria implemented only in tests but not reachable in production.
 
-## Completion
+### Validation Gates
 
-1. Once demo approved, ticket moves to `done` status
-2. Optionally call `epic "reconcile-learnings"` to extract patterns
-3. Complete session: `session "complete"({ sessionId, outcome: 'success' })`
+- Before complete-work: Discover and run this project's validation commands from docs/config.
+- Read AGENTS.md, CLAUDE.md, README, CONTRIBUTING, package scripts, pyproject.toml, go.mod, Makefile/Justfile, and CI files before choosing commands.
+- Use the project's own commands, not Brain Dump's commands. Do not assume pnpm, npm, TypeScript, lint, or test scripts exist.
+- Discover validation and boot commands once per project checkout, then reuse them until the relevant docs, config, or dependencies change. During edits, run focused checks; run each required final validation command once after the last relevant change. Metadata-only updates (linking commits, marking findings fixed, posting progress) do not require repeating unchanged checks. After code/config changes, rerun affected checks and any mandatory project-wide gate; never present reused results as newly executed tests.
+- If no automated validation command is discoverable, perform a targeted manual smoke check and record that no project validation command was found.
+- Before complete-work, add a test_report comment with exact pass/fail/skipped command results and omit author so Brain Dump auto-detects the provider.
+- Before demo, all critical/major findings must be fixed and check-complete must allow verification handoff.
+- Fetch get-review-context once on entering AI review and reuse its ticket, acceptanceCriteria, workHistory, openFindings, resolvedFindings, and scope. Do not immediately fetch the same ticket or findings again. Refresh after an external change or if the context was lost; after your own finding updates, use their returned IDs/status and run check-complete once before handoff. A repair review examines the repair diff and its affected callers, not the whole unchanged epic.
+- Keep the session ID returned by session create/get, and update progress at real phase transitions or meaningful changes. Batch independent reads or validation commands in one tool turn when safe, preserving each command's output and exit status; never run commands concurrently when they share mutable test fixtures or build output. A successful generate-demo response is the handoff: STOP instead of polling the ticket, session, findings, or verification status.
+- For CLI finding repairs, use brain-dump review mark-fixed --finding <finding-id> --status fixed. Check the workflow command's exit status and read its full error response before continuing; piping into tail can hide a failed action.
+- For API/UI demo steps, inspect README/AGENTS/CLAUDE docs plus native build files and declare one app.start argv that actually boots this project on {port}; do not infer every app is Node-based.
+- Before authoring a demo, read the project's .brain-dump/verify.json (if present) and reuse its exact start command and declared commands; never hardcode a port or loopback origin — the runner boots on a random free port.
+- The verifier requires a clean reviewed Git revision, including no untracked files. Put CLI --steps-file JSON outside the project (for example in a temporary directory), or commit intentional files before review. Check git status before generate-demo; authoring the demo must not dirty the reviewed checkout.
+- Derive UI selectors from the actual rendered page or component markup. Do not guess aria-label attributes from visible labels. After a verification failure, repair its reported cause and rerun affected checks; avoid repeating unrelated checks unless the repair changes their behavior.
+- For test commands, assert the exit status and stable results rather than an exact passing-test count that changes as the project grows. Derive UI counts from explicitly seeded fixtures or acceptance criteria, not a previous run's incidental data. A failed demo stops at its first failure; later steps are recorded as not run and must pass on the repaired run.
+- In UI demo steps, waitFor a selector that only exists once real data has rendered (a populated row, not a static heading) before clicking or asserting; a mutation fired against a still-loading page settles every widget into an error state.
+- Do not assert live third-party data (e.g. a fresh 'Last fetched' timestamp) unless the verification environment seeds it; assert the honest empty/error copy or an API-level contract instead.
+- To prove a file was deleted, use a file step with a notExists assertion — never contains/notContains against a missing file; for grep-style command steps, set expectedExitCode to what the command actually returns.
+- Before session completion, generate-demo must have been called and the ticket must be in ai_verification.
+- If verification blocked the ticket and you have fixed and validated the cause, call review resolve-verification-failure (rootCause, classification, fixCommits, validation) to clear the blocker and return the ticket to ai_review. Then mark each open verification finding addressed by the fix as fixed before check-complete — never leave a fixed ticket blocked.
+
+### Hard Guards
+
+- Do not use local substitutes for Brain Dump MCP/CLI workflow actions.
+- Do not skip review check-complete before generate-demo.
+- Do not run verification yourself.
+- Do not move tickets to done yourself.
+- Do not continue to another ticket after demo handoff.
+
+<!-- END GENERATED: workflow-sequence -->
 
 ## Example: Selecting Next Task
 
@@ -83,7 +90,7 @@ When ready for human approval:
 User: "What's next?"
 
 Step 1: List available tickets
-mcp__brain-dump__list_tickets({ status: 'ready', limit: 10 })
+mcp__brain-dump__ticket({ action: "list", status: "ready", limit: 10 })
 
 Step 2: Present recommendations
 - **High Priority (3 options):**
@@ -92,7 +99,7 @@ Step 2: Present recommendations
   3. "Update documentation" - quick win
 
 Step 3: Wait for selection, then start work
-mcp__brain-dump__workflow "start-work"({ ticketId: "..." })
+mcp__brain-dump__workflow({ action: "start-work", ticketId: "..." })
 ```
 
 ## Tips

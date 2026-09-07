@@ -118,10 +118,10 @@ Get a single ticket by ID with full details.
 
 Move a ticket between columns.
 
-| Param      | Type                                                                             | Required |
-| ---------- | -------------------------------------------------------------------------------- | -------- |
-| `ticketId` | string                                                                           | yes      |
-| `status`   | `backlog` \| `ready` \| `in_progress` \| `ai_review` \| `human_review` \| `done` | yes      |
+| Param      | Type                                                                                | Required |
+| ---------- | ----------------------------------------------------------------------------------- | -------- |
+| `ticketId` | string                                                                              | yes      |
+| `status`   | `backlog` \| `ready` \| `in_progress` \| `ai_review` \| `ai_verification` \| `done` | yes      |
 
 ### delete
 
@@ -353,11 +353,11 @@ Check if all critical/major findings are resolved.
 | ---------- | ------ | -------- |
 | `ticketId` | string | yes      |
 
-Returns `{ canProceedToHumanReview: true/false }`.
+Returns `{ canProceedToVerification: true/false }` and the deprecated compatibility alias `{ canProceedToHumanReview: true/false }`.
 
 ### generate-demo
 
-Generate a demo script for human review. Moves ticket to `human_review`.
+Generate a demo script for AI verification. Moves ticket to `ai_verification`.
 
 | Param      | Type   | Required |
 | ---------- | ------ | -------- |
@@ -373,28 +373,6 @@ Get the demo script for a ticket.
 | Param      | Type   | Required |
 | ---------- | ------ | -------- |
 | `ticketId` | string | yes      |
-
-### update-demo-step
-
-Update a single demo step's status during human review.
-
-| Param          | Type                                           | Required |
-| -------------- | ---------------------------------------------- | -------- |
-| `demoScriptId` | string                                         | yes      |
-| `stepOrder`    | number                                         | yes      |
-| `stepStatus`   | `pending` \| `passed` \| `failed` \| `skipped` | yes      |
-| `notes`        | string                                         | no       |
-
-### submit-feedback
-
-Submit final demo feedback from human reviewer.
-
-| Param         | Type    | Required |
-| ------------- | ------- | -------- |
-| `ticketId`    | string  | yes      |
-| `passed`      | boolean | yes      |
-| `feedback`    | string  | yes      |
-| `stepResults` | array   | no       |
 
 ---
 

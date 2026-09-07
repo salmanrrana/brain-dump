@@ -25,7 +25,6 @@ pnpm test:watch
 - **Core**: `core/*.ts` - Business logic modules (extracted for reuse by CLI)
 - **Tools**: `tools/*.ts` - 9 action-dispatched MCP tools
 - **Library**: `lib/*.ts` - Utilities and database access
-- **Types**: `types.ts` - Shared TypeScript definitions
 
 ## Tools Overview (9 tools, 65 actions)
 
@@ -43,9 +42,9 @@ create, list, get, update-status, delete, update-criterion, list-by-epic, link-f
 
 create, update-state, complete, get, list, emit-event, get-events, clear-events, save-tasks, get-tasks, clear-tasks, get-task-snapshots
 
-### review (8 actions)
+### review (6 actions)
 
-submit-finding, mark-fixed, check-complete, generate-demo, get-demo, submit-feedback, get-findings, update-step
+submit-finding, mark-fixed, check-complete, generate-demo, get-demo, get-findings
 
 ### telemetry (7 actions)
 
@@ -74,10 +73,9 @@ health, environment, start-conversation, log-message, end-conversation, list-con
    ```typescript
    import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
    import type Database from "better-sqlite3";
-   import type { ToolResponse } from "../types.js";
 
    export function registerMyTools(server: McpServer, db: Database.Database): void {
-     server.tool("my-tool", "Description", {}, async (): Promise<ToolResponse> => {
+     server.tool("my-tool", "Description", {}, async () => {
        // Implementation
      });
    }
@@ -122,7 +120,6 @@ All code follows strict TypeScript mode:
 - Conversation logging
 - Cross-environment compatibility
 - E2E workflows
-- TypeScript migration verification
 
 Run all tests: `pnpm test`
 Run specific test: `pnpm test path/to/file.test.ts`

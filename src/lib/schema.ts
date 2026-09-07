@@ -1,5 +1,7 @@
 import { sqliteTable, text, integer, real, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
+import type { CommentActorKind, CommentPhase, DemoStep } from "../../core/types.ts";
+import type { TicketStatus } from "../../core/workflow-steps.ts";
 
 // Projects table
 export const projects = sqliteTable(
@@ -10,6 +12,8 @@ export const projects = sqliteTable(
     path: text("path").notNull().unique(),
     color: text("color"),
     workingMethod: text("working_method").default("auto"), // 'auto' | 'claude-code' | 'vscode' | 'opencode' | 'cursor' | 'cursor-agent' | 'copilot-cli' | 'codex' | 'pi'
+    reviewerProvider: text("reviewer_provider"), // null = inherit global; reviewer-capable provider id
+    reviewerModel: text("reviewer_model"), // optional provider-specific reviewer model id
     position: real("position").notNull().default(0),
     createdAt: text("created_at")
       .notNull()
@@ -43,10 +47,7 @@ export const tickets = sqliteTable(
     id: text("id").primaryKey(),
     title: text("title").notNull(),
     description: text("description"),
-    status: text("status")
-      .notNull()
-      .default("backlog")
-      .$type<"backlog" | "ready" | "in_progress" | "ai_review" | "human_review" | "done">(),
+    status: text("status").notNull().default("backlog").$type<TicketStatus>(),
     priority: text("priority").$type<"high" | "medium" | "low">(),
     position: real("position").notNull(),
     projectId: text("project_id")
@@ -99,7 +100,19 @@ export const ticketComments = sqliteTable(
     type: text("type")
       .notNull()
       .default("comment")
-      .$type<"comment" | "work_summary" | "test_report" | "progress" | "change_request">(),
+      .$type<
+        | "comment"
+        | "work_summary"
+        | "test_report"
+        | "progress"
+        | "change_request"
+        | "verification_report"
+      >(),
+    phase: text("phase").$type<CommentPhase>(),
+    actorKind: text("actor_kind").$type<CommentActorKind>(),
+    provider: text("provider"),
+    modelProvider: text("model_provider"),
+    modelName: text("model_name"),
     createdAt: text("created_at")
       .notNull()
       .default(sql`(datetime('now'))`),
@@ -144,9 +157,15 @@ export const settings = sqliteTable("settings", {
   ralphTimeout: integer("ralph_timeout").default(3600), // Timeout in seconds (default: 1 hour)
   ralphMaxIterations: integer("ralph_max_iterations").default(10), // Max iterations for Ralph loop (default: 10)
   autoCreatePr: integer("auto_create_pr", { mode: "boolean" }).default(true), // Auto-create PR when done
+  epicAutoPr: integer("epic_auto_pr", { mode: "boolean" }).default(true), // Auto-create/ready PR when an epic completes
+  verificationWorkerPaused: integer("verification_worker_paused", { mode: "boolean" }).default(
+    false
+  ), // Pause automatic verification claims
   prTargetBranch: text("pr_target_branch").default("dev"), // Target branch for PRs
   defaultProjectsDirectory: text("default_projects_directory"), // Where to create new projects
   defaultWorkingMethod: text("default_working_method").default("auto"), // Default environment for new projects: 'auto' | 'claude-code' | 'vscode' | 'opencode' | 'cursor' | 'cursor-agent' | 'copilot-cli' | 'codex' | 'pi'
+  defaultReviewerProvider: text("default_reviewer_provider"), // null = same as implementer; reviewer-capable provider id
+  defaultReviewerModel: text("default_reviewer_model"), // optional provider-specific reviewer model id
   // Docker runtime settings
   dockerRuntime: text("docker_runtime"), // 'auto' | 'lima' | 'colima' | 'rancher' | 'docker-desktop' | 'podman' - null = auto-detect
   dockerSocketPath: text("docker_socket_path"), // Custom socket path override (null = use detected path)
@@ -674,11 +693,14 @@ export const ticketWorkflowState = sqliteTable(
       .notNull()
       .unique()
       .references(() => tickets.id, { onDelete: "cascade" }),
-    currentPhase: text("current_phase").notNull().default("implementation"), // 'implementation', 'ai_review', 'human_review', 'done'
+    currentPhase: text("current_phase").notNull().default("implementation"), // 'implementation', 'ai_review', 'ai_verification', 'done'
     reviewIteration: integer("review_iteration").default(0), // How many review iterations completed
     findingsCount: integer("findings_count").default(0), // Total findings reported
     findingsFixed: integer("findings_fixed").default(0), // Findings marked as fixed
     demoGenerated: integer("demo_generated", { mode: "boolean" }).default(false), // Whether demo script exists
+    verificationStreakResetAt: text("verification_streak_reset_at"), // Human resolution timestamp; resets verification failure streaks
+    reviewedThroughCommit: text("reviewed_through_commit"), // Repo HEAD at last verification handoff; bounds re-review scope
+    implementationStartedAt: text("implementation_started_at"), // Stable test-report cutoff for this implementation/repair pass
     createdAt: text("created_at")
       .notNull()
       .default(sql`(datetime('now'))`),
@@ -833,7 +855,7 @@ export const reviewFindings = sqliteTable(
 export type ReviewFinding = typeof reviewFindings.$inferSelect;
 export type NewReviewFinding = typeof reviewFindings.$inferInsert;
 
-// Demo scripts table - stores demo steps for human review
+// Demo scripts table - stores demo steps for AI verification
 export const demoScripts = sqliteTable(
   "demo_scripts",
   {
@@ -863,15 +885,120 @@ export const demoScripts = sqliteTable(
 export type DemoScript = typeof demoScripts.$inferSelect;
 export type NewDemoScript = typeof demoScripts.$inferInsert;
 
-// Demo step interface for JSON storage
-export interface DemoStep {
-  order: number; // Step order
-  description: string; // What to do
-  expectedOutcome: string; // What should happen
-  type: "manual" | "visual" | "automated"; // How to verify
-  status?: "pending" | "passed" | "failed" | "skipped"; // Current status during review
-  notes?: string; // Reviewer's notes
-}
+export type { DemoStep };
+
+// Permanent verification audit log - evidence files may be pruned, rows never are.
+export const verificationRuns = sqliteTable(
+  "verification_runs",
+  {
+    id: text("id").primaryKey(),
+    ticketId: text("ticket_id")
+      .notNull()
+      .references(() => tickets.id, { onDelete: "cascade" }),
+    round: integer("round").notNull(),
+    status: text("status", { enum: ["passed", "failed", "uncertified", "infra_error"] }).notNull(),
+    certified: integer("certified", { mode: "boolean" }).notNull().default(false),
+    manifest: text("manifest").notNull(),
+    gitSha: text("git_sha"),
+    provider: text("provider"),
+    actor: text("actor"),
+    providerSource: text("provider_source"),
+    executionSurface: text("execution_surface"),
+    workerId: text("worker_id"),
+    codeGitSha: text("code_git_sha"),
+    startedAt: text("started_at").notNull(),
+    finishedAt: text("finished_at").notNull(),
+  },
+  (table) => [
+    index("idx_verification_runs_ticket").on(table.ticketId),
+    uniqueIndex("idx_verification_runs_round").on(table.ticketId, table.round),
+  ]
+);
+
+export type VerificationRun = typeof verificationRuns.$inferSelect;
+export type NewVerificationRun = typeof verificationRuns.$inferInsert;
+
+export const verificationJobs = sqliteTable(
+  "verification_jobs",
+  {
+    id: text("id").primaryKey(),
+    ticketId: text("ticket_id")
+      .notNull()
+      .unique()
+      .references(() => tickets.id, { onDelete: "cascade" }),
+    demoScriptId: text("demo_script_id")
+      .notNull()
+      .references(() => demoScripts.id, { onDelete: "cascade" }),
+    status: text("status", {
+      enum: ["queued", "running", "succeeded", "failed", "blocked", "dead"],
+    })
+      .notNull()
+      .default("queued"),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    nextRunAt: text("next_run_at").notNull(),
+    lastError: text("last_error"),
+    leasedBy: text("leased_by"),
+    leaseExpiresAt: text("lease_expires_at"),
+    provider: text("provider"),
+    actor: text("actor"),
+    providerSource: text("provider_source"),
+    executionSurface: text("execution_surface"),
+    workerId: text("worker_id"),
+    codeGitSha: text("code_git_sha"),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+    completedAt: text("completed_at"),
+  },
+  (table) => [
+    index("idx_verification_jobs_status_next").on(table.status, table.nextRunAt),
+    index("idx_verification_jobs_lease").on(table.status, table.leaseExpiresAt),
+    index("idx_verification_jobs_demo").on(table.demoScriptId),
+  ]
+);
+
+export type VerificationJob = typeof verificationJobs.$inferSelect;
+export type NewVerificationJob = typeof verificationJobs.$inferInsert;
+
+export const autonomousEpicLaunches = sqliteTable("autonomous_epic_launches", {
+  epicId: text("epic_id")
+    .primaryKey()
+    .references(() => epics.id, { onDelete: "cascade" }),
+  profileJson: text("profile_json").notNull(),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const epicContinuationJobs = sqliteTable(
+  "epic_continuation_jobs",
+  {
+    id: text("id").primaryKey(),
+    epicId: text("epic_id")
+      .notNull()
+      .unique()
+      .references(() => epics.id, { onDelete: "cascade" }),
+    ticketId: text("ticket_id")
+      .notNull()
+      .references(() => tickets.id, { onDelete: "cascade" }),
+    status: text("status").notNull().default("queued"),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    nextRunAt: text("next_run_at").notNull(),
+    lastError: text("last_error"),
+    leasedBy: text("leased_by"),
+    leaseExpiresAt: text("lease_expires_at"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+    completedAt: text("completed_at"),
+  },
+  (table) => [
+    index("idx_epic_continuation_jobs_ready").on(table.status, table.nextRunAt),
+    index("idx_epic_continuation_jobs_lease").on(table.status, table.leaseExpiresAt),
+  ]
+);
 
 // Learning interface for epic workflow
 export interface WorkflowLearning {

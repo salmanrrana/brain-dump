@@ -154,13 +154,6 @@ export function clearProfilerData(): void {
   renderLog.clear();
 }
 
-/**
- * Get raw render entries for a component (useful for charting).
- */
-export function getRenderEntries(id: string): readonly RenderEntry[] {
-  return renderLog.get(id) ?? [];
-}
-
 // Expose to browser DevTools in development
 if (import.meta.env.DEV && typeof window !== "undefined") {
   (window as unknown as Record<string, unknown>).__profilerReport = printProfilerReport;

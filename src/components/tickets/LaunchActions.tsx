@@ -1,9 +1,13 @@
 import { type FC, useCallback, useState } from "react";
 import type { TicketStatus } from "../../api/tickets";
-import type { UiLaunchProviderId } from "../../lib/launch-provider-contract";
+import type {
+  RalphAutonomousUiLaunchProvider,
+  UiLaunchProviderId,
+} from "../../lib/launch-provider-contract";
 import type { LaunchModelSelection } from "../../lib/launch-model-catalog";
-import { useCostModels } from "../../lib/hooks";
+import { useCostModels, useLaunchProviderAvailability } from "../../lib/hooks";
 import { LaunchProviderMenu } from "../LaunchProviderMenu";
+import { TICKET_STATUS_METADATA } from "../../../core/workflow-steps.ts";
 
 export type LaunchType = UiLaunchProviderId;
 
@@ -11,7 +15,12 @@ export interface LaunchActionsProps {
   /** Current ticket status - used to determine if launch actions should be shown */
   ticketStatus: TicketStatus;
   /** Handler called when a launch option is selected */
-  onLaunch: (type: LaunchType, modelSelection: LaunchModelSelection) => void | Promise<void>;
+  onLaunch: (
+    type: LaunchType,
+    modelSelection: LaunchModelSelection,
+    reviewerProvider?: RalphAutonomousUiLaunchProvider,
+    reviewerModelSelection?: LaunchModelSelection
+  ) => void | Promise<void>;
   /** Whether a launch is currently in progress */
   isLaunching?: boolean;
   /** Which launch type is currently in progress (for loading indicator) */
@@ -19,14 +28,6 @@ export interface LaunchActionsProps {
   /** Whether the component is disabled */
   disabled?: boolean;
 }
-
-const WORKABLE_STATUSES: TicketStatus[] = [
-  "backlog",
-  "ready",
-  "in_progress",
-  "ai_review",
-  "human_review",
-];
 
 export const LaunchActions: FC<LaunchActionsProps> = ({
   ticketStatus,
@@ -36,18 +37,29 @@ export const LaunchActions: FC<LaunchActionsProps> = ({
   disabled = false,
 }) => {
   const [clickedType, setClickedType] = useState<LaunchType | null>(null);
+  const [availabilityEnabled, setAvailabilityEnabled] = useState(false);
+  const isWorkable = TICKET_STATUS_METADATA[ticketStatus].workable;
   const {
     data: costModels,
     isLoading: modelCatalogLoading,
     error: modelCatalogError,
   } = useCostModels();
-  const isWorkable = WORKABLE_STATUSES.includes(ticketStatus);
+  const {
+    availabilityByProviderId,
+    loading: availabilityLoading,
+    error: availabilityError,
+  } = useLaunchProviderAvailability({ enabled: availabilityEnabled && isWorkable });
 
   const handleOptionClick = useCallback(
-    (type: LaunchType, modelSelection: LaunchModelSelection) => {
+    (
+      type: LaunchType,
+      modelSelection: LaunchModelSelection,
+      reviewerProvider?: RalphAutonomousUiLaunchProvider,
+      reviewerModelSelection?: LaunchModelSelection
+    ) => {
       if (disabled || isLaunching) return;
       setClickedType(type);
-      void onLaunch(type, modelSelection);
+      void onLaunch(type, modelSelection, reviewerProvider, reviewerModelSelection);
     },
     [disabled, isLaunching, onLaunch]
   );
@@ -60,21 +72,28 @@ export const LaunchActions: FC<LaunchActionsProps> = ({
     <div style={containerStyles}>
       <h3 style={headerStyles}>Start Work With</h3>
 
-      <div className="overflow-hidden rounded-lg border border-[var(--border-primary)] bg-[var(--bg-tertiary)]">
+      <div
+        className="overflow-hidden rounded-lg border border-[var(--border-primary)] bg-[var(--bg-tertiary)]"
+        onFocusCapture={() => setAvailabilityEnabled(true)}
+        onPointerEnter={() => setAvailabilityEnabled(true)}
+      >
         <LaunchProviderMenu
           interactiveContext="ticket"
           ralphContext="ticket"
           onInteractiveLaunch={(provider, modelSelection) =>
             handleOptionClick(provider.id, modelSelection)
           }
-          onRalphLaunch={(provider, modelSelection) =>
-            handleOptionClick(provider.id, modelSelection)
+          onRalphLaunch={(provider, modelSelection, reviewerProvider, reviewerModelSelection) =>
+            handleOptionClick(provider.id, modelSelection, reviewerProvider, reviewerModelSelection)
           }
           disabled={disabled || isLaunching}
           loadingProviderId={isLaunching ? (launchingType ?? clickedType) : null}
           costModels={costModels ?? []}
           modelCatalogLoading={modelCatalogLoading}
           modelCatalogError={modelCatalogError}
+          availabilityByProviderId={availabilityByProviderId}
+          availabilityLoading={availabilityLoading}
+          availabilityError={availabilityError}
         />
       </div>
     </div>

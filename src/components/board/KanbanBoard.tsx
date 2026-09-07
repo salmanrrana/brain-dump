@@ -1,5 +1,5 @@
 import type { FC } from "react";
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useId, useMemo, useRef } from "react";
 import {
   useTicketSummaries,
   useUpdateTicketStatus,
@@ -71,7 +71,8 @@ const COLUMN_LABELS: Record<TicketStatus, string> = {
   ready: "Ready",
   in_progress: "In Progress",
   ai_review: "AI Review",
-  human_review: "Human Review",
+  ai_verification: "AI Verification",
+  human_review: "Human Review (Legacy)",
   done: "Done",
 };
 
@@ -83,6 +84,7 @@ const COLUMN_COLORS: Record<TicketStatus, string> = {
   ready: "var(--status-ready)",
   in_progress: "var(--status-in-progress)",
   ai_review: "var(--accent-warning)",
+  ai_verification: "var(--accent-primary)",
   human_review: "var(--accent-primary)",
   done: "var(--status-done)",
 };
@@ -161,6 +163,8 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
   loading: providedLoading,
   error: providedError,
 }) => {
+  // dnd-kit's default counter differs across SSR requests and browser hydration.
+  const dragContextId = useId();
   // Use provided data or fetch internally
   const internalFilters = useMemo(() => {
     const f: { projectId?: string; epicId?: string; tags?: string[] } = {};
@@ -180,8 +184,8 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
   });
 
   const tickets = providedTickets ?? fetchedTickets;
-  const loading = providedLoading ?? internalLoading;
-  const error = providedError ?? internalError;
+  const loading = providedTickets !== undefined ? (providedLoading ?? false) : internalLoading;
+  const error = providedTickets !== undefined ? (providedError ?? null) : internalError;
   const handleRefresh = onRefresh ?? refetch;
 
   // Mutation hooks - these handle query invalidation automatically
@@ -206,8 +210,9 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
       ready: [],
       in_progress: [],
       ai_review: [],
-      human_review: [],
+      ai_verification: [],
       done: [],
+      human_review: [],
     };
 
     if (!tickets) return grouped;
@@ -234,8 +239,9 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
       ready: [],
       in_progress: [],
       ai_review: [],
-      human_review: [],
+      ai_verification: [],
       done: [],
+      human_review: [],
     };
 
     for (const status of COLUMNS) {
@@ -388,6 +394,7 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
 
   return (
     <DndContext
+      id={dragContextId}
       sensors={sensors}
       collisionDetection={kanbanCollisionDetection}
       onDragStart={handleDragStart}

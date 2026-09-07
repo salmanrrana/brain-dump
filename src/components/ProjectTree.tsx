@@ -202,6 +202,8 @@ export default function ProjectTree({
                       color: project.color,
                       position: project.position,
                       workingMethod: project.workingMethod,
+                      reviewerProvider: project.reviewerProvider,
+                      reviewerModel: project.reviewerModel,
                     });
                   }}
                   className="p-0.5 hover:bg-[var(--bg-hover)] rounded opacity-0 group-hover:opacity-100 transition-opacity"

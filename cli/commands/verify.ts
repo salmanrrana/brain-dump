@@ -1,0 +1,186 @@
+/**
+ * Verification runner commands.
+ */
+
+import { boolFlag, optionalFlag, parseFlags, requireFlag } from "../lib/args.ts";
+import { getDb } from "../lib/db.ts";
+import { outputError, outputResult, showResourceHelp } from "../lib/output.ts";
+import {
+  drainEpicContinuations,
+  drainVerificationQueue,
+  execFileNoThrow,
+  getVerificationOperationsStatus,
+  InvalidActionError,
+  getVerificationJob,
+  listVerificationRunSummaries,
+  markVerificationJobDead,
+  requeueVerificationJob,
+  runNextVerificationJob,
+  setVerificationWorkerPaused,
+  summarizeVerificationJobsForOps,
+  verifyTicket,
+} from "../../core/index.ts";
+import { launchEpicContinuationHeadless } from "../../src/lib/ralph-launch/epic-continuation-adapter.ts";
+import type { VerificationExecutionSurface } from "../../core/verifier-identity.ts";
+
+const ACTIONS = [
+  "run",
+  "history",
+  "status",
+  "jobs",
+  "worker",
+  "worker-status",
+  "pause",
+  "resume",
+  "requeue",
+  "dead",
+];
+
+function executionSurfaceFromEnv(
+  fallback: VerificationExecutionSurface
+): VerificationExecutionSurface {
+  const value = process.env.BRAIN_DUMP_VERIFICATION_SURFACE;
+  return value === "boot-drain" ||
+    value === "enqueue-drain" ||
+    value === "resident-poller" ||
+    value === "cli-direct"
+    ? value
+    : fallback;
+}
+
+export async function handle(action: string, args: string[]): Promise<void> {
+  const normalizedArgs = action.startsWith("--") ? [action, ...args] : args;
+  const flags = parseFlags(normalizedArgs);
+  const pretty = boolFlag(flags, "pretty");
+  const isFlagShortcut = action.startsWith("--");
+  const isHistoryAction = action === "history";
+  const isStatusAction = action === "status";
+  const isWorkerAction = action === "worker";
+  const isWorkerStatusAction = action === "worker-status";
+  const isJobsAction = action === "jobs";
+  const isPauseAction = action === "pause";
+  const isResumeAction = action === "resume";
+  const isRequeueAction = action === "requeue";
+  const isDeadAction = action === "dead";
+  const history = boolFlag(flags, "history") || isHistoryAction;
+
+  if (!action || action === "--help" || action === "help") {
+    showResourceHelp("verify");
+    return;
+  }
+
+  try {
+    if (
+      !isFlagShortcut &&
+      action !== "run" &&
+      !isHistoryAction &&
+      !isStatusAction &&
+      !isJobsAction &&
+      !isWorkerAction &&
+      !isWorkerStatusAction &&
+      !isPauseAction &&
+      !isResumeAction &&
+      !isRequeueAction &&
+      !isDeadAction
+    ) {
+      throw new InvalidActionError("verify", action, ACTIONS);
+    }
+
+    const { db } = getDb();
+    if (isWorkerStatusAction) {
+      outputResult(getVerificationOperationsStatus(db), pretty);
+      return;
+    }
+    if (isJobsAction) {
+      outputResult(summarizeVerificationJobsForOps(db), pretty);
+      return;
+    }
+    if (isPauseAction || isResumeAction) {
+      const result = setVerificationWorkerPaused(db, {
+        paused: isPauseAction,
+        reason: optionalFlag(flags, "reason"),
+      });
+      outputResult(result, pretty);
+      return;
+    }
+    if (isRequeueAction) {
+      const result = requeueVerificationJob(db, {
+        ticketId: requireFlag(flags, "ticket"),
+        reason: optionalFlag(flags, "reason"),
+      });
+      outputResult(result, pretty);
+      return;
+    }
+    if (isDeadAction) {
+      const result = markVerificationJobDead(db, {
+        ticketId: requireFlag(flags, "ticket"),
+        reason: requireFlag(flags, "reason"),
+      });
+      outputResult(result, pretty);
+      return;
+    }
+    if (isWorkerAction) {
+      const provider = optionalFlag(flags, "provider");
+      if (boolFlag(flags, "drain")) {
+        const result = await drainVerificationQueue(db, {
+          ...(provider !== undefined ? { provider } : {}),
+          executionSurface: executionSurfaceFromEnv("boot-drain"),
+          execFileNoThrow,
+        });
+        const continuations = await drainEpicContinuations(db, {
+          launch: launchEpicContinuationHeadless,
+        });
+        outputResult({ ...result, continuations }, pretty);
+        if (result.lastError || continuations.lastError) process.exitCode = 1;
+        return;
+      }
+      const result = await runNextVerificationJob(db, {
+        ...(provider !== undefined ? { provider } : {}),
+        executionSurface: executionSurfaceFromEnv("resident-poller"),
+        execFileNoThrow,
+      });
+      const continuation = await drainEpicContinuations(db, {
+        launch: launchEpicContinuationHeadless,
+      });
+      outputResult({ ...result, continuation }, pretty);
+      if (result.error || continuation.lastError) process.exitCode = 1;
+      return;
+    }
+
+    const ticketId = requireFlag(flags, "ticket");
+    if (isStatusAction) {
+      const result = getVerificationJob(db, ticketId);
+      outputResult(result, pretty);
+      return;
+    }
+
+    if (history) {
+      const result = listVerificationRunSummaries(db, ticketId);
+      outputResult(result, pretty);
+      return;
+    }
+
+    const baseUrl = optionalFlag(flags, "base-url");
+    const provider = optionalFlag(flags, "provider");
+    const result = await verifyTicket(db, {
+      ticketId,
+      ...(provider !== undefined ? { provider } : {}),
+      ...(baseUrl !== undefined ? { baseUrl } : {}),
+      executionSurface: "cli-direct",
+      execFileNoThrow,
+    });
+    const continuation = await drainEpicContinuations(db, {
+      launch: launchEpicContinuationHeadless,
+    });
+    outputResult({ ...result, continuation }, pretty);
+    if (
+      result.status !== "passed" ||
+      continuation.lastError !== null ||
+      result.epicAutoPr?.branchResults.some((branch) => !branch.success)
+    ) {
+      process.exitCode = 1;
+    }
+  } catch (error) {
+    outputError(error);
+  }
+}

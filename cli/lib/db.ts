@@ -5,8 +5,8 @@
  * The database is initialized once on first access and reused for all commands.
  */
 
-import { initDatabase, consoleLogger } from "../../core/index.ts";
-import type { InitDatabaseResult } from "../../core/index.ts";
+import { initDatabase, consoleLogger } from "../../core/db.ts";
+import type { InitDatabaseResult } from "../../core/types.ts";
 
 let cached: InitDatabaseResult | null = null;
 

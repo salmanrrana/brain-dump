@@ -320,7 +320,7 @@ function completeTicketWork(
   if (
     ticket.status === "done" ||
     ticket.status === "ai_review" ||
-    ticket.status === "human_review"
+    ticket.status === "ai_verification"
   ) {
     return { success: true, ticket };
   }

@@ -10,6 +10,7 @@ import {
   renderDemoStepsMarkdown,
   replaceSentinelBlock,
   resolveShipScope,
+  handleEpicCompletionAutoPr,
   syncPrVerificationChecklist,
 } from "../ship.ts";
 import { seedEpic, seedProject, seedTicket } from "./test-helpers.ts";
@@ -31,7 +32,60 @@ function createExecResult(overrides: Partial<Awaited<ReturnType<typeof execFileN
   };
 }
 
+function seedVerificationRun(
+  ticketId: string,
+  overrides: {
+    status?: string;
+    certified?: number;
+    gitSha?: string | null;
+    manifest?: string;
+  } = {}
+): void {
+  db.prepare(
+    `INSERT INTO verification_runs (
+      id,
+      ticket_id,
+      round,
+      status,
+      certified,
+      manifest,
+      git_sha,
+      started_at,
+      finished_at
+    ) VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    `run-${ticketId}`,
+    ticketId,
+    overrides.status ?? "passed",
+    overrides.certified ?? 1,
+    overrides.manifest ??
+      JSON.stringify({
+        manifestHash: `manifest-${ticketId}`,
+        evidenceFiles: [{ path: `/tmp/${ticketId}.json`, hash: "hash" }],
+      }),
+    overrides.gitSha === undefined ? "abc123" : overrides.gitSha,
+    "2026-03-08T01:00:00.000Z",
+    "2026-03-08T01:01:00.000Z"
+  );
+}
+
 describe("execFileNoThrow", () => {
+  it("can bound a discovery process that ignores graceful termination", async () => {
+    const started = Date.now();
+    const result = await execFileNoThrow(
+      process.execPath,
+      [
+        "-e",
+        "process.on('SIGTERM', () => {}); process.stdout.write('ready'); setTimeout(() => process.exit(0), 2000)",
+      ],
+      { timeoutMs: 300, killSignal: "SIGKILL" }
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.stdout).toBe("ready");
+    expect(Date.now() - started).toBeLessThan(1500);
+  });
+
   it("returns a structured success result instead of throwing", async () => {
     const result = await execFileNoThrow("node", ["-e", "process.stdout.write('ok')"]);
 
@@ -211,6 +265,461 @@ describe("parsePullRequestRef", () => {
   });
 });
 
+describe("handleEpicCompletionAutoPr", () => {
+  function seedCompletedEpic(): void {
+    seedProject(db, { id: "proj-1", path: "/tmp/ship-project" });
+    seedEpic(db, { id: "epic-1", projectId: "proj-1", title: "Ship Epic" });
+    seedTicket(db, {
+      id: "ticket-1",
+      projectId: "proj-1",
+      epicId: "epic-1",
+      status: "done",
+      branchName: "feature/epic-ship",
+    });
+    seedTicket(db, {
+      id: "ticket-2",
+      projectId: "proj-1",
+      epicId: "epic-1",
+      status: "done",
+      branchName: "feature/epic-ship",
+    });
+    seedVerificationRun("ticket-1", { gitSha: "sha111" });
+    seedVerificationRun("ticket-2", { gitSha: "sha222" });
+  }
+
+  it("skips PR work until every ticket in the epic is done", async () => {
+    seedProject(db, { id: "proj-1", path: "/tmp/ship-project" });
+    seedEpic(db, { id: "epic-1", projectId: "proj-1", title: "Ship Epic" });
+    seedTicket(db, {
+      id: "ticket-1",
+      projectId: "proj-1",
+      epicId: "epic-1",
+      status: "done",
+      branchName: "feature/epic-ship",
+    });
+    seedTicket(db, {
+      id: "ticket-2",
+      projectId: "proj-1",
+      epicId: "epic-1",
+      status: "ai_verification",
+      branchName: "feature/epic-ship",
+    });
+
+    const calls: string[] = [];
+    const result = await handleEpicCompletionAutoPr(
+      { completedTicketId: "ticket-1" },
+      {
+        db,
+        execFileNoThrow: async (command, args) => {
+          calls.push([command, ...args].join(" "));
+          return createExecResult();
+        },
+      }
+    );
+
+    expect(result).toMatchObject({ completed: false, skipped: true, branchResults: [] });
+    expect(calls).toEqual([]);
+  });
+
+  it("creates one ready PR when the final epic ticket passes verification", async () => {
+    seedCompletedEpic();
+    const calls: Array<{ command: string; args: string[]; cwd?: string }> = [];
+
+    const result = await handleEpicCompletionAutoPr(
+      { completedTicketId: "ticket-2" },
+      {
+        db,
+        execFileNoThrow: async (command, args, options) => {
+          calls.push({ command, args, ...(options?.cwd ? { cwd: options.cwd } : {}) });
+          if (command === "gh" && args[0] === "pr" && args[1] === "list") {
+            return createExecResult({ stdout: "[]" });
+          }
+          if (command === "gh" && args[0] === "pr" && args[1] === "create") {
+            return createExecResult({ stdout: "https://github.com/org/repo/pull/88\n" });
+          }
+          return createExecResult();
+        },
+      }
+    );
+
+    expect(result.branchResults).toEqual([
+      expect.objectContaining({
+        branchName: "feature/epic-ship",
+        success: true,
+        action: "created",
+        prNumber: 88,
+      }),
+    ]);
+    expect(calls.map((call) => [call.command, ...call.args])).toEqual([
+      [
+        "gh",
+        "pr",
+        "list",
+        "--head",
+        "feature/epic-ship",
+        "--json",
+        "number,url,isDraft,state",
+        "--limit",
+        "1",
+      ],
+      ["git", "push", "-u", "origin", "feature/epic-ship"],
+      [
+        "gh",
+        "pr",
+        "create",
+        "--title",
+        "[Epic] Ship Epic",
+        "--body",
+        expect.stringContaining("All tickets in this epic passed AI verification"),
+        "--base",
+        "main",
+        "--head",
+        "feature/epic-ship",
+      ],
+    ]);
+    const ticketLinks = db
+      .prepare("SELECT id, pr_number, pr_status FROM tickets ORDER BY id")
+      .all() as Array<{ id: string; pr_number: number | null; pr_status: string | null }>;
+    expect(ticketLinks).toEqual([
+      { id: "ticket-1", pr_number: 88, pr_status: "open" },
+      { id: "ticket-2", pr_number: 88, pr_status: "open" },
+    ]);
+    const comment = db
+      .prepare("SELECT content, type FROM ticket_comments WHERE type = 'progress'")
+      .get() as { content: string; type: string };
+    expect(comment.type).toBe("progress");
+    expect(comment.content).toContain("Ready PR #88 was created automatically");
+  });
+
+  it("marks an existing draft epic PR ready and rewrites its body", async () => {
+    seedCompletedEpic();
+    const calls: Array<{ command: string; args: string[] }> = [];
+
+    const result = await handleEpicCompletionAutoPr(
+      { completedTicketId: "ticket-2" },
+      {
+        db,
+        execFileNoThrow: async (command, args) => {
+          calls.push({ command, args });
+          if (command === "gh" && args[0] === "pr" && args[1] === "list") {
+            return createExecResult({
+              stdout: JSON.stringify([
+                {
+                  number: 77,
+                  url: "https://github.com/org/repo/pull/77",
+                  isDraft: true,
+                  state: "OPEN",
+                },
+              ]),
+            });
+          }
+          return createExecResult();
+        },
+      }
+    );
+
+    expect(result.branchResults[0]).toMatchObject({
+      success: true,
+      action: "readied",
+      prNumber: 77,
+    });
+    expect(calls.map((call) => [call.command, ...call.args])).toEqual([
+      [
+        "gh",
+        "pr",
+        "list",
+        "--head",
+        "feature/epic-ship",
+        "--json",
+        "number,url,isDraft,state",
+        "--limit",
+        "1",
+      ],
+      ["git", "push", "-u", "origin", "feature/epic-ship"],
+      ["gh", "pr", "edit", "77", "--body", expect.stringContaining("sha111"), "--base", "main"],
+      ["gh", "pr", "ready", "77"],
+    ]);
+    const state = db
+      .prepare(
+        "SELECT pr_number, pr_url, pr_status FROM epic_workflow_state WHERE epic_id = 'epic-1'"
+      )
+      .get() as { pr_number: number; pr_url: string; pr_status: string };
+    expect(state).toEqual({
+      pr_number: 77,
+      pr_url: "https://github.com/org/repo/pull/77",
+      pr_status: "open",
+    });
+  });
+
+  it("does not open duplicate PRs when an existing open PR already matches the branch", async () => {
+    seedCompletedEpic();
+    const calls: Array<{ command: string; args: string[] }> = [];
+
+    const result = await handleEpicCompletionAutoPr(
+      { completedTicketId: "ticket-2" },
+      {
+        db,
+        execFileNoThrow: async (command, args) => {
+          calls.push({ command, args });
+          if (command === "gh" && args[0] === "pr" && args[1] === "list") {
+            return createExecResult({
+              stdout: JSON.stringify([
+                {
+                  number: 66,
+                  url: "https://github.com/org/repo/pull/66",
+                  isDraft: false,
+                  state: "OPEN",
+                },
+              ]),
+            });
+          }
+          return createExecResult();
+        },
+      }
+    );
+
+    expect(result.branchResults[0]).toMatchObject({
+      success: true,
+      action: "updated",
+      prNumber: 66,
+    });
+    expect(calls.map((call) => [call.command, ...call.args])).toContainEqual([
+      "git",
+      "push",
+      "-u",
+      "origin",
+      "feature/epic-ship",
+    ]);
+    expect(calls.some((call) => call.args[0] === "pr" && call.args[1] === "create")).toBe(false);
+  });
+
+  it("does not create or ready an epic PR until every ticket has certified evidence", async () => {
+    seedCompletedEpic();
+    db.prepare("DELETE FROM verification_runs WHERE ticket_id = 'ticket-2'").run();
+    const calls: string[] = [];
+
+    const result = await handleEpicCompletionAutoPr(
+      { completedTicketId: "ticket-2" },
+      {
+        db,
+        execFileNoThrow: async (command, args) => {
+          calls.push([command, ...args].join(" "));
+          return createExecResult();
+        },
+      }
+    );
+
+    expect(result.branchResults[0]).toMatchObject({
+      success: false,
+      action: "failed",
+      branchName: "verification-evidence",
+    });
+    expect(result.message).toContain("certified passing verification evidence");
+    expect(calls).toEqual([]);
+    const comment = db.prepare("SELECT content FROM ticket_comments").get() as { content: string };
+    expect(comment.content).toContain("Epic Auto-PR Needs Attention");
+    expect(comment.content).toContain("ticket-2");
+  });
+
+  it("rejects malformed verification manifests before claiming sealed evidence", async () => {
+    seedCompletedEpic();
+    db.prepare(
+      "UPDATE verification_runs SET manifest = '{bad json' WHERE ticket_id = 'ticket-1'"
+    ).run();
+
+    const result = await handleEpicCompletionAutoPr(
+      { completedTicketId: "ticket-2" },
+      {
+        db,
+        execFileNoThrow: async () => createExecResult(),
+      }
+    );
+
+    expect(result.branchResults[0]).toMatchObject({ success: false, action: "failed" });
+    expect(result.message).toContain("unparseable verification manifest");
+  });
+
+  it("respects the epic auto-PR setting", async () => {
+    seedCompletedEpic();
+    db.prepare("UPDATE settings SET epic_auto_pr = 0 WHERE id = 'default'").run();
+    const calls: string[] = [];
+
+    const result = await handleEpicCompletionAutoPr(
+      { completedTicketId: "ticket-2" },
+      {
+        db,
+        execFileNoThrow: async (command, args) => {
+          calls.push([command, ...args].join(" "));
+          return createExecResult();
+        },
+      }
+    );
+
+    expect(result).toMatchObject({ completed: true, skipped: true });
+    expect(result.message).toContain("disabled");
+    expect(calls).toEqual([]);
+  });
+
+  it("skips tickets that are not part of an epic without running any commands", async () => {
+    seedProject(db, { id: "proj-1", path: "/tmp/ship-project" });
+    seedTicket(db, { id: "ticket-solo", projectId: "proj-1", status: "done" });
+    const calls: string[] = [];
+
+    const result = await handleEpicCompletionAutoPr(
+      { completedTicketId: "ticket-solo" },
+      {
+        db,
+        execFileNoThrow: async (command, args) => {
+          calls.push([command, ...args].join(" "));
+          return createExecResult();
+        },
+      }
+    );
+
+    expect(result).toMatchObject({
+      epicId: null,
+      completed: false,
+      skipped: true,
+      branchResults: [],
+    });
+    expect(calls).toEqual([]);
+    expect(db.prepare("SELECT COUNT(*) AS count FROM ticket_comments").get()).toEqual({
+      count: 0,
+    });
+  });
+
+  it("creates one PR per branch for multi-branch epics and links each ticket to its own PR", async () => {
+    seedProject(db, { id: "proj-1", path: "/tmp/ship-project" });
+    seedEpic(db, { id: "epic-1", projectId: "proj-1", title: "Ship Epic" });
+    seedTicket(db, {
+      id: "ticket-1",
+      projectId: "proj-1",
+      epicId: "epic-1",
+      status: "done",
+      branchName: "feature/branch-a",
+    });
+    seedTicket(db, {
+      id: "ticket-2",
+      projectId: "proj-1",
+      epicId: "epic-1",
+      status: "done",
+      branchName: "feature/branch-b",
+    });
+    seedVerificationRun("ticket-1", { gitSha: "sha111" });
+    seedVerificationRun("ticket-2", { gitSha: "sha222" });
+
+    let nextPrNumber = 90;
+    const createdHeads: string[] = [];
+    const result = await handleEpicCompletionAutoPr(
+      { completedTicketId: "ticket-2" },
+      {
+        db,
+        execFileNoThrow: async (command, args) => {
+          if (command === "gh" && args[0] === "pr" && args[1] === "list") {
+            return createExecResult({ stdout: "[]" });
+          }
+          if (command === "gh" && args[0] === "pr" && args[1] === "create") {
+            const head = args[args.indexOf("--head") + 1];
+            if (!head) throw new Error("Expected gh pr create to include --head.");
+            createdHeads.push(head);
+            return createExecResult({
+              stdout: `https://github.com/org/repo/pull/${nextPrNumber++}\n`,
+            });
+          }
+          return createExecResult();
+        },
+      }
+    );
+
+    expect(result.completed).toBe(true);
+    expect(result.branchResults).toEqual([
+      expect.objectContaining({
+        branchName: "feature/branch-a",
+        success: true,
+        action: "created",
+        prNumber: 90,
+        ticketIds: ["ticket-1"],
+      }),
+      expect.objectContaining({
+        branchName: "feature/branch-b",
+        success: true,
+        action: "created",
+        prNumber: 91,
+        ticketIds: ["ticket-2"],
+      }),
+    ]);
+    expect(createdHeads).toEqual(["feature/branch-a", "feature/branch-b"]);
+    const ticketLinks = db.prepare("SELECT id, pr_number FROM tickets ORDER BY id").all() as Array<{
+      id: string;
+      pr_number: number | null;
+    }>;
+    expect(ticketLinks).toEqual([
+      { id: "ticket-1", pr_number: 90 },
+      { id: "ticket-2", pr_number: 91 },
+    ]);
+    // Multi-branch epics have no single epic-level PR, so epic_workflow_state stays untouched.
+    expect(
+      db.prepare("SELECT COUNT(*) AS count FROM epic_workflow_state WHERE epic_id = 'epic-1'").get()
+    ).toEqual({ count: 0 });
+  });
+
+  it("refuses to guess a source branch when tickets lack branch metadata", async () => {
+    seedProject(db, { id: "proj-1", path: "/tmp/ship-project" });
+    seedEpic(db, { id: "epic-1", projectId: "proj-1", title: "Ship Epic" });
+    seedTicket(db, {
+      id: "ticket-1",
+      projectId: "proj-1",
+      epicId: "epic-1",
+      status: "done",
+    });
+    seedVerificationRun("ticket-1");
+    const calls: string[] = [];
+
+    const result = await handleEpicCompletionAutoPr(
+      { completedTicketId: "ticket-1" },
+      {
+        db,
+        execFileNoThrow: async (command, args) => {
+          calls.push([command, ...args].join(" "));
+          return createExecResult();
+        },
+      }
+    );
+
+    expect(result.branchResults).toEqual([
+      expect.objectContaining({
+        branchName: "unknown",
+        success: false,
+        action: "failed",
+        ticketIds: ["ticket-1"],
+      }),
+    ]);
+    expect(result.message).toContain("no branch metadata");
+    expect(calls).toEqual([]);
+    const comment = db.prepare("SELECT content FROM ticket_comments").get() as { content: string };
+    expect(comment.content).toContain("Epic Auto-PR Needs Attention");
+    expect(comment.content).toContain("will not guess a PR source branch");
+  });
+
+  it("posts a visible comment when GitHub CLI operations fail", async () => {
+    seedCompletedEpic();
+
+    const result = await handleEpicCompletionAutoPr(
+      { completedTicketId: "ticket-2" },
+      {
+        db,
+        execFileNoThrow: async () =>
+          createExecResult({ success: false, stderr: "gh auth required" }),
+      }
+    );
+
+    expect(result.branchResults[0]).toMatchObject({ success: false, action: "failed" });
+    const comment = db.prepare("SELECT content FROM ticket_comments").get() as { content: string };
+    expect(comment.content).toContain("Epic Auto-PR Needs Attention");
+    expect(comment.content).toContain("gh auth required");
+  });
+});
+
 describe("replaceSentinelBlock", () => {
   it("replaces the sentinel block up to the next section header", () => {
     const body = [
@@ -274,8 +783,10 @@ describe("renderDemoStepsMarkdown", () => {
       [
         "1. Open the Ship Changes modal",
         "   Expected: Preflight data loads immediately.",
+        "   Automation: legacy/manual",
         "2. Verify the PR link appears",
         "   Expected: The linked PR URL is visible.",
+        "   Automation: legacy/manual",
       ].join("\n")
     );
   });
@@ -340,7 +851,7 @@ describe("syncPrVerificationChecklist", () => {
         {
           order: 1,
           description: "Generate the demo script",
-          expectedOutcome: "The ticket moves to human review.",
+          expectedOutcome: "The ticket moves to AI verification.",
           type: "manual",
         },
       ]),
@@ -391,7 +902,7 @@ describe("syncPrVerificationChecklist", () => {
     expect(calls[1]?.args[2]).toBe("42");
     expect(calls[1]?.args[3]).toBe("--body");
     expect(calls[1]?.args[4]).toContain("1. Generate the demo script");
-    expect(calls[1]?.args[4]).toContain("Expected: The ticket moves to human review.");
+    expect(calls[1]?.args[4]).toContain("Expected: The ticket moves to AI verification.");
     expect(calls[1]?.args[4]).toContain("2. Confirm the PR badge updates");
     expect(calls[1]?.args[4]).toContain("## Notes");
   });
@@ -414,7 +925,7 @@ describe("syncPrVerificationChecklist", () => {
       {
         order: 1,
         description: "Generate the demo script",
-        expectedOutcome: "The ticket moves to human review.",
+        expectedOutcome: "The ticket moves to AI verification.",
         type: "manual" as const,
       },
     ];

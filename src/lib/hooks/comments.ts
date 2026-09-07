@@ -4,12 +4,10 @@
  */
 
 import { useMemo } from "react";
-import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  getComments,
   getPaginatedComments,
   createComment,
-  deleteComment,
   type Comment,
   type CreateCommentInput,
   type PaginatedCommentsResult,
@@ -18,34 +16,6 @@ import { queryKeys } from "../query-keys";
 
 // Re-export types for components
 export type { Comment, CreateCommentInput, PaginatedCommentsResult };
-
-// =============================================================================
-// COMMENTS HOOKS
-// =============================================================================
-
-// Hook for fetching comments for a ticket with optional polling
-export function useComments(ticketId: string, options: { pollingInterval?: number } = {}) {
-  const { pollingInterval = 0 } = options;
-
-  const query = useQuery({
-    queryKey: queryKeys.comments(ticketId),
-    queryFn: async () => {
-      return getComments({ data: ticketId });
-    },
-    enabled: Boolean(ticketId),
-    refetchInterval: pollingInterval > 0 ? pollingInterval : false,
-    // Non-polling: snapshot tier (30s) so revisits serve cache. Polling: match interval.
-    // Window-focus refetch stays off (global default); new comments surface via invalidation.
-    staleTime: pollingInterval > 0 ? pollingInterval : 30 * 1000,
-  });
-
-  return {
-    comments: query.data ?? [],
-    loading: query.isLoading,
-    error: query.error?.message ?? null,
-    refetch: query.refetch,
-  };
-}
 
 // =============================================================================
 // PAGINATED COMMENTS HOOK
@@ -112,19 +82,6 @@ export function useCreateComment() {
       queryClient.invalidateQueries({
         queryKey: queryKeys.paginatedComments(variables.ticketId),
       });
-    },
-  });
-}
-
-// Hook for deleting a comment
-export function useDeleteComment(ticketId: string) {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (commentId: string) => deleteComment({ data: commentId }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.comments(ticketId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.paginatedComments(ticketId) });
     },
   });
 }

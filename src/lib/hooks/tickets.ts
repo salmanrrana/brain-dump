@@ -3,11 +3,10 @@
  * Includes queries and mutations for ticket CRUD operations with optimistic updates.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getTicketSummaries,
-  getPaginatedTicketSummaries,
   createTicket,
   updateTicket,
   updateTicketStatus,
@@ -514,61 +513,9 @@ export function useTicketSummaries(
 
   return {
     tickets: query.data ?? [],
+    hasData: query.data !== undefined,
     loading: query.isLoading,
     error: query.error?.message ?? null,
-    refetch: query.refetch,
-  };
-}
-
-// =============================================================================
-// PAGINATED TICKET SUMMARIES (offset-based)
-// =============================================================================
-
-/**
- * Hook for paginated ticket summaries using infinite query.
- * Use for list views where tickets can grow unbounded.
- * Board views should continue using `useTicketSummaries` which loads all tickets.
- */
-export function usePaginatedTicketSummaries(
-  filters: TicketFilters = {},
-  options: {
-    pageSize?: number;
-    enabled?: boolean;
-  } = {}
-) {
-  const { pageSize = 50, enabled = true } = options;
-
-  const query = useInfiniteQuery({
-    queryKey: [...queryKeys.ticketSummaries(filters), "paginated"] as const,
-    queryFn: async ({ pageParam = 0 }) => {
-      return getPaginatedTicketSummaries({
-        data: { ...filters, limit: pageSize, offset: pageParam },
-      });
-    },
-    initialPageParam: 0,
-    getNextPageParam: (lastPage, _allPages, lastPageParam) => {
-      if (!lastPage.hasMore) return undefined;
-      return lastPageParam + pageSize;
-    },
-    enabled,
-    staleTime: 30_000,
-  });
-
-  const tickets = useMemo(
-    () => query.data?.pages.flatMap((page) => page.tickets) ?? [],
-    [query.data]
-  );
-
-  const total = query.data?.pages[0]?.total ?? 0;
-
-  return {
-    tickets,
-    total,
-    loading: query.isLoading,
-    error: query.error?.message ?? null,
-    hasMore: query.hasNextPage ?? false,
-    fetchMore: query.fetchNextPage,
-    isFetchingMore: query.isFetchingNextPage,
     refetch: query.refetch,
   };
 }

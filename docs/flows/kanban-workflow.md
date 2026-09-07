@@ -8,17 +8,17 @@ Your kanban board is the single source of truth. Every ticket, every status chan
 
 ## TL;DR — Quick Reference
 
-| Action         | How                                        |
-| -------------- | ------------------------------------------ |
-| Create project | Settings → "Add Project" → Select folder   |
-| Create ticket  | Click "+" in any column                    |
-| Start work     | Click "Start with Claude" on ticket        |
-| Move ticket    | Drag to new column                         |
-| Complete work  | `workflow "complete-work"` or drag to Done |
+| Action         | How                                                    |
+| -------------- | ------------------------------------------------------ |
+| Create project | Settings → "Add Project" → Select folder               |
+| Create ticket  | Click "+" in any column                                |
+| Start work     | Click "Start with Claude" on ticket                    |
+| Move ticket    | Drag to new column                                     |
+| Complete work  | `workflow "complete-work"` then AI review/verification |
 
-**Status flow:** `backlog` → `ready` → `in_progress` → `review` → `done`
+**Status flow:** `backlog` -> `ready` -> `in_progress` -> `ai_review` -> `ai_verification` -> `done`
 
-**AI flow:** `in_progress` → `ai_review` → `human_review` → `done`
+**AI flow:** `in_progress` → `ai_review` → `ai_verification` → `done`
 
 ---
 
@@ -56,9 +56,9 @@ Here's what happens when you work a ticket from start to finish:
 │     └─ Work summary comment added                                           │
 │     └─ PRD updated: passes = true                                           │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│  6. REVIEW & DONE                                                           │
-│     └─ Human reviews PR                                                     │
-│     └─ Drag to "Done" column                                                │
+│  6. REVIEW & VERIFY                                                         │
+│     └─ AI review findings are fixed                                         │
+│     └─ Verification runner certifies evidence                               │
 │     └─ Status: done, completedAt: timestamp                                 │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -182,72 +182,56 @@ flowchart LR
 
 ## Ticket Status Flow
 
-Tickets flow through seven possible statuses:
+<!-- BEGIN GENERATED: workflow-sequence -->
 
-```mermaid
-stateDiagram-v2
-    [*] --> backlog: Created
-    backlog --> ready: Groomed
-    ready --> in_progress: Work started
-    in_progress --> review: Code complete
-    in_progress --> ai_review: Ralph working
-    ai_review --> human_review: AI done
-    human_review --> done: Approved
-    review --> done: Approved
-    done --> [*]
+The enforced ticket status specification lives in `core/workflow-steps.ts`. Run `pnpm workflow:prompts` after changing workflow statuses or transitions.
 
-    note right of ai_review: 🤖 Ralph autonomous flow
-    note right of review: 👤 Manual review flow
-```
+Status flow: `backlog -> ready -> in_progress -> ai_review -> ai_verification -> done`
 
-**Status Descriptions:**
+| Status            | Label           | Active | Kanban column |
+| ----------------- | --------------- | ------ | ------------- |
+| `backlog`         | Backlog         | no     | yes           |
+| `ready`           | Ready           | no     | yes           |
+| `in_progress`     | In Progress     | yes    | yes           |
+| `ai_review`       | AI Review       | yes    | yes           |
+| `ai_verification` | AI Verification | yes    | yes           |
+| `done`            | Done            | no     | yes           |
 
-| Status         | Meaning              | Who's Working  | Column Color |
-| -------------- | -------------------- | -------------- | ------------ |
-| `backlog`      | Not yet ready        | Nobody         | Slate        |
-| `ready`        | Groomed and ready    | Nobody         | Slate        |
-| `in_progress`  | Active development   | Human or AI    | Slate        |
-| `review`       | Manual code review   | Human reviewer | Slate        |
-| `ai_review`    | Ralph completed work | Awaiting human | **Amber**    |
-| `human_review` | Human verifying AI   | Human reviewer | **Rose**     |
-| `done`         | Complete             | Nobody         | Slate        |
-
----
-
-## Kanban Board
-
-### 7 Columns
+### Generated Kanban Columns
 
 ```mermaid
 flowchart LR
     subgraph Board["Kanban Board"]
         subgraph Col1["Backlog"]
-            T1["Ticket 1"]
-            T2["Ticket 2"]
+            T1["Ticket"]
         end
         subgraph Col2["Ready"]
-            T3["Ticket 3"]
+            T2["Ticket"]
         end
         subgraph Col3["In Progress"]
-            T4["Ticket 4"]
+            T3["Ticket"]
         end
-        subgraph Col4["Review"]
-            T5["Ticket 5"]
+        subgraph Col4["AI Review"]
+            T4["Ticket"]
         end
-        subgraph Col5["AI Review 🤖"]
-            T6["Ticket 6"]
+        subgraph Col5["AI Verification"]
+            T5["Ticket"]
         end
-        subgraph Col6["Human Review 👤"]
-            T7["Ticket 7"]
-        end
-        subgraph Col7["Done ✅"]
-            T8["Ticket 8"]
+        subgraph Col6["Done"]
+            T6["Ticket"]
         end
     end
-
-    style Col5 fill:#fbbf24,color:#000
-    style Col6 fill:#fb7185,color:#000
 ```
+
+<!-- END GENERATED: workflow-sequence -->
+
+---
+
+## Kanban Board
+
+### Columns
+
+The canonical column list is generated in the ticket status flow section above.
 
 ### Drag and Drop
 

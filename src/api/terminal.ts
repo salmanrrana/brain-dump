@@ -1,7 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
-import { detectTerminal, isTerminalAvailable, buildTerminalCommand } from "./terminal-utils";
 import { buildCodexAppLaunchPlan } from "./codex-launch";
 import { sqlite } from "../lib/db";
+import type {
+  LaunchProviderRuntimeAvailability,
+  UiLaunchProviderId,
+} from "../lib/launch-provider-contract";
 import type { ConcreteLaunchModelSelection } from "../lib/launch-model-catalog";
 
 interface InteractiveTerminalLaunchInput {
@@ -13,10 +16,6 @@ interface InteractiveTerminalLaunchInput {
   epicName: string | null;
   ticketTitle: string;
   modelSelection?: ConcreteLaunchModelSelection;
-}
-
-interface CodexTerminalLaunchInput extends InteractiveTerminalLaunchInput {
-  launchMode?: "auto" | "cli" | "app";
 }
 
 async function startWorkflowForLaunch(ticketId: string) {
@@ -42,14 +41,43 @@ interface InstallCheck {
   error?: string;
 }
 
-// Check if OpenCode CLI is installed
-async function isOpenCodeInstalled(): Promise<InstallCheck> {
-  const { exec } = await import("child_process");
+// Discovery uses bounded argv calls so a looping CLI shim cannot hang the menu.
+async function isClaudeInstalled(): Promise<InstallCheck> {
+  const { execFile } = await import("child_process");
   const { promisify } = await import("util");
-  const execAsync = promisify(exec);
+  const execAsync = promisify(execFile);
 
   try {
-    await execAsync("opencode --version");
+    await execAsync("claude", ["--version"], { timeout: 5000, killSignal: "SIGKILL" });
+    return { installed: true, mode: "cli" };
+  } catch (error) {
+    const err = error as Error & { code?: string };
+    if (
+      err.code === "ENOENT" ||
+      err.message?.includes("not found") ||
+      err.message?.includes("command not found")
+    ) {
+      return {
+        installed: false,
+        error: "Claude Code CLI is not installed. Install Claude Code and try again.",
+      };
+    }
+
+    return {
+      installed: false,
+      error: `Claude Code check failed: ${err.message}`,
+    };
+  }
+}
+
+// Check if OpenCode CLI is installed
+async function isOpenCodeInstalled(): Promise<InstallCheck> {
+  const { execFile } = await import("child_process");
+  const { promisify } = await import("util");
+  const execAsync = promisify(execFile);
+
+  try {
+    await execAsync("opencode", ["--version"], { timeout: 5000, killSignal: "SIGKILL" });
     return { installed: true, mode: "cli" };
   } catch (error) {
     // Check if it's a "command not found" error
@@ -74,12 +102,12 @@ async function isOpenCodeInstalled(): Promise<InstallCheck> {
 
 // Check if Codex CLI is installed
 async function isCodexCliInstalled(): Promise<InstallCheck> {
-  const { exec } = await import("child_process");
+  const { execFile } = await import("child_process");
   const { promisify } = await import("util");
-  const execAsync = promisify(exec);
+  const execAsync = promisify(execFile);
 
   try {
-    await execAsync("codex --version");
+    await execAsync("codex", ["--version"], { timeout: 5000, killSignal: "SIGKILL" });
     return { installed: true, mode: "cli" };
   } catch (error) {
     const err = error as Error & { code?: string };
@@ -110,9 +138,9 @@ async function isCodexAppInstalled(): Promise<InstallCheck> {
     };
   }
 
-  const { exec } = await import("child_process");
+  const { execFile } = await import("child_process");
   const { promisify } = await import("util");
-  const execAsync = promisify(exec);
+  const execAsync = promisify(execFile);
   const { existsSync } = await import("fs");
   const { join } = await import("path");
   const { homedir } = await import("os");
@@ -130,12 +158,12 @@ async function isCodexAppInstalled(): Promise<InstallCheck> {
   }
 
   try {
-    await execAsync("open -Ra Codex");
+    await execAsync("open", ["-Ra", "Codex"], { timeout: 5000, killSignal: "SIGKILL" });
     return { installed: true, mode: "app" };
   } catch {
     // Try alternate name and continue to error handling below on failure.
     try {
-      await execAsync('open -Ra "Codex.app"');
+      await execAsync("open", ["-Ra", "Codex.app"], { timeout: 5000, killSignal: "SIGKILL" });
       return { installed: true, mode: "app" };
     } catch {
       return {
@@ -181,12 +209,12 @@ function codexLaunchErrorForMode(mode: "auto" | "cli" | "app", check: InstallChe
 
 // Check if Copilot CLI is installed
 async function isCopilotInstalled(): Promise<InstallCheck> {
-  const { exec } = await import("child_process");
+  const { execFile } = await import("child_process");
   const { promisify } = await import("util");
-  const execAsync = promisify(exec);
+  const execAsync = promisify(execFile);
 
   try {
-    await execAsync("copilot --version");
+    await execAsync("copilot", ["--version"], { timeout: 5000, killSignal: "SIGKILL" });
     return { installed: true, mode: "cli" };
   } catch (error) {
     const err = error as Error & { code?: string };
@@ -208,12 +236,12 @@ async function isCopilotInstalled(): Promise<InstallCheck> {
 }
 
 async function isPiInstalled(): Promise<InstallCheck> {
-  const { exec } = await import("child_process");
+  const { execFile } = await import("child_process");
   const { promisify } = await import("util");
-  const execAsync = promisify(exec);
+  const execAsync = promisify(execFile);
 
   try {
-    await execAsync("pi --version");
+    await execAsync("pi", ["--version"], { timeout: 5000, killSignal: "SIGKILL" });
     return { installed: true, mode: "cli" };
   } catch (error) {
     const err = error as Error & { code?: string };
@@ -236,12 +264,12 @@ async function isPiInstalled(): Promise<InstallCheck> {
 
 // Check if Cursor is installed (CLI or app)
 async function isCursorInstalled(): Promise<InstallCheck> {
-  const { exec } = await import("child_process");
+  const { execFile } = await import("child_process");
   const { promisify } = await import("util");
-  const execAsync = promisify(exec);
+  const execAsync = promisify(execFile);
 
   try {
-    await execAsync("cursor --version");
+    await execAsync("cursor", ["--version"], { timeout: 5000, killSignal: "SIGKILL" });
     return { installed: true, mode: "cli" };
   } catch (error) {
     const err = error as Error & { code?: string };
@@ -257,7 +285,7 @@ async function isCursorInstalled(): Promise<InstallCheck> {
       }
 
       try {
-        await execAsync("open -Ra Cursor");
+        await execAsync("open", ["-Ra", "Cursor"], { timeout: 5000, killSignal: "SIGKILL" });
         return { installed: true, mode: "app" };
       } catch {
         // Continue to error handling below.
@@ -299,12 +327,12 @@ export async function isCursorAgentInstalled(): Promise<InstallCheck> {
 
 // Check if VS Code is installed (CLI or app)
 async function isVSCodeInstalled(): Promise<InstallCheck> {
-  const { exec } = await import("child_process");
+  const { execFile } = await import("child_process");
   const { promisify } = await import("util");
-  const execAsync = promisify(exec);
+  const execAsync = promisify(execFile);
 
   try {
-    await execAsync("code --version");
+    await execAsync("code", ["--version"], { timeout: 5000, killSignal: "SIGKILL" });
     return { installed: true, mode: "cli" };
   } catch (error) {
     const err = error as Error & { code?: string };
@@ -339,12 +367,15 @@ async function isVSCodeInstalled(): Promise<InstallCheck> {
       }
 
       try {
-        await execAsync('open -Ra "Visual Studio Code"');
+        await execAsync("open", ["-Ra", "Visual Studio Code"], {
+          timeout: 5000,
+          killSignal: "SIGKILL",
+        });
         return { installed: true, mode: "app" };
       } catch {
         // Try alternate app name and continue to error handling below on failure.
         try {
-          await execAsync("open -Ra Code");
+          await execAsync("open", ["-Ra", "Code"], { timeout: 5000, killSignal: "SIGKILL" });
           return { installed: true, mode: "app" };
         } catch {
           // Continue to error handling below.
@@ -378,8 +409,50 @@ interface LaunchResult {
   warnings?: string[];
 }
 
+const LAUNCH_PROVIDER_INSTALL_CHECKS: Record<UiLaunchProviderId, () => Promise<InstallCheck>> = {
+  claude: isClaudeInstalled,
+  codex: isCodexInstalled,
+  "codex-cli": isCodexCliInstalled,
+  "codex-app": isCodexAppInstalled,
+  vscode: isVSCodeInstalled,
+  cursor: isCursorInstalled,
+  "cursor-agent": isCursorAgentInstalled,
+  copilot: isCopilotInstalled,
+  opencode: isOpenCodeInstalled,
+  pi: isPiInstalled,
+  "ralph-native": isClaudeInstalled,
+  "ralph-codex": isCodexCliInstalled,
+  "ralph-cursor-agent": isCursorAgentInstalled,
+  "ralph-copilot": isCopilotInstalled,
+  "ralph-opencode": isOpenCodeInstalled,
+  "ralph-pi": isPiInstalled,
+};
+
+async function getProviderAvailability(
+  providerId: UiLaunchProviderId
+): Promise<LaunchProviderRuntimeAvailability> {
+  const check = LAUNCH_PROVIDER_INSTALL_CHECKS[providerId];
+  const result = await check();
+
+  return {
+    providerId,
+    installed: result.installed,
+    ...(result.mode ? { mode: result.mode } : {}),
+    ...(result.binaryPath ? { detail: result.binaryPath } : {}),
+    ...(result.error ? { error: result.error } : {}),
+  };
+}
+
+export const getLaunchProviderAvailability = createServerFn({ method: "GET" }).handler(
+  async (): Promise<LaunchProviderRuntimeAvailability[]> =>
+    Promise.all(
+      (Object.keys(LAUNCH_PROVIDER_INSTALL_CHECKS) as UiLaunchProviderId[]).map((providerId) =>
+        getProviderAvailability(providerId)
+      )
+    )
+);
+
 // Legacy alias for backwards compatibility
-type LaunchClaudeResult = LaunchResult;
 
 // Clean up old launch scripts (older than 5 minutes)
 // Exported so it can be called on app startup
@@ -588,125 +661,256 @@ function buildWindowTitle(
 }
 
 // Launch Claude in terminal with ticket context
-export const launchClaudeInTerminal = createServerFn({ method: "POST" })
-  .inputValidator((data: InteractiveTerminalLaunchInput) => data)
-  .handler(async ({ data }): Promise<LaunchClaudeResult> => {
-    const {
-      ticketId,
-      context,
-      projectPath,
-      preferredTerminal,
-      projectName,
-      epicName,
-      ticketTitle,
-      modelSelection,
-    } = data;
-    const { exec } = await import("child_process");
-    const { existsSync } = await import("fs");
+interface TerminalProviderConfig {
+  label: string;
+  notInstalledMessage: string;
+  openedMessage: (terminal: string) => string;
+  checkInstalled?: () => Promise<InstallCheck>;
+  createScript: (ctx: {
+    projectPath: string;
+    context: string;
+    installCheck: InstallCheck;
+    modelSelection?: ConcreteLaunchModelSelection | undefined;
+  }) => Promise<string>;
+  /** Cursor Agent wraps script creation with a dedicated permission-hint fallback. */
+  scriptFailureResult?: (error: string) => LaunchResult;
+}
 
-    // Verify project path exists
-    if (!existsSync(projectPath)) {
-      return {
-        success: false,
-        method: "clipboard",
-        message: `Project directory not found: ${projectPath}. Context copied to clipboard instead.`,
-      };
+const TERMINAL_PROVIDERS: Record<
+  "claude" | "opencode" | "pi" | "cursor-agent" | "copilot",
+  TerminalProviderConfig
+> = {
+  claude: {
+    label: "Claude",
+    notInstalledMessage: "Claude is not installed.",
+    // Claude's original handler launched without an install check.
+    openedMessage: (terminal) => `Launched Claude in ${terminal}`,
+    createScript: ({ projectPath, context, modelSelection }) =>
+      createLaunchScript(projectPath, context, modelSelection),
+  },
+  opencode: {
+    label: "OpenCode",
+    notInstalledMessage: "OpenCode is not installed. Context copied to clipboard instead.",
+    openedMessage: (t) =>
+      `Opening OpenCode in ${t}... If no window appears, check that ${t} is running.`,
+    checkInstalled: isOpenCodeInstalled,
+    createScript: ({ projectPath, context, modelSelection }) =>
+      createOpenCodeLaunchScript(projectPath, context, modelSelection),
+  },
+  pi: {
+    label: "Pi",
+    notInstalledMessage: "Pi CLI is not installed. Context copied to clipboard instead.",
+    openedMessage: (t) => `Opening Pi in ${t}... If no window appears, check that ${t} is running.`,
+    checkInstalled: isPiInstalled,
+    createScript: ({ projectPath, context, modelSelection }) =>
+      createPiLaunchScript(projectPath, context, modelSelection),
+  },
+  "cursor-agent": {
+    label: "Cursor Agent CLI",
+    notInstalledMessage: "Cursor Agent CLI is not installed. Context copied to clipboard instead.",
+    checkInstalled: isCursorAgentInstalled,
+    createScript: ({ projectPath, context, installCheck, modelSelection }) =>
+      createCursorAgentLaunchScript(
+        projectPath,
+        context,
+        installCheck.binaryPath || "agent",
+        modelSelection
+      ),
+    openedMessage: (t) =>
+      `Opening Cursor Agent in ${t}... If no window appears, check that ${t} is running.`,
+    scriptFailureResult: (error) => ({
+      success: false,
+      method: "clipboard",
+      message: `Failed to create launch script: ${error}. Check permissions on ~/.brain-dump/scripts/.`,
+    }),
+  },
+  copilot: {
+    label: "Copilot CLI",
+    notInstalledMessage: "Copilot CLI is not installed. Context copied to clipboard instead.",
+    openedMessage: (t) =>
+      `Opening Copilot CLI in ${t}... If no window appears, check that ${t} is running.`,
+    checkInstalled: isCopilotInstalled,
+    createScript: ({ projectPath, context }) => createCopilotLaunchScript(projectPath, context),
+  },
+};
+
+function projectMissingResult(projectPath: string): LaunchResult {
+  return {
+    success: false,
+    method: "clipboard",
+    message: `Project directory not found: ${projectPath}. Context copied to clipboard instead.`,
+  };
+}
+
+async function resolveLaunchTerminal(
+  preferredTerminal: string | null | undefined,
+  warnings: string[]
+): Promise<string | null> {
+  // Exported launch helpers also survive Start's browser transform. Load
+  // terminal utilities only on invocation so their server logger stays server-side.
+  const { detectTerminal, isTerminalAvailable } = await import("./terminal-utils");
+  if (preferredTerminal) {
+    const result = await isTerminalAvailable(preferredTerminal);
+    if (result.available) {
+      return preferredTerminal;
     }
+    const reason = result.error || "not installed";
+    warnings.push(
+      `Your preferred terminal "${preferredTerminal}" is not available (${reason}). Using auto-detected terminal instead.`
+    );
+  }
+  return detectTerminal();
+}
 
-    // Determine which terminal to use
-    let terminal: string | null = null;
-    const warnings: string[] = [];
+async function collectWorkflowStart(ticketId: string, warnings: string[]): Promise<void> {
+  try {
+    const workflowResult = await startWorkflowForLaunch(ticketId);
+    warnings.push(...workflowResult.warnings);
+  } catch (err) {
+    warnings.push(await formatCoreError(err));
+  }
+}
 
-    // If preferred terminal is set and available, use it
-    if (preferredTerminal) {
-      const result = await isTerminalAvailable(preferredTerminal);
-      if (result.available) {
-        terminal = preferredTerminal;
-      } else {
-        // Preferred terminal not available - add warning
-        const reason = result.error || "not installed";
-        warnings.push(
-          `Your preferred terminal "${preferredTerminal}" is not available (${reason}). Using auto-detected terminal instead.`
-        );
+async function saveCurrentTicketState(
+  projectPath: string,
+  ticketId: string,
+  warnings: string[]
+): Promise<void> {
+  try {
+    const { writeFileSync, mkdirSync } = await import("fs");
+    const { join } = await import("path");
+    const { homedir } = await import("os");
+
+    const stateDir = join(homedir(), ".brain-dump");
+    mkdirSync(stateDir, { recursive: true });
+
+    writeFileSync(
+      join(stateDir, "current-ticket.json"),
+      JSON.stringify({ ticketId, projectPath, startedAt: new Date().toISOString() })
+    );
+  } catch (error) {
+    console.error("Failed to save current ticket state:", error);
+    warnings.push(
+      "Could not save ticket state. The 'brain-dump' CLI commands may not work for this session."
+    );
+  }
+}
+
+async function finishTerminalLaunch(
+  config: TerminalProviderConfig,
+  ctx: {
+    terminal: string;
+    projectPath: string;
+    scriptPath: string;
+    projectName: string;
+    epicName: string | null;
+    ticketTitle: string;
+    warnings: string[];
+  }
+): Promise<LaunchResult> {
+  const { exec } = await import("child_process");
+  const { buildTerminalCommand } = await import("./terminal-utils");
+  const windowTitle = buildWindowTitle(ctx.projectName, ctx.epicName, ctx.ticketTitle);
+  const terminalCommand = buildTerminalCommand(
+    ctx.terminal,
+    ctx.projectPath,
+    ctx.scriptPath,
+    windowTitle
+  );
+
+  try {
+    exec(terminalCommand, (error) => {
+      if (error) {
+        console.error("Terminal launch error:", error);
       }
-    }
+    });
+    return {
+      success: true,
+      method: "terminal",
+      message: config.openedMessage(ctx.terminal),
+      terminalUsed: ctx.terminal,
+      ...(ctx.warnings.length > 0 && { warnings: ctx.warnings }),
+    };
+  } catch (error) {
+    return {
+      success: false,
+      method: "clipboard",
+      message: `Failed to launch terminal: ${error instanceof Error ? error.message : "Unknown error"}. Context copied to clipboard instead.`,
+      ...(ctx.warnings.length > 0 && { warnings: ctx.warnings }),
+    };
+  }
+}
 
-    // Fallback to auto-detect if no preferred terminal or preferred is unavailable
-    if (!terminal) {
-      terminal = await detectTerminal();
-    }
+async function runTerminalProviderLaunch(
+  config: TerminalProviderConfig,
+  data: InteractiveTerminalLaunchInput
+): Promise<LaunchResult> {
+  const {
+    ticketId,
+    context,
+    projectPath,
+    preferredTerminal,
+    projectName,
+    epicName,
+    ticketTitle,
+    modelSelection,
+  } = data;
+  const { existsSync } = await import("fs");
 
-    if (!terminal) {
+  if (!existsSync(projectPath)) {
+    return projectMissingResult(projectPath);
+  }
+
+  let installCheck: InstallCheck = { installed: true };
+  if (config.checkInstalled) {
+    installCheck = await config.checkInstalled();
+    if (!installCheck.installed) {
       return {
         success: false,
         method: "clipboard",
-        message: "No supported terminal emulator found. Context copied to clipboard instead.",
-        ...(warnings.length > 0 && { warnings }),
+        message: installCheck.error || config.notInstalledMessage,
       };
     }
+  }
 
-    // Start ticket workflow: git branch, status update, workflow state, audit comment
-    try {
-      const workflowResult = await startWorkflowForLaunch(ticketId);
-      warnings.push(...workflowResult.warnings);
-    } catch (err) {
-      warnings.push(await formatCoreError(err));
-    }
+  const warnings: string[] = [];
+  const terminal = await resolveLaunchTerminal(preferredTerminal, warnings);
+  if (!terminal) {
+    return {
+      success: false,
+      method: "clipboard",
+      message: "No supported terminal emulator found. Context copied to clipboard instead.",
+      ...(warnings.length > 0 && { warnings }),
+    };
+  }
 
-    // Save current ticket ID to state file for CLI tool
-    try {
-      const { writeFileSync, mkdirSync } = await import("fs");
-      const { join } = await import("path");
-      const { homedir } = await import("os");
+  await collectWorkflowStart(ticketId, warnings);
+  await saveCurrentTicketState(projectPath, ticketId, warnings);
 
-      const stateDir = join(homedir(), ".brain-dump");
-      mkdirSync(stateDir, { recursive: true });
-
-      const stateFile = join(stateDir, "current-ticket.json");
-      writeFileSync(
-        stateFile,
-        JSON.stringify({
-          ticketId,
-          projectPath,
-          startedAt: new Date().toISOString(),
-        })
-      );
-    } catch (error) {
-      console.error("Failed to save current ticket state:", error);
-      warnings.push(
-        "Could not save ticket state. The 'brain-dump' CLI commands may not work for this session."
-      );
-    }
-
-    // Create launch script and build terminal command with window title
-    const scriptPath = await createLaunchScript(projectPath, context, modelSelection);
-    const windowTitle = buildWindowTitle(projectName, epicName, ticketTitle);
-    const terminalCommand = buildTerminalCommand(terminal, projectPath, scriptPath, windowTitle);
-
-    try {
-      // Launch terminal (don't wait for it to complete)
-      exec(terminalCommand, (error) => {
-        if (error) {
-          console.error("Terminal launch error:", error);
-        }
-      });
-
+  let scriptPath: string;
+  try {
+    scriptPath = await config.createScript({ projectPath, context, installCheck, modelSelection });
+  } catch (err) {
+    if (config.scriptFailureResult) {
+      const message = err instanceof Error ? err.message : "Unknown error";
       return {
-        success: true,
-        method: "terminal",
-        message: `Launched Claude in ${terminal}`,
-        terminalUsed: terminal,
-        ...(warnings.length > 0 && { warnings }),
-      };
-    } catch (error) {
-      return {
-        success: false,
-        method: "clipboard",
-        message: `Failed to launch terminal: ${error instanceof Error ? error.message : "Unknown error"}. Context copied to clipboard instead.`,
+        ...config.scriptFailureResult(message),
         ...(warnings.length > 0 && { warnings }),
       };
     }
+    throw err;
+  }
+
+  return finishTerminalLaunch(config, {
+    terminal,
+    projectPath,
+    scriptPath,
+    projectName,
+    epicName,
+    ticketTitle,
+    warnings,
   });
+}
 
 export function formatOpenCodeLaunchModelValue(
   modelSelection: ConcreteLaunchModelSelection
@@ -817,139 +1021,6 @@ exec bash
 }
 
 // Launch OpenCode in terminal with ticket context
-// Note: Uses exec() for terminal launching (same as launchClaudeInTerminal) because
-// terminal commands require shell interpretation. Input is validated by validateProjectPath.
-export const launchOpenCodeInTerminal = createServerFn({ method: "POST" })
-  .inputValidator((data: InteractiveTerminalLaunchInput) => data)
-  .handler(async ({ data }): Promise<LaunchResult> => {
-    const {
-      ticketId,
-      context,
-      projectPath,
-      preferredTerminal,
-      projectName,
-      epicName,
-      ticketTitle,
-      modelSelection,
-    } = data;
-    const { exec } = await import("child_process");
-    const { existsSync } = await import("fs");
-
-    // Verify project path exists
-    if (!existsSync(projectPath)) {
-      return {
-        success: false,
-        method: "clipboard",
-        message: `Project directory not found: ${projectPath}. Context copied to clipboard instead.`,
-      };
-    }
-
-    // Check if OpenCode is installed before proceeding
-    const openCodeCheck = await isOpenCodeInstalled();
-    if (!openCodeCheck.installed) {
-      return {
-        success: false,
-        method: "clipboard",
-        message:
-          openCodeCheck.error || "OpenCode is not installed. Context copied to clipboard instead.",
-      };
-    }
-
-    // Determine which terminal to use
-    let terminal: string | null = null;
-    const warnings: string[] = [];
-
-    // If preferred terminal is set and available, use it
-    if (preferredTerminal) {
-      const result = await isTerminalAvailable(preferredTerminal);
-      if (result.available) {
-        terminal = preferredTerminal;
-      } else {
-        const reason = result.error || "not installed";
-        warnings.push(
-          `Your preferred terminal "${preferredTerminal}" is not available (${reason}). Using auto-detected terminal instead.`
-        );
-      }
-    }
-
-    // Fallback to auto-detect if no preferred terminal or preferred is unavailable
-    if (!terminal) {
-      terminal = await detectTerminal();
-    }
-
-    if (!terminal) {
-      return {
-        success: false,
-        method: "clipboard",
-        message: "No supported terminal emulator found. Context copied to clipboard instead.",
-        ...(warnings.length > 0 && { warnings }),
-      };
-    }
-
-    // Start ticket workflow: git branch, status update, workflow state, audit comment
-    try {
-      const workflowResult = await startWorkflowForLaunch(ticketId);
-      warnings.push(...workflowResult.warnings);
-    } catch (err) {
-      warnings.push(await formatCoreError(err));
-    }
-
-    // Save current ticket ID to state file for CLI tool
-    try {
-      const { writeFileSync, mkdirSync } = await import("fs");
-      const { join } = await import("path");
-      const { homedir } = await import("os");
-
-      const stateDir = join(homedir(), ".brain-dump");
-      mkdirSync(stateDir, { recursive: true });
-
-      const stateFile = join(stateDir, "current-ticket.json");
-      writeFileSync(
-        stateFile,
-        JSON.stringify({
-          ticketId,
-          projectPath,
-          startedAt: new Date().toISOString(),
-        })
-      );
-    } catch (error) {
-      console.error("Failed to save current ticket state:", error);
-      warnings.push(
-        "Could not save ticket state. The 'brain-dump' CLI commands may not work for this session."
-      );
-    }
-
-    // Create launch script and build terminal command with window title
-    const scriptPath = await createOpenCodeLaunchScript(projectPath, context, modelSelection);
-    const windowTitle = buildWindowTitle(projectName, epicName, ticketTitle);
-    const terminalCommand = buildTerminalCommand(terminal, projectPath, scriptPath, windowTitle);
-
-    try {
-      // Launch terminal (don't wait for it to complete)
-      // Note: exec is fire-and-forget - we can't know if the terminal window actually opened
-      exec(terminalCommand, (error) => {
-        if (error) {
-          console.error("Terminal launch error:", error);
-        }
-      });
-
-      return {
-        success: true,
-        method: "terminal",
-        message: `Opening OpenCode in ${terminal}... If no window appears, check that ${terminal} is running.`,
-        terminalUsed: terminal,
-        ...(warnings.length > 0 && { warnings }),
-      };
-    } catch (error) {
-      return {
-        success: false,
-        method: "clipboard",
-        message: `Failed to launch terminal: ${error instanceof Error ? error.message : "Unknown error"}. Context copied to clipboard instead.`,
-        ...(warnings.length > 0 && { warnings }),
-      };
-    }
-  });
-
 function buildCodexModelArgument(modelSelection: ConcreteLaunchModelSelection | undefined): string {
   if (!modelSelection) {
     return "";
@@ -1319,58 +1390,94 @@ exec bash
   return scriptPath;
 }
 
-export const launchPiInTerminal = createServerFn({ method: "POST" })
-  .inputValidator((data: InteractiveTerminalLaunchInput) => data)
-  .handler(async ({ data }): Promise<LaunchResult> => {
-    const {
-      ticketId,
-      context,
-      projectPath,
-      preferredTerminal,
-      projectName,
-      epicName,
-      ticketTitle,
-      modelSelection,
-    } = data;
-    const { exec } = await import("child_process");
-    const { existsSync } = await import("fs");
+async function runCodexAppLaunch(
+  data: InteractiveTerminalLaunchInput,
+  warnings: string[]
+): Promise<LaunchResult> {
+  const { context, projectPath, modelSelection } = data;
 
-    if (!existsSync(projectPath)) {
-      return {
-        success: false,
-        method: "clipboard",
-        message: `Project directory not found: ${projectPath}. Context copied to clipboard instead.`,
-      };
+  if (modelSelection) {
+    warnings.push(
+      "Codex App does not support a documented one-shot model override. Launching with the app's default model."
+    );
+  }
+
+  try {
+    const contextFile = await writeProjectContextFile(projectPath, context);
+    const launchPlan = buildCodexAppLaunchPlan(projectPath, contextFile);
+
+    const projectLaunch = await runFirstSuccessfulCommand(launchPlan.projectCommands);
+    if (!projectLaunch.success) {
+      throw new Error(projectLaunch.error);
     }
 
-    const piCheck = await isPiInstalled();
-    if (!piCheck.installed) {
-      return {
-        success: false,
-        method: "clipboard",
-        message: piCheck.error || "Pi CLI is not installed. Context copied to clipboard instead.",
-      };
+    const contextLaunch = await runFirstSuccessfulCommand(launchPlan.contextCommands);
+    if (!contextLaunch.success) {
+      warnings.push(
+        `Opened Codex App, but could not auto-open context file. Please open "${contextFile}" manually.`
+      );
     }
 
-    const warnings: string[] = [];
-    let terminal: string | null = null;
+    return {
+      success: true,
+      method: "app",
+      message: `Opened Codex App. Context saved to ${contextFile}.`,
+      terminalUsed: "Codex App",
+      ...(warnings.length > 0 && { warnings }),
+    };
+  } catch (error) {
+    return {
+      success: false,
+      method: "clipboard",
+      message: `Failed to launch Codex App: ${error instanceof Error ? error.message : "Unknown error"}. Context copied to clipboard instead.`,
+      ...(warnings.length > 0 && { warnings }),
+    };
+  }
+}
 
-    if (preferredTerminal) {
-      const result = await isTerminalAvailable(preferredTerminal);
-      if (result.available) {
-        terminal = preferredTerminal;
-      } else {
-        const reason = result.error || "not installed";
-        warnings.push(
-          `Your preferred terminal "${preferredTerminal}" is not available (${reason}). Using auto-detected terminal instead.`
-        );
-      }
-    }
+async function runCodexProviderLaunch(
+  data: InteractiveTerminalLaunchInput & { launchMode?: "auto" | "cli" | "app" }
+): Promise<LaunchResult> {
+  const {
+    ticketId,
+    context,
+    projectPath,
+    preferredTerminal,
+    projectName,
+    epicName,
+    ticketTitle,
+    modelSelection,
+  } = data;
+  const { exec } = await import("child_process");
+  const { existsSync } = await import("fs");
+  const launchMode = data.launchMode ?? "auto";
 
-    if (!terminal) {
-      terminal = await detectTerminal();
-    }
+  if (!existsSync(projectPath)) {
+    return projectMissingResult(projectPath);
+  }
 
+  const codexCheck =
+    launchMode === "cli"
+      ? await isCodexCliInstalled()
+      : launchMode === "app"
+        ? await isCodexAppInstalled()
+        : await isCodexInstalled();
+  if (!codexCheck.installed) {
+    return {
+      success: false,
+      method: "clipboard",
+      message: codexLaunchErrorForMode(launchMode, codexCheck),
+    };
+  }
+
+  const warnings: string[] = [];
+  await collectWorkflowStart(ticketId, warnings);
+  await saveCurrentTicketState(projectPath, ticketId, warnings);
+
+  const shouldUseCli = launchMode === "cli" || (launchMode === "auto" && codexCheck.mode === "cli");
+
+  if (shouldUseCli) {
+    const terminal = await resolveLaunchTerminal(preferredTerminal, warnings);
     if (!terminal) {
       return {
         success: false,
@@ -1380,39 +1487,9 @@ export const launchPiInTerminal = createServerFn({ method: "POST" })
       };
     }
 
-    try {
-      const workflowResult = await startWorkflowForLaunch(ticketId);
-      warnings.push(...workflowResult.warnings);
-    } catch (err) {
-      warnings.push(await formatCoreError(err));
-    }
-
-    try {
-      const { writeFileSync, mkdirSync } = await import("fs");
-      const { join } = await import("path");
-      const { homedir } = await import("os");
-
-      const stateDir = join(homedir(), ".brain-dump");
-      mkdirSync(stateDir, { recursive: true });
-
-      const stateFile = join(stateDir, "current-ticket.json");
-      writeFileSync(
-        stateFile,
-        JSON.stringify({
-          ticketId,
-          projectPath,
-          startedAt: new Date().toISOString(),
-        })
-      );
-    } catch (error) {
-      console.error("Failed to save current ticket state:", error);
-      warnings.push(
-        "Could not save ticket state. The 'brain-dump' CLI commands may not work for this session."
-      );
-    }
-
-    const scriptPath = await createPiLaunchScript(projectPath, context, modelSelection);
+    const scriptPath = await createCodexLaunchScript(projectPath, context, modelSelection);
     const windowTitle = buildWindowTitle(projectName, epicName, ticketTitle);
+    const { buildTerminalCommand } = await import("./terminal-utils");
     const terminalCommand = buildTerminalCommand(terminal, projectPath, scriptPath, windowTitle);
 
     try {
@@ -1425,7 +1502,7 @@ export const launchPiInTerminal = createServerFn({ method: "POST" })
       return {
         success: true,
         method: "terminal",
-        message: `Opening Pi in ${terminal}... If no window appears, check that ${terminal} is running.`,
+        message: `Opening Codex in ${terminal}... If no window appears, check that ${terminal} is running.`,
         terminalUsed: terminal,
         ...(warnings.length > 0 && { warnings }),
       };
@@ -1437,678 +1514,160 @@ export const launchPiInTerminal = createServerFn({ method: "POST" })
         ...(warnings.length > 0 && { warnings }),
       };
     }
-  });
+  }
 
-// Launch Cursor Agent CLI in terminal with ticket context
-// Note: exec() is used intentionally here for fire-and-forget terminal launches.
-// The terminal command is built from validated internal paths via buildTerminalCommand().
-export const launchCursorAgentInTerminal = createServerFn({ method: "POST" })
-  .inputValidator((data: InteractiveTerminalLaunchInput) => data)
-  .handler(async ({ data }): Promise<LaunchResult> => {
-    const {
-      ticketId,
-      context,
-      projectPath,
-      preferredTerminal,
-      projectName,
-      epicName,
-      ticketTitle,
-      modelSelection,
-    } = data;
-    const { exec } = await import("child_process");
-    const { existsSync } = await import("fs");
+  // Use Codex App launch and persist context in project.
+  return runCodexAppLaunch(data, warnings);
+}
 
-    if (!existsSync(projectPath)) {
-      return {
-        success: false,
-        method: "clipboard",
-        message: `Project directory not found: ${projectPath}. Context copied to clipboard instead.`,
-      };
-    }
+interface AppLaunchConfig {
+  label: string;
+  notInstalledMessage: string;
+  checkInstalled: () => Promise<InstallCheck>;
+  /** Builds the fire-and-forget open command from validated paths. */
+  buildOpenCommand: (ctx: {
+    installCheck: InstallCheck;
+    safeProjectPath: string;
+    safeContextFile: string;
+  }) => string;
+}
 
-    const agentCheck = await isCursorAgentInstalled();
-    if (!agentCheck.installed) {
-      return {
-        success: false,
-        method: "clipboard",
-        message:
-          agentCheck.error ||
-          "Cursor Agent CLI is not installed. Context copied to clipboard instead.",
-      };
-    }
+async function runAppProviderLaunch(
+  config: AppLaunchConfig,
+  data: InteractiveTerminalLaunchInput
+): Promise<LaunchResult> {
+  const { ticketId, context, projectPath, modelSelection } = data;
+  const { exec } = await import("child_process");
+  const { existsSync } = await import("fs");
 
-    let terminal: string | null = null;
-    const warnings: string[] = [];
+  if (!existsSync(projectPath)) {
+    return projectMissingResult(projectPath);
+  }
 
-    if (preferredTerminal) {
-      const result = await isTerminalAvailable(preferredTerminal);
-      if (result.available) {
-        terminal = preferredTerminal;
-      } else {
-        const reason = result.error || "not installed";
-        warnings.push(
-          `Your preferred terminal "${preferredTerminal}" is not available (${reason}). Using auto-detected terminal instead.`
-        );
+  const installCheck = await config.checkInstalled();
+  if (!installCheck.installed) {
+    return {
+      success: false,
+      method: "clipboard",
+      message: installCheck.error || config.notInstalledMessage,
+    };
+  }
+
+  const warnings: string[] = [];
+  if (modelSelection) {
+    warnings.push(defaultOnlyModelWarning(config.label));
+  }
+
+  await collectWorkflowStart(ticketId, warnings);
+  await saveCurrentTicketState(projectPath, ticketId, warnings);
+
+  try {
+    const contextFile = await writeProjectContextFile(projectPath, context);
+    const launchCommand = config.buildOpenCommand({
+      installCheck,
+      safeProjectPath: escapeForBashDoubleQuote(projectPath),
+      safeContextFile: escapeForBashDoubleQuote(contextFile),
+    });
+
+    exec(launchCommand, (error) => {
+      if (error) {
+        console.error(`${config.label} launch error:`, error);
       }
+    });
+
+    return {
+      success: true,
+      method: "app",
+      message: `Opened ${config.label}. Context saved to ${contextFile}.`,
+      terminalUsed: config.label,
+      ...(warnings.length > 0 && { warnings }),
+    };
+  } catch (error) {
+    return {
+      success: false,
+      method: "clipboard",
+      message: `Failed to launch ${config.label}: ${error instanceof Error ? error.message : "Unknown error"}. Context copied to clipboard instead.`,
+      ...(warnings.length > 0 && { warnings }),
+    };
+  }
+}
+
+const APP_LAUNCH_CONFIGS: Record<"vscode-editor" | "cursor-editor", AppLaunchConfig> = {
+  "vscode-editor": {
+    label: "VS Code",
+    notInstalledMessage: "VS Code is not installed. Context copied to clipboard instead.",
+    checkInstalled: isVSCodeInstalled,
+    buildOpenCommand: ({ installCheck, safeProjectPath, safeContextFile }) =>
+      installCheck.mode === "cli"
+        ? `code -n "${safeProjectPath}" -g "${safeContextFile}"`
+        : `open -a "Visual Studio Code" "${safeProjectPath}" && open -a "Visual Studio Code" "${safeContextFile}"`,
+  },
+  "cursor-editor": {
+    label: "Cursor",
+    notInstalledMessage: "Cursor is not installed. Context copied to clipboard instead.",
+    checkInstalled: isCursorInstalled,
+    buildOpenCommand: ({ installCheck, safeProjectPath }) =>
+      installCheck.mode === "cli"
+        ? `cursor "${safeProjectPath}"`
+        : `open -a "Cursor" "${safeProjectPath}"`,
+  },
+};
+
+export type InteractiveTerminalProviderMode =
+  | "claude-terminal"
+  | "codex-auto"
+  | "codex-cli"
+  | "codex-app"
+  | "vscode-editor"
+  | "cursor-editor"
+  | "cursor-agent-terminal"
+  | "copilot-cli"
+  | "opencode-terminal"
+  | "pi-terminal";
+
+export interface ProviderTerminalLaunchInput extends InteractiveTerminalLaunchInput {
+  providerId: InteractiveTerminalProviderMode;
+  launchMode?: "auto" | "cli" | "app";
+}
+
+/**
+ * Single entry point for interactive provider launches from the UI.
+ * The provider/variant discriminator is providerId; per-provider specifics
+ * live in the provider configs above.
+ */
+export async function runInteractiveProviderLaunch(
+  input: ProviderTerminalLaunchInput
+): Promise<LaunchResult> {
+  const { providerId, ...data } = input;
+  switch (providerId) {
+    case "claude-terminal":
+      return runTerminalProviderLaunch(TERMINAL_PROVIDERS.claude, data);
+    case "opencode-terminal":
+      return runTerminalProviderLaunch(TERMINAL_PROVIDERS.opencode, data);
+    case "pi-terminal":
+      return runTerminalProviderLaunch(TERMINAL_PROVIDERS.pi, data);
+    case "copilot-cli":
+      return runTerminalProviderLaunch(TERMINAL_PROVIDERS.copilot, data);
+    case "cursor-agent-terminal":
+      return runTerminalProviderLaunch(TERMINAL_PROVIDERS["cursor-agent"], data);
+    case "codex-auto":
+    case "codex-cli":
+    case "codex-app": {
+      const launchMode =
+        providerId === "codex-auto"
+          ? ("auto" as const)
+          : providerId === "codex-cli"
+            ? ("cli" as const)
+            : ("app" as const);
+      return runCodexProviderLaunch({ ...data, launchMode });
     }
-
-    if (!terminal) {
-      terminal = await detectTerminal();
-    }
-
-    if (!terminal) {
-      return {
-        success: false,
-        method: "clipboard",
-        message: "No supported terminal emulator found. Context copied to clipboard instead.",
-        ...(warnings.length > 0 && { warnings }),
-      };
-    }
-
-    try {
-      const workflowResult = await startWorkflowForLaunch(ticketId);
-      warnings.push(...workflowResult.warnings);
-    } catch (err) {
-      warnings.push(await formatCoreError(err));
-    }
-
-    try {
-      const { writeFileSync, mkdirSync } = await import("fs");
-      const { join } = await import("path");
-      const { homedir } = await import("os");
-
-      const stateDir = join(homedir(), ".brain-dump");
-      mkdirSync(stateDir, { recursive: true });
-
-      const stateFile = join(stateDir, "current-ticket.json");
-      writeFileSync(
-        stateFile,
-        JSON.stringify({
-          ticketId,
-          projectPath,
-          startedAt: new Date().toISOString(),
-        })
-      );
-    } catch (error) {
-      console.error("Failed to save current ticket state:", error);
-      warnings.push(
-        "Could not save ticket state. The 'brain-dump' CLI commands may not work for this session."
-      );
-    }
-
-    let scriptPath: string;
-    try {
-      scriptPath = await createCursorAgentLaunchScript(
-        projectPath,
-        context,
-        agentCheck.binaryPath || "agent",
-        modelSelection
-      );
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
-      return {
-        success: false,
-        method: "clipboard",
-        message: `Failed to create launch script: ${message}. Check permissions on ~/.brain-dump/scripts/.`,
-        ...(warnings.length > 0 && { warnings }),
-      };
-    }
-
-    const windowTitle = buildWindowTitle(projectName, epicName, ticketTitle);
-    const terminalCommand = buildTerminalCommand(terminal, projectPath, scriptPath, windowTitle);
-
-    try {
-      exec(terminalCommand, (error) => {
-        if (error) {
-          console.error("Terminal launch error:", error);
-        }
-      });
-
-      return {
-        success: true,
-        method: "terminal",
-        message: `Opening Cursor Agent in ${terminal}... If no window appears, check that ${terminal} is running.`,
-        terminalUsed: terminal,
-        ...(warnings.length > 0 && { warnings }),
-      };
-    } catch (error) {
-      return {
-        success: false,
-        method: "clipboard",
-        message: `Failed to launch terminal: ${error instanceof Error ? error.message : "Unknown error"}. Context copied to clipboard instead.`,
-        ...(warnings.length > 0 && { warnings }),
-      };
-    }
-  });
-
-// Launch Codex (CLI in terminal, or Codex App fallback on macOS)
-export const launchCodexInTerminal = createServerFn({ method: "POST" })
-  .inputValidator((data: CodexTerminalLaunchInput) => data)
-  .handler(async ({ data }): Promise<LaunchResult> => {
-    const {
-      ticketId,
-      context,
-      projectPath,
-      launchMode = "auto",
-      preferredTerminal,
-      projectName,
-      epicName,
-      ticketTitle,
-      modelSelection,
-    } = data;
-    const { exec } = await import("child_process");
-    const { existsSync } = await import("fs");
-
-    if (!existsSync(projectPath)) {
-      return {
-        success: false,
-        method: "clipboard",
-        message: `Project directory not found: ${projectPath}. Context copied to clipboard instead.`,
-      };
-    }
-
-    const codexCheck =
-      launchMode === "cli"
-        ? await isCodexCliInstalled()
-        : launchMode === "app"
-          ? await isCodexAppInstalled()
-          : await isCodexInstalled();
-    if (!codexCheck.installed) {
-      return {
-        success: false,
-        method: "clipboard",
-        message: codexLaunchErrorForMode(launchMode, codexCheck),
-      };
-    }
-
-    const warnings: string[] = [];
-
-    try {
-      const workflowResult = await startWorkflowForLaunch(ticketId);
-      warnings.push(...workflowResult.warnings);
-    } catch (err) {
-      warnings.push(await formatCoreError(err));
-    }
-
-    try {
-      const { writeFileSync, mkdirSync } = await import("fs");
-      const { join } = await import("path");
-      const { homedir } = await import("os");
-
-      const stateDir = join(homedir(), ".brain-dump");
-      mkdirSync(stateDir, { recursive: true });
-
-      const stateFile = join(stateDir, "current-ticket.json");
-      writeFileSync(
-        stateFile,
-        JSON.stringify({
-          ticketId,
-          projectPath,
-          startedAt: new Date().toISOString(),
-        })
-      );
-    } catch (error) {
-      console.error("Failed to save current ticket state:", error);
-      warnings.push(
-        "Could not save ticket state. The 'brain-dump' CLI commands may not work for this session."
-      );
-    }
-
-    const shouldUseCli =
-      launchMode === "cli" || (launchMode === "auto" && codexCheck.mode === "cli");
-
-    // Use Codex CLI in a terminal.
-    if (shouldUseCli) {
-      let terminal: string | null = null;
-
-      if (preferredTerminal) {
-        const result = await isTerminalAvailable(preferredTerminal);
-        if (result.available) {
-          terminal = preferredTerminal;
-        } else {
-          const reason = result.error || "not installed";
-          warnings.push(
-            `Your preferred terminal "${preferredTerminal}" is not available (${reason}). Using auto-detected terminal instead.`
-          );
-        }
-      }
-
-      if (!terminal) {
-        terminal = await detectTerminal();
-      }
-
-      if (!terminal) {
-        return {
-          success: false,
-          method: "clipboard",
-          message: "No supported terminal emulator found. Context copied to clipboard instead.",
-          ...(warnings.length > 0 && { warnings }),
-        };
-      }
-
-      const scriptPath = await createCodexLaunchScript(projectPath, context, modelSelection);
-      const windowTitle = buildWindowTitle(projectName, epicName, ticketTitle);
-      const terminalCommand = buildTerminalCommand(terminal, projectPath, scriptPath, windowTitle);
-
-      try {
-        exec(terminalCommand, (error) => {
-          if (error) {
-            console.error("Terminal launch error:", error);
-          }
-        });
-
-        return {
-          success: true,
-          method: "terminal",
-          message: `Opening Codex in ${terminal}... If no window appears, check that ${terminal} is running.`,
-          terminalUsed: terminal,
-          ...(warnings.length > 0 && { warnings }),
-        };
-      } catch (error) {
-        return {
-          success: false,
-          method: "clipboard",
-          message: `Failed to launch terminal: ${error instanceof Error ? error.message : "Unknown error"}. Context copied to clipboard instead.`,
-          ...(warnings.length > 0 && { warnings }),
-        };
-      }
-    }
-
-    // Use Codex App launch and persist context in project.
-    if (modelSelection) {
-      warnings.push(
-        "Codex App does not support a documented one-shot model override. Launching with the app's default model."
-      );
-    }
-
-    try {
-      const contextFile = await writeProjectContextFile(projectPath, context);
-      const launchPlan = buildCodexAppLaunchPlan(projectPath, contextFile);
-
-      const projectLaunch = await runFirstSuccessfulCommand(launchPlan.projectCommands);
-      if (!projectLaunch.success) {
-        throw new Error(projectLaunch.error);
-      }
-
-      const contextLaunch = await runFirstSuccessfulCommand(launchPlan.contextCommands);
-      if (!contextLaunch.success) {
-        warnings.push(
-          `Opened Codex App, but could not auto-open context file. Please open "${contextFile}" manually.`
-        );
-      }
-
-      return {
-        success: true,
-        method: "app",
-        message: `Opened Codex App. Context saved to ${contextFile}.`,
-        terminalUsed: "Codex App",
-        ...(warnings.length > 0 && { warnings }),
-      };
-    } catch (error) {
-      return {
-        success: false,
-        method: "clipboard",
-        message: `Failed to launch Codex App: ${error instanceof Error ? error.message : "Unknown error"}. Context copied to clipboard instead.`,
-        ...(warnings.length > 0 && { warnings }),
-      };
-    }
-  });
-
-// Launch Copilot CLI in terminal with ticket context
-export const launchCopilotInTerminal = createServerFn({ method: "POST" })
-  .inputValidator((data: InteractiveTerminalLaunchInput) => data)
-  .handler(async ({ data }): Promise<LaunchResult> => {
-    const {
-      ticketId,
-      context,
-      projectPath,
-      preferredTerminal,
-      projectName,
-      epicName,
-      ticketTitle,
-      modelSelection,
-    } = data;
-    const { exec } = await import("child_process");
-    const { existsSync } = await import("fs");
-
-    if (!existsSync(projectPath)) {
-      return {
-        success: false,
-        method: "clipboard",
-        message: `Project directory not found: ${projectPath}. Context copied to clipboard instead.`,
-      };
-    }
-
-    const copilotCheck = await isCopilotInstalled();
-    if (!copilotCheck.installed) {
-      return {
-        success: false,
-        method: "clipboard",
-        message:
-          copilotCheck.error ||
-          "Copilot CLI is not installed. Context copied to clipboard instead.",
-      };
-    }
-
-    const warnings: string[] = [];
-    if (modelSelection) {
-      warnings.push(defaultOnlyModelWarning("Copilot CLI"));
-    }
-
-    let terminal: string | null = null;
-
-    if (preferredTerminal) {
-      const result = await isTerminalAvailable(preferredTerminal);
-      if (result.available) {
-        terminal = preferredTerminal;
-      } else {
-        const reason = result.error || "not installed";
-        warnings.push(
-          `Your preferred terminal "${preferredTerminal}" is not available (${reason}). Using auto-detected terminal instead.`
-        );
-      }
-    }
-
-    if (!terminal) {
-      terminal = await detectTerminal();
-    }
-
-    if (!terminal) {
-      return {
-        success: false,
-        method: "clipboard",
-        message: "No supported terminal emulator found. Context copied to clipboard instead.",
-        ...(warnings.length > 0 && { warnings }),
-      };
-    }
-
-    try {
-      const workflowResult = await startWorkflowForLaunch(ticketId);
-      warnings.push(...workflowResult.warnings);
-    } catch (err) {
-      warnings.push(await formatCoreError(err));
-    }
-
-    try {
-      const { writeFileSync, mkdirSync } = await import("fs");
-      const { join } = await import("path");
-      const { homedir } = await import("os");
-
-      const stateDir = join(homedir(), ".brain-dump");
-      mkdirSync(stateDir, { recursive: true });
-
-      const stateFile = join(stateDir, "current-ticket.json");
-      writeFileSync(
-        stateFile,
-        JSON.stringify({
-          ticketId,
-          projectPath,
-          startedAt: new Date().toISOString(),
-        })
-      );
-    } catch (error) {
-      console.error("Failed to save current ticket state:", error);
-      warnings.push(
-        "Could not save ticket state. The 'brain-dump' CLI commands may not work for this session."
-      );
-    }
-
-    const scriptPath = await createCopilotLaunchScript(projectPath, context);
-    const windowTitle = buildWindowTitle(projectName, epicName, ticketTitle);
-    const terminalCommand = buildTerminalCommand(terminal, projectPath, scriptPath, windowTitle);
-
-    try {
-      exec(terminalCommand, (error) => {
-        if (error) {
-          console.error("Terminal launch error:", error);
-        }
-      });
-
-      return {
-        success: true,
-        method: "terminal",
-        message: `Opening Copilot CLI in ${terminal}... If no window appears, check that ${terminal} is running.`,
-        terminalUsed: terminal,
-        ...(warnings.length > 0 && { warnings }),
-      };
-    } catch (error) {
-      return {
-        success: false,
-        method: "clipboard",
-        message: `Failed to launch terminal: ${error instanceof Error ? error.message : "Unknown error"}. Context copied to clipboard instead.`,
-        ...(warnings.length > 0 && { warnings }),
-      };
-    }
-  });
-
-// Launch Cursor app/CLI for a ticket context.
-export const launchCursorInTerminal = createServerFn({ method: "POST" })
-  .inputValidator((data: InteractiveTerminalLaunchInput) => data)
-  .handler(async ({ data }): Promise<LaunchResult> => {
-    const { ticketId, context, projectPath, modelSelection } = data;
-    const { exec } = await import("child_process");
-    const { existsSync } = await import("fs");
-
-    if (!existsSync(projectPath)) {
-      return {
-        success: false,
-        method: "clipboard",
-        message: `Project directory not found: ${projectPath}. Context copied to clipboard instead.`,
-      };
-    }
-
-    const cursorCheck = await isCursorInstalled();
-    if (!cursorCheck.installed) {
-      return {
-        success: false,
-        method: "clipboard",
-        message:
-          cursorCheck.error || "Cursor is not installed. Context copied to clipboard instead.",
-      };
-    }
-
-    const warnings: string[] = [];
-    if (modelSelection) {
-      warnings.push(defaultOnlyModelWarning("Cursor Editor"));
-    }
-
-    try {
-      const workflowResult = await startWorkflowForLaunch(ticketId);
-      warnings.push(...workflowResult.warnings);
-    } catch (err) {
-      warnings.push(await formatCoreError(err));
-    }
-
-    try {
-      const { writeFileSync, mkdirSync } = await import("fs");
-      const { join } = await import("path");
-      const { homedir } = await import("os");
-
-      const stateDir = join(homedir(), ".brain-dump");
-      mkdirSync(stateDir, { recursive: true });
-
-      const stateFile = join(stateDir, "current-ticket.json");
-      writeFileSync(
-        stateFile,
-        JSON.stringify({
-          ticketId,
-          projectPath,
-          startedAt: new Date().toISOString(),
-        })
-      );
-    } catch (error) {
-      console.error("Failed to save current ticket state:", error);
-      warnings.push(
-        "Could not save ticket state. The 'brain-dump' CLI commands may not work for this session."
-      );
-    }
-
-    try {
-      const contextFile = await writeProjectContextFile(projectPath, context);
-      const safeProjectPath = escapeForBashDoubleQuote(projectPath);
-
-      const launchCommand =
-        cursorCheck.mode === "cli"
-          ? `cursor "${safeProjectPath}"`
-          : `open -a "Cursor" "${safeProjectPath}"`;
-
-      exec(launchCommand, (error) => {
-        if (error) {
-          console.error("Cursor launch error:", error);
-        }
-      });
-
-      return {
-        success: true,
-        method: "app",
-        message: `Opened Cursor. Context saved to ${contextFile}.`,
-        terminalUsed: "Cursor",
-        ...(warnings.length > 0 && { warnings }),
-      };
-    } catch (error) {
-      return {
-        success: false,
-        method: "clipboard",
-        message: `Failed to launch Cursor: ${error instanceof Error ? error.message : "Unknown error"}. Context copied to clipboard instead.`,
-        ...(warnings.length > 0 && { warnings }),
-      };
-    }
-  });
-
-// Launch VS Code app/CLI for a ticket context.
-export const launchVSCodeInTerminal = createServerFn({ method: "POST" })
-  .inputValidator((data: InteractiveTerminalLaunchInput) => data)
-  .handler(async ({ data }): Promise<LaunchResult> => {
-    const { ticketId, context, projectPath, modelSelection } = data;
-    const { exec } = await import("child_process");
-    const { existsSync } = await import("fs");
-
-    if (!existsSync(projectPath)) {
-      return {
-        success: false,
-        method: "clipboard",
-        message: `Project directory not found: ${projectPath}. Context copied to clipboard instead.`,
-      };
-    }
-
-    const vscodeCheck = await isVSCodeInstalled();
-    if (!vscodeCheck.installed) {
-      return {
-        success: false,
-        method: "clipboard",
-        message:
-          vscodeCheck.error || "VS Code is not installed. Context copied to clipboard instead.",
-      };
-    }
-
-    const warnings: string[] = [];
-    if (modelSelection) {
-      warnings.push(defaultOnlyModelWarning("VS Code"));
-    }
-
-    try {
-      const workflowResult = await startWorkflowForLaunch(ticketId);
-      warnings.push(...workflowResult.warnings);
-    } catch (err) {
-      warnings.push(await formatCoreError(err));
-    }
-
-    try {
-      const { writeFileSync, mkdirSync } = await import("fs");
-      const { join } = await import("path");
-      const { homedir } = await import("os");
-
-      const stateDir = join(homedir(), ".brain-dump");
-      mkdirSync(stateDir, { recursive: true });
-
-      const stateFile = join(stateDir, "current-ticket.json");
-      writeFileSync(
-        stateFile,
-        JSON.stringify({
-          ticketId,
-          projectPath,
-          startedAt: new Date().toISOString(),
-        })
-      );
-    } catch (error) {
-      console.error("Failed to save current ticket state:", error);
-      warnings.push(
-        "Could not save ticket state. The 'brain-dump' CLI commands may not work for this session."
-      );
-    }
-
-    try {
-      const contextFile = await writeProjectContextFile(projectPath, context);
-      const safeProjectPath = escapeForBashDoubleQuote(projectPath);
-      const safeContextFile = escapeForBashDoubleQuote(contextFile);
-
-      const launchCommand =
-        vscodeCheck.mode === "cli"
-          ? `code -n "${safeProjectPath}" -g "${safeContextFile}"`
-          : `open -a "Visual Studio Code" "${safeProjectPath}" && open -a "Visual Studio Code" "${safeContextFile}"`;
-
-      exec(launchCommand, (error) => {
-        if (error) {
-          console.error("VS Code launch error:", error);
-        }
-      });
-
-      return {
-        success: true,
-        method: "app",
-        message: `Opened VS Code. Context saved to ${contextFile}.`,
-        terminalUsed: "VS Code",
-        ...(warnings.length > 0 && { warnings }),
-      };
-    } catch (error) {
-      return {
-        success: false,
-        method: "clipboard",
-        message: `Failed to launch VS Code: ${error instanceof Error ? error.message : "Unknown error"}. Context copied to clipboard instead.`,
-        ...(warnings.length > 0 && { warnings }),
-      };
-    }
-  });
-
-// Get current working ticket (for CLI tool)
-export const getCurrentTicket = createServerFn({ method: "GET" })
-  .inputValidator(() => {})
-  .handler(async () => {
-    const { readFileSync, existsSync } = await import("fs");
-    const { join } = await import("path");
-    const { homedir } = await import("os");
-
-    const stateFile = join(homedir(), ".brain-dump", "current-ticket.json");
-
-    if (!existsSync(stateFile)) {
-      return null;
-    }
-
-    try {
-      const content = readFileSync(stateFile, "utf-8");
-      return JSON.parse(content) as {
-        ticketId: string;
-        projectPath: string;
-        startedAt: string;
-      };
-    } catch {
-      return null;
-    }
-  });
-
-// Clear current ticket (called when work is done)
-export const clearCurrentTicket = createServerFn({ method: "POST" })
-  .inputValidator(() => {})
-  .handler(async () => {
-    const { unlinkSync, existsSync } = await import("fs");
-    const { join } = await import("path");
-    const { homedir } = await import("os");
-
-    const stateFile = join(homedir(), ".brain-dump", "current-ticket.json");
-
-    if (existsSync(stateFile)) {
-      unlinkSync(stateFile);
-    }
-
-    return { success: true };
-  });
+    case "vscode-editor":
+      return runAppProviderLaunch(APP_LAUNCH_CONFIGS["vscode-editor"], data);
+    case "cursor-editor":
+      return runAppProviderLaunch(APP_LAUNCH_CONFIGS["cursor-editor"], data);
+  }
+}
+
+export const launchProviderInTerminal = createServerFn({ method: "POST" })
+  .inputValidator((data: ProviderTerminalLaunchInput) => data)
+  .handler(async ({ data }): Promise<LaunchResult> => runInteractiveProviderLaunch(data));

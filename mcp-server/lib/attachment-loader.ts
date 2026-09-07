@@ -3,27 +3,25 @@
  * Handles loading and formatting ticket attachments as MCP content blocks.
  * @module lib/attachment-loader
  */
-import { existsSync, readFileSync, statSync } from "fs";
-import { join } from "path";
-import { homedir } from "os";
+import { readFileSync } from "fs";
 import { log } from "./logging.js";
-import { FILE_TYPES, ATTACHMENT_TYPE_CONFIG, formatFileSize } from "./attachment-types.js";
+import {
+  getAttachmentsDirPath,
+  MAX_ATTACHMENT_INLINE_SIZE,
+  RECOMMENDED_ATTACHMENT_INLINE_SIZE,
+  resolveTicketAttachmentFiles,
+  type ResolvedTicketAttachment,
+} from "../../core/attachments-read.ts";
+import {
+  ATTACHMENT_TYPE_CONFIG,
+  FILE_TYPES,
+  formatFileSize,
+  normalizeAttachments,
+} from "./attachment-types.js";
 
 // ============================================
 // Type Definitions
 // ============================================
-
-/** Normalized attachment object from database */
-interface NormalizedAttachment {
-  id: string;
-  filename: string;
-  type: string;
-  description?: string | undefined;
-  priority: string;
-  linkedCriteria?: string[] | undefined;
-  uploadedBy: string;
-  uploadedAt: string;
-}
 
 /** MCP content block for text or image */
 interface ContentBlock {
@@ -63,87 +61,39 @@ interface LoadAttachmentsResult {
 // ============================================
 
 /**
- * Maximum file size for attachments to include in MCP response (5MB).
+ * Maximum file size for attachments to include in MCP response.
  * Files larger than this will be skipped with a warning.
+ * Sourced from the core read model so all surfaces share one cap.
  */
-export const MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024;
+export const MAX_ATTACHMENT_SIZE = MAX_ATTACHMENT_INLINE_SIZE;
 
 /**
  * MCP spec recommends content under 1MB for reliable processing.
  * Files above this threshold will trigger a warning but still be included if under MAX_ATTACHMENT_SIZE.
  */
-export const RECOMMENDED_ATTACHMENT_SIZE = 1 * 1024 * 1024;
+export const RECOMMENDED_ATTACHMENT_SIZE = RECOMMENDED_ATTACHMENT_INLINE_SIZE;
 
 // ============================================
 // Main Functions
 // ============================================
 
 /**
- * Normalize attachment data from the database.
- * Handles both legacy string format and new object format.
- */
-export function normalizeAttachment(item: unknown, index: number): NormalizedAttachment {
-  // Legacy format: just a filename string
-  if (typeof item === "string") {
-    return {
-      id: `legacy-${index}-${item}`,
-      filename: item,
-      type: "reference",
-      priority: "primary",
-      uploadedBy: "human",
-      uploadedAt: new Date().toISOString(),
-    };
-  }
-
-  // New format: object with metadata
-  if (item && typeof item === "object" && item !== null) {
-    const obj = item as Record<string, unknown>;
-    return {
-      id: (obj.id as string) ?? `generated-${index}`,
-      filename: (obj.filename as string) ?? "unknown",
-      type: (obj.type as string) ?? "reference",
-      description: obj.description as string | undefined,
-      priority: (obj.priority as string) ?? "primary",
-      linkedCriteria: obj.linkedCriteria as string[] | undefined,
-      uploadedBy: (obj.uploadedBy as string) ?? "human",
-      uploadedAt: (obj.uploadedAt as string) ?? new Date().toISOString(),
-    };
-  }
-
-  // Fallback for unexpected data - log warning to surface data corruption
-  log.warn(`Unexpected attachment data at index ${index}: ${typeof item}`);
-  return {
-    id: `unknown-${index}`,
-    filename: "unknown",
-    type: "reference",
-    priority: "primary",
-    uploadedBy: "human",
-    uploadedAt: new Date().toISOString(),
-  };
-}
-
-/**
  * Get the attachments directory path.
- * Uses legacy path (~/.brain-dump) to match src/api/attachments.ts for consistency.
- * TODO: Migrate both to XDG-compliant paths (see docs/data-locations.md)
+ * Uses the shared XDG data directory used by core attachment writes.
  */
 export function getAttachmentsDir(): string {
-  return join(homedir(), ".brain-dump", "attachments");
+  return getAttachmentsDirPath();
 }
 
 /**
- * Load a single attachment and return its content block.
+ * Build the MCP content block for an attachment the core read model resolved
+ * as readable. Presentation-only: normalization, safety, and size checks all
+ * happen in core/attachments-read.ts.
  */
-export function loadSingleAttachment(
-  filePath: string,
-  filename: string,
-  size: number
-): ContentBlock {
-  const ext = filename.split(".").pop()?.toLowerCase() || "";
-  const fileConfig = FILE_TYPES[ext as keyof typeof FILE_TYPES];
-  const mimeType = fileConfig?.mime || "application/octet-stream";
-  const contentType = fileConfig?.type || "reference";
-  const sizeStr = formatFileSize(size);
+export function loadSingleAttachment(resolved: ResolvedTicketAttachment): ContentBlock {
+  const { filename, mimeType, contentType } = resolved;
+  const filePath = resolved.filePath!;
+  const sizeStr = formatFileSize(resolved.sizeBytes ?? 0);
 
   switch (contentType) {
     case "image": {
@@ -153,7 +103,8 @@ export function loadSingleAttachment(
     }
     case "text": {
       const textContent = readFileSync(filePath, "utf-8");
-      const fence = (fileConfig as Record<string, unknown> | undefined)?.fence || "";
+      const ext = filename.split(".").pop()?.toLowerCase() ?? "";
+      const fence = FILE_TYPES[ext]?.fence ?? "";
       log.info(`Loaded text attachment: ${filename} (${sizeStr})`);
       return {
         type: "text",
@@ -198,71 +149,32 @@ export function loadTicketAttachments(
     return { contentBlocks, warnings, telemetry };
   }
 
-  // Normalize all attachments first
-  const normalizedAttachments = attachmentsList.map(normalizeAttachment);
-  telemetry.totalCount = normalizedAttachments.length;
-  const ticketDir = join(getAttachmentsDir(), ticketId);
-
-  if (!existsSync(ticketDir)) {
-    warnings.push(`Attachments directory not found: ${ticketDir}`);
-    telemetry.failedCount = normalizedAttachments.length;
-    telemetry.failedFiles = normalizedAttachments.map((a) => a.filename);
-    return { contentBlocks, warnings, telemetry };
+  // Shared read model: canonical normalization, filename safety, missing-file
+  // and size handling all live in core so surfaces cannot drift.
+  const model = resolveTicketAttachmentFiles(ticketId, normalizeAttachments(attachmentsList), {
+    maxInlineSizeBytes: MAX_ATTACHMENT_SIZE,
+    recommendedInlineSizeBytes: RECOMMENDED_ATTACHMENT_SIZE,
+  });
+  telemetry.totalCount = model.attachments.length;
+  warnings.push(...model.warnings);
+  for (const warning of model.warnings) {
+    log.warn(warning);
   }
 
-  for (const attachment of normalizedAttachments) {
-    const { filename, type: attachmentType, description, priority } = attachment;
+  for (const resolved of model.attachments) {
+    const { filename, type: attachmentType, description, priority } = resolved;
 
-    // Sanitize filename to prevent path traversal attacks (matches src/api/attachments.ts:171)
-    const safeFilename = filename.replace(/[^a-zA-Z0-9._-]/g, "_");
-    if (safeFilename !== filename) {
-      warnings.push(`Skipped unsafe filename: ${filename}`);
-      log.warn(`Blocked path traversal attempt in attachment: ${filename}`);
+    if (resolved.fileStatus !== "ok") {
       telemetry.failedCount++;
       telemetry.failedFiles.push(filename);
       continue;
-    }
-    const filePath = join(ticketDir, safeFilename);
-
-    if (!existsSync(filePath)) {
-      warnings.push(`Attachment file not found: ${filename}`);
-      telemetry.failedCount++;
-      telemetry.failedFiles.push(filename);
-      continue;
-    }
-
-    let stats;
-    try {
-      stats = statSync(filePath);
-    } catch (err: unknown) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      warnings.push(`Failed to stat file ${filename}: ${errorMsg}`);
-      telemetry.failedCount++;
-      telemetry.failedFiles.push(filename);
-      continue;
-    }
-
-    if (stats.size > MAX_ATTACHMENT_SIZE) {
-      warnings.push(
-        `Skipping ${filename}: File size (${formatFileSize(stats.size)}) exceeds 5MB limit`
-      );
-      telemetry.failedCount++;
-      telemetry.failedFiles.push(filename);
-      continue;
-    }
-
-    // Warn about large files that may not be reliably processed
-    if (stats.size > RECOMMENDED_ATTACHMENT_SIZE) {
-      warnings.push(
-        `${filename} is ${formatFileSize(stats.size)} - files over 1MB may not be processed reliably by all AI clients`
-      );
     }
 
     try {
-      const block = loadSingleAttachment(filePath, filename, stats.size);
+      const block = loadSingleAttachment(resolved);
       contentBlocks.push(block);
       telemetry.loadedCount++;
-      telemetry.totalSizeBytes += stats.size;
+      telemetry.totalSizeBytes += resolved.sizeBytes ?? 0;
       telemetry.filenames.push(filename);
 
       // Track attachment metadata for context generation
