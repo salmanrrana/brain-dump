@@ -410,7 +410,7 @@ Or via install script:
 
 | Feature             | Devcontainer     | Ralph Sandbox        |
 | ------------------- | ---------------- | -------------------- |
-| Base image          | node:20 (Debian) | Alpine               |
+| Base image          | node:24 (Debian) | Alpine               |
 | Purpose             | Development      | Autonomous execution |
 | VS Code integration | Yes              | No                   |
 | Resource limits     | No               | Yes (configurable)   |
