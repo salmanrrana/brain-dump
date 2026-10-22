@@ -4,7 +4,7 @@
 # Alpine-based for smaller image size (~50MB base vs ~180MB Debian)
 # Note: Alpine uses musl libc instead of glibc
 
-FROM node:20-alpine
+FROM node:24-alpine
 
 # Install essential tools
 # --no-cache avoids storing the package index locally (smaller image)

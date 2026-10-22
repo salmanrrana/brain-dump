@@ -185,7 +185,7 @@ Common customizations:
 
 Smaller image size (~150MB vs ~400MB). Faster to download and build.
 
-Tradeoff: Alpine uses musl libc. Some binaries compiled for glibc won't work. If you hit compatibility issues, you can modify the Dockerfile to use `node:20` instead of `node:20-alpine`.
+Tradeoff: Alpine uses musl libc. Some binaries compiled for glibc won't work. If you hit compatibility issues, you can modify the Dockerfile to use `node:24` instead of `node:24-alpine`.
 
 ## Troubleshooting
 

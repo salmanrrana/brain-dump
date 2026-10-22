@@ -6,7 +6,7 @@
 # - Includes build tools for better-sqlite3 (python3, make, g++)
 # - Does NOT pre-install Claude Code (user authenticates in container)
 
-FROM node:20
+FROM node:24
 
 ARG TZ
 ENV TZ="$TZ"

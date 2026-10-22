@@ -1,4 +1,4 @@
-FROM node:20-slim
+FROM node:24-slim
 
 # Install pnpm and build dependencies for better-sqlite3
 RUN corepack enable && corepack prepare pnpm@latest --activate && \
